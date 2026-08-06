@@ -18,9 +18,13 @@ extract → classify → snapshots → metrics → attractiveness → projection
   previsão ingênua, com significância estatística.
 - A validação automática compara 167 pontos contra os artigos e não deixa nenhuma divergência
   sem explicação registrada.
-- As pirâmides quase vazias de blueprint-css em 2012–2013 eram suspeita de bug e são o dado real:
-  seis trimestres batem commit a commit com a API do GitHub, que não registra nenhum commit no
-  projeto depois de meados de 2011 (§17). Projeto morto, retratado como morto.
+- A atividade quase nula do blueprint-css em 2012–2013 era suspeita de bug e é o dado real: seis
+  trimestres batem commit a commit com a API do GitHub, que não registra nenhum commit no projeto
+  depois de meados de 2011 (§17). Projeto morto, retratado como morto.
+- A comparação visual corrigiu o que a conferência numérica não pegava: a pirâmide é um retrato de
+  **estoque**, e as figuras estavam filtrando só quem estava ativo. Isso achatava o homebrew (a
+  barra de ~750 do artigo virava 73) e reduzia o blueprint-css a uma única pessoa. Corrigido, os
+  quatro painéis de 2011 batem em forma com o ESEM'14, e as métricas não se moveram (§18).
 
 ## Não batendo (aberto, com motivo em 1 linha)
 - Distribuição dos tipos A–D: classifico 85 projetos, o artigo classifica 86, e sobra projeto no
@@ -36,8 +40,9 @@ extract → classify → snapshots → metrics → attractiveness → projection
 - ver docs/discrepancias.md para o detalhe técnico de qualquer item aqui
 
 ## Próximo passo
-- Fazer a comparação visual lado a lado das 8 figuras com as originais dos artigos — é critério de
-  aceite declarado e é o único item do "pronto" que ainda depende de olho humano.
+- Terminar a comparação visual lado a lado das 8 figuras com as originais — é critério de aceite
+  declarado e o único item do "pronto" que depende de olho humano. A Fig.2 do ESEM'14 já foi
+  conferida e rendeu uma correção real (§18); faltam as sete restantes.
 - Decidir se jekyll/2011 e a distribuição A–D entram como resíduo aceito e documentado ou se
   ganham mais uma rodada de investigação; hoje estão parados sem hipótese nova.
 - Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato.
