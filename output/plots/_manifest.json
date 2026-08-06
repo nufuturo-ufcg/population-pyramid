@@ -1,0 +1,15 @@
+{
+  "stage": "plots",
+  "ok": {
+    "pyramid-grid-status": "esem14_fig2_status_2011-12-31.png",
+    "pyramid-transition": "esem14_fig3_transicoes.png",
+    "type-scatter": "ieice16_fig5_2013-09-30.png",
+    "pyramid-grid-types": "ieice16_fig6_tipos_2013-09-30.png",
+    "pyramid-grid-centered": "ieice16_fig7_centrados_2013-09-30.png",
+    "pyramid-projection-overlay": "ieice16_fig8_projecao_2013-09-30.png",
+    "abre-table": "ieice16_tab3_tab4.md",
+    "magnet-sticky": "msr14_fig2_2011.png"
+  },
+  "failed": {},
+  "updated_at": "2026-08-06T14:19:20.494563+00:00"
+}
