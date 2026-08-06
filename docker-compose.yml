@@ -1,0 +1,43 @@
+services:
+  # Só sobe nos modos `local` e `download` (profile `withdb`).
+  # No modo `existing_db` o app conecta direto no banco que já está de pé.
+  db:
+    image: mariadb:10.11
+    profiles: ["withdb"]
+    container_name: pyramid-db
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: msr14
+    # 3307 no host pra não colidir com um container msr14 já existente na 3306
+    ports: ["3307:3306"]
+    volumes:
+      # bind-mount READ-ONLY: o dump de 423 MB nunca é copiado nem alterado
+      - "${DATASET_DIR:?DATASET_DIR nao definido — rode `make setup` ou edite .env}/msr14-mysql:/docker-entrypoint-initdb.d/dump.sql:ro"
+      - db-data:/var/lib/mysql
+    command: >
+      --innodb-buffer-pool-size=1G
+      --max-allowed-packet=256M
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+
+  app:
+    build: .
+    container_name: pyramid-app
+    env_file: [.env]
+    environment:
+      DB_HOST: "${DB_HOST:-127.0.0.1}"
+      DB_PORT: "${DB_PORT:-3306}"
+    volumes:
+      - ./output:/app/output
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+
+volumes:
+  db-data:

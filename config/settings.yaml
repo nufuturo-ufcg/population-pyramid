@@ -1,0 +1,145 @@
+# Parâmetros do método. Tudo que é ambíguo nos artigos está aqui, explícito,
+# com a citação da fonte — nada de constante enterrada no código.
+
+projects:
+  # 91 linhas têm forked_from IS NULL; a 108342 (Craftbukkit/Bukkit) é um
+  # namespace fantasma com zero atividade e language NULL. Excluída por ID
+  # explícito: `language IS NOT NULL` também a excluiria, mas por coincidência
+  # dos dados, não por semântica.
+  root_filter: "forked_from IS NULL"
+  exclude_ids: [108342]
+  expected_count: 90
+
+  # ATENÇÃO: `symfony` resolve pra DOIS roots — 51671 symfony/symfony e
+  # 74915 xphere-forks/symfony (fork não rotulado). Busca por nome é
+  # não-determinística; checkpoints.yaml sempre usa ID.
+
+# ---------------------------------------------------------------------------
+# AMBIGUIDADE 1 — taxonomia de eventos.
+# O IEICE16 se contradiz na mesma página 1307:
+#   * Tabela 1  -> `issues` = non-coding, `issues_events` = "excluded in this study"
+#   * a prosa   -> `issue_events` = non-coding, `issues` nem é mencionado
+# As duas leituras dão exatamente "six development activities". O Apêndice A
+# ("based on the classification of the activities as shown in Table 1") aponta
+# pra Tabela 1. O ESEM14 §3 concorda com a PROSA.
+# Rodamos as duas e deixamos os Tipos A-D decidirem.
+# ---------------------------------------------------------------------------
+taxonomy:
+  variant: prose   # table1 | prose
+
+  variants:
+    table1:
+      source: "IEICE16 Tabela 1, p.1307 (+ Apêndice A)"
+      coding: [commits, pull_requests]
+      non_coding: [commit_comments, issues, issue_comments, pull_request_comments]
+      excluded: [issue_events]
+    prose:
+      source: "IEICE16 p.1307 prosa == ESEM14 §3"
+      coding: [commits, pull_requests]
+      non_coding: [commit_comments, issue_comments, pull_request_comments, issue_events]
+      excluded: [issues]
+
+# ---------------------------------------------------------------------------
+# AMBIGUIDADE 2 — escopo de commits (o "primeiro suspeito" do §7.1 do spec).
+# Medido em dez/2011 para homebrew, entre contribuidores ATIVOS (que é o que a
+# pirâmide mostra): root=1446, family_project_commits=1479, family_project_id=1480.
+# Diferença de ~2%. Em contagem cumulativa daria 45%, mas cumulativo não é usado
+# em lugar nenhum do método. Risco baixo; começamos pelo mais simples.
+# ---------------------------------------------------------------------------
+commit_scope: root   # root | family_project_commits | family_project_id
+
+periods:
+  # "we consider that a contributor left a project when he/she did not give any
+  #  contribution on that project for more than three months" (IEICE16 p.1306)
+  inactivity_months: 3
+
+  # "we make software population pyramids with three months groups" (p.1306)
+  band_months: 3
+
+  # "we define newcomers as contributors who have less than three months of
+  #  activity periods" (p.1308)
+  newcomer_max_months: 3
+
+  # AMBIGUIDADE 3 — o que é a "idade" do contribuidor.
+  #
+  #  accumulated_active  soma dos períodos de atividade (leitura literal de
+  #                      "less than three months of ACTIVITY PERIODS", p.1308)
+  #  calendar_tenure     tempo desde a origem, gaps não descontam (leitura
+  #                      demográfica: numa pirâmide etária idade é idade)
+  #
+  # Medido nos Tipos A-D de set/2013 (esperado 23/42/18/3):
+  #   accumulated_active -> 41/42/ 0/ 0   erro L1 = 62   <- C e D VAZIOS
+  #   calendar_tenure    -> 27/39/14/ 3   erro L1 = 11
+  #
+  # accumulated_active é impossível: o artigo tem 21 projetos em C+D e essa
+  # leitura não produz nenhum. Some com quase todo mundo experiente porque
+  # ninguém acumula 3 meses de atividade contínua. Fica `calendar_tenure`,
+  # que é também o que o método demográfico emprestado exige. Ver
+  # docs/discrepancias.md §3.
+  age_basis: calendar_tenure   # calendar_tenure | accumulated_active
+
+snapshots:
+  # Série trimestral cobrindo o dataset. Fim da cobertura é 2013-10-06, mas
+  # issue_comments vai até 2013-10-07 — o corte em 2013-09-30 fica antes dos dois.
+  start: "2010-03-31"
+  end: "2013-09-30"
+  freq_months: 3
+  classification_snapshot: "2013-09-30"   # Fig.5 / Tipos A-D
+  # ATENÇÃO: estas datas têm de existir na série gerada por start/freq_months.
+  # A série é ancorada em fim de trimestre CIVIL (QuarterEnd), então dez cai em
+  # -12-31 e mar em -03-31. Até 2026-08 usava DateOffset(months=3) acumulado, que
+  # grudava tudo no dia 30 a partir do primeiro mês curto — ver §8 de
+  # docs/discrepancias.md. snapshots.py valida e falha alto se não casar.
+  projection_base: ["2013-03-31", "2013-06-30"]
+  projection_target: "2013-09-30"
+
+metrics:
+  # CCR = (coding-non)/coding se coding>=non, senão (coding-non)/non   [p.1308]
+  # NCR = (new-exp)/new       se new>=exp,      senão (new-exp)/exp    [p.1308]
+  # Corte é ZERO, não mediana. `coding` inclui os `moved`.
+  threshold: 0.0
+  coding_includes_moved: true
+
+  # Quadrantes (IEICE16 p.1309, descritos em palavras, não em sinal):
+  #   A: mais newcomers + mais coding      -> CCR > 0, NCR > 0
+  #   B: mais newcomers + mais non-coding  -> CCR < 0, NCR > 0
+  #   C: mais experientes + mais coding    -> CCR > 0, NCR < 0
+  #   D: mais experientes + mais non-coding-> CCR < 0, NCR < 0
+  # Empate exato (CCR ou NCR == 0) o artigo não cobre. Regra fixa no código:
+  # alto = (valor > 0), então zero cai do lado baixo. Não é configurável de
+  # propósito — ver docstring de metrics._type_of e docs/discrepancias.md.
+
+projection:
+  # "the 36 projects that have more than 100 contributors" (p.1311). O artigo
+  # NÃO diz se é cumulativo ou ativo, nem sobre qual snapshot. Grid completo
+  # medido em docs/discrepancias.md §7: nenhuma combinação dá 36.
+  # Melhor variante = base mar/2013, todos os contribuidores ativos -> 35.
+  # O 36º candidato tem 96 ativos (corte cai entre 102 e 96), então é ruído de
+  # fronteira, não erro de método. Aceito: ABRE/Wilcoxon não dependem do n exato.
+  min_contributors: 100
+  min_contributors_basis: active   # active | cumulative
+  # Verbatim do PDF (IEICE16 p.1311, citando Miyazaki et al. [19]):
+  #   MRE  = |x - x̂| / x
+  #   MER  = |x - x̂| / x̂
+  #   ABRE = |x̂ - x| / x   se (x̂ - x >= 0)
+  #        = |x̂ - x| / x̂  se (x̂ - x <  0)
+  # Nos dois ramos o denominador é o MENOR entre x e x̂ — daí `min`. O §5 das
+  # instruções e o plano-replicação.docx concordam com isto; conferido no PDF.
+  abre_denominator: min
+
+attractiveness:
+  # ESEM14 §3.1, base Yamashita et al. MSR'14. Só commits e pull requests.
+  events: [commits, pull_requests]
+  cutoff: median          # recalculada ano a ano
+  # "mais de 10 desenvolvedores ativos" -> comparação ESTRITA (devs > 10).
+  min_active_devs: 10
+
+  # AMBIGUIDADE 4 — "os contribuidores do projeto naquele ano que também
+  # contribuíram no ano seguinte": no MESMO projeto ou em qualquer lugar?
+  #
+  #  project  volta ao mesmo projeto. É o que o Yamashita mede — "sticky" é o
+  #           projeto segurar o dev; um projeto não fica sticky porque o dev
+  #           foi embora e passou a commitar em outro lugar.
+  #  dataset  volta a qualquer projeto dos 90. Só serve para medir o tamanho
+  #           da ambiguidade; infla stickiness de todo mundo.
+  stickiness_scope: project   # project | dataset

@@ -1,0 +1,263 @@
+# Valores extraídos dos PDFs originais, conferidos linha a linha.
+# `pyramid validate` compara a saída do pipeline contra isto.
+# Toda referência a projeto é por ID (nome não é único: 1.175 nomes repetem,
+# e `symfony` sozinho resolve pra 51671 e 74915).
+
+meta:
+  esem14: "Onoue, Hata, Matsumoto. ESEM 2014, pp.1-4. docs/papers/ESEM14.pdf"
+  ieice16: "Onoue, Hata, Monden, Matsumoto. IEICE Trans. Inf. & Syst. E99.D(5):1305-1315, 2016."
+  erratum: "IEICE E99.D(7):1974, 2016 — editorial: adiciona URL da fonte na legenda da Fig.1. Nenhum valor numérico afetado."
+  msr14: >-
+    Yamashita, McIntosh, Kamei, Ubayashi. "Magnet or Sticky? Measuring Project
+    Characteristics from the Perspective of Developer Attraction and Retention."
+    MSR 2014, pp.54-63. docs/papers/MSR14.pdf — fonte primária de magnetismo e
+    stickiness (§3.1 do ESEM14 só cita as métricas, não as define).
+
+# ---------------------------------------------------------------------------
+# IEICE16 Fig.5 — dispersão CCR × NCR, snapshot set/2013
+# "Twenty-three projects are classified as Type A, 42 as Type B, 18 as Type C,
+#  and three as Type D." + "four projects did not have any contributors"
+# ---------------------------------------------------------------------------
+types:
+  snapshot: "2013-09-30"
+  counts: {A: 23, B: 42, C: 18, D: 3}
+  total_classified: 86
+  total_projects: 90
+  unclassified: 4        # sem nenhum contribuidor no período
+  tolerance: exact
+
+  # "jquery and django-cms are Type A, Font-Awesome and gitlabhq are Type B,
+  #  cakephp and CraftBukkit are Type C, homebrew is Type A and rails is Type D"
+  examples:
+    25875: A    # jquery/jquery
+    78835: A    # divio/django-cms
+    79163: A    # mxcl/homebrew
+    49675: B    # FortAwesome/Font-Awesome
+    91020: B    # gitlabhq/gitlabhq
+    63250: C    # cakephp/cakephp
+    22980: C    # Bukkit/CraftBukkit
+    78852: D    # rails/rails
+
+# ---------------------------------------------------------------------------
+# IEICE16 Tabela 3 — ABRE mediano, cohort vs. baseline (menor = melhor)
+# ---------------------------------------------------------------------------
+projection_abre:
+  base_snapshots: ["2013-03-31", "2013-06-30"]
+  target: "2013-09-30"
+  min_contributors: 100
+  n_projects: 36
+  tolerance_rel: 0.02
+  table:
+    #          non_coding        moved            coding           all
+    A: {non_coding: [0.4993, 0.5000], moved: [0.3027, 0.5000], coding: [0.1865, 0.3731], all: [0.2534, 0.5000]}
+    B: {non_coding: [0.5000, 0.6332], moved: [0.3523, 0.5000], coding: [0.5000, 0.5750], all: [0.5000, 0.5917]}
+    C: {non_coding: [0.6711, 1.0000], moved: [0.2500, 0.7179], coding: [0.3684, 0.6250], all: [0.2875, 0.6667]}
+    D: {non_coding: [0.3137, 0.0000], moved: [0.2578, 0.2500], coding: [0.4988, 0.6154], all: [0.3333, 0.7500]}
+    All: {non_coding: [0.5000, 0.6667], moved: [0.3299, 0.5000], coding: [0.4074, 0.5417], all: [0.4000, 0.6000]}
+  # [cohort, baseline] em cada par
+
+# ---------------------------------------------------------------------------
+# IEICE16 Tabela 4 — Wilcoxon pareado, cohort vs. baseline, 95%
+# significant: negrito no PDF = cohort estatisticamente melhor
+# ---------------------------------------------------------------------------
+projection_wilcoxon:
+  tolerance_rel: 0.02
+  table:
+    A: {non_coding: [0.02748, true], moved: [0.01158, true], coding: [0.26867, false], all: [0.00014, true]}
+    B: {non_coding: [0.00037, true], moved: [0.01845, true], coding: [0.06200, false], all: [0.00001, true]}
+    C: {non_coding: [0.05935, false], moved: [0.00035, true], coding: [0.16800, false], all: [0.00013, true]}
+    D: {non_coding: [0.00001, true], moved: [0.02700, true], coding: [0.02901, true], all: [0.00000, true]}
+    All: {non_coding: [0.00000, true], moved: [0.00000, true], coding: [0.00116, true], all: [0.00000, true]}
+  # [p_valor, significativo]
+
+# Curto vs. longo prazo — limiar 1 ano de atividade
+projection_term:
+  short_term_abre_median: 0.4055
+  long_term_abre_median: 0.3333
+  wilcoxon_p: 0.0460
+  significant: true
+
+# ---------------------------------------------------------------------------
+# ESEM14 — atratividade (magnetismo × stickiness)
+# ---------------------------------------------------------------------------
+attractiveness:
+  # Fig.2, snapshot dez/2011
+  "2011-12-31":
+    79163: attractive   # homebrew
+    104307: floating    # paperclip
+    19786: stagnant     # clojure
+    101472: terminal    # blueprint-css
+  # Fig.3, transições jun/2010 -> jun/2011 -> jun/2012 -> jun/2013 (qualitativo)
+  #
+  # Os quatro painéis são renderizados por inteiro, 2013 incluído: a pirâmide é
+  # um retrato de estoque (só olha para trás), então a censura em out/2013 não
+  # afeta a forma. O que a censura mata é a métrica anual de stickiness, que
+  # olha para Y+1 — por isso 2013 não recebe quadrante. O próprio ESEM14 faz
+  # essa distinção no parágrafo do jekyll: crava "terminal" só para 2011 e usa
+  # "balanced shape" (forma) + "we think this project had a possibility to
+  # become attractive or fluctuating" (condicional) para 2013. Ver
+  # docs/discrepancias.md §11.1.
+  shape_only_years: [2013]        # renderiza pirâmide, não atribui quadrante
+  transitions:
+    79163: "vira atrativa a partir de jun/2011 e cresce em altura"
+    101472: "instável/colapsada o período todo"
+    # jekyll: "terminal" é a única categoria formal do artigo (2011); 2013 é
+    # descrito pela forma ("balanced shape"), sem quadrante.
+    79166:
+      classified:
+        2011: terminal
+      shape:
+        2013: balanced
+      nota: >-
+        sai de terminal para forma balanceada em 2013; o artigo não classifica
+        2013, apenas sugere "possibility to become attractive or fluctuating".
+        ATENÇÃO: este 2011 é o único rótulo do artigo que a réplica NÃO
+        reproduz — aqui jekyll é terminal em 2010 e floating em 2011. A
+        divergência é real (não é janela: a ancoragem em junho foi testada e
+        piora), está declarada em known_divergences e analisada no §13.
+
+# ---------------------------------------------------------------------------
+# MSR14 Tabela 2 — "quadrant transition history of the 12 selected projects"
+# (três projetos de cada quadrante, os de história mais longa), 2004-2011.
+#
+# Esta é a única fonte publicada que dá o quadrante de projetos nomeados em
+# vários anos, e não só no snapshot de dez/2011 do ESEM14. Serve de grade de
+# validação larga para o estágio de atratividade: 96 células, das quais 55 são
+# quadrante de verdade e 41 são estrutura (o projeto existir e passar/não
+# passar no filtro de tamanho).
+#
+# Legenda do artigo, verbatim (MSR14, §"Manual analysis"):
+#   "-" means that the project was not yet under development
+#   "*" means that the project started, yet, lacked a large enough contributing
+#       team to satisfy our filtering criteria
+# Ou seja: "-" = sem atividade nenhuma no ano; "*" = ativo mas devs <= 10.
+# Isso torna a coluna de elegibilidade da réplica verificável contra o artigo,
+# e não só o quadrante.
+#
+# A x B C D...: A=attractive F=floating S=stagnant T=terminal
+# ---------------------------------------------------------------------------
+msr14_tab2:
+  years: [2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011]
+  # 2011 vem da última coluna da Tabela 2 ("Quadrant in 2011") e é consistente
+  # com os quatro projetos nomeados no ESEM14 Fig.2 (paperclip floating,
+  # clojure stagnant, blueprint-css terminal, jekyll terminal).
+  grid:
+    "rails/rails":                 "* T S S F F A A"
+    "xbmc/xbmc":                   "- S A A S A T A"
+    "django/django":               "- * * S S S S A"
+    "jquery/jquery":               "- - F T * A F F"
+    "thoughtbot/paperclip":        "- - - * F T F F"
+    "chriseppstein/compass":       "- - - - * F F F"
+    "scala/scala":                 "T T * * A T F S"
+    "memcached/memcached":         "* * T F S T * S"
+    "clojure/clojure":             "- - * * * A A S"
+    "django-debug-toolbar/django-debug-toolbar": "- - - - T T T T"
+    "mojombo/jekyll":              "- - - - F F T T"
+    "joshuaclayton/blueprint-css": "- - - * * T * T"
+
+# ---------------------------------------------------------------------------
+# Travas da réplica — NÃO são valores do artigo.
+# São números que esta replicação produz hoje e que docs/discrepancias.md já
+# analisou. Ficam aqui para que uma mudança de método apareça como divergência
+# em vez de passar despercebida. Mexer em um destes exige atualizar o documento
+# na mesma mudança: `pyramid validate` marca como OBSOLETA a divergência
+# declarada que voltou a bater, justamente para não deixar o texto mentir.
+# ---------------------------------------------------------------------------
+replica_locks:
+  projection_celulas_2pct: 7      # de 40 células da Tabela 3; §12.5
+  projection_direcao_pares: 14    # de 20 pares (empate não conta); §12.5
+  projection_agregado:            # o predicado do §4 que se sustenta; §12.2
+    cohort: 0.4208
+    baseline: 0.5000
+    p: 0.0073
+
+# ---------------------------------------------------------------------------
+# Composição dos painéis das figuras: quem aparece em qual painel, e em que
+# data. É dado do artigo, não escolha da réplica — por isso mora aqui e não
+# dentro do plots.py, onde viraria constante mágica sem procedência.
+# ---------------------------------------------------------------------------
+figures:
+  # "Fig. 6  Examples of software population pyramids of each type.
+  #  (Note that scales are different.)" — a legenda avisa que a escala é por
+  # painel, então a réplica também deixa cada painel se auto-escalar. Impor
+  # régua comum aqui seria "melhorar" a figura para além do original.
+  # Tipo D não aparece na Fig.6 (só 3 projetos no dataset inteiro); os dois
+  # projetos com CCR/NCR ≈ 0 ficam na Fig.7, que é o painel dedicado a eles.
+  ieice16_fig6:
+    snapshot: "2013-09-30"
+    scales: independent
+    rows:
+      A: [25875, 78835]     # jquery/jquery, divio/django-cms
+      B: [49675, 91020]     # FortAwesome/Font-Awesome, gitlabhq/gitlabhq
+      C: [63250, 22980]     # cakephp/cakephp, Bukkit/CraftBukkit
+  # "Fig. 7  Examples of software population pyramids (CCR and NCR are close
+  #  to 0). Scales are different."
+  ieice16_fig7:
+    snapshot: "2013-09-30"
+    scales: independent
+    projects: [79163, 78852]   # mxcl/homebrew (Tipo A), rails/rails (Tipo D)
+  # "Fig. 8  Comparing measured and predicted values of the number of
+  #  contributors." Datas saem de projection_abre (base T−n/T -> alvo).
+  # symfony: o dataset tem dois escopos com esse nome; 51671 é o repositório
+  # raiz e 74915 é `xphere-forks/symfony`, que sequer entra na projeção (não
+  # passa no filtro de 100 contribuidores). Por isso 51671.
+  ieice16_fig8:
+    projects: [17515, 91020, 79163, 78852, 51671, 12]
+  # "Fig. 2  Software population pyramids and the current status." Os projetos
+  # e o status esperado de cada um já estão em `attractiveness` — a figura só
+  # aponta para lá para não haver duas listas para manter em sincronia.
+  esem14_fig2:
+    scales: independent
+    from_attractiveness: "2011-12-31"
+
+# ---------------------------------------------------------------------------
+# Divergências conhecidas: chave do check -> seção de docs/discrepancias.md.
+# Só o que está aqui pode divergir sem quebrar o `pyramid validate`.
+# ---------------------------------------------------------------------------
+known_divergences:
+  # chave do check -> seção de docs/discrepancias.md que a analisa.
+  # Declarar aqui não perdoa nada: o `validate` continua imprimindo a linha,
+  # só muda o rótulo de FALHA para "conhecida". E se a linha voltar a bater,
+  # vira OBSOLETA e o comando falha — para o documento não continuar afirmando
+  # uma divergência que já não existe.
+
+  # Tipos A-D: sobra em A, falta em C. Mesmo viés (novato demais) do §13.
+  types.counts.A: "§3.1"
+  types.counts.B: "§3.1"
+  types.counts.C: "§3.1"
+  types.counts.D: "§3.1"
+  types.total_classified: "§3.1"
+  types.unclassified: "§3.1"
+
+  # jekyll, 5º projeto rotulado da Fig.2: terminal no artigo, floating aqui.
+  attractiveness.2011.79166: "§13"
+
+  # 36 projetos no artigo, 34 aqui: leitura literal de ">100" + ruído de borda.
+  projection.n_projects: "§7"
+
+  # ABRE curto vs. longo prazo inverte, e a inversão não é significativa.
+  projection.term.direcao: "§12.3(c)"
+  projection.term.significancia: "§12.3(c)"
+
+
+  # Tabela 2 do MSR'14: 48/55 (87%). As 7 restantes, todas com causa nomeada.
+  # 4 empates/quase-empates na linha da mediana (margem <= 5,1%) — o desempate
+  # do artigo é irrecuperável: 6 empates exatos, 4 pedem ">" e 2 pedem ">=".
+  "msr14.tab2.2007.xbmc/xbmc": "§16"
+  "msr14.tab2.2009.xbmc/xbmc": "§16"
+  "msr14.tab2.2010.jquery/jquery": "§16"
+  "msr14.tab2.2010.chriseppstein/compass": "§16"
+  # jekyll/2011 — mesma célula do §13, vista pelo outro instrumento.
+  "msr14.tab2.2011.mojombo/jekyll": "§16"
+  # Censura à esquerda por projeto: cobertura do dump antes da migração p/ GitHub.
+  "msr14.tab2.2010.scala/scala": "§16"
+  "msr14.tab2.2011.django/django": "§16"
+
+  # Tabela 3 e 4 célula a célula (40 medianas + 20 p-valores). Informativas por
+  # política do §12.5: com 34 projetos e Tipo D = 3, casar uma mediana de coorte
+  # é acaso, não replicação. O `.*` declara o grupo — enquanto uma célula
+  # divergir, a seção continua descrevendo algo real; se todas baterem, o
+  # validate acusa OBSOLETA e a política tem que ser reescrita.
+  "projection.abre.*": "§12.1"
+  "projection.wilcoxon.*": "§12.1"
+  "projection.direcao.*": "§12.3"

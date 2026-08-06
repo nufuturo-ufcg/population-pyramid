@@ -1,0 +1,19 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Saídas do pipeline (reproduzíveis a partir do banco)
+output/
+logs/
+
+# Dados brutos — o dump tem 423 MB, nunca entra no repo
+data/
+*.sql
+msr14-mysql*
+*.zip
+
+.DS_Store
