@@ -1261,3 +1261,57 @@ pessoas em estoque e 1-2 ativas, a rotatividade é total por aritmética — os
 Nenhuma mudança de código. O caso entra como **precedente de método**: quando
 um número do dump parecer degenerado, a checagem é contra fonte externa
 (API do GitHub), não contra outra tabela do mesmo dump.
+
+### Auditoria do caminho de plotagem: ninguém some entre o dado e a barra
+
+O parágrafo acima só fecha se `plots.py` de fato desenhar **todo** mundo que
+`snapshots.py` marcou `active=True`. Um filtro extra, um `groupby` que colapsa,
+ou uma escala que corta o topo produziriam a mesma figura vazia por motivo
+errado. Auditei `plots.pyramid_frame` (`plots.py:84-107`) linha a linha e testei
+o invariante `count(active=True) == soma das barras desenhadas`.
+
+**Leitura do código.** Há exatamente um filtro, `cut = cut[cut["active"]]`
+(`plots.py:94`), que é o declarado. Os outros quatro pontos onde dado poderia
+sumir em silêncio não somem:
+
+- `pivot_table(..., aggfunc="size")` (`plots.py:99`) tem `dropna=True` por
+  default e descartaria categoria ausente — mas o `.reindex(columns=CATEGORIES,
+  fill_value=0)` logo abaixo repõe as três colunas, e não há `NaN` em `band`
+  nem em `category` para linha nenhuma ser descartada na entrada.
+- `aggfunc="size"` conta **linhas**, não `nunique`: seria inflação se houvesse
+  contribuidor repetido no mesmo snapshot. Não há — `duplicated(['snapshot',
+  'contributor_id']).sum() == 0`.
+- `piv.reindex(range(0, max+1), fill_value=0)` (`plots.py:106`) **acrescenta**
+  bandas vazias no meio da pirâmide, não remove nenhuma.
+- `xmax`/`ymax` (`plots.py:254-258`) são o **máximo da linha inteira** de
+  painéis, logo sempre ≥ o máximo do painel individual: a escala comum da Fig.3
+  nunca corta uma barra ou uma banda alta fora do quadro.
+
+**Teste do invariante.** Comparando o número de `active=True` no parquet de
+snapshots com a soma efetivamente desenhada, em todo o dataset e não só no
+blueprint-css:
+
+```
+uv run python -c "
+import pandas as pd, glob, os
+from pyramid import plots, snapshots
+falhas=[]; n=0; maxv=0
+for p in sorted(glob.glob('output/snapshots/*.parquet')):
+    pid=os.path.basename(p)[:-8]; s=pd.read_parquet(p)
+    if s.empty: continue
+    for t in sorted(s.snapshot.unique()):
+        esperado=int(s[s.snapshot==t]['active'].sum())
+        f=plots.pyramid_frame(s, pd.Timestamp(t))
+        des=0 if f.empty else int(f[snapshots.CATEGORIES].to_numpy().sum())
+        n+=1; maxv=max(maxv,esperado)
+        if esperado!=des: falhas.append((pid,str(t)[:10],esperado,des))
+print('pares checados:', n, '| divergencias:', len(falhas), '| maior populacao:', maxv)"
+```
+
+`pares checados: 1178 | divergencias: 0 | maior populacao: 1844`.
+
+Bate nos 15 snapshots do blueprint-css (incluindo os quatro de zero e o pico de
+7 em 2011-09-30) e nos 1178 pares (projeto, snapshot) do dataset inteiro, até
+uma pirâmide de 1844 pessoas. **A figura vazia é o dado, confirmado agora nos
+dois sentidos:** os zeros são reais (seção acima, contra a API do GitHub) e o
+plot não fabrica zero a partir de dado que existe.
