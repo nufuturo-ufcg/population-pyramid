@@ -23,7 +23,7 @@ extract → classify → snapshots → metrics → attractiveness → projection
   depois de meados de 2011 (§17). Projeto morto, retratado como morto.
 - A comparação visual corrigiu o que a conferência numérica não pegava: a pirâmide é um retrato de
   **estoque**, e as figuras estavam filtrando só quem estava ativo. Isso achatava o homebrew (a
-  barra de ~750 do artigo virava 73) e reduzia o blueprint-css a uma única pessoa. Corrigido, os
+  barra de ~750 do artigo saía 73; com estoque sai 734) e esvaziava o blueprint-css. Corrigido, os
   quatro painéis de 2011 batem em forma com o ESEM'14, e as métricas não se moveram (§18).
 
 ## Não batendo (aberto, com motivo em 1 linha)
