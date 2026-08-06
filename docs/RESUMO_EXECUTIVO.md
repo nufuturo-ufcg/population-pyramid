@@ -18,6 +18,9 @@ extract → classify → snapshots → metrics → attractiveness → projection
   previsão ingênua, com significância estatística.
 - A validação automática compara 167 pontos contra os artigos e não deixa nenhuma divergência
   sem explicação registrada.
+- As pirâmides quase vazias de blueprint-css em 2012–2013 eram suspeita de bug e são o dado real:
+  seis trimestres batem commit a commit com a API do GitHub, que não registra nenhum commit no
+  projeto depois de meados de 2011 (§17). Projeto morto, retratado como morto.
 
 ## Não batendo (aberto, com motivo em 1 linha)
 - Distribuição dos tipos A–D: classifico 85 projetos, o artigo classifica 86, e sobra projeto no
@@ -35,6 +38,9 @@ extract → classify → snapshots → metrics → attractiveness → projection
 ## Próximo passo
 - Fazer a comparação visual lado a lado das 8 figuras com as originais dos artigos — é critério de
   aceite declarado e é o único item do "pronto" que ainda depende de olho humano.
+- O repositório passou a ter história: 8 commits, um por módulo do pipeline, com o baseline pré-git
+  explicado no corpo da mensagem do scaffolding. Daqui em diante, commit atômico por unidade de
+  trabalho.
 - Decidir se jekyll/2011 e a distribuição A–D entram como resíduo aceito e documentado ou se
   ganham mais uma rodada de investigação; hoje estão parados sem hipótese nova.
 - Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato.

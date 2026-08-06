@@ -1151,3 +1151,113 @@ As 7 continuam impressas pelo `pyramid validate`, com rótulo `conhecida` e
 ponteiro para cá — e se qualquer uma voltar a bater, o comando falha por
 `OBSOLETA` (§14). Nenhuma foi silenciada, e o `msr14.tab2.concordancia`
 (≥ 80%) continua sendo o portão que trava regressão no estágio.
+
+## 17. blueprint-css: pirâmide vazia em 4 snapshots é o dado, não o pipeline
+
+Ao gerar as figuras notei que **blueprint-css (`project.id` 101472)** aparece
+com pouquíssimos ou nenhum contribuidor ativo em vários snapshots, enquanto o
+MSR'14 comenta sobre 2012 que "the current contributors of this project are
+different from the previous contributors". Duas hipóteses concorriam, e as duas
+tinham consequência oposta: **(a)** bug de "só pega o último" no
+`classify`/`snapshots` — a construção de spans colapsando a história de cada
+contribuidor no evento mais recente; ou **(b)** atividade real esparsa. É (b),
+e a confirmação veio de fora do dump.
+
+### O sintoma: estoque cresce, fluxo vai a zero
+
+```
+uv run python -c "
+import pandas as pd
+s=pd.read_parquet('output/snapshots/101472.parquet')
+print(s.groupby('snapshot').agg(na_piramide=('contributor_id','nunique'), ativos=('active','sum')).to_string())"
+```
+
+| snapshot | na_piramide | ativos | | snapshot | na_piramide | ativos |
+|---|---|---|---|---|---|---|
+| 2010-03-31 | 22 | 1 | | 2012-03-31 | 38 | 2 |
+| 2010-06-30 | 22 | 1 | | 2012-06-30 | 38 | **0** |
+| 2010-09-30 | 22 | 2 | | 2012-09-30 | 38 | **0** |
+| 2010-12-31 | 26 | 4 | | 2012-12-31 | 39 | 1 |
+| 2011-03-31 | 26 | 1 | | 2013-03-31 | 39 | **0** |
+| 2011-06-30 | 30 | 6 | | 2013-06-30 | 39 | **0** |
+| 2011-09-30 | 35 | 7 | | 2013-09-30 | 40 | 1 |
+| 2011-12-31 | 36 | 1 | | | | |
+
+`na_piramide` é **estoque** e cresce monotonicamente (22 → 40): ninguém sai,
+porque a coorte de um contribuidor é o passado dele. `ativos` é **fluxo**
+(`active` = contribuiu nos 3 meses antes de T, `snapshots.py:163`). Como
+`plots.py:94` filtra `cut = cut[cut["active"]]` — o mesmo filtro que o
+`metrics` usa em CCR/NCR — a figura renderizada em 2012-06-30, 2012-09-30,
+2013-03-31 e 2013-06-30 é uma **pirâmide vazia**. Isso é comportamento
+declarado, não acidente; o que estava em aberto era se os zeros eram reais.
+
+### O dado bruto já responde: trimestres inteiros sem evento
+
+```
+uv run python -c "
+import pandas as pd
+e=pd.read_parquet('output/extract/101472.parquet')
+e['q']=e.timestamp.dt.to_period('Q')
+print(e.groupby('q').agg(eventos=('contributor_id','size'), devs=('contributor_id','nunique')).to_string())"
+```
+
+Os quatro snapshots com `ativos=0` caem exatamente sobre os quatro trimestres
+sem **nenhum** evento no dump: 2012Q2, 2012Q3, 2013Q1 e 2013Q2. Não há evento
+sendo perdido na agregação — não há evento. Dos 514 eventos do projeto, 337
+(65%) estão em 2007-2008; depois de 2011Q3 sobram quatro eventos isolados
+(2011Q4, 2012Q1 com dois, 2012Q4, 2013Q3).
+
+### Ground truth externo: o repo é o certo e a atividade acabou mesmo
+
+O passo que fecha o caso é não confiar no dump para auditar o dump. Primeiro,
+descartar renomeação/transferência (a suspeita do caso `symfony`/`xphere-forks`,
+§10):
+
+```
+curl -sSL -w '\nHTTP %{http_code} | url_efetiva: %{url_effective}\n' \
+  'https://api.github.com/repos/joshuaclayton/blueprint-css'
+```
+
+`HTTP 200`, `url_effective` idêntica à pedida (a API redirige 301 quando houve
+rename ou transfer — não houve), `full_name` = `joshuaclayton/blueprint-css`,
+`fork: false`, `archived: true`, 5283 estrelas. **Repositório único, correto,
+nunca movido.** O `created_at` no GitHub é `2008-08-07`, posterior ao nosso
+primeiro evento (`2007-08-29`): história git importada de antes do GitHub
+existir, o que é consistente e não indica dado corrompido.
+
+Depois, os commits reais do `master` no período, paginando a API com
+`since=2009-01-01T00:00:00Z&until=2013-10-01T00:00:00Z&per_page=100`:
+
+| trimestre | eventos no nosso extract | commits reais (API) | leitura |
+|---|---|---|---|
+| 2009Q1 | 13 | 13 | idêntico |
+| 2009Q2 | 18 | 18 | idêntico |
+| 2009Q3 | 9 | 9 | idêntico |
+| 2010Q1 | 5 | 5 | idêntico |
+| 2010Q2 | 1 | 1 | idêntico |
+| 2010Q3 | 26 | 26 | idêntico |
+| 2010Q4 | 6 | 1 | +5 issues/PRs |
+| 2011Q2 | 25 | 17 | +8 issues/PRs |
+| 2011Q3 | 18 | **0** | só issues/PRs |
+| 2011Q4 … 2013Q3 | 1, 2, 1, 1 | **0, 0, 0, 0** | só issues/PRs |
+
+Seis trimestres batem **commit a commit** com a API, o que valida a extração.
+E a API não tem **nenhum commit no `master` depois de 2011Q2** até out/2013:
+`TOTAL 90` commits em todo 2009-01 → 2013-10. O projeto parou de ser
+desenvolvido em meados de 2011; o que sobra em 2012-2013 são issues e PRs
+avulsos que o dump registra e que a API de commits, por construção, não vê.
+A diferença entre as colunas não é falta no dump — é o `ActivityDataSource`
+contando mais tipos de evento que só commits (§1).
+
+### O que isso resolve
+
+A hipótese (a) está descartada: se fosse "só pega o último", os trimestres
+densos de 2009-2010 também viriam achatados, e eles batem 6/6 com o ground
+truth externo. As pirâmides quase vazias de blueprint-css são **retrato fiel de
+um projeto morto**, e o comentário do MSR'14 sobre 2012 é compatível: com 38
+pessoas em estoque e 1-2 ativas, a rotatividade é total por aritmética — os
+"current contributors" de 2012 são necessariamente outros que os de 2007-2009.
+
+Nenhuma mudança de código. O caso entra como **precedente de método**: quando
+um número do dump parecer degenerado, a checagem é contra fonte externa
+(API do GitHub), não contra outra tabela do mesmo dump.
