@@ -38,9 +38,6 @@ extract → classify → snapshots → metrics → attractiveness → projection
 ## Próximo passo
 - Fazer a comparação visual lado a lado das 8 figuras com as originais dos artigos — é critério de
   aceite declarado e é o único item do "pronto" que ainda depende de olho humano.
-- O repositório passou a ter história: 8 commits, um por módulo do pipeline, com o baseline pré-git
-  explicado no corpo da mensagem do scaffolding. Daqui em diante, commit atômico por unidade de
-  trabalho.
 - Decidir se jekyll/2011 e a distribuição A–D entram como resíduo aceito e documentado ou se
   ganham mais uma rodada de investigação; hoje estão parados sem hipótese nova.
 - Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato.
