@@ -1315,3 +1315,90 @@ Bate nos 15 snapshots do blueprint-css (incluindo os quatro de zero e o pico de
 uma pirâmide de 1844 pessoas. **A figura vazia é o dado, confirmado agora nos
 dois sentidos:** os zeros são reais (seção acima, contra a API do GitHub) e o
 plot não fabrica zero a partir de dado que existe.
+
+> **Revisado pelo §18.** Tudo acima continua valendo como fato sobre os dados —
+> os zeros de `ativos` são reais e a extração bate 6/6 com a API. O que caiu foi
+> a conclusão de que a **figura** devia mostrar esses zeros: a Fig.2 do ESEM14
+> desenha o **estoque**, e é a coluna `na_piramide` desta mesma tabela (36 em
+> dez/2011, não 1) que o artigo plota. A pirâmide de blueprint-css não é vazia
+> no artigo; é um corpo velho sobre uma base vazia — que é a leitura "terminal".
+
+---
+
+## 18. A pirâmide do artigo é estoque, não população ativa (corrigido)
+
+`plots.pyramid_frame` filtrava `cut = cut[cut["active"]]`, alinhando a figura à
+população que o `metrics` usa em CCR/NCR. O raciocínio era defensável ("a figura
+e a tabela têm de contar a mesma gente"), mas está errado quanto ao que o ESEM14
+desenha. **A Fig.2 é um retrato de estoque**: todo mundo que já contribuiu até o
+snapshot, posicionado pela idade acumulada que alcançou. Quem entrou em 2007 e
+parou em 2010 continua na figura de dez/2011.
+
+Isto não foi deduzido do PDF em abstrato — foram duas leituras independentes da
+Fig.2, cada uma capaz de derrubar a hipótese sozinha, e as duas apontando para o
+mesmo lado.
+
+### Leitura 1 — a barra de ~750 do homebrew está na banda errada para `active`
+
+No painel (a), a barra que encosta em ~750 do eixo x não está na base: está
+entre metade do segundo e metade do terceiro quarter de idade, isto é, na
+**banda 1** (3-6 meses). Contagem nossa em `2011-12-31`, `project.id` 79163:
+
+| banda | `active` (esq/dir) | estoque (esq/dir) |
+|---|---|---|
+| 0 | 570 / 375 | 570 / 375 |
+| **1** | **73** / 43 | **734** / 453 |
+| 2 | 25 / 74 | 369 / 344 |
+
+Sob `active` a banda 1 tem 73 pessoas — duas ordens de grandeza abaixo do que a
+figura mostra, e a pirâmide vira um pico solitário na base. Sob estoque tem
+**734**, que encosta num eixo de 750. A banda 0 é idêntica nos dois regimes, e
+isso não é coincidência: quem entrou nos últimos 3 meses é ativo por definição
+(o evento de entrada está dentro da janela de `inactivity_months`). Ou seja, o
+filtro só começa a morder a partir da banda 1 — exatamente onde a discrepância
+aparecia.
+
+### Leitura 2 — blueprint-css tem corpo de pirâmide na figura
+
+Sob `active`, blueprint-css em dez/2011 é **1 pessoa, 1 barra** (§17). Na Fig.2
+ele aparece com várias barras, massa entre 2 e 4 anos de idade e base vazia.
+Sob estoque são **36 pessoas** em 18 bandas, barra máxima 5. Não há como
+confundir os dois desenhos, e só o segundo existe no artigo.
+
+### Efeito nos quatro painéis (dez/2011)
+
+| projeto | `active` total / maior barra | estoque total / maior barra |
+|---|---|---|
+| mxcl/homebrew | 1448 / 570 | 4801 / **734** |
+| thoughtbot/paperclip | 184 / 105 | 889 / 113 |
+| clojure/clojure | 21 / 8 | 96 / 18 |
+| joshuaclayton/blueprint-css | 1 / 1 | 36 / 5 |
+
+### Um terceiro sintoma que era o mesmo bug
+
+A queixa de que a figura mostrava "um bloco inteiro por ano" em vez de quatro
+barras não era problema de plotagem: `band_months: 3` sempre gerou uma barra por
+trimestre e `draw_pyramid` sempre desenhou uma barra por banda (o eixo y só
+*rotula* de ano em ano, `per_year = 12/bm`). Sob `active` o homebrew era
+570-73-25-14 no primeiro ano: a primeira barra engolia visualmente as outras
+três. Sob estoque são 570-734-369-207 e as quatro aparecem. Os três sintomas
+tinham uma causa só.
+
+### O que mudou, e o que deliberadamente não mudou
+
+`config/settings.yaml` ganhou `plots.pyramid_population` (AMBIGUIDADE 5), default
+`stock`, com `active` preservado para reproduzir a leitura antiga. **`metrics`
+não foi tocado**: ele filtra `active` por conta própria (`metrics.py:111`) e
+continua batendo 48/55 na Tabela 2 do MSR'14 (§16). A separação é a mesma que o
+`CLAUDE.md` já aplicava ao 2013 right-censored — **forma é estoque, fluxo é
+ativo** — agora com confirmação empírica vinda da figura.
+
+`pytest -q`: 110 passed (5 novos em `tests/test_plots.py`, que prendem os dois
+regimes, a igualdade da banda 0 e o default `stock` do settings versionado).
+`pyramid validate`: 167 checks, 102 ok, 65 conhecidas —
+**idêntico ao estado anterior à mudança**, nenhuma divergência nova, o que era o
+teste de que a troca não vaza para as métricas.
+
+Fica em aberto o valor exato do eixo do artigo: 734 contra uma leitura visual de
+"até 750" é compatível (o eixo é ≥ a maior barra), mas não é igualdade
+verificada. Não há tabela numérica da Fig.2 no ESEM14 para conferir contra.

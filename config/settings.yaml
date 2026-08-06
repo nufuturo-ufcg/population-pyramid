@@ -143,3 +143,23 @@ attractiveness:
   #  dataset  volta a qualquer projeto dos 90. Só serve para medir o tamanho
   #           da ambiguidade; infla stickiness de todo mundo.
   stickiness_scope: project   # project | dataset
+
+plots:
+  # AMBIGUIDADE 5 — que população a PIRÂMIDE desenha.
+  #
+  #  stock   todo mundo que já contribuiu até o snapshot, posicionado pela
+  #          idade acumulada. Quem entrou em 2007 e parou em 2010 continua
+  #          na figura de 2011, na banda de idade que alcançou.
+  #  active  só quem tem contribuição nos últimos `inactivity_months` — a
+  #          mesma população que `metrics` usa para CCR/NCR.
+  #
+  # `stock` não é chute: duas leituras independentes da Fig.2 do ESEM14
+  # (dez/2011) só fecham com ele — a barra de ~750 do homebrew cai na banda 1
+  # (estoque=734; active=73), e o blueprint-css aparece com corpo de pirâmide
+  # (estoque: 36 pessoas, barra máx. 5; active: 1 pessoa, 1 barra).
+  # Ver docs/discrepancias.md §18.
+  #
+  # Isto NÃO contamina CCR/NCR: `metrics` filtra `active` por conta própria
+  # (metrics.py:111) e segue batendo 48/55. Forma é estoque, fluxo é ativo —
+  # a mesma separação que o CLAUDE.md já aplica ao 2013 right-censored.
+  pyramid_population: stock   # stock | active

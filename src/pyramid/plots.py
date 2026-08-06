@@ -82,16 +82,25 @@ def _theme(ax) -> None:
 # pirâmide
 # ---------------------------------------------------------------------------
 def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
-    """Contagem por (banda, categoria) num snapshot. Só população viva.
+    """Contagem por (banda, categoria) num snapshot.
 
-    O mesmo filtro `active` que o `metrics` usa para CCR/NCR — a pirâmide
-    desenhada tem de ser a mesma população que foi medida, senão a figura e a
-    tabela contam projetos diferentes.
+    População controlada por `plots.pyramid_population` (ver AMBIGUIDADE 5 no
+    settings.yaml). O default é `stock`: a pirâmide é um retrato acumulado, não
+    a foto de quem está ativo agora. Sob `active` a Fig.2 do ESEM14 não fecha —
+    o homebrew perde a barra de ~750 na banda 1 e o blueprint-css desaba para
+    uma única pessoa. `metrics` continua filtrando `active` por conta própria.
     """
     cut = snapshots.require_date_match(
         df[df["snapshot"] == t], t, "snapshot", "plots.pyramid_frame"
     )
-    cut = cut[cut["active"]]
+    populacao = settings()["plots"]["pyramid_population"]
+    if populacao not in ("stock", "active"):
+        raise ValueError(
+            f"plots.pyramid_population inválido: {populacao!r}. "
+            f"Use 'stock' ou 'active'."
+        )
+    if populacao == "active":
+        cut = cut[cut["active"]]
     if cut.empty:
         return pd.DataFrame(columns=["band", *snapshots.CATEGORIES])
 
