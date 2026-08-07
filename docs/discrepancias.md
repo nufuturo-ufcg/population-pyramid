@@ -1981,3 +1981,71 @@ inverte**, e é para isso que a linha do "antes" fica no `checkpoints.yaml`.
 
 A errata correspondente está em `INSTRUCOES_CLAUDE_CODE.MD` §9.5, onde o corpo
 do texto citava 0.4208 / 0.0073 / 7-de-40.
+
+## §28 — Fig.2 do ESEM14, diagnóstico painel a painel (banda a banda)
+
+Leitura do usuário sobre a figura gerada, confrontada com os números. Bandas
+contadas da base (0 = mais jovem) para cima, banda de 90 dias, corte 2011-12-31.
+Coluna "artigo" = leitura em pixel de `/tmp/fig2_medido.json` (±1 pessoa; para o
+clojure vale a leitura mais confiável de `bars_read_clojure` no `checkpoints.yaml`).
+
+### homebrew — a massa está certa, a idade não
+
+| banda | artigo esq | nosso non_coding |
+|---|---|---|
+| 0 | 581 | 565 |
+| 1 | 740 | 733 |
+| 2 | 365 | 357 |
+| 3 | 219 | 216 |
+| 4 | 75 | 46 |
+| 5 | 58 | 39 |
+| 6 | 45 | 37 |
+| 7 | 65 | 33 |
+| 8 | 33 | 27 |
+| 9 | 18 | 18 |
+
+As quatro bandas da base batem dentro de 3%. Da banda 4 para cima somos ~32%
+mais finos (200 contra 294 pessoas). **Mas a população total do painel é
+praticamente igual — 3882 nossos contra 3810 do artigo, +1,9%.** Massa conservada
+com distribuição deslocada para baixo significa uma coisa só: para ~95 pessoas
+nossa data de primeira atividade é mais tarde que a dos autores, e elas caem em
+bandas jovens demais. A banda 7 (a "terceira de cima para baixo" apontada pelo
+usuário) é o pior caso, 33 contra 65, e no artigo ela é um *bump* — quebra a
+monotonia das vizinhas (45 → 65 → 33), o que não sai de um processo de entrada
+que só decai. Sugere um bloco de gente com âncora de idade diferente da nossa.
+
+### paperclip — some uma pessoa no topo, do lado da discussão
+
+Bandas 0–3 são exatas (103/103, 114/116, 90/91, 40/40). O topo (banda 15) tem
+1 pessoa em coding nos dois. A banda 14 tem 1 pessoa em `non_coding` no artigo e
+**0 na nossa** — é o "cara faltando no penúltimo quarter do ano 4 em discussão".
+Uma pessoa cuja atividade mais antiga, para os autores, é de discussão e é ~3
+meses anterior à que temos. Mesmo sinal do homebrew, em escala de 1 pessoa.
+As dissonâncias dos anos 2 e 3 são as bandas 4–10, onde erramos por ±1 pessoa
+em quase todas — dentro do erro da leitura em pixel, mas na mesma direção.
+
+### clojure — o 10 é um empilhamento, não um excesso de gente
+
+Bandas 2, 3, 4: artigo 6/7/7 (total 20), nós 4/10/4 (total 18). O total quase
+bate; o que difere é o *espalhamento*. Nosso pico de 10 na banda 3 é o que faz o
+painel encostar no tick de 10, coisa que o artigo nunca faz (máximo 8, na base).
+Por idade crua a banda 3 tem 11 pessoas e a banda 4 tem 16; o que decide quem
+aparece é o filtro de inatividade, e é ele que concentra 10 na banda 3 e deixa
+só 4 na banda 4. Ou seja: aqui o suspeito **não** é a âncora de idade, é a
+janela de inatividade interagindo com a borda da banda.
+
+### blueprint-css — bate 100%
+
+Confirmado pelo usuário. É o único painel sem gente em `non_coding` no meio da
+pirâmide, o que é consistente com a hipótese acima: sem eventos de discussão,
+não há âncora de idade para errar.
+
+### O fio comum
+
+Três dos quatro painéis erram na mesma direção: **nossa primeira atividade é
+mais tarde que a dos autores**, e o erro aparece onde há discussão. O candidato
+com nome é a `AMBIGUIDADE 1` (§35): `issue_events` está fora do nosso
+`EVENT_COLUMNS`. Se os autores contaram abertura de issue como atividade, todo
+mundo que começou comentando/abrindo issue antes de commitar entra mais cedo na
+pirâmide — exatamente o padrão observado. **Não testado ainda**: exige SQL novo
+em `src/pyramid/sources/` para trazer `issue_events`. É o próximo experimento.
