@@ -173,13 +173,41 @@ plots:
   #  active  só quem tem contribuição nos últimos `inactivity_months` — a
   #          mesma população que `metrics` usa para CCR/NCR.
   #
-  # `stock` não é chute: duas leituras independentes da Fig.2 do ESEM14
-  # (dez/2011) só fecham com ele — a barra de ~750 do homebrew cai na banda 1
-  # (estoque=734; active=73), e o blueprint-css aparece com corpo de pirâmide
-  # (estoque: 36 pessoas, barra máx. 5; active: 1 pessoa, 1 barra).
-  # Ver docs/discrepancias.md §18.
+  # `stock` FOI DESCARTADO — ver docs/discrepancias.md §18 (superada) e §19.
+  # O texto do ESEM14 é explícito: contribuidores "end when they leave the
+  # development communities", e a legenda da Fig.1 conta DOIS contribuidores em
+  # t1 de três desenhados — o developer 2, cujo período já acabou, não entra.
+  # Quem entrou em 2007 e parou em 2010 não está na figura de 2011.
+  # Empiricamente, o estoque enche as bandas 9, 10 e 11 do blueprint-css, que
+  # na Fig.2 estão vazias (teste do buraco, §19) — e esse teste não depende de
+  # escala, ao contrário do argumento de barra que motivou a escolha anterior.
   #
   # Isto NÃO contamina CCR/NCR: `metrics` filtra `active` por conta própria
-  # (metrics.py:111) e segue batendo 48/55. Forma é estoque, fluxo é ativo —
-  # a mesma separação que o CLAUDE.md já aplica ao 2013 right-censored.
-  pyramid_population: stock   # stock | active
+  # (metrics.py:111) e segue batendo 48/55.
+  pyramid_population: active   # stock | active
+
+  # JANELA da população da pirâmide, em meses (§19 — FECHADA).
+  #
+  # Não é mais um chute: as barras da Fig.2 do ESEM14 foram MEDIDAS em pixel
+  # (eixo calibrado pelas linhas de grade: 750/500/250 no homebrew, 100/50 no
+  # paperclip, 10/5 no clojure, 5 no blueprint-css) e comparadas banda a banda
+  # com a réplica em 2011-12-31, varrendo a janela em 3/6/9/12/18/24/∞ meses.
+  # 12 meses minimiza o erro L1 nos QUATRO painéis ao mesmo tempo:
+  #
+  #   janela |  3m   6m   9m  12m  18m  24m   ∞
+  #   homebrew  2560 1369  747  328  594  799  855
+  #   paperclip  355  203   69   33  181  268  364
+  #   clojure     26   18   14   10   25   34   49
+  #   blueprint   12    5    1    2    3    4   23
+  #
+  # Totais em 12m: 3882/524/49/13 contra 3946/535/47/13 medidos (a medição lê
+  # ~2% a mais, é a borda preta da barra). A 3 meses o blueprint-css desaba
+  # para UM contribuidor; a ∞ (estoque) reaparecem as bandas 16-17 que a figura
+  # não tem. Ver docs/discrepancias.md §19.
+  #
+  # Leitura substantiva: com snapshot em fim de ano, "janela de 12 meses" é
+  # "quem contribuiu durante o ano do snapshot" — a pirâmide anual conta a
+  # população do ANO, não a do trimestre. O `inactivity_months: 3` do
+  # MSR14/IEICE16 continua valendo onde o artigo o crava: quebra de períodos
+  # em `classify` e população de CCR/NCR em `metrics`.
+  pyramid_window_months: 12

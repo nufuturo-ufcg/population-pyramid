@@ -209,6 +209,25 @@ figures:
   esem14_fig2:
     scales: independent
     from_attractiveness: "2011-12-31"
+    # Ticks do eixo x LIDOS DA FIGURA DO ARTIGO, lado positivo (o desenho
+    # espelha para a esquerda e acrescenta o 0). Ficam fixos de propósito:
+    # escala automática esconde exatamente o que queremos ver, que é a barra
+    # da réplica passando (ou não) do último tick do artigo. Barra que
+    # ultrapassa continua desenhada inteira — o transbordo é o achado, não um
+    # erro de plotagem. Só a Fig.2 usa isto; as demais seguem auto-escala.
+    x_ticks:
+      79163: [250, 500, 750]   # homebrew
+      104307: [50, 100]        # paperclip
+      19786: [5, 10]           # clojure
+      101472: [5]              # blueprint-css
+    # Barras do painel do clojure LIDAS EM PIXEL da figura do artigo, banda 0
+    # (base) para cima, uma entrada por banda de 3 meses. NÃO é dado publicado:
+    # o ESEM14 não traz tabela numérica da Fig.2. É leitura visual, com erro de
+    # ±1 pessoa por barra, e serve só como alvo de comparação nas varreduras do
+    # §19 de `discrepancias.md` — nenhum check de `validate` depende disto.
+    bars_read_clojure:
+      coding:     [8, 5, 6, 7, 7, 3, 3, 3, 2, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+      non_coding: [1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 # ---------------------------------------------------------------------------
 # Divergências conhecidas: chave do check -> seção de docs/discrepancias.md.

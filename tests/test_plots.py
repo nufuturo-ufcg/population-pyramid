@@ -1,9 +1,13 @@
-"""Guardas da população da pirâmide (docs/discrepancias.md §18).
+"""Guardas da população da pirâmide (docs/discrepancias.md §18 e §19).
 
-A Fig.2 do ESEM14 desenha **estoque**: todo mundo que já contribuiu até o
-snapshot, posicionado pela idade que alcançou. Filtrar `active` aqui foi o bug
-que achatava o homebrew (banda 1 caía de 734 para 73) e esvaziava o
-blueprint-css (36 pessoas para 1). Estes testes prendem essa decisão.
+A Fig.2 do ESEM14 desenha quem **está na comunidade** no snapshot: o artigo diz
+que o contribuidor termina quando deixa o projeto, e a legenda da Fig.1 conta
+dois de três developers por isso. O `stock` (todo mundo que já passou) foi
+tentado e descartado — enche as bandas 9-11 do blueprint-css, vazias no artigo.
+A LARGURA da janela é 12 meses, fixada pela medição em pixel da figura (§20:
+L1 mínimo nos quatro painéis) e não pelo `inactivity_months: 3` das métricas —
+são duas janelas diferentes de propósito. Estes testes prendem a população e o
+fato de a janela vir do settings; o valor 12 é prendido em `test_settings`.
 """
 
 import pandas as pd
@@ -16,8 +20,17 @@ from pyramid.config import CONFIG_DIR
 T = pd.Timestamp("2011-12-31")
 
 
+JANELA_M = 12
+
+
 def _cfg(populacao: str) -> dict:
-    return {"plots": {"pyramid_population": populacao}, "periods": {"band_months": 3}}
+    return {
+        "plots": {
+            "pyramid_population": populacao,
+            "pyramid_window_months": JANELA_M,
+        },
+        "periods": {"band_months": 3},
+    }
 
 
 def _df() -> pd.DataFrame:
@@ -25,6 +38,10 @@ def _df() -> pd.DataFrame:
 
     Reproduz em miniatura a forma real: quem entrou na janela é ativo por
     definição, então o filtro só morde da banda 1 para cima.
+
+    Quem decide não é mais a coluna `active` (essa é a janela de 3 meses do
+    `classify`) e sim `idle_days` contra a janela de `plots` — §19. Os inativos
+    aqui estão a 400 dias, bem além dos ~365 da janela; os ativos a 10.
     """
     linhas = [
         (0, "coding", True),
@@ -40,6 +57,7 @@ def _df() -> pd.DataFrame:
             "band": [b for b, _, _ in linhas],
             "category": [c for _, c, _ in linhas],
             "active": [a for _, _, a in linhas],
+            "idle_days": [10.0 if a else 400.0 for _, _, a in linhas],
             "contributor_id": range(len(linhas)),
         }
     )
@@ -76,7 +94,62 @@ def test_populacao_invalida_falha_alto(monkeypatch):
         plots.pyramid_frame(_df(), T)
 
 
-def test_default_do_settings_e_estoque():
-    """O default versionado é o que reproduz o artigo — trocar exige justificar."""
+def test_default_do_settings_e_active():
+    """O default versionado é o que reproduz o artigo — trocar exige justificar.
+
+    `stock` foi tentado e descartado (discrepancias.md §18 superada / §19): o
+    ESEM14 tira da pirâmide quem já saiu, e o estoque enche as bandas 9-11 do
+    blueprint-css, vazias na Fig.2.
+    """
     cfg = yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
-    assert cfg["plots"]["pyramid_population"] == "stock"
+    assert cfg["plots"]["pyramid_population"] == "active"
+
+
+def test_janela_e_banda_versionadas_sao_as_medidas_na_figura():
+    """12 meses e 90 dias saíram de medição em pixel, não de convenção (§20/§21).
+
+    São dois valores que a simetria pede para mudar e a figura proíbe: a janela
+    da pirâmide (12m) não é a das métricas (`inactivity_months: 3`), e a banda
+    (90d) não é `band_months` × 365.25/12 (= 91.3125). Mexer aqui refaz a §20.
+    """
+    cfg = yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
+    assert cfg["plots"]["pyramid_window_months"] == 12
+    assert cfg["periods"]["band_days"] == 90
+    assert cfg["periods"]["inactivity_months"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Régua do artigo na Fig.2 (checkpoints.yaml esem14_fig2.x_ticks)
+# ---------------------------------------------------------------------------
+def _frame(maior: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        {"band": [0], "non_coding": [0], "moved": [0], "coding": [maior]}
+    )
+
+
+def test_xticks_do_artigo_sao_espelhados_com_zero(monkeypatch):
+    """Tick declarado como [50, 100] vira 100/50/0/50/100, sem sinal."""
+    monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))
+    import matplotlib.pyplot as plt
+
+    _, ax = plt.subplots()
+    plots.draw_pyramid(ax, _frame(30), xticks=[50, 100])
+    assert list(ax.get_xticks()) == [-100.0, -50.0, 0.0, 50.0, 100.0]
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["100", "50", "0", "50", "100"]
+    plt.close("all")
+
+
+def test_xticks_do_artigo_nao_recortam_barra_que_transborda(monkeypatch):
+    """Barra maior que o último tick continua inteira dentro do eixo.
+
+    O transbordo é o achado (a réplica conta mais gente que o artigo); recortar
+    a barra na régua do artigo esconderia exatamente a divergência.
+    """
+    monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))
+    import matplotlib.pyplot as plt
+
+    _, ax = plt.subplots()
+    plots.draw_pyramid(ax, _frame(180), xticks=[50, 100])
+    assert ax.get_xlim()[1] >= 180
+    assert list(ax.get_xticks()) == [-100.0, -50.0, 0.0, 50.0, 100.0]
+    plt.close("all")

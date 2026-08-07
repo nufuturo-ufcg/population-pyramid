@@ -49,6 +49,10 @@ STAGE = "plots"
 # original ao lado.
 BG = "#EBEBEB"
 GRID = "#FFFFFF"
+# Régua de trimestre à esquerda do painel. Não pode ser GRID: o traço aponta
+# para FORA do eixo, cai no fundo branco da figura e some. Cinza médio é a
+# única cor que se lê tanto contra o branco de fora quanto contra o BG.
+TICK = "#9E9E9E"
 
 # Lado não-coding vai para a esquerda (valores negativos), lado coding para a
 # direita, empilhado com `moved` na base. Mesma ordem da Fig.1 do IEICE16.
@@ -85,22 +89,31 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
     """Contagem por (banda, categoria) num snapshot.
 
     População controlada por `plots.pyramid_population` (ver AMBIGUIDADE 5 no
-    settings.yaml). O default é `stock`: a pirâmide é um retrato acumulado, não
-    a foto de quem está ativo agora. Sob `active` a Fig.2 do ESEM14 não fecha —
-    o homebrew perde a barra de ~750 na banda 1 e o blueprint-css desaba para
-    uma única pessoa. `metrics` continua filtrando `active` por conta própria.
+    settings.yaml). O default é `active`: o ESEM14 tira da pirâmide quem já
+    saiu da comunidade (Fig.1 — em t1 só dois dos três developers contam). O
+    `stock` foi tentado e descartado na §18/§19 das discrepâncias. A largura da
+    janela vem de `plots.pyramid_window_months` (12 meses) e NÃO de
+    `periods.inactivity_months` (3): são duas janelas diferentes de propósito,
+    fixadas pela medição em pixel da Fig.2 (§20).
     """
     cut = snapshots.require_date_match(
         df[df["snapshot"] == t], t, "snapshot", "plots.pyramid_frame"
     )
-    populacao = settings()["plots"]["pyramid_population"]
+    cfg = settings()["plots"]
+    populacao = cfg["pyramid_population"]
     if populacao not in ("stock", "active"):
         raise ValueError(
             f"plots.pyramid_population inválido: {populacao!r}. "
             f"Use 'stock' ou 'active'."
         )
     if populacao == "active":
-        cut = cut[cut["active"]]
+        janela = float(cfg["pyramid_window_months"]) * snapshots.DAYS_PER_MONTH
+        if "idle_days" not in cut.columns:
+            raise ValueError(
+                "snapshots sem a coluna `idle_days` — estágio velho. "
+                "Rode `pyramid snapshots --force`."
+            )
+        cut = cut[cut["idle_days"] <= janela]
     if cut.empty:
         return pd.DataFrame(columns=["band", *snapshots.CATEGORIES])
 
@@ -117,13 +130,19 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
 
 
 def draw_pyramid(
-    ax, frame: pd.DataFrame, xmax: float | None = None, ymax: int | None = None
+    ax, frame: pd.DataFrame, xmax: float | None = None, ymax: int | None = None,
+    xticks: list[float] | None = None,
 ) -> tuple[float, int]:
     """Desenha uma pirâmide num eixo. Devolve o (xmax, ymax) usado.
 
     `xmax`/`ymax` existem para o chamador impor escala comum a um conjunto de
     painéis — sem isso, cada painel se auto-escala e a comparação entre eles
     vira ilusão de ótica.
+
+    `xticks` fixa os ticks do lado positivo (o eixo espelha e acrescenta o 0),
+    para reproduzir a régua impressa no artigo. O eixo ainda se estica se a
+    barra passar do último tick: a régua é do artigo, a barra é do dado, e
+    esconder o transbordo seria falsificar a comparação.
     """
     bm = settings()["periods"]["band_months"]
     _theme(ax)
@@ -147,10 +166,16 @@ def draw_pyramid(
     lim = xmax if xmax is not None else (
         max(float(non.max()), float((moved + coding).max()), 1.0) if not frame.empty else 1.0
     )
+    if xticks:
+        lim = max(lim, float(max(xticks)))
     alto = ymax if ymax is not None else topo
     ax.set_xlim(-lim * 1.08, lim * 1.08)
     ax.set_ylim(-0.8, alto + 0.8)
-    ax.axvline(0, color="#4D4D4D", linewidth=0.6)
+    # Eixo central BRANCO e por cima das barras: com banda de 90 dias há
+    # trimestre em que os dois lados estão ocupados, e barra preta encostada em
+    # barra preta virava um bloco só — o leitor não via onde acabava o
+    # `non_coding` e começava o `coding`. Branco corta os dois.
+    ax.axvline(0, color="white", linewidth=0.9, zorder=3)
 
     if frame.empty:
         # Painel vazio mantém a escala dos vizinhos: o vazio é o dado (projeto
@@ -162,17 +187,40 @@ def draw_pyramid(
     # Locator inteiro obrigatório: contribuidor não é fracionário, e em painel de
     # poucas pessoas (blueprint-css tem 1) o default do matplotlib punha tick em
     # ±0.5, que o formato `.0f` abaixo renderizava como um segundo "0" no eixo.
-    ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-    ticks = [t for t in ax.get_xticks() if abs(t) <= lim * 1.08]
+    if xticks:
+        ticks = [-v for v in sorted(xticks, reverse=True)] + [0] + sorted(xticks)
+    else:
+        ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+        ticks = [t for t in ax.get_xticks() if abs(t) <= lim * 1.08]
     ax.set_xticks(ticks)
     ax.set_xticklabels([f"{abs(v):.0f}" for v in ticks])
 
     # Eixo y em anos de idade acumulada — as bandas são de `band_months`, mas o
-    # leitor pensa em anos, e é assim que os artigos rotulam.
+    # leitor pensa em anos, e é assim que o artigo rotula.
+    #
+    # A banda b termina em (b+1)*bm meses, então o rótulo "1 year" cai na banda
+    # 3 (12 meses), não na 0. Sem tick em 0: "0 year" não existe no artigo, e um
+    # tick ali sugeria uma coorte de idade zero que a figura não tem.
+    #
+    # Grade menor em TODA banda: a Fig.2 tem quatro linhas por ano, uma por
+    # trimestre. Só as anuais deixavam a leitura de trimestre impossível — foi
+    # o que fez a réplica parecer um bloco anual por ano.
     per_year = max(int(round(12 / bm)), 1)
-    yt = list(range(0, alto + 1, per_year))
+    yt = list(range(per_year - 1, alto + 1, per_year))
     ax.set_yticks(yt)
-    ax.set_yticklabels([f"{b * bm // 12}" for b in yt])
+    ax.set_yticklabels([
+        f"{(b + 1) * bm // 12} year" + ("s" if (b + 1) * bm // 12 > 1 else "")
+        for b in yt
+    ])
+    ax.set_yticks([b + 0.5 for b in range(-1, alto + 1)], minor=True)
+    ax.grid(True, which="minor", axis="y", color=GRID, linewidth=0.4)
+    ax.grid(False, which="major", axis="y")
+    # Traço cinza para fora em cada fronteira de banda: com quatro bandas por
+    # ano o rótulo anual sozinho não diz em qual trimestre a barra está. O
+    # traço é a régua de trimestre, e fica claro (0.4pt, cinza) para não
+    # competir com a barra.
+    ax.tick_params(axis="y", which="minor", length=3, width=0.6, color=TICK,
+                   direction="out", left=True, right=False)
     return lim, alto
 
 
@@ -402,9 +450,11 @@ def _fig_cfg(nome: str) -> dict:
 
 
 def _cell(ax, sid: int, t: pd.Timestamp, *, sub: str | None = None,
-          xmax: float | None = None, ymax: int | None = None) -> None:
+          xmax: float | None = None, ymax: int | None = None,
+          xticks: list[float] | None = None) -> None:
     """Um painel de grade: pirâmide + nome do projeto + nota de conferência."""
-    draw_pyramid(ax, pyramid_frame(snapshots.load(sid), t), xmax=xmax, ymax=ymax)
+    draw_pyramid(ax, pyramid_frame(snapshots.load(sid), t), xmax=xmax, ymax=ymax,
+                 xticks=xticks)
     ax.set_title(labels().get(int(sid), str(sid)), fontsize=9)
     if sub:
         # Vermelho só quando há divergência; o "=" fica cinza para o olho poder
@@ -432,20 +482,22 @@ def figure_grid_status():
     quad = quad[quad["year"] == ano].set_index("scope_id")
 
     ids = list(esperado)
+    ticks_artigo = {int(k): list(v) for k, v in (cfg.get("x_ticks") or {}).items()}
     fig, axes = plt.subplots(1, len(ids), figsize=(3.0 * len(ids), 3.2), squeeze=False)
     for j, sid in enumerate(ids):
         # Escala por painel: o artigo põe quatro projetos de portes muito
         # diferentes lado a lado e o que ele compara é a *forma*, não o
         # tamanho. Uma régua comum achataria clojure contra homebrew.
         got = quad["quadrant"].get(sid) if sid in quad.index else None
-        _cell(axes[0][j], sid, t, sub=_confere(got, esperado[sid]))
+        _cell(axes[0][j], sid, t, sub=_confere(got, esperado[sid]),
+              xticks=ticks_artigo.get(sid))
         axes[0][j].set_xlabel("contribuidores", fontsize=8)
     axes[0][0].set_ylabel("idade acumulada (anos)", fontsize=8)
 
     _legend(fig)
     fig.suptitle(
         f"ESEM14 Fig.2 — pirâmides e status em {t.date()}"
-        "   (escalas independentes por painel)",
+        "   (eixo x: ticks do artigo; barra que passa do último tick é transbordo real)",
         fontsize=10,
     )
     return _save(fig, f"esem14_fig2_status_{t.date()}", rect=(0, 0.10, 1, 0.94))
