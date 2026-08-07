@@ -1695,9 +1695,14 @@ o efeito colateral nos Tipos A-D antes de tocar no default.
 
 Sintoma visual: no nosso painel a barra da banda 21 (idade 270–360 d) encosta no
 tick 10 do eixo, que é o limite lido do artigo. No artigo essa barra tem ~6 e a
-vizinha (banda 20, 360–450 d) tem 7. **O total das duas bate: 14 no artigo, 14 na
-réplica.** Não é sobrecontagem — é deslocamento de ~3 pessoas entre bandas
-adjacentes.
+vizinha (banda 20, 360–450 d) tem 7. ~~**O total das duas bate: 14 no artigo, 14
+na réplica.** Não é sobrecontagem — é deslocamento de ~3 pessoas entre bandas
+adjacentes.~~
+
+> **ERRO, corrigido em §25.** O total *não* bate: 14 no artigo contra **15** na
+> réplica, e o desvio na banda 21 é de 4 pessoas, não 3. A conta acima somou a
+> réplica errado e por isso a §23 concluiu "deslocamento puro" cedo demais.
+> A leitura correta e o que ela abre está em §25.
 
 ### Teste 1 — geometria (largura da banda × deslocamento de idade)
 
@@ -1779,3 +1784,80 @@ materializada em outros pontos (§10 `symfony`, §13 `jekyll`, §16 as 7 célula
 residuais). O que este repositório não faz é *assumir* isso — cada divergência
 sai com o comando que a produziu, para que a hipótese "erro do artigo" seja
 verificável em vez de conveniente.
+
+## 25. clojure, banda a banda: onde exatamente a réplica difere do artigo
+
+§23 fechou cedo demais e com uma soma errada. Refeita a conta banda a banda,
+alinhando o índice do artigo (banda 1 = topo, 24 bandas) ao nosso (banda 0 =
+base), com `pyramid_frame` de 2011-12-31:
+
+| nossa banda | idade (d) | artigo (coding) | réplica (coding) | |
+|---|---|---|---|---|
+| 0 | 0–90 | 8 | 8 | ok |
+| 1 | 90–180 | 5 | 5 | ok |
+| 2 | 180–270 | 3 | 4 | +1 |
+| **3** | **270–360** | **6** | **10** | **+4** |
+| **4** | **360–450** | **7** | **4** | **−3** |
+| 5 | 450–540 | 3 | 2 | −1 |
+| 6 | 540–630 | 1 | 1 | ok |
+| 7 | 630–720 | 3 | 4 | +1 |
+| 8–10 | 720–990 | 1, 2, 5 | 1, 2, 5 | ok |
+| 11–22 | — | 0 | 0 | ok |
+| 23 | 2070–2160 | 1 | 1 | ok |
+| **total** | | **45** | **47** | **+2** |
+
+Sete das doze bandas povoadas batem exatamente. O erro está concentrado num par:
+a banda 3 sobra 4 pessoas e a banda 4 falta 3. É a banda 3 que encosta no tick 10
+e é isso que se vê no painel.
+
+### O que foi descartado agora
+
+**Largura de banda (varredura ampla).** §23 varreu só 86–92 d, ancorado em "3
+meses ≈ 90 d". Refiz de 60 a 120 d em passos de 0,25. Resultado: o próprio
+artigo trava o parâmetro — o painel do clojure tem **24 bandas** e o
+contribuidor mais velho tem 2107 d, o que força `w ∈ [87,8; 91,6]`. Dentro dessa
+faixa o melhor é `w = 89` (L1 = 8 contra 10 do atual) e a banda 3 continua com 9.
+**Nenhuma largura legítima leva a banda 3 de 10 para 6** — a restrição não é
+escolha minha, é a contagem de bandas do desenho.
+
+**Deslocamento de idade (varredura ampla).** §23 varreu offset de 0 a 20 d.
+Refiz de −120 a +180. O melhor par é `(w = 89, offset = +10 d)`, L1 = 6, e nele a
+banda 3 cai para 8 — abaixo do tick, que é o efeito visual pedido. Mas §23 já
+mediu esse ponto nos outros três painéis: ele **quebra o blueprint-css** (único
+painel hoje exato, L1 0,2 → 7,0) e piora o homebrew em 67. Continua valendo:
+não existe geometria que conserte o clojure sem estragar os outros.
+
+**Artefato de importação em massa.** Hipótese de que os contribuidores da banda 3
+fossem uma leva sintética criada na migração do clojure para o GitHub. Falsa: os
+primeiros eventos deles se espalham de 2010-10-11 a 2011-04-03, um por dia, sem
+nenhum pico de importação. As idades são reais.
+
+### O que fica aberto — e é a hipótese mais forte que sobrou
+
+Dos 11 da banda 3, **6 têm exatamente um evento na vida do projeto** (57490,
+64659, 64666, 64676, 64685, 66395 — cinco commits e um pull request). No dump do
+MSR14 a tabela `users` tem a coluna **`fake`**: o GHTorrent cria uma linha
+sintética para autor de commit identificado só por e-mail, sem conta no GitHub.
+O pipeline hoje **não olha essa coluna** (`grep -rn "fake" src/pyramid/sources/`
+não devolve nada).
+
+Isso interessa porque:
+
+* é um filtro **documentado do dataset**, não um parâmetro ajustável — não cai
+  na armadilha de §21/§23 de tunar geometria até a figura ceder;
+* incide exatamente onde sobra gente (a banda 3), e não onde já bate;
+* explicaria o excesso de +2 no total e parte do +4 da banda 3.
+
+Não dá para concluir agora: o container do MySQL está parado e o teste exige uma
+query nova em `src/pyramid/sources/msr14.py` (SQL não se escreve fora de lá).
+**Atenção ao risco:** tirar os 6 levaria a banda 3 a 4, contra 6 do artigo — pode
+passar do ponto. Só o teste real, nos quatro projetos ao mesmo tempo, decide.
+
+### Estado honesto
+
+A barra do clojure continua encostando no 10 porque a réplica **tem mesmo** 10
+pessoas com 270–360 dias de idade em 2011-12-31, e nenhuma convenção de eixo,
+largura ou origem de idade testada até aqui muda isso sem quebrar painel que já
+está certo. Não vou baixar o tick nem filtrar gente até a barra caber: isso
+esconderia a divergência em vez de explicá-la. Fica aberto, com o próximo teste
+já nomeado (`users.fake`).
