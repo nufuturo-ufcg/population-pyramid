@@ -1861,3 +1861,94 @@ largura ou origem de idade testada até aqui muda isso sem quebrar painel que j�
 está certo. Não vou baixar o tick nem filtrar gente até a barra caber: isso
 esconderia a divergência em vez de explicá-la. Fica aberto, com o próximo teste
 já nomeado (`users.fake`).
+
+## 27. As travas de projeção quebraram em `ee3ba45` (banda de 90 dias), e ninguém re-travou
+
+### O sintoma
+
+`pyramid validate` no HEAD acusa três FALHA, todas no §12.5/§12.2:
+
+| trava | esperado | obtido |
+|---|---|---|
+| `replica_locks.projection_celulas_2pct` | 7/40 | 6/40 |
+| `replica_locks.projection_agregado.cohort` | 0.4208 | 0.3894 |
+| `replica_locks.projection_agregado.p` | 0.0073 | 0.0124 |
+
+Isso é pior do que um número fora de lugar: são travas de deriva da **própria
+réplica**, não valores do artigo. Uma trava de deriva que falha significa que o
+código de hoje não reproduz o código de ontem.
+
+### Quem mexeu
+
+`projection.py` **não foi tocado** desde o commit que o criou:
+
+    git log --oneline 315e42d..HEAD -- src/pyramid/projection.py   # vazio
+
+E as travas foram escritas uma única vez, no commit de scaffolding:
+
+    git log --oneline -S"projection_celulas_2pct" -- config/checkpoints.yaml
+    # f0d888b scaffolding: layout do repo, deps, dataset e docs de referência
+
+Ou seja: o estágio 6 é o mesmo, a trava é a mesma, e mesmo assim o número mudou.
+A projeção conta por banda (`_counts_by_band`, sobre `snaps["band"]`), e a banda
+vem do estágio 3. O único commit posterior que mexe em `snapshots.py` é:
+
+    git log --oneline 315e42d..HEAD -- src/pyramid/snapshots.py
+    # ee3ba45 snapshots: banda de 90 dias e idle_days por contribuidor
+
+`ee3ba45` trocou o corte da banda de `band_months` (3 × 365.25/12 = 91.3125 d)
+para `band_days: 90`. O commit justifica a troca contra os pixels da Fig.2 do
+ESEM14 (§21) e mede o efeito **na figura** — não roda a projeção nem confere as
+travas do §12.5.
+
+### O teste que fecha o caso
+
+Um único parâmetro, todo o resto no HEAD:
+
+    # config/settings.yaml: band_days: 90 -> 91.3125
+    uv run pyramid snapshots --force && uv run pyramid metrics --force \
+      && uv run pyramid projection --force && uv run pyramid validate --report /tmp/valrep_band9131.md
+
+Resultado: **as quatro travas voltam exatas** (7/40, 14/20, cohort 0.4208,
+p 0.0073) e o relatório inteiro fecha em `0 FALHA` (167 checks, conhecida=65,
+ok=102). Voltando a 90, reaparecem as três FALHA. Causa isolada, sem ambiguidade.
+
+### O que isso custa — e por que não re-travei sozinho
+
+A banda não é neutra entre os dois artigos. Comparando os dois relatórios, **16
+checks mudam de status, todos do estágio 6** (nenhum check de figura muda):
+
+* **90 piora 12**: `direcao.A.non_coding`, `direcao.B.coding`,
+  `abre.C.non_coding.cohort` (0.6723 → 0.5492, contra 0.6711 do artigo),
+  `abre.C.all.baseline` (0.6607 → 0.5000, contra 0.6667 do artigo),
+  `wilcoxon.C.non_coding`, `wilcoxon.C.all`, `wilcoxon.D.moved`,
+  `wilcoxon.D.coding`, `wilcoxon.D.all`, e as 3 travas.
+* **90 melhora 4**: `direcao.B.all`, `direcao.C.moved`, `All.moved`, e
+  `abre.C.all.cohort` (0.3475 → 0.2857, contra 0.2875 do artigo — quase exato).
+
+Repare que os `abre.*` são **valores do artigo**, não travas nossas: 91.3125
+ganha em dois deles e perde em um. Então não é "a trava velha defende a si
+mesma" — a banda de 91.3125 concorda mais com a Tabela 3 do IEICE16, enquanto a
+de 90 concorda mais com a Fig.2 do ESEM14 (§21, onde o blueprint-css zera).
+
+É uma ambiguidade real entre dois artigos dos mesmos autores, e as duas saídas
+são defensáveis; nenhuma delas é "arredondar pra ficar perto". Fica **aberto**
+para decisão, com as opções nomeadas:
+
+1. **Manter 90 e re-travar** o §12.5/§12.2 nos valores novos, registrando aqui
+   que a escolha comprou a Fig.2 ao preço de 12 checks da Tabela 3. A trava
+   volta a ser trava, mas o histórico de que já batemos 0.4208 tem de ficar.
+2. **Voltar para 91.3125** e assumir o erro L1 da Fig.2 (blueprint-css sai do
+   exato) — desfaz §21.
+3. **Duas bandas** (90 na figura, 91.3125 na projeção). Tecnicamente reproduz
+   tudo, mas é exatamente o que a checagem em `snapshots.band_days()` foi
+   escrita para impedir, e não tem defesa no texto de nenhum dos dois artigos.
+   Só valeria se aparecesse evidência de que os autores cortaram diferente em
+   cada paper.
+
+### A lição de processo
+
+`ee3ba45` mediu o efeito da mudança na figura que motivou a mudança, e só nela.
+O estágio 6 consome o mesmo parquet e ficou fora do teste. Regra que passa a
+valer: **mudou `snapshots.py` ou o bloco `periods:`, roda `validate` inteiro
+antes de commitar** — a banda é insumo de tudo que vem depois dela.
