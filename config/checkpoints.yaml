@@ -163,13 +163,20 @@ msr14_tab2:
 # na mesma mudança: `pyramid validate` marca como OBSOLETA a divergência
 # declarada que voltou a bater, justamente para não deixar o texto mentir.
 # ---------------------------------------------------------------------------
+# RE-TRAVADO em ee3ba45 (banda de 3 meses passou de 365,25/12 = 91,3125 dias
+# para 90 dias de mês comercial). Os valores anteriores, válidos até 315e42d,
+# estão preservados na coluna "antes" — a errata completa, com o porquê da
+# mudança de banda e o custo dela, está em docs/discrepancias.md §27 e em
+# INSTRUCOES_CLAUDE_CODE.MD §9.5. Não apague a coluna "antes": é ela que
+# permite auditar que a trava mudou por decisão registrada, e não para deixar
+# o `validate` verde.
 replica_locks:
-  projection_celulas_2pct: 7      # de 40 células da Tabela 3; §12.5
-  projection_direcao_pares: 14    # de 20 pares (empate não conta); §12.5
+  projection_celulas_2pct: 6      # antes: 7 — de 40 células da Tabela 3; §12.5
+  projection_direcao_pares: 14    # inalterado — de 20 pares (empate não conta); §12.5
   projection_agregado:            # o predicado do §4 que se sustenta; §12.2
-    cohort: 0.4208
-    baseline: 0.5000
-    p: 0.0073
+    cohort: 0.3894               # antes: 0.4208
+    baseline: 0.5000             # inalterado
+    p: 0.0124                    # antes: 0.0073
 
 # ---------------------------------------------------------------------------
 # Composição dos painéis das figuras: quem aparece em qual painel, e em que

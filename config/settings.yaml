@@ -48,6 +48,21 @@ taxonomy:
 # ---------------------------------------------------------------------------
 commit_scope: root   # root | family_project_commits | family_project_id
 
+# ---------------------------------------------------------------------------
+# AMBIGUIDADE 6 — identidade. O GHTorrent abre uma linha em `users` por
+# identidade que consegue resolver, e a MESMA pessoa costuma ter uma conta
+# "cheia" mais satelites de 1-5 eventos (e-mail de commit que ele nao casou com
+# a conta do GitHub). Sem fundir, a piramide conta a pessoa N vezes E a
+# rejuvenesce: cada satelite tem primeiro-evento proprio. Medido: clojure tem 6
+# grupos por nome completo (9 ids a menos), blueprint-css 1 (o dono),
+# paperclip 18, homebrew 291. Ver discrepancias.md §26.
+#   none        -> um user.id = uma pessoa (comportamento ate s25)
+#   email       -> funde por users.email (seguro; so 3 pares nos 4 projetos)
+#   email_name  -> email + users.name com >=2 tokens fora da lista de nomes
+#                  vazios. Pega o volume, mas admite falso positivo (dois
+#                  "david miller" de verdade viram um).
+identity_merge: none
+
 periods:
   # "we consider that a contributor left a project when he/she did not give any
   #  contribution on that project for more than three months" (IEICE16 p.1306)

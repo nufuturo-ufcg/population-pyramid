@@ -1952,3 +1952,32 @@ para decisão, com as opções nomeadas:
 O estágio 6 consome o mesmo parquet e ficou fora do teste. Regra que passa a
 valer: **mudou `snapshots.py` ou o bloco `periods:`, roda `validate` inteiro
 antes de commitar** — a banda é insumo de tudo que vem depois dela.
+
+### Decisão (2026-08-07): opção 1 — manter 90 e re-travar
+
+Escolhida a opção 1. As três travas foram atualizadas em `config/checkpoints.yaml`,
+com os valores anteriores preservados em comentário `# antes:` na mesma linha:
+
+| trava | antes (até `315e42d`) | agora (`ee3ba45`) |
+|---|---|---|
+| `projection_celulas_2pct` | 7/40 | 6/40 |
+| `projection_agregado.cohort` | 0.4208 | 0.3894 |
+| `projection_agregado.p` | 0.0073 | 0.0124 |
+| `projection_direcao_pares` | 14/20 | 14/20 (inalterado) |
+| `projection_agregado.baseline` | 0.5000 | 0.5000 (inalterado) |
+
+O desempate **não** foi por proximidade numérica — nesse quesito as duas bandas
+empatam na prática (L1 da Tabela 3: 5,1054 para 90 contra 4,9574 para 91,3125,
+3% de diferença em 40 células, dentro do ruído). Foi pela hierarquia de critérios
+da linha 168 da spec: os projetos nomeados da Fig.2 devem bater **exatamente**,
+enquanto a Tabela 3 célula a célula **não é critério de aceite**. Com 90 o
+blueprint-css bate banda a banda; com 91,3125 não.
+
+**O custo, dito sem maquiagem:** o Wilcoxon célula a célula cai de 11/20 para
+7/20 pares concordando com o artigo. O predicado agregado — que é o critério —
+passa nas duas bandas (cohort 0,3894 < baseline 0,5000, p=0,0124 < 0,05). Se
+algum dia o critério de aceite mudar para célula a célula, **esta decisão se
+inverte**, e é para isso que a linha do "antes" fica no `checkpoints.yaml`.
+
+A errata correspondente está em `INSTRUCOES_CLAUDE_CODE.MD` §9.5, onde o corpo
+do texto citava 0.4208 / 0.0073 / 7-de-40.

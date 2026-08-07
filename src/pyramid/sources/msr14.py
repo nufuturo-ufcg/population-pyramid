@@ -14,7 +14,7 @@ from functools import cache
 
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Engine, bindparam, create_engine, text
 
 from ..config import ROOT
 from .base import EVENT_COLUMNS, ActivityDataSource, validate_canonical_schema
@@ -130,6 +130,7 @@ class MSR14Source(ActivityDataSource):
         self.exclude_ids = list(p.get("exclude_ids") or [])
         self.expected = p.get("expected_count")
         self.commit_scope = settings["commit_scope"]
+        self.identity_merge = settings.get("identity_merge", "none")
 
         variant = settings["taxonomy"]["variant"]
         spec = settings["taxonomy"]["variants"][variant]
@@ -223,5 +224,139 @@ class MSR14Source(ActivityDataSource):
         df = df.rename(columns={"ts": "timestamp"})
         df["scope_id"] = scope_id
         df["contributor_id"] = df["contributor_id"].astype("int64")
+        df = _fundir_identidades(df, self.identity_merge, scope_id)
         df = df[EVENT_COLUMNS].reset_index(drop=True)
         return validate_canonical_schema(df, scope_id=scope_id)
+
+
+# --- diagnóstico de identidade ------------------------------------------------
+# GHTorrent cria uma linha em `users` por identidade que ele consegue resolver.
+# A MESMA pessoa pode ter mais de uma linha (conta antiga vs nova, e-mail de
+# commit que ele não casou com a conta do GitHub, `fake` gerado a partir do
+# autor do commit). Isso infla a população da pirâmide e REJUVENESCE a pessoa:
+# cada identidade carrega só um pedaço do histórico dela. Só existe aqui, fora
+# do pipeline — é investigação, não é estágio. Ver discrepancias.md §24.
+_USERS_SQL = "SELECT * FROM users WHERE id IN :ids"
+
+
+def get_identities(ids: list[int]) -> pd.DataFrame:
+    """Linha crua de `users` para cada contributor_id. Diagnóstico só."""
+    if not ids:
+        return pd.DataFrame()
+    with engine().connect() as cx:
+        return pd.read_sql(
+            text(_USERS_SQL).bindparams(bindparam("ids", expanding=True)),
+            cx,
+            params={"ids": [int(i) for i in ids]},
+        )
+
+
+_PROJ_SQL = """
+SELECT p.id, u.login AS owner, p.name, p.language, p.created_at, p.forked_from
+FROM projects p JOIN users u ON u.id = p.owner_id
+WHERE p.id IN :ids
+"""
+
+
+def get_projects(ids: list[int]) -> pd.DataFrame:
+    """owner/name de cada project.id. Diagnóstico só — serve pra provar que o
+    id no checkpoints.yaml é o projeto que o rótulo diz que é."""
+    with engine().connect() as cx:
+        return pd.read_sql(
+            text(_PROJ_SQL).bindparams(bindparam("ids", expanding=True)),
+            cx,
+            params={"ids": [int(i) for i in ids]},
+        )
+
+
+# --- fusão de identidades -----------------------------------------------------
+# Nomes que aparecem em `users.name` mas não identificam ninguém: fundir por
+# eles juntaria pessoas diferentes. Lista fechada, não heurística de tamanho.
+_NOMES_VAZIOS = {
+    "unknown", "none", "n/a", "na", "null", "admin", "administrator",
+    "system administrator", "root", "nobody", "your name", "user", "test",
+    "guest", "-", "--", "?",
+}
+
+
+def _chave_nome(v: object) -> str | None:
+    if not isinstance(v, str):
+        return None
+    s = " ".join(v.strip().lower().split())
+    if not s or s in _NOMES_VAZIOS:
+        return None
+    # Um token só ("tim", "thomas", "david") não identifica pessoa: em homebrew
+    # colide dezenas de vezes. Exige nome + sobrenome.
+    return s if len(s.split()) >= 2 else None
+
+
+def _chave_email(v: object) -> str | None:
+    if not isinstance(v, str):
+        return None
+    s = v.strip().lower()
+    return s if "@" in s and not s.startswith("@") else None
+
+
+def _alias_map(users: pd.DataFrame, modo: str) -> dict[int, int]:
+    """`{id_duplicado: id_canonico}`. Canônico = menor id do grupo (estável e
+    reprodutível; qual id sobrevive não muda contagem nem idade, porque a fusão
+    reagrega TODOS os eventos do grupo)."""
+    chaves = [("email", _chave_email)]
+    if modo == "email_name":
+        chaves.append(("name", _chave_nome))
+
+    # union-find pobre: basta encadear grupos que compartilham email OU nome.
+    pai: dict[int, int] = {}
+
+    def find(x: int) -> int:
+        while pai.get(x, x) != x:
+            x = pai[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            pai[max(ra, rb)] = min(ra, rb)
+
+    for col, fn in chaves:
+        if col not in users.columns:
+            continue
+        k = users[col].map(fn)
+        for _, grp in users[k.notna()].groupby(k):
+            ids = sorted(int(i) for i in grp["id"])
+            for outro in ids[1:]:
+                union(ids[0], outro)
+
+    return {int(i): find(int(i)) for i in users["id"] if find(int(i)) != int(i)}
+
+
+def _fundir_identidades(df: pd.DataFrame, modo: str, scope_id: int) -> pd.DataFrame:
+    """Reescreve `contributor_id` para o id canônico da pessoa.
+
+    O GHTorrent abre uma linha em `users` por identidade que consegue resolver;
+    a mesma pessoa costuma ter uma conta "cheia" e satélites de 1-5 eventos
+    (e-mail de commit não casado com a conta). Sem fundir, a pirâmide conta a
+    pessoa N vezes E a rejuvenesce: cada satélite tem primeiro-evento próprio.
+    Ver discrepancias.md §26.
+    """
+    if modo == "none" or df.empty:
+        return df
+    if modo not in {"email", "email_name"}:
+        raise ValueError(f"identity_merge invalido: {modo!r} (none | email | email_name)")
+
+    ids = [int(i) for i in df["contributor_id"].unique()]
+    users = get_identities(ids)
+    if users.empty:
+        return df
+    mapa = _alias_map(users, modo)
+    if not mapa:
+        return df
+
+    df = df.copy()
+    df["contributor_id"] = df["contributor_id"].map(lambda i: mapa.get(int(i), int(i))).astype("int64")
+    log.info(
+        "scope %s: %d identidades fundidas em %d pessoas (%d -> %d)",
+        scope_id, len(mapa), len({v for v in mapa.values()}), len(ids), df["contributor_id"].nunique(),
+        extra={"scope_id": scope_id, "stage": "extract"},
+    )
+    return df
