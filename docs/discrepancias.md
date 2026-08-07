@@ -1402,3 +1402,248 @@ teste de que a troca não vaza para as métricas.
 Fica em aberto o valor exato do eixo do artigo: 734 contra uma leitura visual de
 "até 750" é compatível (o eixo é ≥ a maior barra), mas não é igualdade
 verificada. Não há tabela numérica da Fig.2 no ESEM14 para conferir contra.
+
+## 19. Sobrecontagem da Fig.2: o mecanismo é o contribuidor de evento único
+
+Investigação aberta pelo pedido de "ver o quanto a regra precisa mexer para
+esses caras sumirem" (buraco do blueprint-css) e por "clojure nunca bate o
+número 10". Tudo abaixo é medido em `2011-12-31` (a data da Fig.2, ver §18),
+por `project.id`, com `taxonomy.variant: prose` e `band_days: 90`.
+
+### 19.1 O mecanismo
+
+Idade é tempo de calendário desde o primeiro evento (`age_basis:
+calendar_tenure`) e **não para de crescer quando a pessoa some**. Quem fez um
+único commit e nunca voltou continua envelhecendo uma banda a cada trimestre,
+migrando para o meio da pirâmide. Na janela de 12 meses, esses contribuidores de
+evento único são:
+
+| projeto | pop. (janela 12m) | evento único | % |
+|---|---|---|---|
+| clojure/clojure | 49 | 22 | 45% |
+| joshuaclayton/blueprint-css | 13 | 9 | 69% |
+
+E é exatamente onde a réplica estoura o artigo:
+
+* clojure banda 3 (9-12 meses): nossa 10, artigo 7 — **7 dos 10 são de evento
+  único** (`age_days == idle_days`, um dia só de atividade, entre jan e mar/2011).
+* blueprint-css bandas 1 e 2: nossas 4+4, artigo 1+1 — **7 dos 8 são de evento
+  único**.
+
+Não é bug de extração nem de plotagem: é a interação entre idade de calendário e
+uma população larga demais.
+
+### 19.2 Corte por número mínimo de eventos: refutado
+
+A tentação era exigir ≥2 eventos para entrar na pirâmide. **Não funciona, e a
+própria Fig.2 derruba**: a banda 0 do clojure no artigo tem 8 pessoas, que é
+exatamente o que contamos com *todo mundo* dentro; com `nev >= 2` a banda 0 cai
+para 4 e o erro total contra o artigo sobe de 18 para 28. Ou seja, o artigo
+conta sim quem só apareceu uma vez — o problema não é a pessoa existir, é ela
+continuar envelhecendo depois de sumir.
+
+| clojure, janela 12m | banda 0..7 | erro vs artigo |
+|---|---|---|
+| todos | 8, 5, 4, 10, 4, 2, 1, 4 | **18** |
+| `nev >= 2` | 4, 2, 1, 4, 4, 2, 1, 4 | 28 |
+| `nev >= 3` | 1, 0, 0, 4, 3, 2, 1, 4 | 35 |
+
+### 19.3 Os três regimes de população, lado a lado
+
+Vetor do artigo lido em pixel no painel do clojure (lado coding, banda 0 para
+cima): `8, 5, 6, 7, 7, 3, 3, 3, 2, 5, 5`, total ~58.
+
+| projeto | regime | total | maior esq | maior dir | banda 0..3 (dir) |
+|---|---|---|---|---|---|
+| homebrew | `active` 3m | 1448 | 565 | 368 | 368, 124, 75, 56 |
+| homebrew | janela 12m | 3882 | **733** | 451 | 368, 451, 336, 380 |
+| homebrew | estoque | 4801 | **733** | 451 | 368, 451, 336, 380 |
+| paperclip | `active` 3m | 184 | **103** | 24 | 24, 7, 5, 2 |
+| paperclip | janela 12m | 524 | 114 | 36 | 24, 36, 31, 22 |
+| paperclip | estoque | 889 | 114 | 36 | 24, 36, 31, 22 |
+| clojure | `active` 3m | 21 | 1 | 8 | 8, 1, 0, 2 (erro 37) |
+| clojure | janela 12m | 49 | 1 | 10 | 8, 5, 4, 10 (erro **18**) |
+| clojure | estoque | 96 | 1 | 16 | 8, 5, 4, 10 (erro 45) |
+| blueprint-css | `active` 3m | 1 | 0 | 1 | 1, 0, 0, 0 |
+| blueprint-css | janela 12m | 13 | 1 | 4 | 1, 4, 4, 0 |
+| blueprint-css | estoque | 36 | 1 | 5 | 1, 4, 4, 0 |
+
+Ticks do artigo (lidos da figura, ver `checkpoints.yaml`): homebrew 750,
+paperclip 100, clojure 10, blueprint-css 5.
+
+Duas observações que mudam a discussão do §18:
+
+1. **Janela 12m e estoque são idênticos nas bandas 0-3 em todos os quatro
+   projetos.** Uma janela de inatividade de 12 meses só consegue matar quem já
+   tem idade ≥ 4 bandas. Toda a diferença entre os dois regimes está no
+   meio/topo da pirâmide.
+2. **Nenhum regime ganha em todo tick, e tick é proxy ruim.** `active` 3m é o
+   único que fica dentro do tick do paperclip (103 vs 100) e acerta a maior
+   barra do clojure (8), mas esvazia o homebrew (565 contra um eixo de 750) e
+   reduz blueprint-css a uma pessoa. Janela 12m encosta no homebrew (733 contra
+   750), acerta o total do clojure (49 vs ~58) e a estrutura do blueprint-css,
+   mas estoura a banda 3 do clojure (10 vs 7) e passa o tick do paperclip (114
+   vs 100). Estoque é o pior contra o clojure (erro 45). Comparar *ticks* mede
+   uma barra por painel; a comparação banda a banda contra os pixels (§20) é o
+   critério que decide, e lá 12 meses ganha nos quatro.
+
+Ordem de aderência à Fig.2 medida no único painel com vetor completo lido
+(clojure): **janela 12m (18) > `active` 3m (37) > estoque (45)**.
+
+O estado versionado é o do meio: `pyramid_population: active` (a reversão do
+§18) **com `pyramid_window_months: 12`**. Vale registrar o que isso quer dizer,
+porque a nomenclatura engana: "ativo" na pirâmide não é o mesmo "ativo" das
+métricas. `metrics` usa `inactivity_months: 3` (que o MSR14 crava) para CCR/NCR;
+a pirâmide usa 12 meses (que a medição da figura escolhe, §20). Com snapshot em
+fim de ano, "janela de 12 meses" lê-se como *quem contribuiu durante o ano do
+snapshot* — a pirâmide anual conta a população do ano, não a do trimestre. A
+linha `active` 3m da tabela acima é só a referência de quanto se perderia
+casando as duas janelas: o blueprint-css desaba para uma pessoa.
+
+A queixa que motivou a reversão do §18 fica parcialmente resolvida: a barra
+máxima do clojure cai de 16 (estoque) para 10, e a banda 3 continua sendo o
+resíduo aberto — 10 contra 7, sete deles de evento único (19.1). Não há regra de
+população que conserte a banda 3 sem estragar a banda 0, que hoje bate exata.
+
+### 19.4 Resíduo que não é população
+
+As bandas 2 e 3 do clojure divergem em qualquer regime (nossas 4 e 10, artigo 6
+e 7) — e como bandas 0-3 são invariantes ao regime (19.3, obs. 1), isso **não é
+questão de população, é de idade/banda**. A soma das duas bate exatamente
+(14 = 14), o que é compatível tanto com um deslocamento de fronteira quanto com
+erro de leitura em pixel de duas barras vizinhas. Varreduras que não mexeram
+nisso, todas com o vetor do artigo como alvo:
+
+* `band_days` ∈ {90, 91, 91.3125, 92}: erro 19, 17, 17, 15 — jitter, não sinal.
+* Banda por trimestre civil (`4*ano+trim` de diferença) em vez de dias: erro 17.
+  Com deslocamento de −1 trimestre: 29 (destrói a banda 0, que hoje bate exata).
+* Origem da idade no primeiro evento de qualquer tipo em vez de `start_ref`:
+  **no-op no clojure**, que não tem nenhum contribuidor `moved`.
+* Data do snapshot: varredura em toda a série trimestral × 8 janelas confirma
+  `2011-12-31` + 12m como mínimo global (19) — a data da Fig.2 não está errada.
+
+### 19.5 `age_basis: accumulated_active` fica refutado (AMBIGUIDADE)
+
+Rodando o mesmo painel com idade = soma dos períodos de atividade (descontando
+os silêncios), a pirâmide do clojure colapsa na base: banda 0 passa de 8 para 32
+na janela de 12m, o topo cai da banda 23 para a 20 e o erro contra o artigo vai
+de 18 para 63. O artigo desenha pirâmides altas, com massa até 4-5 anos de
+idade; idade acumulada não produz isso em nenhuma variante testada
+(janelas 3/6/12/18/24/∞, erro 47..108). **`calendar_tenure` fica como leitura
+única**, agora por evidência da figura e não só pela analogia demográfica.
+
+### 19.6 clojure não serve para decidir a taxonomia (AMBIGUIDADE 1)
+
+O clojure praticamente não tem discussão no dump — em todo 2011: 2.669 commits
+contra 27 `issue_comments`, **zero** `issue_events` e **zero**
+`pull_request_comments` (o projeto usava JIRA/Assembla, não as issues do
+GitHub). Por isso o lado non-coding do painel do clojure é quase vazio na
+réplica (1, 0, 1, 1 nas bandas 0-3) — e é quase vazio no artigo também, o que é
+uma confirmação a mais de que o dump é o mesmo.
+
+Consequência prática: tirar `issue_events` da taxonomia (variante `table1`) não
+move um único contribuidor no clojure nem no blueprint-css, e move muito nos
+outros dois:
+
+| projeto | pop. estoque `prose` | sem `issue_events` | efeito |
+|---|---|---|---|
+| homebrew | 4801 | 4419 | −8% (maior barra 733 → 579) |
+| paperclip | 889 | 807 | −9% (maior barra 114 → 81) |
+| clojure | 96 | 96 | 0 |
+| blueprint-css | 36 | 36 | 0 |
+
+Como a maior barra do homebrew sem `issue_events` (579) fica bem abaixo do eixo
+de 750 do artigo e com `issue_events` encosta (733), a Fig.2 continua apoiando
+a leitura `prose`. Registrado como mais um voto, não como decisão fechada —
+a decisão da AMBIGUIDADE 1 continua com os Tipos A-D.
+
+## 20. Como a Fig.2 do ESEM14 foi medida em pixel (método e limites)
+
+As seções §19 e §21 decidem coisas contra "o que a figura mostra". Isso só vale
+se a leitura da figura for reprodutível, então fica aqui o procedimento inteiro,
+com os comandos.
+
+### 20.1 Procedimento
+
+```sh
+# Fig.2 está na página 3 do PDF.
+pdftoppm -r 200 -f 3 -l 3 -png docs/papers/ESEM14.pdf /tmp/fig2
+```
+
+Sobre o PNG resultante (200 dpi), por painel:
+
+1. **Calibrar o eixo x** pelas linhas de grade brancas do fundo cinza, cujos
+   valores estão impressos: 250/500/750 no homebrew, 50/100 no paperclip, 5/10
+   no clojure, 5 no blueprint-css. Duas grades dão a escala px→pessoa e a
+   posição do zero. Os mesmos valores estão em
+   `config/checkpoints.yaml: esem14_fig2.x_ticks`.
+2. **Calibrar o eixo y** pelas linhas de grade horizontais, que no artigo caem
+   de ano em ano; a banda é 1/4 da distância entre duas grades (`band_months: 3`).
+3. **Ler cada barra** como uma corrida de pixels escuros na linha do centro da
+   banda, para a esquerda (non-coding) e para a direita (coding) do zero.
+
+O vetor do clojure lido assim está congelado em
+`config/checkpoints.yaml: esem14_fig2.bars_read_clojure`, e é o alvo das
+varreduras do §19.
+
+### 20.2 Limite conhecido: a borda da barra
+
+A barra desenhada tem contorno preto, e o contorno entra na corrida de pixels.
+Isso infla a leitura sistematicamente em ~2%: totais medidos 3946 / 535 / 47 /
+13 (homebrew / paperclip / clojure / blueprint-css) contra 3882 / 524 / 49 / 13
+da réplica na janela de 12 meses. O erro é para cima e é o mesmo em todos os
+painéis, então **diferenças de ±2% não são achado**; o que se usa aqui é a forma
+(qual banda tem barra, qual está vazia) e diferenças grandes.
+
+Por isso o teste que mais pesa nas decisões não é o de tamanho, é o **teste do
+buraco**: banda vazia na figura tem de estar vazia na réplica. Buraco não tem
+borda para inflar, não depende de calibração de escala e não perdoa: o
+blueprint-css tem a banda 3 vazia entre barras cheias, e é isso que derruba
+tanto o estoque (§19.3) quanto `band_days: 91.3125` (§21).
+
+### 20.3 Varredura da janela (L1 banda a banda, contra os pixels)
+
+Erro L1 somando todas as bandas dos dois lados, por projeto e por janela de
+inatividade da pirâmide (`plots.pyramid_window_months`), em `2011-12-31`:
+
+| janela | 3m | 6m | 9m | **12m** | 18m | 24m | ∞ (estoque) |
+|---|---|---|---|---|---|---|---|
+| homebrew | 2560 | 1369 | 747 | **328** | 594 | 799 | 855 |
+| paperclip | 355 | 203 | 69 | **33** | 181 | 268 | 364 |
+| clojure | 26 | 18 | 14 | **10** | 25 | 34 | 49 |
+| blueprint-css | 12 | 5 | 1 | 2 | 3 | 4 | 23 |
+
+12 meses é o mínimo nos quatro painéis (no blueprint-css, 9m ganha por 1 pessoa
+— dentro do ruído de uma barra unitária, e 9m perde feio nos outros três). É
+esta tabela, e não o argumento de barra do §18, que fixa
+`pyramid_window_months: 12`.
+
+## 21. `band_days: 90`, e não 365.25/12 — a banda usa mês comercial
+
+`periods.band_months: 3` é literal no artigo ("three months groups", p.1306),
+mas "três meses" em dias não é óbvio: 3 × 365.25/12 = 91,3125 dias contra 90 de
+mês comercial. A diferença parece decorativa — 1,3 dia por banda — mas ela
+desloca quem está na fronteira, e a Fig.2 tem gente na fronteira.
+
+Varrendo as duas larguras contra os pixels (§20), com a janela em 365,25 dias:
+
+| largura da banda | L1 total (4 painéis) | blueprint-css |
+|---|---|---|
+| **90,0000 d** | **437** | **0 — exato, banda a banda** |
+| 91,3125 d | 481 | 2 |
+
+90 ganha em todas as janelas testadas (360, 364, 365, 365,25, 366, 370 dias).
+No blueprint-css o resultado é categórico: com 90 as seis bandas do artigo batem
+uma a uma, **incluindo o buraco na banda 3 e o topo na banda 15**; com 91,3125 o
+contribuidor do topo cai uma banda, o buraco some e a réplica desenha três
+quadrados grudados — que foi exatamente o sintoma reportado na inspeção visual
+("o quarto quadrado está logo acima dos três, sem o espaço vazio"). No paperclip
+o mesmo 90 põe o topo na banda 15, que é o que faz o rótulo do eixo bater em
+"4 years" como no artigo.
+
+Fica registrado o incômodo, porque ele é real: a **janela** da pirâmide continua
+em 365,25 dias (com 360 o blueprint-css desencaixa), enquanto a **banda** usa
+mês de 30 dias. O artigo não usa uma convenção só, e unificar por gosto de
+simetria quebra a réplica. `band_days` é chave própria em
+`config/settings.yaml` justamente para isso ficar explícito em vez de escondido
+numa constante.
