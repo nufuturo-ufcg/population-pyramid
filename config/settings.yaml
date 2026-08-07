@@ -38,6 +38,17 @@ taxonomy:
       coding: [commits, pull_requests]
       non_coding: [commit_comments, issue_comments, pull_request_comments, issue_events]
       excluded: [issues]
+    # NÃO é leitura do artigo — é teste de limite. O §28 mostrou que em 3 dos 4
+    # painéis da Fig.2 nossa primeira atividade cai MAIS TARDE que a dos
+    # autores. `issues.created_at` (abertura) é a âncora mais antiga que o dump
+    # oferece e é a única que `prose` deixa de fora. `union` liga tudo ao mesmo
+    # tempo: se nem assim a idade recuar o bastante, a hipótese "faltava um tipo
+    # de evento" morre. Ver docs/discrepancias.md §29.
+    union:
+      source: "teste de limite (§29) — não é leitura do artigo"
+      coding: [commits, pull_requests]
+      non_coding: [commit_comments, issues, issue_comments, pull_request_comments, issue_events]
+      excluded: []
 
 # ---------------------------------------------------------------------------
 # AMBIGUIDADE 2 — escopo de commits (o "primeiro suspeito" do §7.1 do spec).

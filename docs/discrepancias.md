@@ -2049,3 +2049,94 @@ com nome é a `AMBIGUIDADE 1` (§35): `issue_events` está fora do nosso
 mundo que começou comentando/abrindo issue antes de commitar entra mais cedo na
 pirâmide — exatamente o padrão observado. **Não testado ainda**: exige SQL novo
 em `src/pyramid/sources/` para trazer `issue_events`. É o próximo experimento.
+
+## 31. O eixo estava virado: §19–§30 compararam a Fig.2 de cabeça para baixo
+
+**Erro meu, no medidor, não no pipeline.** A comparação banda a banda contra os
+pixels da Fig.2 — que sustenta tudo o que foi escrito de §19 a §30 — estava
+espelhada no eixo vertical.
+
+Causa exata. Em `/tmp/measure_fig2.py` a lista `YT` guarda os centros das barras
+em **y crescente** (homebrew: 286.5 … 485.5) e, em coordenada de imagem, y
+cresce para baixo. O laço faz `band=k+1`, então `band=1` é a barra do **topo**
+do painel (a coorte mais velha). Já `snapshots.band` é 0-based de **baixo para
+cima** (`0 = (0,90]d`, os recém-chegados). O harness comparava `art[b]` contra
+`nossa_band[b]`, casando o topo do artigo com a base da réplica.
+
+O mapeamento correto é `art_band = N - nossa_band`, com `N` = número de bandas
+do painel.
+
+### 31.1 Efeito na medida
+
+Snapshot `2011-12-31`, população `active`, janela 12m, `band_days: 90`:
+
+| projeto | pop. artigo | pop. réplica | L1 como estava | L1 corrigido | L1/pop |
+|---|---|---|---|---|---|
+| homebrew | 3810 | 3882 | 6624 | **363** | 9.5% |
+| paperclip | 519 | 524 | 997 | **38** | 7.3% |
+| clojure | 46 | 49 | 91 | **11** | 23.1% |
+| blueprint-css | 13 | 13 | 22 | **0** | 0% |
+| **total** | | | **7734** | **411** | |
+
+A réplica da Fig.2 é ~19× melhor do que este log vinha registrando. O
+blueprint-css bate **exato**, célula a célula. As populações totais dos quatro
+painéis batem dentro de 2%.
+
+Sintoma que deveria ter denunciado o erro antes: a distribuição "do artigo"
+saía invertida (topo largo, base estreita), o que não é uma pirâmide. E o
+usuário, lendo a figura a olho, afirmou desde cedo que o primeiro ano dos quatro
+painéis batia e que o blueprint-css batia inteiro — as duas coisas verdadeiras e
+as duas contraditas pelos meus números. **A leitura visual estava certa e a
+numérica errada durante toda a investigação.**
+
+### 31.2 O que sobrevive
+
+A varredura de parâmetros foi refeita com a orientação correta e **nenhuma
+decisão muda**:
+
+| parâmetro | alternativas | L1 corrigido |
+|---|---|---|
+| população | `active` / `stock` | **411** / 1512 |
+| janela | 6 / 9 / **12** / 15 / 18 / 24 m | 1542 / 782 / **411** / 728 / 971 / 1316 |
+| `band_days` | **90** / 91.3125 | **411** / 444 |
+
+Ou seja: §18 (population = `active`), §19 (janela de 12 meses) e §21
+(`band_days: 90`, onde o blueprint-css zera) continuam de pé, agora por margem
+menor e por motivo confiável. A errata da Tabela 3 (§27) não é afetada — ela
+depende de `band_days`, cuja escolha se mantém.
+
+### 31.3 O que fica invalidado
+
+Índices de banda e magnitudes de resíduo relatados em **§19, §22, §23, §25, §28
+e §29** estão espelhados e superestimados. Concretamente:
+
+- §23 ("clojure, bandas 20/21: 3 pessoas trocadas") — as bandas são as 3/4
+  contadas de baixo; o resíduo do clojure inteiro é de 11 células.
+- §28 e §29 (tabelas painel a painel) — a coluna "artigo" precisa ser lida na
+  ordem inversa.
+- §19 ("sobrecontagem … o mecanismo é o contribuidor de evento único"): a
+  sobrecontagem existe, mas vale ~14% no lado *coding* das bandas jovens do
+  homebrew, não o fator que estava registrado.
+- A conclusão de §30 sobre `issue_events`/`union` (§28, §29) foi tirada contra o
+  alvo errado e precisa ser refeita — ver §31.4.
+
+Não foram reescritas: ficam como registro do que se acreditou e quando, que é o
+propósito deste log.
+
+### 31.4 O resíduo que sobrou, agora legível
+
+Homebrew concentra 363 dos 411. A assinatura é única e limpa: no **lado coding
+das bandas jovens** temos sistematicamente ~14% de gente a mais que o artigo.
+
+| banda (artigo) | artigo, coding | réplica, coding |
+|---|---|---|
+| 10 (base, 0–90d) | 320 | 368 |
+| 9 (90–180d) | 393 | 451 |
+| 8 (180–270d) | 294 | 336 |
+| 7 (270–360d) | 332 | 380 |
+
+O lado da discussão bate quase exato nas mesmas bandas (581→565, 740→733,
+365→357, 219→216). Então não é a régua de idade nem a janela: é **quem conta
+como `coding`**. Próximo experimento: a fronteira `coding` × `non_coding` no
+`classify.py` contra a taxonomia da Tabela 1 do ESEM14 (`AMBIGUIDADE 3`), medida
+contra este alvo agora corrigido.

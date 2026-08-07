@@ -227,6 +227,19 @@ figures:
       104307: [50, 100]        # paperclip
       19786: [5, 10]           # clojure
       101472: [5]              # blueprint-css
+    # ATENÇÃO À ORIENTAÇÃO. Este vetor é indexado como `snapshots.band`: índice
+    # 0 = BASE da pirâmide = (0,90]d = recém-chegados. A figura do artigo é
+    # desenhada com a idade crescendo para CIMA, então quem lê os pixels de uma
+    # imagem varre na ordem inversa desta lista. Casar as duas ordens erradas
+    # espelha a comparação inteira e foi exatamente o que aconteceu de §19 a
+    # §30 — ver `discrepancias.md` §31. Confira sempre contra a banda 0, que é
+    # a maior barra do painel.
+    #
+    # PENDENTE: esta leitura discorda de `/tmp/fig2_medido.json` (a leitura de
+    # §20, que cobre os 4 painéis) nas bandas 2-4 do clojure — 6/7/7 aqui
+    # contra 3/6/7 lá. São duas leituras em pixel do mesmo painel de 24 bandas
+    # em 225px (9,4px por banda). Nenhuma das duas é dado publicado.
+    #
     # Barras do painel do clojure LIDAS EM PIXEL da figura do artigo, banda 0
     # (base) para cima, uma entrada por banda de 3 meses. NÃO é dado publicado:
     # o ESEM14 não traz tabela numérica da Fig.2. É leitura visual, com erro de

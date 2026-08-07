@@ -80,3 +80,26 @@ def test_check_dates_rejeita_target_inexistente():
     cfg["snapshots"]["projection_target"] = "2013-10-01"
     with pytest.raises(ValueError, match="projection_target"):
         snapshots.check_dates(cfg)
+
+
+def test_banda_zero_e_a_base_da_piramide():
+    """Trava a ORIENTAÇÃO do eixo de idade: `band` cresce com a idade.
+
+    `band=0` são os recém-chegados (a base larga da pirâmide) e a banda maior é
+    a coorte mais velha (o topo estreito). A figura do artigo é desenhada com a
+    idade crescendo para cima, então quem lê os pixels dela varre na ordem
+    INVERSA desta coluna. Casar as duas ordens espelha a comparação inteira e
+    foi o que aconteceu de §19 a §30 do `discrepancias.md` — ver §31.
+
+    Se este teste cair, todo alvo lido em pixel (`checkpoints.yaml`
+    `figures.esem14_fig2.bars_read_clojure`) precisa ser reindexado junto.
+    """
+    import numpy as np
+    import pandas as pd
+
+    bd = snapshots.band_days()
+    idades = pd.Series([1.0, bd, bd + 1.0, 3 * bd])
+    bandas = (np.ceil((idades / bd).round(9)).astype(int) - 1).clip(lower=0)
+
+    assert list(bandas) == [0, 0, 1, 2]
+    assert bandas.iloc[0] < bandas.iloc[-1], "banda tem de crescer com a idade"
