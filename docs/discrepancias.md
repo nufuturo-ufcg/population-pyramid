@@ -1647,3 +1647,135 @@ mês de 30 dias. O artigo não usa uma convenção só, e unificar por gosto de
 simetria quebra a réplica. `band_days` é chave própria em
 `config/settings.yaml` justamente para isso ficar explícito em vez de escondido
 numa constante.
+
+## 22. Parâmetros de plot por projeto? Não — o resíduo é do homebrew, não do painel
+
+Hipótese levantada na inspeção visual: os autores podem ter desenhado cada
+painel da Fig.2 com parâmetros próprios (largura de banda, janela, definição de
+população), o que explicaria os quatro painéis baterem com qualidade diferente.
+
+Teste: com **um único jogo de parâmetros** (`band_days: 90`, janela de 365,25
+dias, população = ativo no snapshot, taxonomia `prose`) comparar banda a banda,
+lado a lado, contra os pixels medidos em §20. Snapshot 2011-12-31.
+
+| painel | bandas | esquerda (non_coding) | direita (moved+coding) |
+|---|---|---|---|
+| blueprint-css | 16/16 | exato | exato |
+| paperclip | 16/16 | ±1 pessoa (b6, b7, b11) | +6 concentrado na b13 |
+| clojure | 24/24 | exato | deslocamento local b20↔b21 |
+| homebrew | 10/10 | déficit nas bandas velhas | excesso nas bandas novas |
+
+Se cada painel tivesse parâmetros próprios, o erro seria *aleatório entre
+painéis*. Não é: três dos quatro batem com o mesmo jogo, e o blueprint-css bate
+**banda a banda nos dois lados**, o que é forte demais para coincidência com
+parâmetro errado. **Hipótese descartada.**
+
+O que sobra é específico do homebrew, e tem assinatura, não é ruído de escala:
+
+| banda | artigo esq | nós esq | artigo dir | nós dir |
+|---|---|---|---|---|
+| 3 (velha) | 65,4 | 33 | 0,0 | 8 |
+| 6 | 75,5 | 46 | 183,7 | 191 |
+| 7 | 219,0 | 216 | 332,2 | 380 |
+| 9 (nova) | 739,9 | 733 | 392,6 | 451 |
+
+O artigo põe **mais gente do lado non_coding nas bandas velhas** e **menos do
+lado coding nas bandas novas**. Como o lado é decidido por `init_c` (data do
+primeiro evento de coding), e não por CCR, o suspeito não é a taxonomia — é o
+**escopo de commit** (`commit_scope`, AMBIGUIDADE 2), que só morde no homebrew
+porque é o único dos quatro com volume de commits fora do root. Antecipar um
+`init_c` joga a pessoa do lado esquerdo para o direito e, por ser data de
+*primeiro* evento, também muda a banda. Direção compatível com o sinal medido.
+
+Próximo passo registrado (não executado): rodar `commit_scope:
+family_project_commits` só para medir o L1 do homebrew contra §20 — e conferir
+o efeito colateral nos Tipos A-D antes de tocar no default.
+
+## 23. clojure, bandas 20/21: 3 pessoas trocadas de banda, sem parâmetro que conserte
+
+Sintoma visual: no nosso painel a barra da banda 21 (idade 270–360 d) encosta no
+tick 10 do eixo, que é o limite lido do artigo. No artigo essa barra tem ~6 e a
+vizinha (banda 20, 360–450 d) tem 7. **O total das duas bate: 14 no artigo, 14 na
+réplica.** Não é sobrecontagem — é deslocamento de ~3 pessoas entre bandas
+adjacentes.
+
+### Teste 1 — geometria (largura da banda × deslocamento de idade)
+
+Varredura de `band_days` ∈ {86, 88, 89, 90, 91, 91.3125, 92} × offset de idade
+∈ {0, 5, 10, 15, 20} d, L1 contra os pixels de §20:
+
+| band_days | offset | L1 total | homebrew | paperclip | clojure | blueprint |
+|---|---|---|---|---|---|---|
+| **90** | **0** | **411,3** | 362,7 | 37,7 | 10,7 | **0,2** |
+| 89 | 0 | 429,0 | 372,8 | 42,4 | 8,8 | 5,0 |
+| 91 | 0 | 430,0 | 373,9 | 43,4 | 12,5 | 0,2 |
+| 89 | 10 | 527,1 | 429,9 | 83,5 | **6,7** | 7,0 |
+
+`(90, 0)` é o mínimo global e o único ponto que zera o blueprint-css. O melhor
+resultado para o clojure isolado — `(89, 10)`, L1 6,7 — quebra o blueprint (7,0)
+e piora o homebrew em 67 e o paperclip em 46. **Não existe geometria que arrume
+o clojure sem destruir os outros três.** §21 fica confirmado por um segundo
+caminho.
+
+### Teste 2 — regra de população
+
+Hipótese de §19 (o contribuidor de evento único infla a base). Testada de frente,
+sempre com `band_days: 90`:
+
+| regra | L1 total | homebrew | paperclip | clojure | blueprint | N clojure |
+|---|---|---|---|---|---|---|
+| **janela 12 m (atual)** | **411,3** | 362,7 | 37,7 | 10,7 | **0,2** | 49 |
+| janela 12 m, sem evento único | 1328,8 | 1081,5 | 225,2 | 17,1 | 5,0 | 32 |
+| `active` (3 m) | 2848,6 | 2471,1 | 340,1 | 25,5 | 11,9 | 21 |
+| `active` ∪ multi-evento | 1378,5 | 1070,6 | 274,3 | 24,5 | 9,1 | 55 |
+| janela 12 m e span ≥ 90 d | 3447,9 | 2985,0 | 424,2 | 27,8 | 10,9 | 21 |
+
+**Hipótese descartada, e com folga.** Tirar o contribuidor de evento único
+triplica o erro e piora o clojure também (17,1 contra 10,7). O evento único não
+é ruído a filtrar: ele é parte da população que o artigo desenha. §19 fica
+corrigido nesse ponto — o mecanismo lá descrito existe, mas não é o que separa a
+réplica do artigo.
+
+### O que sobra
+
+As 11 pessoas da banda 21 têm idades 271, 283, 291, 301, 307, 308, 310, 317, 347,
+350 e 356 dias — nove delas num aperto de 271–317 d, uma leva real de estreantes
+do começo de 2011. Para casar com o artigo, três teriam de ser ~10 dias mais
+velhas. Nenhuma convenção de calendário testada produz isso sem mover o resto.
+
+Num painel onde 1 pessoa = 1 unidade e o eixo vai a 10, três pessoas na fronteira
+é o piso de ruído do menor dos quatro projetos. Fica **aberto e medido** (L1 =
+10,7 em 47 pessoas), não fechado como "ok". A barra encostar no tick 10 é
+consequência disso, não erro de plotagem: o eixo é o do artigo e a réplica tem
+mesmo 11 ali.
+
+## 24. As figuras do IEICE16 (2016): o que dá para checar e o que não dá
+
+Pergunta recorrente: "as figuras do 2016 estão batendo?" A resposta depende da
+figura, porque duas das três não têm número nenhum para bater.
+
+| figura | natureza | como é checada | status |
+|---|---|---|---|
+| Fig. 6 | qualitativa — "Examples… (Note that scales are different.)" | os 6 projetos têm de cair nos Tipos A/B/C certos | ok (`msr14.tab2.concordancia` 48/55 = 87 %) |
+| Fig. 7 | qualitativa — "CCR and NCR are close to 0" | homebrew (A) e rails (D) nos quadrantes certos | ok |
+| Fig. 8 | **quantitativa** — medido × predito | §12, coorte-componente | parcial |
+
+Fig. 6 e 7 são galerias de exemplo com escala por painel; a própria legenda avisa
+disso. Não existe eixo comum nem valor impresso, então "bater" ali significa só
+que o projeto está no tipo certo — e isso está travado no `validate`.
+
+A Fig. 8 é a única com conteúdo numérico, e é onde a divergência mora:
+
+* **direção** (coorte erra menos que baseline): 15 de 21 casos ok;
+* **valor absoluto do ABRE**: 7 de 40 ok, 33 divergentes (§12.1).
+
+Ou seja, o resultado *qualitativo* do IEICE16 — a projeção por coorte é melhor
+que a ingênua — reproduz; os números absolutos da Tabela 3/4 não. Isso é
+consistente com §12.1 e não foi contornado: está registrado como divergência
+conhecida, não como acerto.
+
+Sobre "o problema pode estar no artigo": é uma possibilidade real e já
+materializada em outros pontos (§10 `symfony`, §13 `jekyll`, §16 as 7 células
+residuais). O que este repositório não faz é *assumir* isso — cada divergência
+sai com o comando que a produziu, para que a hipótese "erro do artigo" seja
+verificável em vez de conveniente.
