@@ -56,6 +56,26 @@ periods:
   # "we make software population pyramids with three months groups" (p.1306)
   band_months: 3
 
+  # Largura da banda EM DIAS, para cortar a idade. Não é `band_months` × 365.25/12
+  # (= 91.3125) — é 90, mês de 30 dias. Isso foi medido, não escolhido: erro L1
+  # do frame contra os pixels da Fig.2 do ESEM14, nos quatro projetos, varrendo
+  # a largura da banda e a janela da pirâmide (ver `discrepancias.md` §21):
+  #
+  #     banda 90.0000d  janela 365.25d  ->  L1 = 437   blueprint-css = 0 (exato)
+  #     banda 91.3125d  janela 365.25d  ->  L1 = 481   blueprint-css = 2
+  #
+  # 90 ganha em TODA janela testada (360, 364, 365, 365.25, 366, 370), e no
+  # blueprint-css zera: as seis bandas do artigo batem uma a uma, incluindo o
+  # buraco na banda 3 e o topo na 15. Com 91.3125 esse contribuidor cai na
+  # banda 3 e o buraco some — é o "quadrado sem espaço vazio" que o desenho
+  # denunciava. Mesma coisa no paperclip: com 90 o topo vai para a banda 15 e o
+  # eixo mostra "4 years", como no artigo.
+  #
+  # O incômodo é real e fica registrado: a janela de 12 meses da pirâmide segue
+  # valendo 365.25 dias (com 360 o blueprint-css DESencaixa). Ou seja, o artigo
+  # não usa um mês só. Não unificar por gosto de simetria — o dado manda.
+  band_days: 90
+
   # "we define newcomers as contributors who have less than three months of
   #  activity periods" (p.1308)
   newcomer_max_months: 3

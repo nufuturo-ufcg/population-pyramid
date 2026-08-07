@@ -36,10 +36,17 @@ import pytest
 
 from pyramid.classify import DAYS_PER_MONTH, coding_events, profile
 from pyramid.config import settings
-from pyramid.snapshots import pyramid_at
+from pyramid.snapshots import band_days, pyramid_at
+
+# O "mês" da Fig.4 do IEICE16 é o mês da BANDA (90/3 = 30 dias), não 365.25/12.
+# O exemplo é sintético e afirma "C3 tem exatamente 3 meses e cai na banda
+# '3 months'": só faz sentido se os 3 meses do enunciado forem a mesma unidade
+# que a banda usa para cortar. Construir os eventos com 30.4375 punha C3 a 1,3
+# dia ALÉM da fronteira, e o teste passava a medir a unidade, não a regra.
+MES = band_days() / settings()["periods"]["band_months"]
 
 T2 = pd.Timestamp("2013-01-01")
-T1 = T2 - pd.Timedelta(days=3 * DAYS_PER_MONTH)
+T1 = T2 - pd.Timedelta(days=3 * MES)
 
 CODING, NON_CODING = "commits", "issue_comments"
 
@@ -67,7 +74,7 @@ def _events() -> pd.DataFrame:
             if months is None:
                 continue
             for k in range(months, -1, -1):
-                rows.append((cid, T2 - pd.Timedelta(days=k * DAYS_PER_MONTH), kind))
+                rows.append((cid, T2 - pd.Timedelta(days=k * MES), kind))
     return pd.DataFrame(rows, columns=["contributor_id", "timestamp", "event_type"])
 
 
@@ -142,7 +149,7 @@ def test_c2_ainda_nao_existe_em_t1(spans, gap_days):
 )
 def test_idade_e_banda_em_t1(spans, gap_days, cid, idade, banda):
     p = _at(spans, T1, gap_days)
-    assert p.loc[cid, "age_months"] == pytest.approx(idade, abs=1e-6)
+    assert p.loc[cid, "age_days"] / MES == pytest.approx(idade, abs=1e-6)
     assert p.loc[cid, "band"] == banda
 
 
@@ -159,7 +166,7 @@ def test_idade_e_banda_em_t1(spans, gap_days, cid, idade, banda):
 )
 def test_idade_e_banda_em_t2(spans, gap_days, cid, idade, banda):
     p = _at(spans, T2, gap_days)
-    assert p.loc[cid, "age_months"] == pytest.approx(idade, abs=1e-6)
+    assert p.loc[cid, "age_days"] / MES == pytest.approx(idade, abs=1e-6)
     assert p.loc[cid, "band"] == banda
 
 

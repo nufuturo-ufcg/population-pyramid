@@ -30,6 +30,28 @@ STAGE = "snapshots"
 CATEGORIES = ["non_coding", "moved", "coding"]
 
 
+def band_days(cfg: dict | None = None) -> float:
+    """Largura da banda da pirâmide, em dias.
+
+    Fica atrás de função (e não solta no YAML) por causa da checagem: `band_days`
+    e `band_months` descrevem a MESMA banda em unidades diferentes, e se alguém
+    mexer num sem mexer no outro o eixo y passa a rotular uma banda que o corte
+    não usa — a figura mentiria em silêncio. 10% é folga para o desencontro
+    medido (90 vs 91.3125, 1.4%), não para uma banda de outro tamanho.
+    """
+    cfg = cfg or settings()
+    bd = float(cfg["periods"]["band_days"])
+    bm = float(cfg["periods"]["band_months"])
+    nominal = bm * DAYS_PER_MONTH
+    if not (0.9 * nominal <= bd <= 1.1 * nominal):
+        raise ValueError(
+            f"periods.band_days={bd} não descreve a mesma banda que "
+            f"periods.band_months={bm} (~{nominal:.2f} dias). "
+            "Mexeu num, mexa no outro."
+        )
+    return bd
+
+
 def snapshot_dates(cfg: dict | None = None) -> list[pd.Timestamp]:
     """Série de snapshots em fins de trimestre civil.
 
@@ -148,22 +170,32 @@ def pyramid_at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.Data
     per["age_days"] = per["age_days"].clip(lower=0.0)
 
     per["age_months"] = per["age_days"] / DAYS_PER_MONTH
-    # Bandas fechadas em cima: (0,3] -> 0, (3,6] -> 1, ...  O rótulo do eixo é
-    # (band+1)*3 meses. Conferido contra IEICE16 Tab.2/Fig.4(b): C3 com exatos
-    # 3 meses em t1 aparece na banda "3 months", e C6 com 6 na banda "6 months";
-    # `floor` jogaria os dois para a banda seguinte. O arredondamento evita que
-    # ruído de ponto flutuante (91.3125 dias vs 3.0000000001 meses) mova alguém
-    # de banda. Em dados reais nenhum contribuidor cai exatamente na fronteira.
-    bm = settings()["periods"]["band_months"]
+    # Bandas fechadas em cima: (0,90] -> 0, (90,180] -> 1, ...  O rótulo do eixo
+    # é (band+1)*`band_months`. Conferido contra IEICE16 Tab.2/Fig.4(b): C3 com
+    # exatos 3 meses em t1 aparece na banda "3 months", e C6 com 6 na banda
+    # "6 months"; `floor` jogaria os dois para a banda seguinte. O arredondamento
+    # evita que ruído de ponto flutuante mova alguém de banda.
+    #
+    # O corte é em DIAS (`band_days`), não em `age_months`: a banda do artigo tem
+    # 90 dias, e mês de 365.25/12 empurrava para baixo quem estava a menos de um
+    # dia da fronteira — ver `config/settings.yaml` e `discrepancias.md` §21.
+    bd = float(band_days())
     per["band"] = (
-        np.ceil((per["age_months"] / bm).round(9)).astype(int) - 1
+        np.ceil((per["age_days"] / bd).round(9)).astype(int) - 1
     ).clip(lower=0)
     # "left the project when he/she did not give any contribution for more than
     #  three months" — a pirâmide mostra a população viva no snapshot
-    per["active"] = (t - per["last_event"]).dt.total_seconds() / 86400.0 <= gap_days
+    per["idle_days"] = (t - per["last_event"]).dt.total_seconds() / 86400.0
+    per["active"] = per["idle_days"] <= gap_days
 
+    # `idle_days` fica persistido para o consumidor escolher a janela sem
+    # reconstruir o estágio: `metrics` usa `active` (3 meses, IEICE16 p.1306) e
+    # a pirâmide da Fig.2 usa 12 meses (medição da figura, discrepancias §19).
     return per.reset_index()[
-        ["contributor_id", "category", "age_days", "age_months", "band", "active"]
+        [
+            "contributor_id", "category", "age_days", "age_months", "band",
+            "idle_days", "active",
+        ]
     ]
 
 
