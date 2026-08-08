@@ -90,3 +90,45 @@ baixo e o nosso programa numera de baixo para cima, então a comparação casava
 topo do artigo com a base da nossa. A figura em si nunca mudou.
 
 Detalhamento com números: `discrepancias.md` §20, §21, §31.
+
+## O que já foi descartado (para não refazer)
+
+Duas hipóteses sobre "quem entra em cada lado da pirâmide" foram testadas e
+morreram. Ficam registradas aqui porque as duas pareciam boas no papel.
+
+**"Abrir um pull request devia contar como discussão, não como código."**
+Parece razoável — abrir um PR é pedir para conversar sobre um código, não
+necessariamente escrever código. Mas quando mudamos o PR de lado, o erro contra
+o artigo triplica. E tem um argumento que fecha a questão: o painel do
+blueprint-css hoje é idêntico ao do artigo, quadradinho por quadradinho. Ele só
+fica idêntico com o PR contando como código. Qualquer outro arranjo estraga o
+único painel que estava perfeito. Então: abrir PR é código, comentar num PR é
+discussão. É assim no artigo e é assim que funciona.
+
+**"O artigo conta quem abre issue, e é essa a gente que falta na discussão."**
+O artigo de fato se contradiz: a tabela dele diz que abrir issue conta, o texto
+dele diz que não. Testamos as duas versões. Contar quem abre issue traz gente
+nova para o lado da discussão, sim — mas nas faixas de idade erradas, e o erro
+total *piora* (de 411 para 647). O texto do artigo ganha da tabela do próprio
+artigo. Seguimos com a versão do texto.
+
+## O que ainda não bate no homebrew
+
+O homebrew concentra quase todo o erro que sobrou. E o erro tem um formato que
+diz alguma coisa:
+
+- do lado da **discussão** temos **129 pessoas a menos** que o artigo, e elas
+  faltam no **meio** da pirâmide;
+- do lado do **código** temos **200 pessoas a mais**, e elas sobram quase todas
+  nas **quatro faixas mais novas** (o primeiro ano de vida da pessoa no
+  projeto).
+
+Se fosse só uma questão de classificar alguém do lado errado, a sobra de um
+lado apareceria na mesma altura da falta do outro. Não aparece. Isso sugere que
+a diferença não é *quem* entra na figura, e sim **a partir de quando a idade da
+pessoa começa a contar**. Hoje, quem escreve código tem a idade contada desde o
+primeiro commit; quem só conversa, desde a primeira conversa. Se o artigo
+contasse a idade de todo mundo desde a primeira aparição no projeto, seja ela
+qual for, os programadores ficariam mais velhos e sairiam das faixas jovens —
+que é exatamente para onde o nosso excesso está apontando. Ainda não foi
+testado.

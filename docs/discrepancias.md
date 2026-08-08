@@ -2140,3 +2140,77 @@ O lado da discussão bate quase exato nas mesmas bandas (581→565, 740→733,
 como `coding`**. Próximo experimento: a fronteira `coding` × `non_coding` no
 `classify.py` contra a taxonomia da Tabela 1 do ESEM14 (`AMBIGUIDADE 3`), medida
 contra este alvo agora corrigido.
+
+## 32. `AMBIGUIDADE 3` resolvida por medida: a prosa vence a Tabela 1, e o pull request é código
+
+O ESEM14 se contradiz consigo mesmo na mesma página (p.1307). A coluna
+"Separation" da Tabela 1 agrupa as 16 atividades em três blocos e coloca
+`issues` como *non-coding* e `issues events` como *excluded*. A prosa da mesma
+página lista o non-coding como "commit comments, issue comments, pull request
+comments, **issue events**" — e nem cita `issues`. As duas leituras dão
+exatamente "six development activities", então nenhuma é descartável no papel.
+
+Em paralelo, o ESEM14 §3 diz "we analyze the GitHub-wide events depending on
+the current status of OSS projects (...) we are also interested in other
+contributors who **send issues** and comments" — o que puxa a favor da Tabela 1.
+E `pull requests` aparece do lado *coding* na Tabela 1, apesar de abrir um PR
+não ser um commit; só `pull request comments` cai na discussão.
+
+### O experimento
+
+Extraí o superconjunto de tipos de evento (variante `union`, 7 tipos) para os
+4 projetos da Fig.2 e varri as três leituras × o lado do `pull_requests`,
+medindo L1 banda-a-banda contra os pixels do artigo (alvo já com o eixo
+corrigido do §31). Nenhum outro parâmetro mudou: `gap=91.3d`, janela de 12
+meses, `population=active`, `band_days=90`, snapshot `2011-12-31`.
+
+Comando: `uv run python /tmp/sweep_tax.py` (o script monta `profile()` +
+`pyramid_at()` em memória a partir de `/tmp/union_<pid>.parquet`, sem tocar em
+`output/`).
+
+| taxonomia | `pull_requests` | L1 total | homebrew | paperclip | clojure | blueprint-css |
+|---|---|---|---|---|---|---|
+| **`prose` (ativa)** | **coding** | **411** | 363 | 38 | 11 | **0** |
+| `prose` | discussão | 1165 | 1081 | 58 | 13 | 14 |
+| `table1` | coding | 647 | 550 | 86 | 11 | 0 |
+| `table1` | discussão | 1016 | 904 | 85 | 13 | 14 |
+| `union` | coding | 432 | 361 | 60 | 11 | 0 |
+| `union` | discussão | 1192 | 1087 | 79 | 13 | 14 |
+
+### Conclusões
+
+1. **`pull_requests` é `coding`, e isso não é opinião.** Mover o PR para a
+   discussão piora L1 em *todas* as três leituras (411→1165, 647→1016,
+   432→1192). O argumento decisivo é o blueprint-css: ele bate 100% com o
+   artigo (L1=0) e **só** com `PR=coding` — qualquer outro arranjo o quebra
+   (L1=14). Um painel que fecha exato serve de âncora; ele trava a fronteira.
+2. **A prosa vence a Tabela 1.** Contar `issues` como atividade (variante
+   `table1`) piora L1 de 411 para 647. A hipótese era que `issues` traria gente
+   para o lado da discussão do homebrew — traz, mas na banda errada. `union`
+   (contar os dois) também piora (432). Mantida `taxonomy.variant: prose`.
+3. `AMBIGUIDADE 3` sai de "aberta" para **fechada por evidência**: as duas
+   leituras eram defensáveis no texto, mas só uma reproduz a figura.
+
+### O que sobra: a assinatura do erro do homebrew
+
+Com a taxonomia agora travada, 363 dos 411 de erro estão no homebrew, e o
+resíduo tem forma:
+
+| | artigo | nosso | saldo |
+|---|---|---|---|
+| discussão (esquerda) | 2200 | 2071 | **−129** |
+| código (direita) | 1611 | 1811 | **+200** |
+
+O excesso de `coding` está concentrado nas **4 bandas mais novas** (0–360 dias:
++48, +58, +42, +48 = 196 dos 200). A falta de `non_coding` está no **miolo**
+(bandas 3, 5 e 6: −32, −19, −30). Como os dois desvios vivem em faixas de idade
+diferentes, **não é uma troca de lado**: se fosse relabel, o excesso de um lado
+apareceria na mesma banda da falta do outro.
+
+Isso aponta para a **âncora de idade** (`start_ref`), não para a fronteira de
+categoria nem para a população. Hoje quem tem commit conta idade a partir do
+primeiro evento de *código* (`init_c`); quem só discute conta a partir do
+primeiro evento de discussão (`init_d`). Se o artigo ancorasse todo mundo no
+primeiro evento de qualquer tipo, os coders ficariam mais velhos e sairiam das
+bandas jovens — que é exatamente a direção do resíduo. Não testado ainda;
+próximo experimento.
