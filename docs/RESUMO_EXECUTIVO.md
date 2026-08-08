@@ -45,9 +45,13 @@ extract → classify → snapshots → metrics → attractiveness → projection
   duas correções reais (§18 e §31) e a trava do painel do blueprint-css, hoje idêntico ao artigo.
 - O resíduo do homebrew na Fig.2 do ESEM'14 está **encerrado como divergência declarada**: são 129
   pessoas que classificamos como código e o artigo classifica como discussão, mais 71 pessoas de
-  população excedente. Seis hipóteses testadas e refutadas (§33, §34); nenhuma em aberto.
-- Decidir se jekyll/2011 e a distribuição A–D entram como resíduo aceito e documentado ou se
-  ganham mais uma rodada de investigação; hoje estão parados sem hipótese nova.
-- Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato.
-- `commit_scope=family_project_commits` no homebrew segue pendente — não resolve o resíduo da
-  Fig.2 (anda no sentido contrário, §34.4), mas continua valendo para as métricas.
+  população excedente. Oito hipóteses testadas e refutadas (§33, §34, §36); nenhuma em aberto.
+- A grade da Tabela 2 do MSR'14 ganhou a rodada extra de validação (§35): sete hipóteses testadas
+  (quatro definições de novato, limiar, desempate, escopo de stickiness). Nenhuma melhora as 48/55
+  células; três parâmetros que eram herdados passam a ser **medidos**. Das 7 células que falham,
+  3 estão explicadas (2 empates exatos + 1 lacuna de dados no `scala/scala` em 2010) e 4 exigiriam
+  correções contraditórias entre si — resíduo aceito e documentado.
+- `commit_scope` foi varrido nos três escopos possíveis (§36): `root` vence nos quatro painéis e é
+  o único que preserva a trava do blueprint-css. Fica como escolha medida; item encerrado.
+- Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato — **é o
+  único item em aberto da lista**.
