@@ -8,10 +8,23 @@ Produz, por (projeto, contribuidor):
 A categoria (coding / moved / non_coding) e a idade NÃO são fixas: dependem do
 snapshot, e são resolvidas no estágio 3. Aqui só destilamos a linha do tempo.
 
-Regra de idade (IEICE16 p.1306): a idade é a SOMA dos períodos de atividade.
-Quem some por mais de 3 meses "morre"; quem volta é tratado como experiente —
-"we consider them as experienced contributors when they come back". Ou seja: a
-idade RETOMA de onde parou, não reinicia. O tempo de ausência não conta.
+Idade NÃO é decidida aqui, e a regra em vigor não é a leitura literal do artigo.
+Os spans deste estágio alimentam as duas leituras possíveis de "less than three
+months of activity periods" (IEICE16 p.1308), escolhidas em
+`periods.age_basis`:
+
+  calendar_tenure     (EM VIGOR) idade = tempo desde a origem; gaps não
+                      descontam, como idade numa pirâmide demográfica.
+  accumulated_active  (REFUTADA) idade = soma dos spans. Produz 41/42/0/0 nos
+                      Tipos A-D de set/2013 contra 23/42/18/3 do artigo: sem
+                      atividade contínua ninguém chega a 3 meses e C+D ficam
+                      VAZIOS. Ver docs/discrepancias.md §3 e §19.5.
+
+O que os spans decidem de fato é quem está VIVO no snapshot ("we consider that a
+contributor left a project when he/she did not give any contribution for more
+than three months") e a frase "we consider them as experienced contributors when
+they come back" — que sob `calendar_tenure` sai de graça: quem volta tem tenure
+grande e já cai fora da banda de novato.
 """
 
 from __future__ import annotations

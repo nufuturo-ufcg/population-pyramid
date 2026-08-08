@@ -1,4 +1,4 @@
-# Estado do projeto — 2026-08-08
+# Estado do projeto — 2026-08-06
 
 Replicação independente dos dois artigos de Onoue et al. (ESEM'14 e IEICE'16), que descrevem a
 população de um projeto de software como uma pirâmide etária de contribuidores. Pipeline completo
@@ -25,7 +25,9 @@ do zero em máquina limpa, com `validation_report.md` idêntico ao de referênci
 Nenhuma das três derruba o achado principal; as três enfraquecem generalizações secundárias.
 
 ## Divergências numéricas declaradas (com hipóteses testadas e refutadas)
-- Distribuição dos tipos A–D: 85 projetos vs. 86 do artigo (resíduo em projetos de 1–3 pessoas).
+- Distribuição dos tipos A–D: 26/40/15/4 vs. 23/42/18/3 (85 projetos classificados vs. 86). O desvio
+  não é difuso: está em **4 projetos grandes que damos como A e o artigo dá como C** — os pequenos
+  batem quase de graça. Não é empate de fronteira (há um vão vazio no NCR entre −0,25 e +0,08).
 - `jekyll` 2011 sai "flutuante", o artigo diz "terminal".
 - Projeção parte de 34 projetos elegíveis, o artigo diz 36 (dois em cima do corte de 100).
 - Resíduo do homebrew na Fig. 2 do ESEM'14: 129 pessoas que classificamos como código e o artigo

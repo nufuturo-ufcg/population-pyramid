@@ -2,7 +2,9 @@
 
 Para cada (projeto, snapshot T, contribuidor):
   category  coding | moved | non_coding   — muda com T, não é fixa
-  age_days  soma dos períodos de atividade entre a origem e T
+  age_days  tempo desde a origem até T (`periods.age_basis: calendar_tenure`;
+            gaps de inatividade NÃO descontam — a soma dos spans é a leitura
+            alternativa, refutada, ver docs/discrepancias.md §3)
   band      faixa de 3 meses, fechada em cima (0 = (0,3m], 1 = (3,6m], ...)
   active    contribuiu nos últimos 3 meses antes de T
 

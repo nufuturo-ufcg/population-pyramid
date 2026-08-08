@@ -2568,3 +2568,88 @@ validate: 167 checks (87 gate, 80 informativos) — ok=97, conhecida=70, falha=0
 de referência, com uma única diferença: a linha de timestamp de geração do próprio
 relatório. Com a correção de §37.4, os 362 artefatos passaram a bater por md5 (fora
 JSON de manifesto e metadata de PDF, que carregam data de geração).
+
+---
+
+## §38 — Onde mora o resíduo dos Tipos A-D: 4 projetos grandes, A↔C
+
+### 38.1 O resíduo não é difuso
+
+Somado, o desvio dos Tipos A-D em 2013-09-30 é pequeno (L1=9 em 85 projetos) e
+parece ruído espalhado. Decompondo pelo corte de elegibilidade do próprio artigo
+(>100 contribuidores, o subconjunto da Fig.7/Tab.3), ele se concentra:
+
+| subconjunto | réplica A/B/C/D | artigo | L1 |
+|---|---|---|---|
+| todos | 26/40/15/4 (n=85) | 23/42/18/3 (n=86) | 9 |
+| **elegíveis (>100 contrib.)** | **8/19/5/2 (n=34)** | **4/21/9/2 (n=36)** | **10** |
+| não elegíveis | 18/21/10/2 (n=51) | 19/21/9/1 (n=50) | 3 |
+
+O L1 total (9) é *menor* que o do subconjunto elegível (10) porque os erros se
+cancelam entre os dois grupos — o agregado escondia o problema. Lido direito: os
+projetos pequenos batem quase de graça e **4 projetos grandes que classificamos
+como A o artigo classifica como C**. B e D estão certos (as 2 unidades de B são
+os 2 projetos que faltam na elegibilidade, §34).
+
+### 38.2 Não é empate na fronteira
+
+Se fosse arredondamento/desempate, os candidatos a virar C estariam colados no
+NCR=0. Não estão. NCR dos elegíveis, ordenado:
+
+```
+C do artigo e nossos:  -0.47 -0.45 -0.36 -0.34 -0.25
+nossos A:              +0.08 +0.10 +0.23 +0.32 +0.33 +0.36 +0.51 +0.63
+```
+
+Há um vão vazio entre −0.25 e +0.08. Mover 4 projetos exige virar gente com NCR
+até ≈+0.33 (ex.: 140 novatos vs 95 experientes), ou seja, reclassificar ~25-30%
+dos novatos como experientes. Isso é diferença de definição, não de precisão.
+
+### 38.3 Janela de morte por silêncio: REFUTADA (e confirma os 3 meses)
+
+Hipótese: o artigo mediria a Fig.5 com janela de vivo maior que 3 meses (há
+precedente — a Fig.2 do ESEM14 só encaixa com 12 meses, §19), o que engordaria o
+lado experiente e justamente nos projetos grandes. Varredura com todo o resto
+fixo (`/tmp/sweep_janela.py`, multiplicando `periods.inactivity_months`):
+
+```
+janela |     TODOS   n  L1 | ELEGÍVEIS  n  L1
+    3m | 26/40/15/4  85   9 |  8/19/5/2 34  10   <- em vigor
+    6m |  3/2/34/49  88 122 | 0/0/11/23 34  48
+   12m |  1/0/31/57  89 131 |  0/0/7/27 34  52
+   24m |  0/0/35/55  90 134 |  0/0/7/27 34  52
+  sem  | 0/0/34/56  90 134 |  0/0/7/27 34  52
+ARTIGO | 23/42/18/3  86   0 |  4/21/9/2 36   0
+```
+
+Refutada com folga: qualquer janela acima de 3 meses colapsa tudo em C+D e
+destrói os 65 projetos novato-dominantes (A+B) que o artigo tem. **Isso é prova
+positiva de que a Fig.5 usa a janela de 3 meses** — a janela de 12 meses da Fig.2
+do ESEM14 é local daquela figura e não se propaga.
+
+### 38.4 Elegibilidade por população viva: REFUTADA
+
+Hipótese: ">100 contributors" seria sobre a população viva no snapshot, não sobre
+o histórico — isso derrubaria justamente 4 dos nossos A (50, 54, 67 e 100 vivos).
+Medido: 30 projetos, 5/17/6/2, L1=8. Melhora pouco, erra o n (30 vs 36) e não
+fecha A. Fica o critério histórico.
+
+### 38.5 Situação
+
+Aberto e localizado: **4 projetos grandes, eixo A↔C, sob uma definição de
+"newcomer" mais generosa que a nossa no artigo**. Já refutados como causa:
+`age_basis` (§3, §19.5), largura de banda (§21), janela de vivo (38.3),
+elegibilidade (38.4), desempate no zero (§35.3). O que sobra são leituras que o
+artigo não fixa em lugar nenhum do texto, e nenhuma delas é testável contra os
+dados publicados: a Fig.5 dá só o espalhamento, não a lista de projetos por tipo.
+Sem essa lista, mais varredura vira ajuste de curva. **Encerrado como ambiguidade
+declarada, não como bug.**
+
+### 38.6 Correção de rota nas docstrings
+
+`classify.py` e `snapshots.py` documentavam a idade como "SOMA dos períodos de
+atividade" — que é exatamente a leitura **refutada** em §3 (`accumulated_active`,
+L1=62, C e D vazios), enquanto o pipeline roda `calendar_tenure`. Docstring
+descrevendo o contrário do código é o pior tipo de dívida num repo cujo produto é
+reprodutibilidade. Corrigidas para descrever a regra em vigor e apontar a
+alternativa refutada.
