@@ -68,6 +68,14 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             continue
         try:
             df = src.get_events(sid)
+            # Ordem canonica: o SGBD nao garante ordem sem ORDER BY (as linhas
+            # saem na ordem fisica do InnoDB, que muda entre importacoes do
+            # dump). Sem isso o parquet de um mesmo projeto muda de md5 entre
+            # execucoes, quebrando a verificacao por hash. Ver discrepancias.md.
+            df = df.sort_values(
+                ["scope_id", "contributor_id", "timestamp", "event_type"],
+                kind="mergesort",
+            ).reset_index(drop=True)
             df.to_parquet(events_path(sid), index=False)
             man["ok"][key] = {
                 "label": src.scope_label(sid),

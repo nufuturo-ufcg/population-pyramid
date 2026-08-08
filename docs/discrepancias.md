@@ -2494,3 +2494,58 @@ aponte para ela. Diferença real entre as duas tabelas, irrelevante para a decis
 **medida** e não herdada — é o melhor dos três em todos os quatro painéis, e o único
 que preserva a trava do blueprint-css. Oitava hipótese testada para o resíduo do
 homebrew (§33, §34, §36), oitava refutada. Os painéis seguem em `363 / 38 / 11 / 0`.
+
+## §37 — O extract não era determinístico: 1 parquet em 90 mudava de md5 entre importações do dump
+
+### 37.1 Como apareceu
+
+Teste de instalação do zero (banco recém-importado do dump, `make clean && make run-all`),
+comparando os 362 artefatos contra a execução anterior por md5:
+
+```
+361/362 parquets md5-idênticos; difere: output/extract/79163.parquet
+```
+
+Os JSON de manifesto e os PDF diferem por timestamp/metadata de data embutidos —
+esperado e irrelevante. O parquet, não: é dado.
+
+### 37.2 O que era
+
+Não é diferença de dado. É diferença de **ordem das linhas**:
+
+```
+uv run python -c "import pandas as pd; \
+a=pd.read_parquet('/tmp/ref_antes/output_ref/extract/79163.parquet'); \
+b=pd.read_parquet('output/extract/79163.parquet'); \
+print(a.shape, b.shape, a.equals(b), \
+a.sort_values(list(a.columns)).reset_index(drop=True).equals( \
+b.sort_values(list(b.columns)).reset_index(drop=True)))"
+# (250243, 4) (250243, 4) False True
+```
+
+Mesmas 250 243 linhas, mesmo conteúdo, 3 066 linhas em posição diferente — todas no
+bloco `pull_request_comments`. Causa: as queries de `sources/msr14.py` não têm
+`ORDER BY`, então o InnoDB devolve as linhas na ordem física da tabela, que depende de
+como o dump foi importado. Dois bancos com os mesmos dados podem devolver ordens
+diferentes. `79163` (`mxcl/homebrew`) é o único dos 90 grande o bastante para o plano
+de execução variar.
+
+### 37.3 Por que não contaminou nenhum resultado
+
+Todos os estágios a jusante (classify, snapshots, metrics, attractiveness, projection,
+plots, validate) agregam ou reordenam, e são invariantes à ordem de entrada. Confirmado
+por md5: com a ordenação canônica ligada, os parquets de `extract` mudam (ordem nova) e
+**todo o resto do pipeline continua bit-a-bit idêntico**. Nenhum número deste relatório
+jamais dependeu disso.
+
+### 37.4 Correção
+
+Ordem canônica por `(scope_id, contributor_id, timestamp, event_type)` com
+`kind="mergesort"` (estável) antes de escrever o parquet, em `extract.py` — não em SQL,
+para respeitar a regra de que SQL só existe em `src/pyramid/sources/`, e para valer para
+qualquer fonte futura, não só a MSR14.
+
+O critério de aceite do projeto é reprodutibilidade exata; um artefato cujo md5 muda
+entre execuções corretas quebra qualquer verificação por hash, mesmo sem alterar um
+número sequer. Era uma armadilha esperando quem tentasse conferir a réplica por
+checksum.
