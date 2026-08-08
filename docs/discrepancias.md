@@ -2292,3 +2292,49 @@ do código, quando precisamos tirar 200. Continua valendo por outros motivos, ma
 Sem hipótese testável no momento. O resíduo do homebrew fica declarado e quantificado
 em `docs/figuras/esem14_fig2.md`; os outros três painéis seguem com
 `L1 = 38 / 11 / 0`.
+
+## 34. Mais três hipóteses para o resíduo do homebrew — todas refutadas
+
+Continuação do §33. O alvo continua sendo `-129` na discussão, `+200` no código,
+`+71` de população. Nenhuma regra única testada recorta isso.
+
+| hipótese | L1 total | homebrew | por que cai |
+|---|---|---|---|
+| `PR=código` (config ativa) | **411** | 363 | — |
+| `'moved'` no lado da discussão | 806 | 712 | são 481, precisa de 129 |
+| `PR=EXCLUÍDO` (nem código nem discussão) | 1115 | 1038 | tira 475 do código, precisa de 200 |
+| `PR=discussão` (§32) | 1165 | 1081 | tira 474 |
+
+**34.1 `PR` excluído.** O §32 testou o pull request como código e como discussão,
+nunca como *fora da conta*. Valia testar porque é a única regra que mexe nos dois
+saldos ao mesmo tempo: quem tem PR + conversa migra para a discussão, e quem só tem
+PR some da pirâmide. A população de fato cai de 3882 para 3835 (alvo 3811), mas o
+lado do código desaba 475. Os 674 do §33 quase todos têm outra atividade, então
+migram em vez de sumir.
+
+**34.2 `moved` na discussão.** Quem discutiu antes de codificar hoje conta no lado do
+código. Passar para a discussão anda na direção certa e erra a magnitude: são 481 no
+homebrew (42 no paperclip), contra os 129 necessários. Piora o paperclip de 38 para
+82 e o blueprint-css de 0 para 2.
+
+**34.3 Limiar de 2 eventos de código.** Esta merecia atenção porque `200 = 129 + 71`
+exatamente: se um único PR não bastasse para alguém ser "coding contributor", quem
+tivesse 1 PR + conversa iria para a discussão (+129) e quem tivesse só o PR sumiria
+(−71). A aritmética fecha, os dados não: são **589** com exatamente um evento de
+código no homebrew (484 com outra atividade, 105 sem). A identidade `200 = 129 + 71`
+é coincidência.
+
+### 34.4 Hipótese não testável com o que temos
+
+Sobra a possibilidade de o artigo ter usado **um dump anterior do GHTorrent**. O
+GHTorrent recompleta o passado a cada coleta, então um dump de 2014 conhece mais
+atividade de 2011 do que um dump de 2013 conhecia. Isso explicaria de uma vez a
+população maior e o excesso concentrado nas faixas mais novas — gente que só aparece
+no recorte mais recente. Não dá para verificar sem o dump antigo, que não temos, e
+por isso **não entra como conclusão**: fica como observação.
+
+### 34.5 Encerramento
+
+Seis hipóteses testadas e refutadas entre §33 e §34, com o painel do blueprint-css
+(`L1=0`) servindo de trava em todas. O resíduo do homebrew fica **declarado, medido e
+sem hipótese em aberto**. Os quatro painéis encerram em `363 / 38 / 11 / 0`.
