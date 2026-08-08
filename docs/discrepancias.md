@@ -2549,3 +2549,22 @@ O critério de aceite do projeto é reprodutibilidade exata; um artefato cujo md
 entre execuções corretas quebra qualquer verificação por hash, mesmo sem alterar um
 número sequer. Era uma armadilha esperando quem tentasse conferir a réplica por
 checksum.
+
+### 37.5 Desfecho do teste de instalação do zero
+
+Sequência completa, sem nenhum artefato pré-existente e sem o banco do usuário:
+dump baixado do Zenodo → `scripts/prepare_dataset.sh` (bind mount read-only) →
+container MariaDB novo (`DATASET_SOURCE=local`, porta 3307) → sanity check dos 90
+projetos por `COUNT(*)` → `make clean && make run-all` → `make validate`.
+
+```
+90 projetos raiz confirmados no banco recém-importado
+run-all: 8 estágios, 0 falhas (extract 90/90, classify 90/90, snapshots 90/90,
+         metrics 90/90, attractiveness, projection, plots 8 figuras + tabelas)
+validate: 167 checks (87 gate, 80 informativos) — ok=97, conhecida=70, falha=0
+```
+
+`output/validation_report.md` do run do zero é **idêntico linha a linha** ao da execução
+de referência, com uma única diferença: a linha de timestamp de geração do próprio
+relatório. Com a correção de §37.4, os 362 artefatos passaram a bater por md5 (fora
+JSON de manifesto e metadata de PDF, que carregam data de geração).
