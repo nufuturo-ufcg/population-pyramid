@@ -21,7 +21,9 @@ services:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
-      retries: 60
+      # o import do dump roda ANTES do servidor final subir; retries generosas pra
+      # nao marcar unhealthy no meio de um import de 423 MB em maquina lenta
+      retries: 180
       start_period: 120s
 
   app:
