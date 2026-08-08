@@ -11,6 +11,11 @@ Replicação das pirâmides de contribuidores de Onoue et al. sobre o dataset MS
 
 PDFs de referência em `docs/papers/`.
 
+## Nunca viu isso antes
+
+`docs/COMO_FUNCIONA.md` — o que a ferramenta faz e por quê, sem código e sem
+fórmula. Comece por aí.
+
 ## Antes de mexer
 
 Leitura obrigatória, nesta ordem:

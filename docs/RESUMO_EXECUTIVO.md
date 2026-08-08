@@ -40,9 +40,14 @@ extract → classify → snapshots → metrics → attractiveness → projection
 - ver docs/discrepancias.md para o detalhe técnico de qualquer item aqui
 
 ## Próximo passo
-- Terminar a comparação visual lado a lado das 8 figuras com as originais — é critério de aceite
-  declarado e o único item do "pronto" que depende de olho humano. A Fig.2 do ESEM'14 já foi
-  conferida e rendeu uma correção real (§18); faltam as sete restantes.
+- A comparação visual das 8 figuras contra as originais está **feita**. Cada figura tem seu
+  documento em `docs/figuras/`, dizendo o que saiu igual, o que saiu diferente e por quê. Rendeu
+  duas correções reais (§18 e §31) e a trava do painel do blueprint-css, hoje idêntico ao artigo.
+- O resíduo do homebrew na Fig.2 do ESEM'14 está **encerrado como divergência declarada**: são 129
+  pessoas que classificamos como código e o artigo classifica como discussão, mais 71 pessoas de
+  população excedente. Seis hipóteses testadas e refutadas (§33, §34); nenhuma em aberto.
 - Decidir se jekyll/2011 e a distribuição A–D entram como resíduo aceito e documentado ou se
   ganham mais uma rodada de investigação; hoje estão parados sem hipótese nova.
 - Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato.
+- `commit_scope=family_project_commits` no homebrew segue pendente — não resolve o resíduo da
+  Fig.2 (anda no sentido contrário, §34.4), mas continua valendo para as métricas.
