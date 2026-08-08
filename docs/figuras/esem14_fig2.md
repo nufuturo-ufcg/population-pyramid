@@ -114,21 +114,49 @@ artigo. Seguimos com a versão do texto.
 
 ## O que ainda não bate no homebrew
 
-O homebrew concentra quase todo o erro que sobrou. E o erro tem um formato que
-diz alguma coisa:
+O homebrew concentra quase todo o erro que sobrou (363 dos 411). E o erro tem
+uma forma muito precisa:
 
-- do lado da **discussão** temos **129 pessoas a menos** que o artigo, e elas
-  faltam no **meio** da pirâmide;
-- do lado do **código** temos **200 pessoas a mais**, e elas sobram quase todas
-  nas **quatro faixas mais novas** (o primeiro ano de vida da pessoa no
-  projeto).
+| | nosso | artigo |
+|---|---|---|
+| lado do código | 1811 | 1611 |
+| lado da discussão | 2071 | 2200 |
 
-Se fosse só uma questão de classificar alguém do lado errado, a sobra de um
-lado apareceria na mesma altura da falta do outro. Não aparece. Isso sugere que
-a diferença não é *quem* entra na figura, e sim **a partir de quando a idade da
-pessoa começa a contar**. Hoje, quem escreve código tem a idade contada desde o
-primeiro commit; quem só conversa, desde a primeira conversa. Se o artigo
-contasse a idade de todo mundo desde a primeira aparição no projeto, seja ela
-qual for, os programadores ficariam mais velhos e sairiam das faixas jovens —
-que é exatamente para onde o nosso excesso está apontando. Ainda não foi
-testado.
+São **129 pessoas que nós chamamos de programador e o artigo chama de
+conversa**, mais **71 pessoas que o artigo simplesmente não tem**. Os números
+são exatos, e é isso que qualquer explicação futura precisa acertar.
+
+### Uma ideia que parecia boa e não era
+
+A primeira suspeita foi a idade. Hoje, quem escreve código tem a idade contada
+desde o primeiro commit; quem só conversa, desde a primeira conversa. Se o
+artigo contasse a idade de todo mundo desde a primeira aparição no projeto, os
+programadores ficariam mais velhos e sairiam das faixas jovens — que é para
+onde o nosso excesso aponta.
+
+Testamos. Não é isso, e o motivo é simples: mudar a régua da idade muda a
+**altura** em que a pessoa aparece na pirâmide, nunca o **lado**. Como o nosso
+problema é de lado (129 pessoas na coluna errada), nenhum acerto de idade,
+janela ou faixa vai resolver. Isso fecha uma família inteira de tentativas.
+
+### Duas regras de corte que também não eram
+
+Existem 674 pessoas no homebrew que estão do lado do código apenas por terem
+aberto um pull request, sem nunca ter feito um commit. O tamanho do grupo bate
+com a forma do erro, então testamos duas maneiras de recortá-lo:
+
+- **Trocar quem é considerado autor do pull request.** O banco tem duas colunas
+  para isso e elas às vezes discordam. No homebrew discordam em 49 casos de
+  13.171, e o número de autores distintos é idêntico. Não muda nada.
+- **Exigir que o pull request tenha sido aceito.** Dos 674, 661 nunca tiveram
+  nenhum pull request aceito. A regra tiraria 661 pessoas quando precisamos
+  tirar 129 — erra por muito mais do que corrige.
+
+### Onde isso fica
+
+O homebrew segue com essa diferença declarada e medida, sem hipótese em aberto
+no momento. Os outros três painéis estão em erro 38 (paperclip), 11 (clojure) e
+**0** (blueprint-css, idêntico ao artigo).
+
+O detalhamento técnico, com as tabelas de cada rodada, está em
+`docs/discrepancias.md` §33.

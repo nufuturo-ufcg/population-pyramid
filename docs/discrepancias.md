@@ -2214,3 +2214,81 @@ primeiro evento de discussão (`init_d`). Se o artigo ancorasse todo mundo no
 primeiro evento de qualquer tipo, os coders ficariam mais velhos e sairiam das
 bandas jovens — que é exatamente a direção do resíduo. Não testado ainda;
 próximo experimento.
+
+## 33. O resíduo do homebrew não é idade: é categoria. Três hipóteses refutadas
+
+O §32 fechou a fronteira de categoria e deixou `L1=411`, dos quais **363 são só o
+homebrew**. Lá a assinatura era `-129` na discussão e `+200` no código, com 196 do
+excesso concentrado nas 4 bandas mais novas. Concluí no §32 que isso "aponta para a
+âncora de idade". **Estava errado, e a medida mostrou o erro.**
+
+### 33.1 A âncora de idade não pode consertar isso — por construção
+
+Hoje `start_ref` é `init_c` para quem tem código e `init_d` para quem só discute.
+Testei a alternativa óbvia: `start_ref = min(init_c, init_d)` para todo mundo
+(primeiro evento de qualquer tipo), sem tocar em mais nada.
+
+| âncora | L1 total | homebrew | paperclip | clojure | blueprint-css |
+|---|---|---|---|---|---|
+| `categoria` (atual) | **411** | 363 | 38 | 11 | **0** |
+| `primeiro evento` | 439 | 368 | 58 | 11 | 2 |
+
+Piora, e quebra o blueprint-css. Mas o dado que importa não é o L1: é que o saldo do
+homebrew ficou **idêntico** nas duas rodadas (`disc=-129`, `cod=+200`). Isso não é
+coincidência — é aritmética. A âncora move gente **entre bandas**, nunca **entre
+lados**. Nenhum ajuste de idade, janela ou banda pode consertar o homebrew.
+O problema é *quem* é contado como codificador, não *que idade* ele tem.
+
+Registrado para não voltar a varrer o espaço de parâmetros de idade atrás disso.
+
+### 33.2 A conta fechada
+
+Com o eixo corrigido do §31, o homebrew em 31/12/2011 dá:
+
+| | nosso | artigo | saldo |
+|---|---|---|---|
+| lado do código | 1811 | 1611 | **+200** |
+| lado da discussão | 2071 | 2200 | **−129** |
+| total | 3882 | 3811 | +71 |
+
+Ou seja: **129 pessoas que chamamos de codificador o artigo chama de discussão**, e
+sobram **71 pessoas que o artigo não tem de jeito nenhum**. Os dois números são
+exatos, não aproximados — é o alvo de qualquer hipótese futura.
+
+Candidatos naturais: 674 contribuidores vivos estão do lado do código **só** por
+terem aberto pull request, sem nenhum commit (601 deles nas 4 bandas mais novas,
+onde mora o excesso de +196). O tamanho bate com a forma do erro, mas nenhuma regra
+testada até agora recorta 129 desses 674.
+
+### 33.3 Duas regras de recorte testadas e refutadas
+
+**(a) Autoria do PR (`pr.user_id` x `pull_request_history.actor_id`).** O GHTorrent
+às vezes grava em `pull_requests.user_id` o dono do fork, não quem abriu o PR. Se
+fosse o caso, trocar pela coluna do histórico mudaria a lista de codificadores.
+Não é o caso:
+
+| projeto | PRs | linhas em que as colunas divergem | autores distintos (`user_id` / `actor_id`) |
+|---|---|---|---|
+| homebrew | 13.171 | 49 | 4293 / 4293 |
+| paperclip | 383 | 0 | 278 / 278 |
+| clojure | 42 | 0 | 42 / 42 |
+| blueprint-css | 16 | 0 | 16 / 16 |
+
+49 linhas em 13.171 e a mesma contagem de autores distintos. A query de
+`src/pyramid/sources/msr14.py` fica como está.
+
+**(b) Só PR mergeado conta como código.** Hipótese razoável — um PR recusado não
+virou código no projeto. Dos 674, **661 nunca tiveram um único PR mergeado**.
+Aplicar a regra tiraria 661 do lado do código (alvo: 129), levando o homebrew de
+`+200` para `−461`. Refutada com folga.
+
+### 33.4 O que sobra
+
+O `family_project_commits` (tarefa #8, ainda aberta) **anda na direção errada** para
+este resíduo: ele só adiciona commits, ou seja, empurra gente *para dentro* do lado
+do código, quando precisamos tirar 200. Continua valendo por outros motivos, mas não
+é candidato aqui.
+
+Sem hipótese testável no momento. O resíduo do homebrew fica declarado e quantificado
+em `docs/figuras/esem14_fig2.md`; os outros três painéis seguem com
+`L1 = 38 / 11 / 0`.
