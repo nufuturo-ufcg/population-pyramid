@@ -1,4 +1,4 @@
-# Estado do projeto — 2026-08-06
+# Estado do projeto — 2026-08-08
 
 Replicação independente dos dois artigos de Onoue et al. (ESEM'14 e IEICE'16), que descrevem a
 população de um projeto de software como uma pirâmide etária de contribuidores. O pipeline inteiro
@@ -53,5 +53,11 @@ extract → classify → snapshots → metrics → attractiveness → projection
   correções contraditórias entre si — resíduo aceito e documentado.
 - `commit_scope` foi varrido nos três escopos possíveis (§36): `root` vence nos quatro painéis e é
   o único que preserva a trava do blueprint-css. Fica como escolha medida; item encerrado.
-- Rodar o caminho de instalação do zero em máquina limpa, que nunca foi testado de fato — **é o
-  único item em aberto da lista**.
+- O caminho de instalação do zero foi rodado de verdade (§37): dump baixado do Zenodo, banco
+  MariaDB novo em container, `make clean && make run-all && make validate`, sem tocar no banco de
+  trabalho. Os 8 estágios rodaram sem falha e o `validation_report.md` saiu **idêntico** ao da
+  referência (só muda o timestamp de geração). Achou e corrigiu um bug real de reprodutibilidade:
+  o `extract` escrevia o parquet na ordem física do InnoDB, então 1 dos 90 arquivos mudava de md5
+  entre importações do mesmo dump — sem alterar nenhum número, mas quebrando conferência por hash.
+- **Não há item em aberto na lista de execução.** O que resta são as divergências declaradas da
+  seção "Não batendo", cada uma com hipóteses testadas e registro em `docs/discrepancias.md`.
