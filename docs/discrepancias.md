@@ -2430,3 +2430,67 @@ escopo de stickiness). Nenhuma melhora a grade; três delas (limiar 10, empate p
 baixo, escopo por projeto) passam a ser **escolhas medidas em vez de herdadas**. O
 resíduo de 7 células fica declarado, com 3 explicadas (2 empates + 1 lacuna) e 4 sem
 correção sistemática possível.
+
+## §36 — `commit_scope`: as três leituras de "commit do projeto", medidas nos 4 painéis
+
+O §21/§22 deixaram em aberto a suspeita mais razoável sobre o resíduo do homebrew:
+`commit_scope=root` conta só os commits registrados **no** projeto raiz, e o homebrew
+é justamente o painel com mais fork. Como o fork carrega uma cópia do histórico da
+mãe em `project_commits`, há três leituras plausíveis:
+
+- **`root`** (config atual) — commits cujo `project_id` é o do projeto;
+- **`family_project_commits`** — união via `project_commits` sobre a família (raiz + forks);
+- **`family_project_id`** — união via `commits.project_id` sobre a família.
+
+Comando (banco de pé, `docker start msr14`; roda em `output/` de scratch, não toca o
+cache do repo):
+
+```
+uv run python scripts/sweep_commit_scope.py --json /tmp/sweep_scope.json
+```
+
+Distância: por painel, `L1 = Σ_bandas |réplica − artigo|`, dois lados somados, contra
+`esem14_fig2.bars_read_px` (leitura em pixel, §20) no snapshot `2011-12-31`.
+
+| painel | `root` | `family_project_commits` | `family_project_id` |
+|---|---|---|---|
+| homebrew | **362.7** (9.5%) | 460.7 (12.1%) | 456.7 (12.0%) |
+| paperclip | **37.7** (7.3%) | 45.3 (8.7%) | 45.3 (8.7%) |
+| clojure | **10.7** (23.1%) | 10.7 (23.1%) | 10.7 (23.1%) |
+| blueprint-css | **0.2** (1.5%) | 1.2 (9.3%) | 1.2 (9.3%) |
+| média rel | **10.3%** | 13.3% | 13.3% |
+
+População (réplica/artigo): homebrew `3882 / 3986 / 3987` contra 3810; paperclip
+`524 / 536 / 536` contra 519; clojure `49` nos três contra 46; blueprint-css
+`13 / 14 / 14` contra 13. Contagem de bandas idêntica nos três escopos, em todos os
+painéis (10/16/24/16) — o escopo **não** mexe na banda a mais do §30.
+
+### 36.1 Por que cai
+
+O sinal está errado. O resíduo do homebrew é **excesso** de gente (+71 em `root`), e
+os escopos de família só somam: +104 e +105 pessoas, das quais quase tudo cai no lado
+do código (`L1_coding` 233 → 328 / 316). Trazer o histórico do fork faz exatamente o
+que se esperaria — promove a discussão a código e cria contribuidor onde não havia —
+e isso é o oposto do que o alvo pede. Não existe ajuste de escopo que subtraia.
+
+O `blueprint-css` volta a servir de trava, como no §33–§34: é o painel que a réplica
+acerta (`L1=0.19`, dentro do ±1 pessoa/barra da leitura em pixel), e os dois escopos
+de família o quebram, inventando 1 pessoa no lado do código. Uma regra que estraga o
+painel exato para piorar os outros três não é candidata.
+
+O `clojure` é insensível aos três escopos (`L1=10.66` idêntico, até a casa decimal):
+o resíduo dele é forma dentro das bandas 20/21 (§23, §25), não cobertura de commit.
+
+### 36.2 `family_project_commits` x `family_project_id`
+
+Empate técnico, e a diferença é instrutiva: 1 pessoa de população, mas 8 pessoas
+trocam de lado (`L1_non_coding` 132.4 → 140.4, `L1_coding` 328.3 → 316.3). São
+commits que aparecem em `project_commits` da família sem que `commits.project_id`
+aponte para ela. Diferença real entre as duas tabelas, irrelevante para a decisão.
+
+### 36.3 Decisão
+
+`commit_scope` fica em **`root`** em `config/settings.yaml`, agora como escolha
+**medida** e não herdada — é o melhor dos três em todos os quatro painéis, e o único
+que preserva a trava do blueprint-css. Oitava hipótese testada para o resíduo do
+homebrew (§33, §34, §36), oitava refutada. Os painéis seguem em `363 / 38 / 11 / 0`.

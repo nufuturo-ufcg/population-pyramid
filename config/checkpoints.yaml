@@ -235,10 +235,11 @@ figures:
     # §30 — ver `discrepancias.md` §31. Confira sempre contra a banda 0, que é
     # a maior barra do painel.
     #
-    # PENDENTE: esta leitura discorda de `/tmp/fig2_medido.json` (a leitura de
-    # §20, que cobre os 4 painéis) nas bandas 2-4 do clojure — 6/7/7 aqui
-    # contra 3/6/7 lá. São duas leituras em pixel do mesmo painel de 24 bandas
-    # em 225px (9,4px por banda). Nenhuma das duas é dado publicado.
+    # PENDENTE: esta leitura discorda de `bars_read_px` (a leitura de §20, que
+    # cobre os 4 painéis) nas bandas 2-4 do clojure — 6/7/7 aqui contra 3/6/7
+    # lá — e na banda 2 do `non_coding` (1 aqui, 0 lá). São duas leituras em
+    # pixel do mesmo painel de 24 bandas em 225px (9,4px por banda). Nenhuma
+    # das duas é dado publicado.
     #
     # Barras do painel do clojure LIDAS EM PIXEL da figura do artigo, banda 0
     # (base) para cima, uma entrada por banda de 3 meses. NÃO é dado publicado:
@@ -248,6 +249,44 @@ figures:
     bars_read_clojure:
       coding:     [8, 5, 6, 7, 7, 3, 3, 3, 2, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
       non_coding: [1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    # Leitura em pixel dos QUATRO painéis da Fig.2 (§20 e §22 do
+    # `discrepancias.md`), medida na imagem do artigo e convertida de px para
+    # pessoas pela régua de cada painel (`x_ticks` acima). Vivia em
+    # `/tmp/fig2_medido.json`, que não sobrevive a um reboot e deixava §20.3,
+    # §22 e §28 sem como serem refeitos; agora é dado versionado do repo.
+    #
+    # Mesma orientação do `bars_read_clojure`: índice 0 = BASE = (0,90]d.
+    # (A medição original era topo-para-baixo; foi invertida aqui de uma vez,
+    # justamente para não haver duas convenções no mesmo arquivo — §31.)
+    #
+    # Valores fracionários de propósito: são pixels convertidos, não pessoas
+    # contadas. Arredondar aqui embutiria erro antes da comparação — quem
+    # compara arredonda no fim. A tolerância é ±1 pessoa por barra (±2 nas
+    # barras longas do homebrew, onde 1px vale ~2,4 pessoas).
+    #
+    # `right_light`/`right_dark` são os dois segmentos do lado direito na ordem
+    # em que aparecem na barra (claro encostado no eixo, escuro na ponta). NÃO
+    # afirmamos qual é `moved` e qual é `coding`: a legenda da figura não foi
+    # decidida com confiança e chutar o mapeamento inventaria um dado. Por isso
+    # §22/§28 comparam sempre a SOMA dos dois contra `moved + coding` da
+    # réplica, que é uma quantidade bem definida dos dois lados.
+    bars_read_px:
+      79163:   # homebrew
+        non_coding:  [581.38, 739.93, 364.93, 218.96, 75.5, 57.89, 45.3, 65.44, 32.72, 17.62]
+        right_light: [118.29, 143.46, 108.22, 100.67, 50.34, 35.23, 0, 0, 0, 0]
+        right_dark:  [201.34, 249.16, 186.24, 231.54, 133.39, 40.27, 12.58, 0, 0, 0]
+      104307:  # paperclip
+        non_coding:  [102.72, 115.79, 90.74, 39.56, 10.53, 13.43, 5.44, 3.63, 7.62, 4.72, 3.63, 0, 0, 0, 0, 0]
+        right_light: [11.25, 12.7, 18.51, 1.45, 1.45, 3.63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        right_dark:  [12.7, 16.33, 15.25, 14.52, 6.53, 4.36, 1.45, 0, 1.45, 0, 0, 0, 0, 0, 0, 0]
+      19786:   # clojure
+        non_coding:  [0.94, 0, 0, 0.94, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        right_light: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        right_dark:  [7.92, 4.93, 2.92, 5.94, 6.95, 2.92, 0.94, 2.92, 0.94, 1.95, 4.93, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.94]
+      101472:  # blueprint-css
+        non_coding:  [0, 0.97, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        right_light: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.97, 0, 0, 0]
+        right_dark:  [0.97, 3.98, 3.98, 0, 0.97, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.97]
 
 # ---------------------------------------------------------------------------
 # Divergências conhecidas: chave do check -> seção de docs/discrepancias.md.
