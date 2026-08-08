@@ -2338,3 +2338,95 @@ por isso **não entra como conclusão**: fica como observação.
 Seis hipóteses testadas e refutadas entre §33 e §34, com o painel do blueprint-css
 (`L1=0`) servindo de trava em todas. O resíduo do homebrew fica **declarado, medido e
 sem hipótese em aberto**. Os quatro painéis encerram em `363 / 38 / 11 / 0`.
+
+## §35 — Definição de novato e os parâmetros da Tabela 2 (MSR14)
+
+A grade da Tabela 2 do MSR14 tem **12 projetos × 8 anos (2004–2011) = 96 células**:
+55 com letra (quadrante) e 41 estruturais (`-` projeto não existia / `*` não
+elegível). A configuração atual acerta **48/55 letras e 41/41 estruturais**. Tudo
+abaixo sai de:
+
+```
+uv run python scripts/sweep_msr14_tab2.py [--min-devs N] [--tie baixo|alto]
+                                          [--sticky project|dataset] [--errors]
+uv run python scripts/sweep_msr14_tab2.py --novato     # varre as definições A–D
+```
+
+### 35.1 Quatro definições de novato — nenhuma melhora
+
+| variante | novato é… | letras | estrutura |
+|---|---|---|---|
+| **A (atual)** | 1º evento de **código**, estreia no dataset | **48/55** | 41/41 |
+| B | 1º evento de **qualquer tipo** | 48/55 | 41/41 |
+| C | novato *e* atividade = qualquer evento | 43/55 | 41/41 |
+| D | novato **local**: estreia *neste* projeto (§15) | 45/55 | 41/41 |
+
+A e B empatam, e não por acaso: no dataset inteiro elas divergem em **9 das 254**
+células com quadrante, e **nenhuma das 9 cai dentro da grade** (são projetos fora
+dos 12, mais `mojombo/jekyll 2012`, ano fora do recorte da tabela).
+
+A razão é estrutural e vale registrar porque enterra uma família inteira de
+hipóteses: **magnetismo e stickiness são razões comparadas à mediana da mesma
+população**. Redefinir novato globalmente mexe no numerador de todo mundo na mesma
+direção, a mediana anda junto, e o lado do eixo em que o projeto cai não muda. Só
+redefinições que mexem nos projetos de forma **desigual** — como C e D, que trocam a
+base por projeto — chegam a mover a grade, e movem para pior.
+
+`mojombo/jekyll 2011` (artigo `terminal`, obtido `floating`) sobrevive a A, B, C e D:
+não é questão de definição de novato.
+
+### 35.2 `min_active_devs`: ótimo agudo em 10
+
+| limiar | 5 | **10** | 15 | 20 | 25 | 30 |
+|---|---|---|---|---|---|---|
+| letras | 40/55 | **48/55** | 29/55 | 21/55 | 16/55 | 12/55 |
+
+O valor publicado ("more than 10") é confirmado por medição, não adotado por
+obediência: é um pico, não um platô, e a estrutura (41/41) só fecha de 10 para cima.
+Tirar `jekyll/2011` da grade por limiar exigiria ≥25, que custa 32 letras. Refutada.
+
+### 35.3 Desempate na mediana: a convenção atual ganha 6 a 2
+
+Com `n` ímpar de elegíveis, o projeto do meio **é** a mediana e empata. Isso ocorre em
+**8 células com letra** da grade. O artigo coloca **6 delas no lado baixo** e 2 no alto
+— e as 2 exceções são a mesma linha, `xbmc/xbmc` (2007 e 2009). Inverter a regra
+globalmente (`--tie alto`) troca 6 acertos por 2: **48 → 46**. A convenção atual
+(empate → lado baixo) fica confirmada por contagem. Que as duas exceções sejam o
+mesmo projeto aponta para o valor do `xbmc` estar marginalmente acima da mediana nos
+dados do artigo, não para uma regra diferente — ver §35.5.
+
+### 35.4 `stickiness_scope`
+
+`--sticky dataset` (retenção medida no dataset inteiro, não no projeto) cai para
+**42/55**. Escopo por projeto confirmado.
+
+### 35.5 As 7 células residuais
+
+```
+xbmc/xbmc 2007            artigo attractive / obtido floating     (empate exato)
+xbmc/xbmc 2009            artigo attractive / obtido stagnant     (empate exato)
+django/django 2011        artigo attractive / obtido stagnant
+jquery/jquery 2010        artigo floating   / obtido attractive
+chriseppstein/compass 2010 artigo floating  / obtido terminal
+scala/scala 2010          artigo floating   / obtido —
+mojombo/jekyll 2011       artigo terminal   / obtido floating
+```
+
+Duas são empates exatos (§35.3): cara ou coroa, não regra. Uma é **lacuna de dados** —
+`scala/scala` tem **zero eventos de código em 2010** no nosso dump (10 devs em 2007,
+25 em 2009, nada em 2010, 20 em 2011), então não há limiar nem parâmetro que
+produza letra ali. As quatro restantes exigem correções **contraditórias** no mesmo
+eixo: `django` e `jquery` precisam de magnetismo puxado em direções opostas. Não
+existe correção sistemática única.
+
+O padrão é o mesmo do §34.4: buracos e diferenças de cobertura compatíveis com **outro
+vintage do dump do GHTorrent**, que recompleta o passado a cada coleta. Segue como
+observação, não como conclusão.
+
+### 35.6 Encerramento
+
+Sete hipóteses testadas neste bloco (4 definições de novato, limiar, desempate,
+escopo de stickiness). Nenhuma melhora a grade; três delas (limiar 10, empate para
+baixo, escopo por projeto) passam a ser **escolhas medidas em vez de herdadas**. O
+resíduo de 7 células fica declarado, com 3 explicadas (2 empates + 1 lacuna) e 4 sem
+correção sistemática possível.
