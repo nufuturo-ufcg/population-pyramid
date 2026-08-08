@@ -191,6 +191,20 @@ def _abre_publicado():
     return checkpoints()["projection_abre"]
 
 
+def _tables():
+    """Tabelas do estágio, ou skip explicando que falta rodar o estágio.
+
+    Mesma regra do `_table()` de test_attractiveness: skip só quando o artefato
+    não existe (clone limpo, antes do pipeline). Se ele existe e a leitura
+    quebra, é bug e tem que falhar alto.
+    """
+    from pyramid.projection import path
+
+    if not path().exists():
+        pytest.skip(f"falta {path()}: rode `pyramid projection`")
+    return tables()
+
+
 @pytest.mark.checkpoint
 def test_checkpoint_abre_na_ordem_de_grandeza_do_artigo():
     """O ABRE mediano do artigo vive em [0.18, 1.0]; o nosso tem que viver lá.
@@ -202,8 +216,7 @@ def test_checkpoint_abre_na_ordem_de_grandeza_do_artigo():
     não são as mesmas, então a comparação célula a célula não fecha (ver
     docs/discrepancias.md §12). O que não pode acontecer é o erro sumir.
     """
-    from pyramid.projection import tables
-    obs = tables()["abre"].set_index("type")
+    obs = _tables()["abre"].set_index("type")
     pub = _abre_publicado()["table"]
 
     minimo = min(v for cel in pub.values() for par in cel.values() for v in par if v > 0)
@@ -225,8 +238,7 @@ def test_checkpoint_coorte_bate_o_baseline_no_agregado():
     única conclusão do artigo que não depende do dataset específico, então é a
     que exigimos aqui — as células por tipo divergem e estão documentadas.
     """
-    from pyramid.projection import tables
-    t = tables()
+    t = _tables()
     linha = t["abre"].set_index("type").loc["All types"]
     assert linha["all_cohort"] < linha["all_baseline"]
     assert t["wilcoxon"].set_index("type").loc["All types", "all"] < 0.05
@@ -240,6 +252,5 @@ def test_checkpoint_projetos_elegiveis_perto_dos_36():
     dump tem dois projetos na fronteira dos 100. O teste trava a contagem para
     que ela não deslize em silêncio quando o filtro mudar.
     """
-    from pyramid.projection import tables
-    n = tables()["abre"].set_index("type").loc["All types", "projects"]
+    n = _tables()["abre"].set_index("type").loc["All types", "projects"]
     assert n == 34, f"{n} projetos elegíveis; era 34 (artigo: 36)"
