@@ -8,7 +8,7 @@ nenhum em aberto sem análise.
 O achado central do IEICE'16 se sustenta. No agregado, prever crescimento por faixa etária erra
 menos que a previsão ingênua (cohort 0,3894 contra baseline 0,5000, p = 0,0124).
 
-Este documento lista o que diverge, com a hipótese que sobrou de pé e o que já caiu.
+Este documento lista o que diverge, com a explicação mais provável e o que já testamos sem sucesso.
 
 ## Quem entra na conta
 
@@ -26,42 +26,49 @@ Este documento lista o que diverge, com a hipótese que sobrou de pé e o que j�
 - **2013.** O dump acaba em out/2013, então o ano é right-censored. Ele renderiza pirâmide, que é
   medida de estoque, e fica sem quadrante, que exige o ano seguinte.
 
-## Como conferir qualquer número daqui
+## Como ler e como conferir
 
-```bash
-make setup DATASET_DIR=/caminho/absoluto   # sobe o banco a partir do dump
-make run-all                               # pipeline inteiro, do zero
-make validate                              # regera output/validation_report.md
-make plots                                 # regera output/plots/
-```
+Cada item termina em **Conferir**, que dá o nome do check dentro de
+[`output/validation_report.md`](../output/validation_report.md), onde o valor do artigo e o nosso
+ficam lado a lado, e o arquivo que desenha o número. As figuras estão em
+[`output/plots/`](../output/plots/), a leitura em prosa de cada uma em
+[`docs/figuras/`](figuras/). Quem quiser refazer tudo do zero acha o passo a passo no
+[`README.md`](../README.md).
 
-Cada item termina em **Conferir**, com o nome do check em
-[`output/validation_report.md`](../output/validation_report.md), onde ficam os pares
-esperado/obtido, e o artefato que desenha o número. Os artefatos ficam em
-[`output/plots/`](../output/plots/) e a leitura em prosa de cada figura em
-[`docs/figuras/`](figuras/). Os recortes do artigo saem de `docs/papers/*.pdf` por
-`make figuras-artigo` (`pdftoppm` a 150 dpi).
+Os nomes de check carregam o `project.id`, não o nome do projeto, porque `symfony` aparece duas
+vezes na lista dos 90. Os cinco que aparecem neste documento: **79163** `mxcl/homebrew`,
+**79166** `mojombo/jekyll`, **104307** `thoughtbot/paperclip`, **19786** `clojure/clojure`,
+**101472** `joshuaclayton/blueprint-css`. Assim, `attractiveness.2011.79166` se lê "o quadrante do
+jekyll em 2011".
+
+**L1** é a medida de desacordo usada aqui: a soma das diferenças, uma a uma, entre o artigo e a
+réplica. L1 = 0 é acordo perfeito. Nos tipos (item 1) a unidade é projeto; na Fig.2 do ESEM'14
+(item 9) a unidade é pessoa dentro de uma barra.
 
 ---
 
-## 1. Distribuição dos Tipos A-D (IEICE'16, Fig.5), L1 = 9
+## 1. Distribuição dos Tipos A-D (IEICE'16, Fig.5): L1 = 9 projetos
 
 | | A | B | C | D | classificados | sem contribuidor |
 |---|---|---|---|---|---|---|
 | artigo | 23 | 42 | 18 | 3 | 86 | 4 |
 | replicação | 26 | 40 | 15 | 4 | 85 | 5 |
 
+O L1 é a soma coluna a coluna dessa tabela: 3 + 2 + 3 + 1 = 9. Como cada projeto trocado de caixa
+sai de uma coluna e entra em outra, isso é da ordem de 4 a 5 projetos com rótulo diferente, e o
+saldo cai todo no mesmo eixo: sobra A, falta C.
+
 | artigo | replicação |
 |---|---|
 | ![](figuras/artigo/ieice16_fig5_artigo.png) | ![](../output/plots/ieice16_fig5_2013-09-30.png) |
 | ![](figuras/artigo/ieice16_fig6_artigo.png) | ![](../output/plots/ieice16_fig6_tipos_2013-09-30.png) |
 
-**Hipótese de pé: o artigo usa uma definição de "newcomer" mais generosa que a nossa.** O desvio se
-concentra em 4 projetos grandes que damos como A e o artigo dá como C. Os projetos pequenos batem
-quase de graça. Fechar o buraco exige reclassificar de 25% a 30% dos novatos como experientes, o
-que é diferença de critério.
+**Explicação mais provável: o artigo usa uma definição de "newcomer" mais generosa que a nossa.**
+O desvio se concentra em 4 projetos grandes que damos como A e o artigo dá como C. Os projetos
+pequenos batem quase de graça. Fechar o buraco exige reclassificar de 25% a 30% dos novatos como
+experientes, o que é diferença de critério.
 
-Testado e caído:
+O que já testamos e não explica:
 
 - Empate na fronteira: o NCR tem um vão vazio entre -0,25 e +0,08, nenhum projeto está colado no zero.
 - Janela de morte por silêncio maior que 3 meses: com 6 meses a distribuição vira 3/2/34/49 e some com os 65 projetos A+B do artigo.
@@ -80,19 +87,20 @@ Os outros 4 projetos nomeados na Fig.2 do ESEM'14 batem, 4 de 5.
 |---|---|
 | ![](figuras/artigo/msr14_fig2_artigo.png) | ![](../output/plots/msr14_fig2_2011.png) |
 
-**Hipótese de pé: o mesmo viés do item 1.** Magnetismo é a contagem de novatos sobre o total, então
-classificar novato demais empurra o jekyll para cima da mediana e de `terminal` para `floating`. O
-jekyll é o projeto que mais cresceu no período (14, 40, 29, 77 e 81 devs por ano), logo o mais
-exposto ao critério de primeira aparição. Nossa série reproduz a trajetória do artigo adiantada em
-um ano.
+**Explicação mais provável: o mesmo viés do item 1.** Magnetismo é a contagem de novatos sobre o
+total, então classificar novato demais empurra o jekyll para cima da mediana e de `terminal` para
+`floating`. O jekyll é o projeto que mais cresceu no período (14, 40, 29, 77 e 81 devs por ano),
+logo o mais exposto ao critério de primeira aparição. Nossa série reproduz a trajetória do artigo
+adiantada em um ano.
 
-Testado e caído:
+O que já testamos e não explica:
 
 - Offset global de um ano na série: o deslocamento é local ao jekyll, os outros projetos ficam no lugar.
 - Janela de ano civil no lugar de janela móvel: não muda o quadrante do jekyll.
 
-**Conferir:** `attractiveness.2011.79166`, com os 4 que batem em `...79163`, `...104307`, `...19786`
-e `...101472` · `output/plots/msr14_fig2_2011.png`.
+**Conferir:** `attractiveness.2011.79166` (jekyll, o que erra), contra `...79163` (homebrew),
+`...104307` (paperclip), `...19786` (clojure) e `...101472` (blueprint-css), que batem ·
+`output/plots/msr14_fig2_2011.png`.
 
 ## 3. Tabela 2 do MSR'14, 48 de 55 células (87%)
 
@@ -113,13 +121,13 @@ de aceite célula a célula.
 | 2011 | `django/django` | attractive | stagnant | repo ainda não estava no GitHub |
 | 2011 | `mojombo/jekyll` | terminal | floating | item 2 |
 
-**Hipótese de pé: desempate na mediana somado a buracos de cobertura do dump.** Longe da linha, com
-margem acima de 10%, o acordo é 37 de 37, tirando jekyll e django, que têm causa própria. As duas
-células de margem 0,0% são o projeto que define a mediana do ano naquele eixo, e o artigo resolve o
-empate para o outro lado. `scala` e `django` são buracos de dado compatíveis com outro *vintage* do
-GHTorrent, que recompleta o passado a cada coleta.
+**Explicação mais provável: desempate na mediana somado a buracos de cobertura do dump.** Longe da
+linha, com margem acima de 10%, o acordo é 37 de 37, tirando jekyll e django, que têm causa
+própria. As duas células de margem 0,0% são o projeto que define a mediana do ano naquele eixo, e
+o artigo resolve o empate para o outro lado. `scala` e `django` são buracos de dado compatíveis
+com outro *vintage* do GHTorrent, que recompleta o passado a cada coleta.
 
-Testado e caído:
+O que já testamos e não explica:
 
 - Correção sistemática única no magnetismo: `django` e `jquery` pedem correção em direções opostas no mesmo eixo.
 - Inverter a regra de empate para o lado alto: corrige as 2 células do xbmc e quebra 4 que hoje batem, o total cai de 48 para 46.
@@ -138,34 +146,42 @@ contagem travada por teste.
 
 ## 5. Tabela 3 do IEICE'16, célula a célula: 6 de 40 dentro de ±2 p.p.
 
-**Hipótese de pé: a base é outra.** 34 projetos contra 36, coortes diferentes, e o ABRE de coorte
-pequena é dominado por ruído de uma pessoa. A comparação célula a célula fica pouco conclusiva nos
-dois sentidos, inclusive nas células que casaram.
+A tabela mede o erro de previsão (ABRE, quanto a projeção erra em média) em 40 células: 5 grupos de
+projeto (A, B, C, D e o agregado) × 4 categorias de contribuidor (código, discussão, quem mudou de
+lado, todos) × 2 métodos (por faixa etária e ingênuo). A tolerância de ±2 p.p. é dura de propósito:
+o que interessa aqui não é o valor absoluto de cada célula, é a direção, que está no item 6.
+
+**Explicação mais provável: a base é outra.** 34 projetos contra 36, coortes diferentes, e o ABRE
+de coorte pequena é dominado por ruído de uma pessoa. A comparação célula a célula fica pouco
+conclusiva nos dois sentidos, inclusive nas células que casaram.
 
 **Conferir:** `projection.abre.*` (40 linhas) e a trava `replica_locks.projection_celulas_2pct` ·
 `output/plots/ieice16_tab3_abre.csv` e `ieice16_tab3_tab4.md`.
 
-## 6. Direção cohort contra baseline: 14 de 20 pares batem
+## 6. Direção da comparação: 14 de 20 pares batem
 
-Erram `A.non_coding`, `B.non_coding`, `B.moved` (empate), `B.coding`, `D.moved` e `All.non_coding`.
+São os mesmos 20 pares do item 5 (cada célula por faixa etária contra a sua ingênua), agora sem
+olhar o valor: só quem erra menos, que é o que o artigo defende. Erram `A.non_coding`, `B.non_coding`,
+`B.moved` (empate), `B.coding`, `D.moved` e `All.non_coding`.
 
-**Hipótese de pé: `non_coding` é a categoria doente.** É a única das quatro que inverte de sinal
-também no agregado (artigo 0,5000 contra 0,6667; replicação 0,5804 contra 0,5000) e sem
-significância (p = 0,1145). Mesma família de causa do item 5, porque as coortes de discussão são as
-mais ralas.
+**Explicação mais provável: `non_coding` é a categoria doente.** É a única das quatro que inverte
+de sinal também no agregado (artigo 0,5000 contra 0,6667; replicação 0,5804 contra 0,5000) e sem
+significância (p = 0,1145). Mesma família de causa do item 5, porque as coortes de discussão são
+as mais ralas.
 
 **Conferir:** `projection.direcao.*` (20 linhas) e a trava `replica_locks.projection_direcao_pares` ·
 `output/plots/ieice16_tab3_abre.csv`.
 
-## 7. Significância (Wilcoxon, 20 recortes de faixa por categoria)
+## 7. Significância estatística: o artigo acha 16, nós achamos 5
 
-O artigo reporta significância em 16 dos 20 recortes. A replicação confirma **5**: `A.non_coding`,
-`C.moved`, `All.moved`, `All.coding` e `All.all`. Em 2 recortes ocorre o inverso, com significância
+Nos mesmos 20 pares, o teste pergunta se a vantagem do item 6 é grande o bastante para não ser
+sorte. O artigo acha significância em 16 deles. A replicação confirma **5**: `A.non_coding`,
+`C.moved`, `All.moved`, `All.coding` e `All.all`. Em 2 pares ocorre o inverso, com significância
 na replicação e não no artigo (`A.coding` p = 0,0003; `C.non_coding` p = 0,0216).
 
-**Hipótese de pé: poder estatístico.** n menor (34 projetos) e coortes ralas nas faixas altas. O
-sinal existe e sobrevive no agregado, com força menor do que o artigo sugere. A vantagem da previsão
-por faixa se dilui quando o recorte é isolado.
+**Explicação mais provável: poder estatístico.** n menor (34 projetos) e coortes ralas nas faixas
+altas. O sinal existe e sobrevive no agregado, com força menor do que o artigo sugere. A vantagem
+da previsão por faixa se dilui quando o recorte é isolado.
 
 **Conferir:** `projection.wilcoxon.*` (20 linhas) · `output/plots/ieice16_tab4_wilcoxon.csv`.
 
@@ -180,8 +196,9 @@ por faixa se dilui quando o recorte é isolado.
 |---|---|
 | ![](figuras/artigo/ieice16_fig8_artigo.png) | ![](../output/plots/ieice16_fig8_projecao_2013-09-30.png) |
 
-**Hipótese de pé: cauda longa rala.** Com janela de 2010 a 2013 e 34 projetos, as bandas acima de
-4 anos têm poucos contribuintes por coorte (n = 135/200) e o resultado fica dominado por ruído.
+**Explicação mais provável: cauda longa rala.** Com janela de 2010 a 2013 e 34 projetos, as bandas
+acima de 4 anos têm poucos contribuintes por coorte (n = 135/200) e o resultado fica dominado por
+ruído.
 
 **Conferir:** `projection.term.direcao` e `projection.term.significancia` ·
 `output/plots/ieice16_fig8_projecao_2013-09-30.png`.
@@ -202,12 +219,12 @@ por faixa se dilui quando o recorte é isolado.
 O resíduo é praticamente todo do homebrew, com assinatura exata: **+200 no lado do código, -129 no
 da discussão, +71 de população total**.
 
-**Hipótese de pé: a fronteira `coding` contra `non_coding`.** 674 contribuidores vivos estão do lado
-do código só por terem aberto pull request sem nenhum commit, sendo 601 nas 4 bandas mais novas,
-onde mora o excesso. O tamanho é compatível com a forma do erro. Nenhuma regra testada recorta
-exatamente 129 desses 674.
+**Explicação mais provável: a fronteira `coding` contra `non_coding`.** 674 contribuidores vivos
+estão do lado do código só por terem aberto pull request sem nenhum commit, sendo 601 nas 4 bandas
+mais novas, onde mora o excesso. O tamanho é compatível com a forma do erro. Nenhuma regra testada
+recorta exatamente 129 desses 674.
 
-Testado e caído:
+O que já testamos e não explica:
 
 - Âncora de idade: por construção ela só move gente entre bandas, e o saldo -129/+200 fica idêntico.
 - Autoria do PR por `user_id` no lugar de `actor_id`: 49 linhas divergentes em 13.171, com a mesma contagem de autores.
