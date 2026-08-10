@@ -1,4 +1,4 @@
-"""Estágio 1 — extração. Um parquet de eventos por projeto."""
+"""Estágio 1: extração. Um parquet de eventos por projeto."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def events_path(scope_id: int):
 def labels() -> dict[int, str]:
     """`{scope_id: "owner/name"}` a partir do manifesto do extract.
 
-    Os rótulos são os mesmos que `MSR14Source.list_scopes()` gravou — este é um
+    Os rótulos são os mesmos que `MSR14Source.list_scopes()` gravou: este é um
     cache em disco, não uma segunda fonte de verdade. Existe para que os
     estágios de leitura (plots) rodem sem o MySQL de pé. Se o manifesto não
     tiver o projeto, cai no banco.

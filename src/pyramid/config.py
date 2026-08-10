@@ -1,7 +1,8 @@
 """Carga de config/*.yaml. Nenhum parâmetro de método fica no código.
 
 Credencial de banco NÃO mora aqui: é detalhe de uma fonte específica e vive em
-sources/msr14.py (§8 — o motor de cálculo não conhece a origem dos dados).
+sources/msr14.py (seção 8 da spec: o motor de cálculo não conhece a origem
+dos dados).
 """
 
 from __future__ import annotations

@@ -1,9 +1,9 @@
-# IEICE16 Tabelas 3 e 4 — replicação vs. artigo
+# IEICE16 Tabelas 3 e 4: replicação vs. artigo
 
 Gerado por `pyramid plot --figure abre-table`. Tolerância relativa: 2%.
 Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da tolerância.
 
-## Tabela 3 — mediana do ABRE (menor é melhor)
+## Tabela 3: mediana do ABRE (menor é melhor)
 
 | tipo | projetos | pares | non_coding coorte | non_coding baseline | moved coorte | moved baseline | coding coorte | coding baseline | all coorte | all baseline |
 |---|---|---|---|---|---|---|---|---|---|---|

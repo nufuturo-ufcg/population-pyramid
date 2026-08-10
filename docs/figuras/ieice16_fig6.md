@@ -1,4 +1,4 @@
-# IEICE 2016 — Figura 6
+# IEICE 2016: Figura 6
 
 **Arquivo gerado:** `output/plots/ieice16_fig6_tipos_2013-09-30.png`
 **Comando:** `pyramid plot --figure pyramid-grid-types`
@@ -15,8 +15,8 @@ mostra "com que cara fica" cada quadrante da Figura 5.
 | 2 | B | FortAwesome/Font-Awesome, gitlabhq/gitlabhq |
 | 3 | C | cakephp/cakephp, Bukkit/CraftBukkit |
 
-Cada painel tem escala própria, como no artigo — a comparação aqui é de forma,
-não de tamanho.
+Cada painel tem escala própria, como no artigo. A comparação aqui é de forma.
+Não é de tamanho.
 
 ## O que saiu igual
 
@@ -31,9 +31,9 @@ Nada de substantivo.
 ## Uma observação sobre o tipo D
 
 O tipo D não aparece nesta figura. Não é omissão da replicação: o dataset inteiro
-tem só três ou quatro projetos desse tipo, e o artigo dedica a eles um painel
-separado — a Figura 7.
+tem só três ou quatro projetos desse tipo. O artigo dedica a eles um painel
+separado, a Figura 7.
 
 Também não impusemos uma escala comum aos painéis. Fazer isso deixaria a figura
-mais fácil de ler, mas seria *melhorar* o original em vez de replicá-lo, e o
-critério aqui é reprodução, não estética.
+mais fácil de ler, mas seria *melhorar* o original em vez de replicá-lo. O
+critério aqui é reprodução. Não é estética.

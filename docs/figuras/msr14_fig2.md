@@ -1,14 +1,17 @@
-# MSR 2014 — Figura 2
+# MSR 2014: Figura 2
 
 **Arquivo gerado:** `output/plots/msr14_fig2_2011.png`
 **Comando:** `pyramid plot --figure magnet-sticky`
+**Conferir os números:** `output/plots/msr14_fig2_2011.csv` traz um ponto por
+linha, com as duas medianas que traçam as divisórias e o quadrante de cada
+projeto. É o mesmo dado que virou desenho.
 
 ## O que a figura mostra
 
 Um gráfico de dispersão com dois eixos:
 
-- **atratividade** — o quanto o projeto puxa gente nova;
-- **retenção** — o quanto o projeto segura quem já chegou.
+- **atratividade**: o quanto o projeto puxa gente nova;
+- **retenção**: o quanto o projeto segura quem já chegou.
 
 As linhas que dividem o gráfico em quatro quadrantes não são valores fixos: são
 as medianas do próprio conjunto de projetos. Cada quadrante recebe um nome
@@ -41,18 +44,18 @@ Sete células, de um total de 55:
 **Cinco das sete são projetos de fronteira.** Como as divisórias do gráfico são
 medianas, um projeto que cai quase em cima da linha muda de quadrante com
 qualquer variação mínima. Basta uma pessoa a mais ou a menos na contagem. Isso
-não indica método errado — indica que o projeto está no limite, e o artigo tem
+não indica método errado. Indica que o projeto está no limite, e o artigo tem
 o mesmo problema.
 
-**Duas têm causa própria, e não são culpa da classificação:**
+**Duas têm causa própria. Não são culpa da classificação:**
 
-- **scala em 2010** — o dump tem um buraco de 18 meses nesse projeto. Não há
+- **scala em 2010**: o dump tem um buraco de 18 meses nesse projeto. Não há
   atividade registrada no período, então não há o que classificar. É limitação
-  dos dados de origem, não da replicação.
-- **django em 2011** — o repositório ainda não tinha migrado para o GitHub
+  dos dados de origem. Não é falha da replicação.
+- **django em 2011**: o repositório ainda não tinha migrado para o GitHub
   nessa época. O que o dump enxerga é uma fração da atividade real.
 
 Nos dois casos, a checagem foi feita contra a fonte externa (o próprio GitHub) e
 confirmou que o dado está faltando na origem.
 
-Detalhamento: `discrepancias.md` §16 e §17.
+Detalhamento: `docs/discrepancias.md`, seções 16 e 17.

@@ -1,7 +1,7 @@
 """Fonte MSR14 (GHTorrent, MySQL 5.5 dump rodando em MariaDB 10.11).
 
 Cada atividade vira um SELECT com a mesma forma (scope, contribuidor, timestamp)
-e tudo é unido por UNION ALL. Os pontos delicados estão comentados no lugar —
+e tudo é unido por UNION ALL. Os pontos delicados estão comentados no lugar:
 são exatamente as pegadinhas do schema que fazem a contagem sair errada em
 silêncio se ignoradas.
 """
@@ -24,9 +24,9 @@ log = logging.getLogger(__name__)
 
 @cache
 def engine() -> Engine:
-    """Engine do dump. Mora aqui porque MySQL é detalhe DESTA fonte — nenhum
-    estágio do motor de cálculo pode importar driver de banco (§8 da spec).
-    Pool pequeno: o pipeline é sequencial por projeto."""
+    """Engine do dump. Mora aqui porque MySQL é detalhe DESTA fonte: nenhum
+    estágio do motor de cálculo pode importar driver de banco (seção 8 da
+    spec). Pool pequeno: o pipeline é sequencial por projeto."""
     load_dotenv(ROOT / ".env")
     u = os.getenv("DB_USER", "root")
     p = os.getenv("DB_PASSWORD", "root")
@@ -93,7 +93,7 @@ _ACTIVITY_SQL = {
     """,
     # `issues` mistura issues de verdade com PRs: 80.729 das 150.362 linhas têm
     # pull_request=1. O artigo trata `issues` como abertura de discussão, então
-    # NÃO filtramos pull_request=0 — a abertura de um PR também gera discussão.
+    # NÃO filtramos pull_request=0: a abertura de um PR também gera discussão.
     # Isso é escolha de método, não descuido; ver docs/discrepancias.md.
     "issues": """
         SELECT i.reporter_id AS contributor_id, i.created_at AS ts
@@ -183,7 +183,7 @@ class MSR14Source(ActivityDataSource):
 
         Carrega o mapa sob demanda: antes isto dependia de `list_scopes()` ter
         sido chamado na mesma instância, e quem chamasse direto (metrics.table,
-        a legenda da Fig.5) recebia o id de volta como se fosse o nome — sem
+        a legenda da Fig.5) recebia o id de volta como se fosse o nome, sem
         erro, só uma tabela de projetos numerados. Id desconhecido continua
         virando string, mas aí é um escopo que realmente não é raiz.
         """
@@ -235,7 +235,7 @@ class MSR14Source(ActivityDataSource):
 # commit que ele não casou com a conta do GitHub, `fake` gerado a partir do
 # autor do commit). Isso infla a população da pirâmide e REJUVENESCE a pessoa:
 # cada identidade carrega só um pedaço do histórico dela. Só existe aqui, fora
-# do pipeline — é investigação, não é estágio. Ver discrepancias.md §24.
+# do pipeline: é investigação, não estágio. Ver discrepancias.md, seção 24.
 _USERS_SQL = "SELECT * FROM users WHERE id IN :ids"
 
 
@@ -259,7 +259,7 @@ WHERE p.id IN :ids
 
 
 def get_projects(ids: list[int]) -> pd.DataFrame:
-    """owner/name de cada project.id. Diagnóstico só — serve pra provar que o
+    """owner/name de cada project.id. Diagnóstico só, serve pra provar que o
     id no checkpoints.yaml é o projeto que o rótulo diz que é."""
     with engine().connect() as cx:
         return pd.read_sql(
@@ -337,7 +337,7 @@ def _fundir_identidades(df: pd.DataFrame, modo: str, scope_id: int) -> pd.DataFr
     a mesma pessoa costuma ter uma conta "cheia" e satélites de 1-5 eventos
     (e-mail de commit não casado com a conta). Sem fundir, a pirâmide conta a
     pessoa N vezes E a rejuvenesce: cada satélite tem primeiro-evento próprio.
-    Ver discrepancias.md §26.
+    Ver discrepancias.md, seção 26.
     """
     if modo == "none" or df.empty:
         return df

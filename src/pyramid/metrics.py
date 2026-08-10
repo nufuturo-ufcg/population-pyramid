@@ -1,4 +1,4 @@
-"""Estágio 4 — CCR, NCR e os Tipos A–D, por (projeto, snapshot).
+"""Estágio 4: CCR, NCR e os Tipos A-D, por (projeto, snapshot).
 
 Fórmulas verificadas palavra por palavra contra o PDF do IEICE16 (s3, p.1308-1309):
 
@@ -9,16 +9,16 @@ Fórmulas verificadas palavra por palavra contra o PDF do IEICE16 (s3, p.1308-13
         = (new - experienced) / experienced  se new <  experienced
 
 Ambos em [-1, 1]. O denominador é sempre o MAIOR dos dois lados, o que mantém a
-razão limitada — não é um erro de transcrição do artigo.
+razão limitada. Essa escolha é fiel à fórmula do artigo, tal como publicada.
 
 Lados (IEICE16 s3 + spec s2):
-  coding      = category in {coding, moved}   — quem já codou alguma vez até T
+  coding      = category in {coding, moved}: quem já codou alguma vez até T
   non         = category == non_coding
   new         = band 0  (idade < 3 meses de atividade acumulada)
   experienced = band >= 1
 
-Quadrantes, citando o artigo (p.1309), que descreve cada tipo em palavras e não
-por sinal — a tradução para sinal está abaixo e é a única leitura possível:
+Quadrantes, citando o artigo (p.1309), que descreve cada tipo em palavras.
+A tradução para sinal, feita abaixo, é a única leitura possível:
 
   "Type A: more newcomers than experienced ... more coding than non-coding"
   "Type B: more newcomers than experienced ... more non-coding than coding"
@@ -31,8 +31,9 @@ por sinal — a tradução para sinal está abaixo e é a única leitura possív
     C    | > 0 | < 0
     D    | < 0 | < 0
 
-O corte é em ZERO, não na mediana. Projeto sem nenhum contribuidor no snapshot
-não é classificado — é literalmente o que derruba 4 dos 90 na Fig.5 do IEICE16
+O corte usa ZERO como referência de sinal. A mediana não entra nessa comparação.
+Projeto sem nenhum contribuidor no snapshot não é classificado: é literalmente
+o que derruba 4 dos 90 na Fig.5 do IEICE16
 ("because four projects did not have any contributors in this period ... there
 are 86 projects displayed in Fig. 5").
 
@@ -62,7 +63,7 @@ CODING_SIDE = ("coding", "moved")
 
 
 def ratio(a: float, b: float) -> float:
-    """(a - b) / max(a, b) — a forma fechada das duas ramificações do artigo.
+    """(a - b) / max(a, b): a forma fechada das duas ramificações do artigo.
 
     Indefinido quando os dois lados são zero: o projeto não tem população.
     """
@@ -77,9 +78,9 @@ def _type_of(ccr: float, ncr: float) -> str | None:
 
     Os artigos só definem "positivo é alto, negativo é baixo" e nunca falam de
     zero. A leitura menos arbitrária é a literal: zero não é positivo, logo cai
-    do lado baixo. Não é configurável de propósito — deixar isso como knob
+    do lado baixo. Não é configurável de propósito: deixar isso como knob
     convidava a girar o parâmetro até o checkpoint bater, que é exatamente o
-    que o §0 do spec proíbe.
+    que a seção 0 do spec proíbe.
 
     Em set/2013 isso afeta 2 projetos, ambos com CCR exatamente 0 por terem
     coding == non_coding (MiniProfiler 19/19 -> B, ccv 2/2 -> D). Não muda o
@@ -145,7 +146,7 @@ def load_all(scopes: list[int] | None = None) -> pd.DataFrame:
 
 
 def table(snapshot: str | pd.Timestamp, scopes: list[int] | None = None) -> pd.DataFrame:
-    """Corte de um snapshot com o nome do projeto — a matéria-prima da Fig.5."""
+    """Corte de um snapshot com o nome do projeto: a matéria-prima da Fig.5."""
     df = load_all(scopes)
     if df.empty:
         return df

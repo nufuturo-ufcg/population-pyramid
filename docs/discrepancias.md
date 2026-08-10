@@ -1,10 +1,10 @@
 # Discrepâncias vs. os artigos originais
 
 Registro do que foi investigado quando um checkpoint não bateu, qual leitura foi
-escolhida e por quê. Exigido pelo §9 do spec ("documentar qual foi investigado e
+escolhida e por quê. Exigido pela seção 9 do spec ("documentar qual foi investigado e
 o resultado, não só 'não bateu'").
 
-Checkpoint de referência: **IEICE16 Fig. 5**, snapshot set/2013 —
+Checkpoint de referência: **IEICE16 Fig. 5**, snapshot set/2013.
 `A=23, B=42, C=18, D=3`, 86 projetos classificados de 90
 (4 sem contribuidores no período).
 
@@ -17,20 +17,21 @@ Checkpoint de referência: **IEICE16 Fig. 5**, snapshot set/2013 —
 | IEICE16 Fig.5 | 23 | 42 | 18 | 3 | 86 | 4 |
 | Esta replicação | 26 | 40 | 15 | 4 | 85 | 5 |
 
-*(Valores em vigor, conferidos contra `output/validation_report.md` e §38.1. Até
+*(Valores em vigor, conferidos contra `output/validation_report.md` e a seção 38.1. Até
 2026-08-08 esta tabela trazia `27/40/14/4` e `L1 = 11`, de uma rodada anterior à
-correção do §32; o viés e as conclusões abaixo não mudam.)*
+correção da seção 32; o viés e as conclusões abaixo não mudam.)*
 
 Erro L1 = 9 tipos, sobre 85 projetos classificados (contra 86 no artigo). O
-viés é sistemático e sempre o mesmo: **sobra projeto em A, falta em C** — ou
+viés é sistemático e sempre o mesmo: **sobra projeto em A, falta em C**, ou
 seja, classifico newcomer demais. A e C só diferem pelo sinal do NCR, então
 bastariam 4 projetos com mais experientes que novos para fechar.
 
-Os 8 projetos que o artigo nomeia individualmente batem **8/8** (§3.1a), e os 4
-projetos que fechariam o gap custam **1-2 contribuidores cada** (§3.1b) — o
-resíduo vive nos projetos de população 1-3, não numa falha do método.
+Os 8 projetos que o artigo nomeia individualmente batem **8/8** (seção 3.1a), e os 4
+projetos que fechariam o gap custam **1-2 contribuidores cada** (seção 3.1b). O
+resíduo vive nos projetos de população 1-3: o gap custa só 1-2 contribuidores
+por projeto, pequeno demais para ser falha sistemática do método.
 
-O GATE do §9 pede acerto **exato**. Ele não passa. O que segue é o que foi
+O GATE da seção 9 pede acerto **exato**. Ele não passa. O que segue é o que foi
 testado para tentar fechar.
 
 ## 2. Grid completo executado
@@ -48,23 +49,23 @@ Ambas dão "six development activities".
 | `table1` (`issues` dentro, `issue_events` fora) | 27 | 42 | 12 | 1 | 84 | 12 |
 | `prose` (`issue_events` dentro, `issues` fora) | 27 | 39 | 14 | 3 | 85 | **11** |
 
-Escolhida: `prose`. Ganha por pouco no L1, mas ganha por muito no argumento —
+Escolhida: `prose`. Ganha por pouco no L1, mas ganha por muito no argumento:
 `issues` mistura PRs com issues de verdade (69.633 de 150.362 linhas são PRs
 disfarçados), então contá-la infla a discussão com o que já foi contado como
-coding. O ESEM14 §3 concorda com a prosa.
+coding. O ESEM14 seção 3 concorda com a prosa.
 
-### Escopo de commits (ambiguidade 2 — o "primeiro suspeito" do §7.1 do spec)
+### Escopo de commits (ambiguidade 2: o "primeiro suspeito" da seção 7.1 do spec)
 
 | Escopo | A | B | C | D | classif. | erro |
 |---|---|---|---|---|---|---|
 | `root` (`commits.project_id`) | 27 | 39 | 14 | 3 | 85 | **11** |
 | `family_project_commits` (agrega forks) | 28 | 39 | 14 | 3 | 85 | 12 |
 
-Agregar os forks move ~2% dos contribuidores ativos e **piora**. O §7.1 fica
-resolvido a favor de `root`: a hipótese de que a contagem estava baixa por não
-agregar forks está descartada — o dump já tem contribuidores suficientes.
+Agregar os forks move ~2% dos contribuidores ativos e **piora**. A seção 7.1 fica
+resolvida a favor de `root`. A hipótese de que a contagem estava baixa por não
+agregar forks está descartada: o dump já tem contribuidores suficientes.
 
-### Definição de idade (ambiguidade 3) — este era o erro grande
+### Definição de idade (ambiguidade 3): este era o erro grande
 
 | Base | A | B | C | D | erro |
 |---|---|---|---|---|---|
@@ -75,7 +76,7 @@ agregar forks está descartada — o dump já tem contribuidores suficientes.
 periods"* (p.1308) e é **impossível**: deixa C e D completamente vazios, quando o
 artigo tem 21 projetos ali. Quase ninguém acumula 3 meses de atividade contínua,
 então todo mundo vira newcomer para sempre. `calendar_tenure` é o que o método
-demográfico emprestado exige — numa pirâmide etária, idade é idade, gap não
+demográfico emprestado exige. Numa pirâmide etária, idade é idade, gap não
 desconta. Adotada.
 
 ### Fim do período e população
@@ -99,19 +100,19 @@ dump:
 
 1. **A lista exata de eventos.** O artigo nunca enumera as tabelas do GHTorrent
    que usou. Qualquer evento a mais ou a menos no lado non-coding move o CCR de
-   projetos que estão perto de zero — e Fig.5 mostra vários exatamente aí
+   projetos que estão perto de zero. Fig.5 mostra vários exatamente aí
    (homebrew e rails são descritos como "próximos do centro").
 2. **A versão do GHTorrent.** Nosso dump é o do MSR14 Challenge (cobertura até
    2013-10-06). Os autores publicaram em 2016 e podem ter usado um dump mais
    recente, com backfill dos mesmos projetos.
-3. **Empates.** Resolvido, ver §6.
+3. **Empates.** Resolvido, ver seção 6.
 
-## 3.1 Investigação dirigida dos Tipos A-D (§9.1 do spec)
+## 3.1 Investigação dirigida dos Tipos A-D (seção 9.1 do spec)
 
 Quatro testes. Nenhum derrubou o erro 11, mas o (a) e o (b) juntos mudam o que a
 discrepância significa.
 
-**(a) Os 8 projetos nomeados no artigo — batem todos os 8.** O IEICE16 rotula
+**(a) Os 8 projetos nomeados no artigo batem todos os 8.** O IEICE16 rotula
 por nome 8 pontos da Fig. 5. Conferidos um a um em `2013-09-30`:
 
 | projeto | artigo | nosso | CCR | NCR |
@@ -125,8 +126,8 @@ por nome 8 pontos da Fig. 5. Conferidos um a um em `2013-09-30`:
 | CraftBukkit | C | C | +0.55 | -0.36 |
 | rails | D | D | -0.03 | -0.07 |
 
-**8/8.** Inclusive `rails`, que está a -0.03/-0.07 da origem — o ponto mais
-difícil dos oito, e cai no quadrante certo. Todo projeto que o artigo permite
+**8/8.** Inclusive `rails`, que está a -0.03/-0.07 da origem (o ponto mais
+difícil dos oito) e cai no quadrante certo. Todo projeto que o artigo permite
 verificar individualmente confere. O erro 11 está inteiramente nos 78 projetos
 que o artigo só reporta em agregado.
 
@@ -144,9 +145,10 @@ entrar em `experienced`):
 
 **Os 4 projetos A→C que fechariam o gap custam 1-2 contribuidores cada, cinco
 pessoas no total.** Metade desses projetos tem população de 1 a 3 pessoas em
-set/2013 — um único contribuidor decide o quadrante do projeto inteiro. Não é
-um viés sistemático do método; é ruído de amostra pequena, e qualquer diferença
-de cobertura do dump (hipótese 2) o produz.
+set/2013: um único contribuidor decide o quadrante do projeto inteiro. É
+ruído de amostra pequena, que qualquer diferença de cobertura do dump (hipótese 2)
+produz. Viés sistemático do método fica descartado: a causa é pontual, um único
+contribuidor decide cada projeto minúsculo.
 
 **(c) A data do snapshot vale ±4 no erro.** O artigo diz "September 2013" e
 nunca dá o dia. Deslocando a grade trimestral inteira para cair em cada dia
@@ -163,13 +165,13 @@ candidato:
 exato). **Ficamos em `2013-09-30`**: a série trimestral foi fixada em
 `config/settings.yaml` antes desta varredura existir, e trocá-la agora seria
 escolher a data pelo resultado. O que a tabela estabelece é que o checkpoint dos
-Tipos A-D é subdeterminado pelo texto em ~±4 de erro L1 — "erro 11" e "erro 7"
+Tipos A-D é subdeterminado pelo texto em ~±4 de erro L1: "erro 11" e "erro 7"
 aqui são a mesma replicação com uma frase ambígua lida de dois jeitos.
 
-**(d) Projeto sem contribuinte: 5 vs 4 do artigo.** Não é causa independente —
-sai de (c). Em `2013-09-15` são exatamente 4, como no artigo. Nos outros dias, 5.
+**(d) Projeto sem contribuinte: 5 vs 4 do artigo.** Sai de (c). Em `2013-09-15`
+são exatamente 4, como no artigo. Nos outros dias, 5.
 
-**Conclusão.** Os três itens do §9.1 estão fechados sem mudança de método: a
+**Conclusão.** Os três itens da seção 9.1 estão fechados sem mudança de método: a
 parte verificável nominalmente bate 8/8, o resíduo agregado é dominado por
 projetos de 1-3 pessoas, e a data ambígua sozinha explica ±4 dele. Nenhum
 parâmetro foi girado para chegar aqui.
@@ -188,24 +190,24 @@ contagem cumulativa. Nenhum dos dois dá 36. Mover o início da janela para
 
 O IEICE16 nunca diz se a banda de 3 meses é fechada embaixo ou em cima. O
 exemplo didático da Tabela 2 + Fig. 4 resolve: **C3 tem exatos 3 meses de
-non-coding em t1 e é desenhado na banda "3 months"**, não na de 6; **C6 tem
+non-coding em t1 e é desenhado na banda "3 months"**; **C6 tem
 exatos 6 meses de coding em t2 e cai na banda "6 months"**. Logo as faixas são
-`(0,3]`, `(3,6]`, `(6,9]` — o rótulo do eixo é o limite SUPERIOR.
+`(0,3]`, `(3,6]`, `(6,9]`. O rótulo do eixo é o limite SUPERIOR.
 
 A implementação usava `floor(idade/3)`, que empurra 3 e 6 para a faixa
 seguinte. Corrigido para `ceil(idade/3)-1` em `snapshots.py`.
 
 **Efeito nos dados reais: nenhum.** Re-rodados os estágios 3 e 4 sobre os 90
 projetos, as 1143 linhas de métricas ficaram idênticas em `new`,
-`experienced`, `coding`, `non_coding`, `ccr`, `ncr` e `type` — nenhum
+`experienced`, `coding`, `non_coding`, `ccr`, `ncr` e `type`, porque nenhum
 contribuidor real cai exatamente sobre um múltiplo de 91,3125 dias. A correção
-é de fidelidade ao método, não de resultado.
+melhora a fidelidade ao método; o resultado numérico já estava certo.
 
 O mesmo exemplo fixou outras duas decisões, ambas já implementadas assim e
 agora cobertas por teste (`tests/test_classify.py`, 25 casos):
 
 - **idade de quem migrou conta a partir de `init_c`.** C3 em t2 tem 6 meses de
-  non-coding e 2 de coding, e aparece na banda "3 months" — a idade é a do lado
+  non-coding e 2 de coding, e aparece na banda "3 months": a idade é a do lado
   coding. Idem C6 (8 non-coding / 6 coding → banda "6 months").
 - **`moved` exige ter discutido ANTES de codar.** C4 tem os dois lados (8
   coding / 5 non-coding) mas é `coding`, porque `init_c < init_d`.
@@ -223,7 +225,7 @@ deixava esses projetos em `unclassified` e expunha um knob `metrics.tie_side`
 para alternar o comportamento.
 
 **O knob foi removido.** Deixar a convenção de desempate configurável convidava
-a girá-la até o checkpoint bater, que é exatamente o que o §0 do spec proíbe. A
+a girá-la até o checkpoint bater, que é exatamente o que a seção 0 do spec proíbe. A
 regra agora é fixa em `metrics._type_of` e é a leitura literal: alto = `valor >
 0`, logo zero cai do lado baixo.
 
@@ -236,7 +238,7 @@ Em set/2013 isso afeta 2 projetos, ambos com CCR exatamente 0 por terem
 | ccv | 2 | 2 | 0.00 | -0.67 | D |
 
 Efeito no resultado: **erro L1 continua 11** (era 11 com os dois fora, é 11 com
-os dois dentro). O que muda é a cobertura — 83 → 85 projetos classificados de
+os dois dentro). O que muda é a cobertura: 83 → 85 projetos classificados de
 86, e some a coluna "empates" do relatório. Ou seja: a regra melhora a
 comparabilidade com o artigo sem alterar o erro que ele mede.
 
@@ -244,7 +246,7 @@ comparabilidade com o artigo sem alterar o erro que ele mede.
 
 ## 7. Filtro de projeção ">100 contribuidores": 35 medidos vs 36 do artigo (aceito)
 
-O IEICE16 §4 restringe a projeção a "projects with more than 100 contributors"
+O IEICE16 seção 4 restringe a projeção a "projects with more than 100 contributors"
 e diz que sobram 36 projetos (4 Tipo A, 21 B, 9 C, 2 D). A medição direta não
 reproduz 36 em nenhuma combinação testada.
 
@@ -276,14 +278,14 @@ Comando: `/tmp/f92.py` e `/tmp/f92b.py` (grid + quebra por tipo), sobre
 A ideia de casar 4/21/9/2 para identificar a variante certa não funciona: a
 nossa própria classificação A-D tem erro L1=11 sobre 86 projetos (item 5), e
 esse erro entra direto na quebra do subconjunto. Todas as variantes dão L1 8-10
-contra 4/21/9/2, ou seja, dentro do ruído da classificação de base — o teste
+contra 4/21/9/2, ou seja, dentro do ruído da classificação de base. O teste
 não discrimina. O `n` é o único sinal limpo.
 
 ### Por que 34 é ruído de fronteira e não erro de método
 
 > **Correção (2026-08).** Esta seção dizia **35**, com o 35º projeto em 102
 > contribuintes. Aquela contagem foi feita com a data errada `2013-03-30`, antes
-> de a causa raiz ser corrigida no §8. Com `2013-03-31` a janela de atividade de
+> de a causa raiz ser corrigida na seção 8. Com `2013-03-31` a janela de atividade de
 > 3 meses anda um dia para frente, dois contribuintes do projeto marginal saem, e
 > o número correto é **34**. Os valores abaixo são os de agora.
 
@@ -298,7 +300,7 @@ limiar cai num degrau:
 | #37 | 95 |
 
 Note onde o corte caiu: o 35º projeto tem **exatamente 100**. O artigo diz
-"more than 100 contributors", e `> 100` o exclui — mas ler a mesma frase como
+"more than 100 contributors", e `> 100` o exclui. Mas ler a mesma frase como
 "pelo menos 100" devolveria 35. A escolha está em `eligible_scopes()` como `>`,
 seguindo o texto ao pé da letra, e é a diferença entre 34 e 35 nesta replicação.
 
@@ -311,15 +313,15 @@ nossa contagem.
 **Decisão: aceitar 34, base 2013-03-31, contribuidores ativos, corte `> 100`.**
 ABRE e Wilcoxon não dependem do número exato de projetos no filtro, só do
 tamanho da amostra, então dois projetos a menos não comprometem o resultado que
-o artigo mede — ver §12.2, onde o agregado fecha a ~5% do publicado.
+o artigo mede. Ver seção 12.2, onde o agregado fecha a ~5% do publicado.
 `test_checkpoint_projetos_elegiveis_perto_dos_36` trava o 34 para que a
 contagem não volte a deslizar sem que alguém perceba.
 
 ### Bug latente encontrado no caminho
 
-A série de snapshots gerava **`2013-03-30`**, não `2013-03-31`. Contornado na
-hora ajustando a config para a data errada; a causa raiz foi corrigida depois —
-ver §8, que substitui este parágrafo.
+A série de snapshots gerava **`2013-03-30`**. O valor correto seria
+`2013-03-31`. Contornado na hora ajustando a config para a data errada; a
+causa raiz foi corrigida depois. Ver seção 8, que substitui este parágrafo.
 
 ---
 
@@ -329,9 +331,9 @@ ver §8, que substitui este parágrafo.
 
 ### Sintoma
 
-`snapshot_dates()` produzia `2011-12-30`, `2012-12-30`, `2013-03-30` — dia 30 em
+`snapshot_dates()` produzia `2011-12-30`, `2012-12-30`, `2013-03-30`: dia 30 em
 meses de 31 dias. A config foi inicialmente ajustada para casar essas datas
-erradas (§7), o que escondeu o problema em vez de resolvê-lo.
+erradas (seção 7), o que escondeu o problema em vez de resolvê-lo.
 
 ### Causa raiz
 
@@ -349,7 +351,7 @@ pd.date_range("2010-03-31", "2013-09-30", freq=pd.DateOffset(months=3))
 ```
 
 Toda data depois da primeira estava grudada no dia 30. As que pareciam corretas
-(jun, set) estavam certas **só porque esses meses acabam mesmo no dia 30** — foi
+(jun, set) estavam certas **só porque esses meses acabam mesmo no dia 30**. Foi
 essa coincidência que manteve o bug invisível, já que os checkpoints mais
 exercitados (Fig.5 set/2013, Fig.3 jun/*) caíam justamente nelas.
 
@@ -365,7 +367,7 @@ exercitados (Fig.5 set/2013, Fig.3 jun/*) caíam justamente nelas.
 ### Correção
 
 `snapshots.py` passou a usar `pd.offsets.QuarterEnd()`, ancorado em fim de
-trimestre civil, que é o que o método pede (IEICE16 §4.1: March, June,
+trimestre civil, que é o que o método pede (IEICE16 seção 4.1: March, June,
 September). `freq_months` agora exige múltiplo de 3 e falha alto caso contrário,
 em vez de gerar uma série silenciosamente diferente. `projection_base` voltou
 para `2013-03-31`.
@@ -382,8 +384,8 @@ Série corrigida (15 snapshots): `2010-03-31, 2010-06-30, 2010-09-30,
 
 ### Regressão: nenhuma
 
-Tipos A-D em set/2013 seguem **27/40/14/4**, 85 classificados, erro L1 = 11 —
-idênticos a antes do fix, como esperado, já que essa data não era afetada.
+Tipos A-D em set/2013 seguem **27/40/14/4**, 85 classificados, erro L1 = 11.
+Idênticos a antes do fix, como esperado, já que essa data não era afetada.
 
 ### Guarda contra reincidência
 
@@ -399,9 +401,9 @@ está vazio"**. `check_dates()` continua validando as datas de config na entrada
 ## 9. Checkpoint ESEM14 Fig.2 (dez/2011): bate 4/5
 
 **Status:** os quatro projetos nomeados na *legenda* da Fig.2 batem, um por
-quadrante. O quinto projeto rotulado pelo artigo para 2011 — **jekyll**, no
-corpo do texto ("also a terminal project in 2011") — **não** bate, e é o item
-aberto do **§13**. Esta seção documenta os quatro que fecham; ela dizia "4/4"
+quadrante. O quinto projeto rotulado pelo artigo para 2011 (**jekyll**, no
+corpo do texto: "also a terminal project in 2011") **não** bate, e é o item
+aberto da **seção 13**. Esta seção documenta os quatro que fecham; ela dizia "4/4"
 porque só olhava a legenda.
 
 Rodando `pyramid attractiveness` e cortando o ano 2011, os quatro projetos
@@ -433,7 +435,7 @@ mexer nessa margem, o teste que quebra primeiro é o do `paperclip`.
   existem em 2011, para que afrouxar o checkpoint no futuro não deixe passar um
   bug que colapsasse tudo num quadrante só.
 
-Ambos dão `skip` — não passam em falso — quando o parquet do estágio ainda não
+Ambos dão `skip` (não passam em falso) quando o parquet do estágio ainda não
 foi gerado. Rodar só eles: `pytest -m checkpoint`.
 
 **Nota de leitura sobre a tabela antiga desta seção.** A versão anterior deste
@@ -441,7 +443,7 @@ item trazia contagens do snapshot trimestral `2011-12-31` (homebrew com 1448
 ativos, blueprint-css com 1). Elas não contradizem os números acima: magnetismo
 e stickiness usam janela **anual** (ano civil de 2011), então homebrew aparece
 com 1740 devs ativos no ano contra 1448 no trimestre. São janelas diferentes do
-mesmo dado, e o §3.1 do ESEM14 é explícito em usar a anual.
+mesmo dado, e a seção 3.1 do ESEM14 é explícita em usar a anual.
 
 `blueprint-css` com stickiness exatamente 0.0000 confirma pelo lado quantitativo
 a leitura qualitativa que já estava aqui ("colapsada" na Fig.3): dos 11 devs que
@@ -450,12 +452,12 @@ tocaram o projeto em 2011, nenhum voltou em 2012.
 **O que continua aberto:** a transição temporal da Fig.3 (jun/2010 → jun/2013),
 registrada em `checkpoints.yaml` sob `transitions`. É um checkpoint qualitativo
 e depende de `plots.py`. Os quatro pontos são renderizados por inteiro,
-**2013 incluído** — ver §11 para por que a censura de out/2013 não afeta a forma
+**2013 incluído**. Ver seção 11 para por que a censura de out/2013 não afeta a forma
 da pirâmide e por que o artigo também não classifica 2013.
 
 ---
 
-## 10. "symfony" — dois projetos raiz com o mesmo nome (resolvido, sem mudança)
+## 10. "symfony": dois projetos raiz com o mesmo nome (resolvido, sem mudança)
 
 **Status:** investigado, nenhuma alteração no pipeline. A hipótese que motivou a
 checagem estava errada no mecanismo, mas a checagem valeu — confirmou por uma
@@ -463,9 +465,9 @@ fonte independente que o projeto certo já estava em uso.
 
 ### Hipótese testada
 
-Que a lista dos 90 estivesse usando `xphere-forks/symfony` (id 74915) — fork do
+Que a lista dos 90 estivesse usando `xphere-forks/symfony` (id 74915), fork do
 `symfony/symfony` real que o GHTorrent não marcou (`forked_from` NULL por
-engano) — no lugar do id 51671, e que trocar fecharia 1 dos 4 projetos do
+engano), no lugar do id 51671, e que trocar fecharia 1 dos 4 projetos do
 resíduo dos Tipos A-D.
 
 ### O que a base mostra
@@ -480,7 +482,7 @@ WHERE p.name='symfony' AND p.forked_from IS NULL;
 74915  xphere-forks/symfony   2013-08-19
 ```
 
-**Os dois estão nos 90** — não há troca a fazer. `symfony` é a única colisão de
+**Os dois estão nos 90**. Não há troca a fazer. `symfony` é a única colisão de
 `name` dentro do filtro (`GROUP BY name HAVING COUNT(*)>1` devolve só ela). O
 pipeline identifica escopo por `p.id` e rotula com `CONCAT(login,'/',name)`,
 então os dois aparecem como labels distintos e nenhum sombreia o outro.
@@ -498,7 +500,7 @@ do symfony real. O symfony real tem 668 contribuidores e já estava sendo usado.
 ### Confirmação independente
 
 O IEICE16 Fig.8 usa `symfony` entre os projetos de projeção, que exigem >100
-contribuidores. Dos dois, só 51671 passa no filtro (668 vs 3) — checado:
+contribuidores. Dos dois, só 51671 passa no filtro (668 vs 3). Checado:
 `t[t.total>100]` contém 51671 e não contém 74915. O symfony do artigo é o
 51671, que é o que o pipeline já usa. Fecha a questão sem depender da nossa
 leitura do dump.
@@ -513,9 +515,9 @@ Excluir 74915 como se fosse fork:
 | sem 74915 | 26 | 40 | 14 | 4 | 84 | **10** |
 
 Melhora L1 em 1 e **piora** a contagem de classificados (84 contra 86 do
-artigo). Não adotado: os dois sanity checks do §1.1.1 concordam no mesmo
+artigo). Não adotado: os dois sanity checks da seção 1.1.1 concordam no mesmo
 conjunto de 90 (`forked_from IS NULL AND id<>108342` e `forked_from IS NULL AND
-language IS NOT NULL` — 74915 é PHP, entra nos dois; 108342 tem `language`
+language IS NOT NULL`: 74915 é PHP, entra nos dois; 108342 tem `language`
 NULL, sai dos dois). Remover 74915 daria 89 projetos e contradiria o escopo
 declarado pelo artigo. Trocar 1 ponto de L1 por um desvio no escopo é mau
 negócio.
@@ -527,12 +529,12 @@ O artigo tem 3 Tipos D e nomeia `rails`; nós temos 4 (`knitr`, `ccv`,
 `rails`, `symfony`). Se symfony caísse do outro lado do zero seria B, e a
 contagem viraria 3 D / 41 B (L1 = 9).
 
-Isso qualifica o §9.1 item 5: **nem todo o resíduo é ruído de amostra pequena.**
-Os casos `blueprint-css` (1 contribuidor) e `memcached` (3) são; `symfony`, com
-668 contribuidores, não é — é um projeto genuinamente sobre a linha, onde NCR
-fica a 3 centésimos de zero. Nenhuma decisão de método desempata isso: o corte
-em zero é o que os artigos especificam, e a regra de empate já está fixada
-(§6 deste doc). Fica como fronteira real, não como erro. Não reabrir sem uma
+Isso qualifica a seção 9.1 item 5: **nem todo o resíduo é ruído de amostra pequena.**
+Os casos `blueprint-css` (1 contribuidor) e `memcached` (3) são ruído de amostra
+pequena. `symfony`, com 668 contribuidores, é um projeto genuinamente sobre a
+linha, onde NCR fica a 3 centésimos de zero. Nenhuma decisão de método desempata
+isso: o corte em zero é o que os artigos especificam, e a regra de empate já
+está fixada (seção 6 deste doc). Fica como fronteira real. Não reabrir sem uma
 fonte nova (ex.: o valor exato de NCR do symfony na Fig.5, se for legível).
 
 ## 11. Truncamento à direita: 2013 não classificável, 2012 subestimado em ~5%
@@ -544,7 +546,7 @@ olhar Y+1 inteiro, isso tem duas consequências, de gravidade bem diferente:
 
 **2013 não é classificável, e isso é definitivo.** Não há Y+1. O
 `attractiveness.py` marca esses anos com `right_censored` e os exclui da
-classificação em vez de reportar stickiness 0 — que é o modo silencioso de
+classificação em vez de reportar stickiness 0, que é o modo silencioso de
 errar aqui, porque 0 é indistinguível de "ninguém voltou" e jogaria todo
 projeto de 2013 no quadrante terminal. O log emite um `WARNING` explícito para
 2013 por esse motivo.
@@ -560,10 +562,11 @@ tiveram a primeira reaparição depois de 6/out:
 | 2011 | 2062 | 117 | 5,7% |
 | 2012 | 2301 | 0 | 0,0% (por truncamento) |
 
-Ou seja: a stickiness de 2012 perde da ordem de **5–6% das retenções**, não uma
-fração grande. E, crucialmente, a classificação não usa o nível absoluto — usa
-o corte na **mediana do próprio ano**. Um viés que atinge todos os projetos de
-forma parecida desloca numerador e mediana juntos e se cancela em boa parte. O
+Ou seja: a stickiness de 2012 perde da ordem de **5-6% das retenções**, uma
+fração pequena. E, crucialmente, a classificação usa o corte na **mediana do
+próprio ano**. O nível absoluto fica de fora: um viés que atinge todos os
+projetos de forma parecida desloca numerador e mediana juntos e se cancela em
+boa parte. O
 que ele *pode* virar é desempate errado em projetos que já estejam colados na
 mediana; os que estão longe dela não mudam de quadrante por 5%.
 
@@ -572,7 +575,7 @@ mediana; os que estão longe dela não mudam de quadrante por 5%.
 A censura atinge a **métrica anual**, não a **forma da pirâmide**. São coisas
 independentes:
 
-- a pirâmide de um ano Y é montada só com eventos até Y — é um retrato de
+- a pirâmide de um ano Y é montada só com eventos até Y: é um retrato de
   estoque, olha para trás. jun/2013 tem 9 meses de dados *do próprio ano*, que
   é tudo que a pirâmide de 2013 precisa;
 - stickiness de Y é uma métrica de fluxo que olha para frente, para Y+1. É essa
@@ -584,8 +587,8 @@ com a pirâmide completa em cada um, e **nenhuma classificação formal**
 
 Isso não é uma acomodação nossa: é exatamente o que o ESEM14 faz. Os autores
 trabalhavam com o mesmo dataset e o mesmo corte em out/2013, e no parágrafo do
-`jekyll` (§5, discussão da Fig.3) a única categoria formal que eles cravam é a
-de 2011 — para 2013 descrevem a *forma* e passam a linguagem condicional:
+`jekyll` (seção 5, discussão da Fig.3) a única categoria formal que eles cravam é a
+de 2011. Para 2013 descrevem a *forma* e passam a linguagem condicional:
 
 > "Number of discussion and coding contributors continued to increase, and the
 > population pyramid becomes balanced shape in 2013. This project classiﬁed as
@@ -594,14 +597,15 @@ de 2011 — para 2013 descrevem a *forma* e passam a linguagem condicional:
 > this project had a possibility to become attractive or ﬂuctuating project in
 > near future**."
 >
-> — Onoue et al., ESEM 2014, §5 (grifo nosso)
+> Onoue et al., ESEM 2014, seção 5 (grifo nosso)
 
 Note a assimetria no próprio texto do artigo: "classified as terminal project
 in 2011" (categoria afirmada, ano com Y+1 disponível) contra "had a possibility
 to become attractive or fluctuating" (duas categorias em aberto, futuro além do
-dataset). Eles descrevem a pirâmide de 2013 como "balanced shape" — um
-adjetivo de forma, não um dos quatro quadrantes. Reproduzir isso é fidelidade,
-não aproximação.
+dataset). Eles descrevem a pirâmide de 2013 como "balanced shape". É um
+adjetivo de forma. Os quatro quadrantes formais não entram: 2013 é
+right-censored e não recebe classificação, como esta seção já estabeleceu.
+Reproduzir isso é ser fiel ao artigo.
 
 O último ano com classificação formal deste lado é, portanto, **2012** (com o
 viés de ~5% da tabela acima). O gráfico anota `right-censored` no painel de
@@ -609,24 +613,24 @@ viés de ~5% da tabela acima). O gráfico anota `right-censored` no painel de
 
 **O que continua proibido:** inventar um 2013 parcial anualizado para forçar um
 quadrante. Isso mistura uma janela de 9 meses com janelas de 12 e produz um
-número que parece comparável e não é — e vai além do que os próprios autores
+número enganosamente comparável, que vai além do que os próprios autores
 afirmaram com os mesmos dados.
 
 ---
 
-## §12 — Projeção coorte-componente (IEICE16 §4, Tabelas 3 e 4)
+## 12. Projeção coorte-componente (IEICE16 seção 4, Tabelas 3 e 4)
 
 ### 12.1 Causa raiz: a pirâmide precisa ser a população *ativa*
 
 A primeira versão da projeção usava, como população de cada banda, todo mundo
-que já havia contribuído até o snapshot — o acumulado histórico. O resultado foi
+que já havia contribuído até o snapshot: o acumulado histórico. O resultado foi
 um ABRE mediano de **0.006**, contra os **0.4000** publicados: duas ordens de
 grandeza de "acurácia" a mais que o artigo.
 
 O número denunciava o erro. Num acumulado histórico ninguém morre: a cada
 trimestre a banda `b` inteira reaparece em `b+1`, a taxa de sobrevivência é
 identicamente 1 e a projeção vira o deslocamento puro da última medida. Ela
-acerta na mosca **sem ter previsto nada** — e, pior, o baseline (repetir a
+acerta na mosca **sem ter previsto nada**. E, pior, o baseline (repetir a
 última medida) erra, então o método coorte "ganhava" com folga em todas as
 células. A conclusão do artigo era reproduzida pelos motivos errados.
 
@@ -634,14 +638,14 @@ A correção é aplicar o mesmo filtro que o resto do pipeline já usava:
 
 > "we regarded that a contributor left the project when he/she did not give any
 > contribution for more than three months"
-> — IEICE16 §3.1
+> IEICE16 seção 3.1
 
 `src/pyramid/projection.py` agora filtra `snaps["active"]` antes de montar as
 bandas, alinhando a projeção com `metrics.py` e `plots.py`. `tests/test_projection.py`
 trava o comportamento por dois lados: `test_populacao_imortal_e_projetada_sem_erro`
 fixa a aritmética que produz o acerto falso, e
 `test_checkpoint_abre_na_ordem_de_grandeza_do_artigo` reprova qualquer ABRE fora
-da faixa publicada — teria falhado com 0.006.
+da faixa publicada. Teria falhado com 0.006.
 
 ### 12.2 O que fecha e o que não fecha
 
@@ -653,18 +657,19 @@ Com o filtro correto, `All types / all`:
 | replicação | 0.4208 | 0.5000 |
 
 O `cohort` fica a ~5% do publicado. Algumas células batem de forma quase
-literal — Type C / non-coding sai **0.6723 / 1.0000** contra **0.6711 / 1.0000**
-do artigo — mas isso é coincidência de amostra pequena, não validação: outras
-divergem bem mais, e duas invertem o sinal da comparação (ver 12.3).
+literal (Type C / non-coding sai **0.6723 / 1.0000** contra **0.6711 / 1.0000**
+do artigo), mas isso é coincidência de amostra pequena. Não conta como
+validação: outras divergem bem mais, e duas invertem o sinal da comparação
+(ver 12.3).
 
-A conclusão central do §4 se sustenta: no agregado, a projeção por coorte erra
+A conclusão central da seção 4 se sustenta: no agregado, a projeção por coorte erra
 menos que o baseline (0.4208 < 0.5000, Wilcoxon p = 0.0073, contra p < 0.00001
 no artigo). É o único predicado que `test_checkpoint_coorte_bate_o_baseline_no_agregado`
 exige, justamente por não depender do dataset específico.
 
-### 12.3 Divergências que permanecem — não corrigidas
+### 12.3 Divergências que permanecem, não corrigidas
 
-**(a) 34 projetos elegíveis, não 36.** O artigo usa "36 projects that have more
+**(a) 34 projetos elegíveis, contra 36 do artigo.** O artigo usa "36 projects that have more
 than 100 contributors". Aplicando o corte sobre contribuidores *ativos* no
 snapshot base (2013-03-31) chegamos a 34; dois projetos ficam na fronteira dos
 100. Não forçamos o número: mexer no corte para chegar a 36 seria ajustar o
@@ -675,19 +680,19 @@ para que a contagem não deslize em silêncio.
 baseline 0.6667; nós temos 0.5804 > 0.5000, com Wilcoxon p = 0.1145 (não
 significativo). É a única das quatro categorias que anda para o lado errado.
 
-**(c) curto vs. longo prazo inverte.** IEICE16 §4 reporta short-term 0.4055 pior
+**(c) curto vs. longo prazo inverte.** IEICE16 seção 4 reporta short-term 0.4055 pior
 que long-term 0.3333 (p = 0.0460). Nós obtemos short 0.3363 e long 0.4816
-(p = 0.1768, n = 135/200) — ordem trocada e sem significância. A suspeita é que nossa cauda
+(p = 0.1768, n = 135/200): ordem trocada e sem significância. A suspeita é que nossa cauda
 longa seja rala demais: com a janela de 2010-2013 e 34 projetos, as bandas
 acima de ~4 anos têm poucos contribuintes por coorte, e o ABRE de contagens
 pequenas é dominado por ruído de ±1 pessoa. Não investigado a fundo.
 
-**(d) 195 coortes sem denominador — tratado, ver 12.4.**
+**(d) 195 coortes sem denominador (tratado, ver 12.4).**
 
-**Leitura honesta do conjunto:** a mecânica do §4 está reproduzida e a tese
+**Leitura honesta do conjunto:** a mecânica da seção 4 está reproduzida e a tese
 central se sustenta, mas (b) e (c) são resultados do artigo que a replicação **não**
 reproduz. O dataset não é o mesmo (34 projetos contra 36, coortes diferentes),
-o que torna a comparação célula a célula pouco conclusiva nos dois sentidos —
+o que torna a comparação célula a célula pouco conclusiva nos dois sentidos,
 inclusive nas células que casaram.
 
 ### 12.4 As 195 coortes órfãs: semântica corrigida, números inalterados
@@ -703,10 +708,10 @@ antigo tratava igual, e não são a mesma coisa:
   povoada sem ter existido no trimestre anterior. A sobrevivência é indefinida.
   195 células — e o alvo tem gente de verdade em **73.8%** delas.
 
-O ponto: `SR = 0` é uma previsão de extinção, não ausência de sinal. Cravar 0
+O ponto: `SR = 0` é uma previsão de extinção. Cravar 0
 onde não há denominador afirma "esta coorte vai desaparecer" em 195 lugares
 onde o dado não diz nada, e erra em três de cada quatro. O erro é sistemático
-numa direção só — infla o ABRE do método coorte e favorece a baseline de graça.
+numa direção só: infla o ABRE do método coorte e favorece a baseline de graça.
 `project()` agora devolve `nan` (= "o método não responde") e a célula sai do
 cálculo, em vez de entrar como acerto ou erro inventado.
 
@@ -720,8 +725,8 @@ cálculo, em vez de entrar como acerto ou erro inventado.
 | D | 7 | 2 | 4 | 13 | 2 | 6.5 | 69.2% |
 
 C+D somam 40 (20.5% das órfãs), mas isso é só a contagem de projetos: **por
-projeto a taxa é plana** (5.1 a 6.5) e a fração de alvo povoado idem (69–82%).
-Não há concentração em tipo nenhum — a hipótese de que as órfãs explicariam o
+projeto a taxa é plana** (5.1 a 6.5) e a fração de alvo povoado idem (69-82%).
+Não há concentração em tipo nenhum: a hipótese de que as órfãs explicariam o
 comportamento anômalo de C/D nas Tabelas 3 e 4 **não se sustenta**.
 
 **A correção não move nenhum número publicado.** Rodado o contrafactual com a
@@ -735,10 +740,10 @@ semântica antiga lado a lado:
 Idênticos, e o motivo importa: com previsão 0, `abre(actual, 0)` já caía em
 `min(actual, 0) == 0` e devolvia `nan`; a célula morria depois, em vez de antes.
 O viés que a análise acima descreve era real na intenção do código, mas nunca
-chegou às medianas — as duas rotas descartavam as mesmas 195 coortes. O que
+chegou às medianas: as duas rotas descartavam as mesmas 195 coortes. O que
 muda é o registro: 182 linhas que sumiam em silêncio agora existem com
 `abre_cohort = nan`, auditáveis. **Isso desqualifica as órfãs como explicação
-para 12.3(b) e 12.3(c)** — a inversão do `non-coding` e a de curto/longo prazo
+para 12.3(b) e 12.3(c)**: a inversão do `non-coding` e a de curto/longo prazo
 sobrevivem intactas à correção e continuam sem causa identificada.
 
 Travado por `test_coorte_orfa_nao_inventa_sobrevivencia_e_e_contada` e
@@ -772,30 +777,32 @@ passar por esta comparação. Tolerância de 2% relativa (`tolerance_rel` em
 Quatro das sete são o valor 0.5000 — mediana de coortes que caem em razões de
 inteiros pequenos. Casar em 0.5000 é fraco como evidência: é o valor mais
 provável de sair por acaso nesse regime. As duas células de C/non_coding e a
-de C/all são as únicas coincidências não triviais, e §12.2 já as classificou
-como amostra pequena, não validação.
+de C/all são as únicas coincidências não triviais, e a seção 12.2 já as
+classificou como amostra pequena, insuficiente para valer como validação.
 
 **Direção (cohort < baseline?) concorda em 14 de 20 pares.** Das 6 que
 discordam, 4 são empate exato na replicação (`c = b`, todas em 0.5000): B/moved,
-B/all, C/moved, e o par de B/non_coding. Empate não é inversão — é resolução
-insuficiente. Inversões reais, com o cohort de fato pior que a baseline:
-**non_coding em B e no agregado**, e **D/moved**. É exatamente o 12.3(b), agora
-localizado: o problema do `non-coding` não é difuso, mora no Type B (19 dos 34
-projetos) e daí sobe para o agregado.
+B/all, C/moved, e o par de B/non_coding. Empate é resolução insuficiente.
+Chamar isso de inversão superestimaria o sinal, porque os dois lados
+simplesmente não se separaram. As inversões reais, com o cohort de fato pior
+que a baseline, são **non_coding em B e no agregado**, e **D/moved**. É
+exatamente o 12.3(b), agora localizado: o problema do `non-coding` está
+concentrado no Type B (19 dos 34 projetos) e daí sobe para o agregado.
 
 Conclusão operacional: a Tabela 3 **não** é reproduzida célula a célula, e não
-deve ser apresentada como tal. O que se sustenta é o predicado agregado do §4
+deve ser apresentada como tal. O que se sustenta é o predicado agregado da seção 4
 (cohort bate baseline, 0.4208 < 0.5000, p = 0.0073) e a direção em 14/20 pares.
 `test_checkpoint_abre_na_ordem_de_grandeza_do_artigo` trava a faixa; nenhum
 teste trava célula individual, de propósito.
 
 ---
 
-## 13. jekyll em 2011: o checkpoint da Fig.2 é 4/5, não 4/4 (aberto)
+## 13. jekyll em 2011: o checkpoint da Fig.2 é 4/5 (aberto)
 
-**Como apareceu.** Não apareceu num teste — apareceu no `pyramid validate`. O
-§9 fechou a Fig.2 com os quatro projetos que a *legenda* nomeia, um por
-quadrante, e os dois testes de checkpoint travam exatamente esses quatro. Mas o
+**Como apareceu.** O `pyramid validate` expôs o caso; nenhum teste dedicado
+cobria esse quinto projeto ainda. A seção 9 fechou a Fig.2 com os quatro
+projetos que a *legenda* nomeia, um por quadrante, e os dois testes de
+checkpoint travam exatamente esses quatro. Mas o
 ESEM14 nomeia um quinto projeto no **corpo do texto**, na discussão da Fig.3
 (p. 5, coluna 2):
 
@@ -810,20 +817,20 @@ verificável, e a replicação erra:
 | 2010 | 0.008734 | 0.011827 | 0.1034 | 0.2578 | **terminal** |
 | 2011 | 0.009960 | 0.007284 | 0.0519 | 0.1928 | **floating** (artigo: terminal) |
 | 2012 | 0.007741 | 0.007117 | 0.1975 | 0.1548 | attractive |
-| 2013 | 0.016609 | — | — | — | não classificado (§11) |
+| 2013 | 0.016609 | n/a | n/a | n/a | não classificado (seção 11) |
 
 **Onde exatamente erra: só no eixo do magnetismo.** Na stickiness jekyll é o
-5º menor entre 75 elegíveis (0.0519 contra mediana 0.1928) — é terminal com
+5º menor entre 75 elegíveis (0.0519 contra mediana 0.1928). É terminal com
 folga enorme nesse eixo. No magnetismo fica no posto 47 de 75, com a mediana no
 posto 38: nove posições acima do corte, dentro de uma faixa densa
-(0.0094–0.0110 cobre os postos 43–51). Em contagem bruta: jekyll teve 67
+(0.0094-0.0110 cobre os postos 43-51). Em contagem bruta: jekyll teve 67
 novatos em 2011 sobre 6727 novatos do dataset inteiro; para cair em terminal
 precisaria de **≤ 49**. São 18 novatos de excesso, ~27%. Não é empate na
 fronteira, e não vale tratar como ruído de arredondamento.
 
 **Contrafactual testado e descartado: ancoragem em junho.** Os painéis da Fig.3
 são rotulados 2010/06 … 2013/06, então "2011" podia significar a janela
-jul/2010–jun/2011 em vez do ano civil. Reprocessei o estágio inteiro com o ano
+jul/2010-jun/2011 em vez do ano civil. Reprocessei o estágio inteiro com o ano
 deslocado seis meses (`/tmp/jun_anchor.py`, ano fiscal jul..jun):
 
 ```
@@ -835,16 +842,16 @@ DATASET_DIR=$DATASET_DIR .venv/bin/python /tmp/jun_anchor.py
   blueprint-css  nan         MISS (esperado terminal; perde elegibilidade)
 ```
 
-A ancoragem em junho piora o checkpoint de 4/5 para 3/5 — não conserta jekyll e
+A ancoragem em junho piora o checkpoint de 4/5 para 3/5. Não conserta jekyll e
 ainda derruba blueprint-css abaixo do mínimo de devs ativos. O ano civil é a
 leitura certa, coerente com `checkpoints.yaml`, que registra a Fig.2 como
 snapshot de dez/2011. **A hipótese da janela está descartada; o desvio de
 jekyll é real.**
 
-**O que isto provavelmente é.** A direção do erro coincide com a do §3.1: lá
+**O que isto provavelmente é.** A direção do erro coincide com a da seção 3.1: lá
 sobra projeto no Tipo A e falta no Tipo C, isto é, a replicação **classifica
-novato demais**. Aqui o magnetismo — que é literalmente uma contagem de novatos
-sobre o total — sai alto demais para jekyll, e é exatamente isso que o empurra
+novato demais**. Aqui o magnetismo (que é literalmente uma contagem de novatos
+sobre o total) sai alto demais para jekyll, e é exatamente isso que o empurra
 de terminal para floating. São duas métricas independentes apontando o mesmo
 viés na mesma direção, o que é evidência melhor do que qualquer uma das duas
 sozinha. jekyll é o caso onde esse viés mais aparece porque foi o projeto que
@@ -854,24 +861,25 @@ quanto mais entrante, mais exposto ao critério de "primeira aparição".
 Consistente com isso, a **trajetória** da replicação reproduz a narrativa do artigo
 adiantada em um ano: terminal → (cresce) → attractive, com o artigo pondo
 "terminal" em 2011 e a replicação em 2010. Note que os outros quatro projetos
-batem no ano civil de 2011 sem deslocamento nenhum — **não** há offset global de
-um ano; é específico de jekyll.
+batem no ano civil de 2011 sem deslocamento nenhum. O desvio é específico de
+jekyll, sem offset global de um ano.
 
 **O que foi mudado no repositório:** nada no cálculo. Corrigir isto exige
-acertar a definição de novato, que é o §3.1 em aberto, e mexer nela para
+acertar a definição de novato, que é a seção 3.1 em aberto, e mexer nela para
 consertar um projeto seria ajustar o método ao gabarito. O que muda é a
 contabilidade honesta:
 
-- o título do §9 passa a dizer 4/5, com ponteiro para cá;
+- o título da seção 9 passa a dizer 4/5, com ponteiro para cá;
 - `checkpoints.yaml` ganha jekyll/2011 sob `attractiveness`, e o `validate`
   reporta a falha em vez de ignorá-la;
-- `test_checkpoint_jekyll_2011_diverge` trava o valor **medido** (floating), não
-  o do artigo, com a referência a esta seção. Se um refactor futuro fizer jekyll
-  virar terminal, o teste quebra e obriga a reler esta seção — que é o
-  comportamento certo, porque nesse dia o checkpoint vira 5/5 e este item fecha.
+- `test_checkpoint_jekyll_2011_diverge` trava o valor **medido** (floating), com
+  a referência a esta seção, independente do rótulo do artigo. Se um refactor
+  futuro fizer jekyll virar terminal, o teste quebra e obriga a reler esta
+  seção, que é o comportamento certo, porque nesse dia o checkpoint vira 5/5 e
+  este item fecha.
 
 **Fica aberto.** Não há aproximação a fazer aqui: ou a definição de novato muda
-e os cinco batem, ou o §3.1 permanece como a explicação comum dos dois desvios.
+e os cinco batem, ou a seção 3.1 permanece como a explicação comum dos dois desvios.
 
 ---
 
@@ -880,7 +888,7 @@ e os cinco batem, ou o §3.1 permanece como a explicação comum dos dois desvio
 ### Sintoma
 
 `pyramid validate` reportava `types.examples.*` com "obtido" = `25875`, `78835`,
-… — o próprio id do escopo — em vez de `jquery/jquery`, `divio/django-cms`. A
+… (o próprio id do escopo) em vez de `jquery/jquery`, `divio/django-cms`. A
 legenda da Fig.5 tinha o mesmo problema quando a figura era gerada sozinha
 (`pyramid plot --figure fig5`), com os pontos rotulados por número.
 
@@ -891,8 +899,8 @@ e `scope_label()` só lia esse dicionário. Quem chamasse `scope_label` sem ter
 passado por `list_scopes()` **na mesma instância** caía no `.get(id, str(id))` e
 recebia o id de volta. Os estágios do pipeline (`extract`, `classify`,
 `snapshots`, `attractiveness`) chamam `list_scopes()` logo no início do `run()`,
-então nunca viram o defeito; `metrics.table()` — usada por `validate` e pelo
-`plot --figure fig5` fora do pipeline — não chama.
+então nunca viram o defeito; `metrics.table()` (usada por `validate` e pelo
+`plot --figure fig5` fora do pipeline) não chama.
 
 Este é o modo de falha ruim: sem exceção, sem log, só um rótulo plausível.
 
@@ -900,7 +908,7 @@ Este é o modo de falha ruim: sem exceção, sem log, só um rótulo plausível.
 
 `scope_label()` passou a carregar o mapa sob demanda (`_load_labels()`), com o
 cache preservado. `list_scopes()` reusa o mesmo carregamento. Id que realmente
-não é raiz continua virando string — aí o fallback é a resposta certa.
+não é raiz continua virando string, e aí o fallback é a resposta certa.
 
 ```
 grep -n "def scope_label" -A 16 src/pyramid/sources/msr14.py
@@ -913,20 +921,20 @@ pyramid plot --figure fig5                              # legenda com nomes
 Nenhum número muda. `type`, `ccr`, `ncr`, quadrante e todas as tabelas são
 calculados por `scope_id`; o rótulo é cosmético e entra só na apresentação. O
 que muda é que os oito `types.examples.*` do relatório passam a ser verificáveis
-por leitura — antes eles batiam por serem comparados contra o gabarito por id,
+por leitura: antes eles batiam por serem comparados contra o gabarito por id,
 e o "obtido" impresso não dizia nada a quem lesse.
 
 ### Guarda contra reincidência
 
-`validate` compara `types.examples.<id>` contra o tipo (A–D) do artigo e imprime
+`validate` compara `types.examples.<id>` contra o tipo (A-D) do artigo e imprime
 o rótulo na coluna de referência; se o rótulo regredir para o id, o relatório
-mostra a regressão na cara. A regra geral que isto reforça — já aplicada ao
-manifesto — é que **artefato nenhum guarda `repr` de objeto ou id cru onde um
+mostra a regressão na cara. A regra geral que isto reforça (já aplicada ao
+manifesto) é que **artefato nenhum guarda `repr` de objeto ou id cru onde um
 nome estável é o esperado**.
 
-## 15. Novato é do dataset, não do projeto (§3.1) — hipótese testada e descartada
+## 15. Novato é do dataset (seção 3.1): hipótese testada e descartada
 
-O §13 fechou com uma suspeita nomeada: a replicação classificaria "novato demais",
+A seção 13 fechou com uma suspeita nomeada: a replicação classificaria "novato demais",
 e jekyll/2011 cairia em `attractive` porque o magnetismo sai alto. A única
 alavanca real por trás disso é a definição de novato. Ou o numerador do
 magnetismo conta *quem estreou no dataset*, ou conta *quem estreou naquele
@@ -935,7 +943,7 @@ todo projeto que recebe veterano vindo de outro repositório.
 
 ### O que o artigo diz
 
-MSR'14 §2, imediatamente antes da definição (p.1, coluna 2):
+MSR'14 seção 2, imediatamente antes da definição (p.1, coluna 2):
 
 > However, the definition cannot be applied directly to open source projects,
 > **where a contributor can contribute to several projects at the same time.**
@@ -948,13 +956,13 @@ A frase resolve o caso sozinha, e resolve duas vezes:
 
 1. `first contribution in the time period under study` qualifica a **pessoa**;
    `who contribute to a given project` é o filtro de quem, dentre esses,
-   conta para o projeto. O projeto entra como recorte, não como universo.
+   conta para o projeto. O projeto entra apenas como recorte sobre essa população.
 2. O motivo declarado da expansão é justamente o contribuidor multi-projeto.
    Ler "novato" como "primeira aparição neste repositório" desfaz a expansão:
    voltaria a tratar cada projeto como um mundo fechado, que é a leitura que
    os autores dizem não poder aplicar.
 
-É o que `src/pyramid/attractiveness.py` já faz — o denominador é global (todos
+É o que `src/pyramid/attractiveness.py` já faz: o denominador é global (todos
 os novatos do ano no dataset) e o numerador é a interseção com o projeto.
 
 ```
@@ -964,8 +972,8 @@ sed -n '78,93p' /tmp/msr14.txt      # pdftotext -layout docs/papers/MSR14.pdf
 
 ### O denominador é sobre a população certa
 
-`activity()` cobre os 90 escopos do dump — a mesma população dos 90 projetos do
-MSR'14 (§1.1.1). Se um parquet faltasse, o denominador encolheria em silêncio,
+`activity()` cobre os 90 escopos do dump: a mesma população dos 90 projetos do
+MSR'14 (seção 1.1.1). Se um parquet faltasse, o denominador encolheria em silêncio,
 por isso a função levanta `FileNotFoundError` em vez de rodar com 89. E as
 triplas são únicas, então `newcomers_here` não infla por linha repetida:
 
@@ -978,13 +986,13 @@ pyramid attractiveness   # 36335 linhas, 36335 chaves (scope_id, contributor_id,
 Variante **P** = "novato é quem aparece pela primeira vez *neste* projeto",
 comparada contra a Tabela 2 do MSR'14 (12 projetos × 8 anos, 55 células com
 rótulo publicado). Âncora primeiro: a variante **G** reimplementada bate com
-`attractiveness.annual()` em **96/96** células — sem isso a comparação seria
-entre duas reimplementações, não entre duas definições.
+`attractiveness.annual()` em **96/96** células: sem isso a comparação arriscaria
+comparar duas reimplementações em vez de duas definições.
 
 | variante | acertos | falhas |
 |---|---|---|
-| **G** — novato do dataset (atual) | **48/55 (87%)** | 7 |
-| P — novato do projeto | 45/55 (82%) | 10 |
+| **G**: novato do dataset (atual) | **48/55 (87%)** | 7 |
+| P: novato do projeto | 45/55 (82%) | 10 |
 
 P **não corrige nenhuma** das 7 falhas de G. Quebra 3 células que G acertava
 (2008 `scala`, 2008 `django-debug-toolbar`, 2008 `jekyll`) e mantém as outras
@@ -994,9 +1002,9 @@ P **não corrige nenhuma** das 7 falhas de G. Quebra 3 células que G acertava
 DATASET_DIR=$DATASET_DIR .venv/bin/python scripts/contrafactual_novato.py
 ```
 
-### A direção do efeito enterra a hipótese do §13
+### A direção do efeito enterra a hipótese da seção 13
 
-P conta **mais** novatos, não menos:
+P conta **mais** novatos:
 
 ```
 pares (projeto,pessoa,ano) nos 12 projetos x 8 anos: 3882
@@ -1006,20 +1014,20 @@ novatos sob P: 3047  (+4.9%)
 
 Se a replicação classifica novato demais, a variante alternativa classificaria
 ~5% a mais ainda. Não existe leitura de "novato" que empurre jekyll/2011 na
-direção do artigo: o eixo está esgotado. O §13 continua aberto, mas sem este
-suspeito — o resíduo de jekyll não vem da definição de novato, e a próxima
+direção do artigo: o eixo está esgotado. A seção 13 continua aberta, mas sem este
+suspeito: o resíduo de jekyll não vem da definição de novato, e a próxima
 hipótese tem que atacar outra coisa (janela de atividade ou o corte do sticky).
 
 ### Guarda contra reincidência
 
 Dois testes em `tests/test_attractiveness.py`:
 
-- `test_exemplo_figura1_do_msr14` — a aritmética publicada (magnetismo 2/3 e
-  1/3, sticky 1/1 e não 2/1). Trava a armadilha do sticky, mas **não** separa
+- `test_exemplo_figura1_do_msr14`: a aritmética publicada (magnetismo 2/3 e
+  1/3, sticky 1/1; guarda contra o valor errado 2/1). Trava a armadilha do sticky, mas **não** separa
   G de P: no exemplo dos autores ninguém é veterano do dataset e estreante em
   um projeto.
-- `test_novato_e_do_dataset_nao_do_projeto` — separa. Veterano troca de
-  projeto: o projeto novo tem magnetismo **0**, não 1/2. Sob P este teste falha.
+- `test_novato_e_do_dataset_nao_do_projeto`: separa. Veterano troca de
+  projeto: o projeto novo tem magnetismo **0** (1/2 sob P). Sob P este teste falha.
 
 ```
 .venv/bin/python -m pytest tests/test_attractiveness.py -q   # 11 passed
@@ -1027,7 +1035,7 @@ Dois testes em `tests/test_attractiveness.py`:
 
 ## 16. As 7 células residuais da Tabela 2 do MSR'14 (48/55 = 87%)
 
-A Tabela 2 do MSR'14 virou instrumento permanente de validação (§11.1): 12
+A Tabela 2 do MSR'14 virou instrumento permanente de validação (seção 11.1): 12
 projetos × 8 anos, 55 células com quadrante publicado, mais as células `-`
 (sem atividade) e `*` (devs ≤ 10) que testam a elegibilidade. A replicação bate
 **48/55**, e a estrutura `-`/`*` bate **integralmente**. Esta seção fecha as 7
@@ -1037,7 +1045,7 @@ conveniência.
 ### Antes: as duas ambiguidades do limiar, decididas pela própria tabela
 
 O artigo diz apenas "we use the median magnet and sticky values as the
-thresholds" (MSR'14 §2, p.3). Isso deixa duas coisas em aberto, e as duas
+thresholds" (MSR'14 seção 2, p.3). Isso deixa duas coisas em aberto, e as duas
 mudam célula: **sobre qual população a mediana é tirada** e **o que acontece
 com quem cai exatamente em cima dela**. A tabela de 55 células é grande o
 bastante para decidir as duas empiricamente.
@@ -1051,16 +1059,16 @@ bastante para decidir as duas empiricamente.
 
 | regra de empate | acertos |
 |---|---|
-| **`>` estrito — "higher than the median" (adotada)** | **48/55** |
+| **`>` estrito: "higher than the median" (adotada)** | **48/55** |
 | `>=` — empate conta como alto | 46/55 |
 
 A margem de (a) sobre as alternativas é grande demais para ser sorte, e as duas
-escolhas já estavam no código antes deste teste — a tabela confirmou, não
-escolheu. O `>=` merece nota: ele **corrige** 2 das 7 falhas (xbmc/2007 e
+escolhas já estavam no código antes deste teste: a tabela apenas confirmou o
+que já existia. O `>=` merece nota: ele **corrige** 2 das 7 falhas (xbmc/2007 e
 xbmc/2009) e **quebra 4 células que hoje batem** (2005 `rails`, 2005 `xbmc`,
 2007 `django`, 2004 `scala`). São 6 empates exatos na tabela, 4 pedindo `>` e
 2 pedindo `>=`: a regra de empate do artigo é **irrecuperável por engenharia
-reversa**, porque a própria Tabela 2 é inconsistente nela. Fica o `>` — leitura
+reversa**, porque a própria Tabela 2 é inconsistente nela. Fica o `>`: leitura
 literal de "higher than", e a que maximiza acordo.
 
 ```
@@ -1078,7 +1086,7 @@ depende de precisão numérica:
 | batem | 48 | 19,3% | 0,0% |
 | falham | 6 | 4,8% | 0,0% |
 
-*(scala/2010 fica fora: não é erro de rótulo, é ausência de dado — abaixo.)*
+*(scala/2010 fica fora: é ausência de dado. Detalhe abaixo.)*
 
 Das 6, **4 estão a ≤ 5,1% da mediana** e 2 estão *exatamente em cima* dela:
 
@@ -1092,13 +1100,13 @@ Das 6, **4 estão a ≤ 5,1% da mediana** e 2 estão *exatamente em cima* dela:
 | 2011 | `django/django` | attractive | stagnant | **−91,8%** | +335,7% | 91,8% |
 
 As duas de margem 0,0% são o projeto que *define* a mediana daquele ano naquele
-eixo — sob `>` estrito o projeto mediano nunca é "alto" no eixo em que ele é a
-mediana. Isso não é aproximação nossa: é o mesmo empate que o artigo resolve
-para o outro lado em 4 células e para este lado em 2. Nas células longe da
-linha (margem > 10%), o acordo é **de 37/37 fora as duas de baixo** — o método
+eixo: sob `>` estrito o projeto mediano nunca é "alto" no eixo em que ele é a
+mediana. Isso é o mesmo empate que o artigo resolve para o outro lado em 4
+células e para este lado em 2. Nas células longe da
+linha (margem > 10%), o acordo é **de 37/37 fora as duas de baixo**: o método
 reproduz; o que não reproduz é o desempate.
 
-### scala/2010: buraco de 18 meses no dump, não erro de classificação
+### scala/2010: buraco de 18 meses no dump
 
 Único caso em que a replicação não produz rótulo nenhum (`-`, "sem atividade")
 contra um `floating` publicado. A causa está no dado bruto, antes de qualquer
@@ -1112,17 +1120,18 @@ WHERE project_id=107534 AND created_at BETWEEN '2009-06-01' AND '2011-06-30' GRO
 
 Nenhum commit entre **2009-12 e 2011-05**, e o buraco não é do recorte de
 escopo: incluindo os **466 forks** de scala (`project_commits`, escopo família)
-o ano de 2010 continua com zero. Não é falha global do dump — 2010 tem 69.247
+o ano de 2010 continua com zero. Não é falha global do dump: 2010 tem 69.247
 commits em 828 projetos. É específico do projeto, e casa com `projects.created_at
 = 2011-12-01` para `scala/scala`: o que existe antes disso é histórico
-importado, não atividade observada no GitHub. Efeito colateral coerente: o
+importado durante a migração. Efeito colateral coerente: o
 sticky de scala/2009 sai **0,000** (nenhum dos 25 devs de 2009 aparece em 2010),
-que é o que empurra a célula de 2009 para `terminal` — e essa o artigo também
+que é o que empurra a célula de 2009 para `terminal`, e essa o artigo também
 diz `terminal`.
 
 ### django/2011: o repositório ainda não estava no GitHub
 
-Não é célula de fronteira — é a maior margem da tabela (−91,8%). O magnetismo
+É a maior margem da tabela (−91,8%), longe da linha da mediana ao contrário
+dos casos anteriores. O magnetismo
 de django em 2011 é **4 novatos** num universo de 6.727; para cruzar a mediana
 precisaria de **50**. Fator 12, fora do alcance de qualquer ambiguidade de
 limiar. A causa é a mesma de scala, mais visível:
@@ -1140,30 +1149,31 @@ comunidade de 2011 aparece com 25 devs; em 2012, com 387. O stickiness alto
 (0,84, +335% acima da mediana) confirma o retrato: um núcleo pequeno e fechado
 de committers, que é o que a importação preserva. A replicação lê o dado que está
 lá. Por que o MSR'14 lê `attractive` na mesma célula do mesmo dump é uma
-pergunta sem resposta a partir dos artefatos publicados — e não há leitura de
+pergunta sem resposta a partir dos artefatos publicados: não há leitura de
 magnetismo que transforme 4 novatos em 50.
 
 Vale para as duas: os cortes de cobertura pré-migração não são ruído aleatório,
-são **censura à esquerda por projeto** — a mesma família de problema do §11
-(truncamento à direita), com a diferença de que a data de corte é uma por
-projeto, não uma para o dataset. A Tabela 2 do MSR'14 publica rótulos para anos
-que caem dentro dessa censura em pelo menos 2 dos 12 projetos.
+são **censura à esquerda por projeto**, a mesma família de problema da seção 11
+(truncamento à direita). A diferença é que aqui a data de corte é uma por
+projeto; na seção 11 a data de corte é única para o dataset inteiro. A Tabela 2
+do MSR'14 publica rótulos para anos que caem dentro dessa censura em pelo menos
+2 dos 12 projetos.
 
 ### O que fica declarado
 
 As 7 continuam impressas pelo `pyramid validate`, com rótulo `conhecida` e
-ponteiro para cá — e se qualquer uma voltar a bater, o comando falha por
-`OBSOLETA` (§14). Nenhuma foi silenciada, e o `msr14.tab2.concordancia`
+ponteiro para cá, e se qualquer uma voltar a bater, o comando falha por
+`OBSOLETA` (seção 14). Nenhuma foi silenciada, e o `msr14.tab2.concordancia`
 (≥ 80%) continua sendo o portão que trava regressão no estágio.
 
-## 17. blueprint-css: pirâmide vazia em 4 snapshots é o dado, não o pipeline
+## 17. blueprint-css: pirâmide vazia em 4 snapshots vem do dado
 
 Ao gerar as figuras notei que **blueprint-css (`project.id` 101472)** aparece
 com pouquíssimos ou nenhum contribuidor ativo em vários snapshots, enquanto o
 MSR'14 comenta sobre 2012 que "the current contributors of this project are
 different from the previous contributors". Duas hipóteses concorriam, e as duas
 tinham consequência oposta: **(a)** bug de "só pega o último" no
-`classify`/`snapshots` — a construção de spans colapsando a história de cada
+`classify`/`snapshots`: a construção de spans colapsando a história de cada
 contribuidor no evento mais recente; ou **(b)** atividade real esparsa. É (b),
 e a confirmação veio de fora do dump.
 
@@ -1190,10 +1200,10 @@ print(s.groupby('snapshot').agg(na_piramide=('contributor_id','nunique'), ativos
 `na_piramide` é **estoque** e cresce monotonicamente (22 → 40): ninguém sai,
 porque a coorte de um contribuidor é o passado dele. `ativos` é **fluxo**
 (`active` = contribuiu nos 3 meses antes de T, `snapshots.py:163`). Como
-`plots.py:94` filtra `cut = cut[cut["active"]]` — o mesmo filtro que o
-`metrics` usa em CCR/NCR — a figura renderizada em 2012-06-30, 2012-09-30,
+`plots.py:94` filtra `cut = cut[cut["active"]]` (o mesmo filtro que o
+`metrics` usa em CCR/NCR), a figura renderizada em 2012-06-30, 2012-09-30,
 2013-03-31 e 2013-06-30 é uma **pirâmide vazia**. Isso é comportamento
-declarado, não acidente; o que estava em aberto era se os zeros eram reais.
+declarado; o que estava em aberto era se os zeros eram reais.
 
 ### O dado bruto já responde: trimestres inteiros sem evento
 
@@ -1207,7 +1217,7 @@ print(e.groupby('q').agg(eventos=('contributor_id','size'), devs=('contributor_i
 
 Os quatro snapshots com `ativos=0` caem exatamente sobre os quatro trimestres
 sem **nenhum** evento no dump: 2012Q2, 2012Q3, 2013Q1 e 2013Q2. Não há evento
-sendo perdido na agregação — não há evento. Dos 514 eventos do projeto, 337
+sendo perdido na agregação: não há evento. Dos 514 eventos do projeto, 337
 (65%) estão em 2007-2008; depois de 2011Q3 sobram quatro eventos isolados
 (2011Q4, 2012Q1 com dois, 2012Q4, 2013Q3).
 
@@ -1215,7 +1225,7 @@ sendo perdido na agregação — não há evento. Dos 514 eventos do projeto, 33
 
 O passo que fecha o caso é não confiar no dump para auditar o dump. Primeiro,
 descartar renomeação/transferência (a suspeita do caso `symfony`/`xphere-forks`,
-§10):
+seção 10):
 
 ```
 curl -sSL -w '\nHTTP %{http_code} | url_efetiva: %{url_effective}\n' \
@@ -1223,7 +1233,7 @@ curl -sSL -w '\nHTTP %{http_code} | url_efetiva: %{url_effective}\n' \
 ```
 
 `HTTP 200`, `url_effective` idêntica à pedida (a API redirige 301 quando houve
-rename ou transfer — não houve), `full_name` = `joshuaclayton/blueprint-css`,
+rename ou transfer; não houve), `full_name` = `joshuaclayton/blueprint-css`,
 `fork: false`, `archived: true`, 5283 estrelas. **Repositório único, correto,
 nunca movido.** O `created_at` no GitHub é `2008-08-07`, posterior ao nosso
 primeiro evento (`2007-08-29`): história git importada de antes do GitHub
@@ -1250,8 +1260,8 @@ E a API não tem **nenhum commit no `master` depois de 2011Q2** até out/2013:
 `TOTAL 90` commits em todo 2009-01 → 2013-10. O projeto parou de ser
 desenvolvido em meados de 2011; o que sobra em 2012-2013 são issues e PRs
 avulsos que o dump registra e que a API de commits, por construção, não vê.
-A diferença entre as colunas não é falta no dump — é o `ActivityDataSource`
-contando mais tipos de evento que só commits (§1).
+A diferença entre as colunas é o `ActivityDataSource`
+contando mais tipos de evento que só commits (seção 1).
 
 ### O que isso resolve
 
@@ -1259,7 +1269,7 @@ A hipótese (a) está descartada: se fosse "só pega o último", os trimestres
 densos de 2009-2010 também viriam achatados, e eles batem 6/6 com o ground
 truth externo. As pirâmides quase vazias de blueprint-css são **retrato fiel de
 um projeto morto**, e o comentário do MSR'14 sobre 2012 é compatível: com 38
-pessoas em estoque e 1-2 ativas, a rotatividade é total por aritmética — os
+pessoas em estoque e 1-2 ativas, a rotatividade é total por aritmética: os
 "current contributors" de 2012 são necessariamente outros que os de 2007-2009.
 
 Nenhuma mudança de código. O caso entra como **precedente de método**: quando
@@ -1282,9 +1292,9 @@ sumir em silêncio não somem:
   default e descartaria categoria ausente — mas o `.reindex(columns=CATEGORIES,
   fill_value=0)` logo abaixo repõe as três colunas, e não há `NaN` em `band`
   nem em `category` para linha nenhuma ser descartada na entrada.
-- `aggfunc="size"` conta **linhas**, não `nunique`: seria inflação se houvesse
-  contribuidor repetido no mesmo snapshot. Não há — `duplicated(['snapshot',
-  'contributor_id']).sum() == 0`.
+- `aggfunc="size"` conta **linhas** em vez de valores únicos, o que seria
+  inflação se houvesse contribuidor repetido no mesmo snapshot. Não há:
+  `duplicated(['snapshot', 'contributor_id']).sum() == 0`.
 - `piv.reindex(range(0, max+1), fill_value=0)` (`plots.py:106`) **acrescenta**
   bandas vazias no meio da pirâmide, não remove nenhuma.
 - `xmax`/`ymax` (`plots.py:254-258`) são o **máximo da linha inteira** de
@@ -1320,16 +1330,17 @@ uma pirâmide de 1844 pessoas. **A figura vazia é o dado, confirmado agora nos
 dois sentidos:** os zeros são reais (seção acima, contra a API do GitHub) e o
 plot não fabrica zero a partir de dado que existe.
 
-> **Revisado pelo §18.** Tudo acima continua valendo como fato sobre os dados —
+> **Revisado pela seção 18.** Tudo acima continua valendo como fato sobre os dados:
 > os zeros de `ativos` são reais e a extração bate 6/6 com a API. O que caiu foi
 > a conclusão de que a **figura** devia mostrar esses zeros: a Fig.2 do ESEM14
-> desenha o **estoque**, e é a coluna `na_piramide` desta mesma tabela (36 em
-> dez/2011, não 1) que o artigo plota. A pirâmide de blueprint-css não é vazia
-> no artigo; é um corpo velho sobre uma base vazia — que é a leitura "terminal".
+> desenha o **estoque**, e é a coluna `na_piramide` desta mesma tabela (36 no
+> estoque de dez/2011, contra 1 no fluxo `ativos`) que o artigo plota. No artigo,
+> a pirâmide de blueprint-css é um corpo velho sobre uma base vazia: essa é a
+> leitura "terminal".
 
 ---
 
-## 18. A pirâmide do artigo é estoque, não população ativa (corrigido)
+## 18. A pirâmide do artigo é estoque (corrigido)
 
 `plots.pyramid_frame` filtrava `cut = cut[cut["active"]]`, alinhando a figura à
 população que o `metrics` usa em CCR/NCR. O raciocínio era defensável ("a figura
@@ -1342,7 +1353,7 @@ Isto não foi deduzido do PDF em abstrato — foram duas leituras independentes 
 Fig.2, cada uma capaz de derrubar a hipótese sozinha, e as duas apontando para o
 mesmo lado.
 
-### Leitura 1 — a barra de ~750 do homebrew está na banda errada para `active`
+### Leitura 1: a barra de ~750 do homebrew está na banda errada para `active`
 
 No painel (a), a barra que encosta em ~750 do eixo x não está na base: está
 entre metade do segundo e metade do terceiro quarter de idade, isto é, na
@@ -1354,7 +1365,7 @@ entre metade do segundo e metade do terceiro quarter de idade, isto é, na
 | **1** | **73** / 43 | **734** / 453 |
 | 2 | 25 / 74 | 369 / 344 |
 
-Sob `active` a banda 1 tem 73 pessoas — duas ordens de grandeza abaixo do que a
+Sob `active` a banda 1 tem 73 pessoas, duas ordens de grandeza abaixo do que a
 figura mostra, e a pirâmide vira um pico solitário na base. Sob estoque tem
 **734**, que encosta num eixo de 750. A banda 0 é idêntica nos dois regimes, e
 isso não é coincidência: quem entrou nos últimos 3 meses é ativo por definição
@@ -1362,9 +1373,9 @@ isso não é coincidência: quem entrou nos últimos 3 meses é ativo por defini
 filtro só começa a morder a partir da banda 1 — exatamente onde a discrepância
 aparecia.
 
-### Leitura 2 — blueprint-css tem corpo de pirâmide na figura
+### Leitura 2: blueprint-css tem corpo de pirâmide na figura
 
-Sob `active`, blueprint-css em dez/2011 é **1 pessoa, 1 barra** (§17). Na Fig.2
+Sob `active`, blueprint-css em dez/2011 é **1 pessoa, 1 barra** (seção 17). Na Fig.2
 ele aparece com várias barras, massa entre 2 e 4 anos de idade e base vazia.
 Sob estoque são **36 pessoas** em 18 bandas, barra máxima 5. Não há como
 confundir os dois desenhos, e só o segundo existe no artigo.
@@ -1393,13 +1404,13 @@ tinham uma causa só.
 `config/settings.yaml` ganhou `plots.pyramid_population` (AMBIGUIDADE 5), default
 `stock`, com `active` preservado para reproduzir a leitura antiga. **`metrics`
 não foi tocado**: ele filtra `active` por conta própria (`metrics.py:111`) e
-continua batendo 48/55 na Tabela 2 do MSR'14 (§16). A separação é a mesma que o
-`CLAUDE.md` já aplicava ao 2013 right-censored — **forma é estoque, fluxo é
-ativo** — agora com confirmação empírica vinda da figura.
+continua batendo 48/55 na Tabela 2 do MSR'14 (seção 16). A separação é a mesma que o
+`CLAUDE.md` já aplicava ao 2013 right-censored (**forma é estoque, fluxo é
+ativo**), agora com confirmação empírica vinda da figura.
 
 `pytest -q`: 110 passed (5 novos em `tests/test_plots.py`, que prendem os dois
 regimes, a igualdade da banda 0 e o default `stock` do settings versionado).
-`pyramid validate`: 167 checks, 102 ok, 65 conhecidas —
+`pyramid validate`: 167 checks, 102 ok, 65 conhecidas:
 **idêntico ao estado anterior à mudança**, nenhuma divergência nova, o que era o
 teste de que a troca não vaza para as métricas.
 
@@ -1411,7 +1422,7 @@ verificada. Não há tabela numérica da Fig.2 no ESEM14 para conferir contra.
 
 Investigação aberta pelo pedido de "ver o quanto a regra precisa mexer para
 esses caras sumirem" (buraco do blueprint-css) e por "clojure nunca bate o
-número 10". Tudo abaixo é medido em `2011-12-31` (a data da Fig.2, ver §18),
+número 10". Tudo abaixo é medido em `2011-12-31` (a data da Fig.2, ver seção 18),
 por `project.id`, com `taxonomy.variant: prose` e `band_days: 90`.
 
 ### 19.1 O mecanismo
@@ -1429,13 +1440,13 @@ evento único são:
 
 E é exatamente onde a replicação estoura o artigo:
 
-* clojure banda 3 (9-12 meses): nossa 10, artigo 7 — **7 dos 10 são de evento
+* clojure banda 3 (9-12 meses): nossa 10, artigo 7: **7 dos 10 são de evento
   único** (`age_days == idle_days`, um dia só de atividade, entre jan e mar/2011).
-* blueprint-css bandas 1 e 2: nossas 4+4, artigo 1+1 — **7 dos 8 são de evento
+* blueprint-css bandas 1 e 2: nossas 4+4, artigo 1+1: **7 dos 8 são de evento
   único**.
 
-Não é bug de extração nem de plotagem: é a interação entre idade de calendário e
-uma população larga demais.
+Não há bug de extração nem de plotagem envolvido. A causa é a interação entre
+idade de calendário e uma população larga demais.
 
 ### 19.2 Corte por número mínimo de eventos: refutado
 
@@ -1443,7 +1454,7 @@ A tentação era exigir ≥2 eventos para entrar na pirâmide. **Não funciona, 
 própria Fig.2 derruba**: a banda 0 do clojure no artigo tem 8 pessoas, que é
 exatamente o que contamos com *todo mundo* dentro; com `nev >= 2` a banda 0 cai
 para 4 e o erro total contra o artigo sobe de 18 para 28. Ou seja, o artigo
-conta sim quem só apareceu uma vez — o problema não é a pessoa existir, é ela
+conta sim quem só apareceu uma vez: o problema é ela
 continuar envelhecendo depois de sumir.
 
 | clojure, janela 12m | banda 0..7 | erro vs artigo |
@@ -1475,7 +1486,7 @@ cima): `8, 5, 6, 7, 7, 3, 3, 3, 2, 5, 5`, total ~58.
 Ticks do artigo (lidos da figura, ver `checkpoints.yaml`): homebrew 750,
 paperclip 100, clojure 10, blueprint-css 5.
 
-Duas observações que mudam a discussão do §18:
+Duas observações que mudam a discussão da seção 18:
 
 1. **Janela 12m e estoque são idênticos nas bandas 0-3 em todos os quatro
    projetos.** Uma janela de inatividade de 12 meses só consegue matar quem já

@@ -1,4 +1,4 @@
-# ESEM 2014 — Figura 3
+# ESEM 2014: Figura 3
 
 **Arquivo gerado:** `output/plots/esem14_fig3_transicoes.png`
 **Comando:** `pyramid plot --figure pyramid-transition`
@@ -29,12 +29,12 @@ fica instável o tempo todo) e jekyll.
 O jekyll fica em cima da linha. A classificação depende de dois números, e um
 deles cai muito perto do limite que separa "terminal" de "flutuante". Uma
 diferença mínima na contagem de pessoas empurra o projeto de um lado para o
-outro. Não é erro de método: é um projeto de fronteira.
+outro. Não é erro de método. É um projeto de fronteira.
 
 ## Uma decisão que vale explicar: 2013
 
 O dump de dados termina em outubro de 2013. Isso significa que o ano de 2013
-está incompleto — faltam três meses.
+está incompleto: faltam três meses.
 
 A figura desenha 2013 mesmo assim, mas **não atribui categoria a 2013**. O
 motivo é simples:
@@ -45,7 +45,7 @@ motivo é simples:
   Esse ano seguinte não existe no dump.
 
 O próprio artigo faz a mesma coisa: descreve a forma de 2013 sem dar quadrante.
-Não anualizamos os nove meses para forçar uma classificação — isso inventaria
+Não anualizamos os nove meses para forçar uma classificação: isso inventaria
 número.
 
-Detalhamento: `discrepancias.md` §11.1 e §13.
+Detalhamento: `docs/discrepancias.md`, seções 11.1 e 13.

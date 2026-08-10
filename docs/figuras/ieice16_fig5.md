@@ -1,7 +1,10 @@
-# IEICE 2016 — Figura 5
+# IEICE 2016: Figura 5
 
 **Arquivo gerado:** `output/plots/ieice16_fig5_2013-09-30.png`
 **Comando:** `pyramid plot --figure type-scatter`
+**Conferir os números:** `output/plots/ieice16_fig5_2013-09-30.csv` traz um
+projeto por linha, com NCR, CCR e o tipo atribuído. É o mesmo dado que virou
+desenho.
 
 ## O que a figura mostra
 
@@ -13,7 +16,9 @@ dividido em quatro quadrantes, batizados de tipo A, B, C e D.
 
 ## O que saiu igual
 
-- **A forma da nuvem de pontos** e a posição dos quadrantes.
+- **A forma da nuvem de pontos** e a posição dos quadrantes. Os eixos seguem a
+  figura publicada: NCR na horizontal, CCR na vertical, o que põe os quadrantes
+  na ordem C, A, D, B (da esquerda para a direita, de cima para baixo).
 - **Os oito projetos que o artigo nomeia como exemplo caem todos no tipo certo:**
 
 | Projeto | Tipo |
@@ -55,4 +60,4 @@ deslocamento**: são projetos de fronteira que cruzaram a linha. A soma continua
 O projeto a mais sem classificação segue a mesma lógica: fica sem tipo quem não
 tem gente suficiente para medir, e um projeto ficou logo abaixo desse limite.
 
-Detalhamento: `discrepancias.md` §3.1.
+Detalhamento: `docs/discrepancias.md`, seção 3.1.

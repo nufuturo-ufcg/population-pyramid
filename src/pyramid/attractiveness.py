@@ -1,4 +1,4 @@
-"""Estágio 5 — atratividade anual: magnetismo × stickiness (ESEM14 §3.1).
+"""Estágio 5: atratividade anual, magnetismo × stickiness (ESEM14 seção 3.1).
 
 Yamashita et al. (MSR'14), que o ESEM14 adota inteiro, medem duas coisas
 independentes:
@@ -8,13 +8,13 @@ independentes:
 
 "Novato do ano Y" é uma propriedade GLOBAL da pessoa: a primeira contribuição
 dela em todo o dataset caiu em Y. Isso é o que torna este estágio diferente dos
-anteriores — ele não é por projeto. O denominador do magnetismo é o dataset
-inteiro, e o corte alto/baixo é a mediana entre os projetos elegíveis daquele
-ano. Rodar num subconjunto de projetos muda os dois e devolve número errado sem
-avisar; por isso `run(scopes=...)` recusa em vez de obedecer.
+anteriores: ele não é calculado por projeto. O denominador do magnetismo é o
+dataset inteiro, e o corte alto/baixo é a mediana entre os projetos elegíveis
+daquele ano. Rodar num subconjunto de projetos muda os dois e devolve número
+errado sem avisar; por isso `run(scopes=...)` recusa em vez de obedecer.
 
-Só commits e pull requests contam (ESEM14 §3.1: a tipologia do Yamashita é
-sobre código; discussão não entra). Configurável em `attractiveness.events`.
+Só commits e pull requests contam (ESEM14 seção 3.1: a tipologia do Yamashita
+é sobre código; discussão não entra). Configurável em `attractiveness.events`.
 
 Quadrantes (ESEM14 Fig.2):
 
@@ -107,10 +107,11 @@ def activity(
 def _retained(pairs: pd.DataFrame, scope: str) -> pd.DataFrame:
     """Linhas (scope_id, contributor_id, year) em que a pessoa reaparece em Y+1.
 
-    `scope=project` (default): reaparecer NO MESMO projeto — é a definição do
-    Yamashita, "sticky" é sobre o projeto segurar o dev, não sobre o dev
-    continuar vivo em qualquer lugar. `scope=dataset` existe só para medir o
-    tamanho da ambiguidade; ver settings.yaml.
+    `scope=project` (default): reaparecer NO MESMO projeto. É a definição do
+    Yamashita: "sticky" descreve o projeto segurar o dev. A leitura de que o
+    dev continua vivo em qualquer lugar foi descartada, porque não é o que o
+    Yamashita mede. `scope=dataset` existe só para medir o tamanho da
+    ambiguidade; ver settings.yaml.
     """
     if scope == "project":
         keys = ["scope_id", "contributor_id", "year"]
@@ -195,7 +196,7 @@ def annual(
     per["median_magnetism"] = per["year"].map(med_m)
     per["median_stickiness"] = per["year"].map(med_s)
 
-    # Empate na mediana cai do lado BAIXO — mesma convenção de metrics._type_of
+    # Empate na mediana cai do lado BAIXO: mesma convenção de metrics._type_of
     # ("alto = valor > corte"). Com n ímpar de elegíveis o projeto que É a
     # mediana cai em baixo/baixo; é arbitrário, mas fixo e explícito, e não
     # ajustável para não virar botão de girar até o checkpoint bater.
@@ -218,7 +219,7 @@ def load() -> pd.DataFrame:
 
 
 def table(year: int | str | pd.Timestamp | None = None) -> pd.DataFrame:
-    """Corte de um ano com o nome do projeto — a matéria-prima da Fig.2."""
+    """Corte de um ano com o nome do projeto: a matéria-prima da Fig.2."""
     df = load()
     if year is not None:
         y = year_of(year)

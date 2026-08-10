@@ -1,10 +1,11 @@
-"""Estágio 3 — a pirâmide propriamente dita, snapshot a snapshot.
+"""Estágio 3: a pirâmide propriamente dita, snapshot a snapshot.
 
 Para cada (projeto, snapshot T, contribuidor):
-  category  coding | moved | non_coding   — muda com T, não é fixa
+  category  coding | moved | non_coding: recalculada em cada snapshot T,
+            pois depende do progresso do contribuidor até aquele instante
   age_days  tempo desde a origem até T (`periods.age_basis: calendar_tenure`;
-            gaps de inatividade NÃO descontam — a soma dos spans é a leitura
-            alternativa, refutada, ver docs/discrepancias.md §3)
+            gaps de inatividade NÃO descontam. A leitura alternativa, que soma
+            os spans, foi refutada, ver docs/discrepancias.md, seção 3)
   band      faixa de 3 meses, fechada em cima (0 = (0,3m], 1 = (3,6m], ...)
   active    contribuiu nos últimos 3 meses antes de T
 
@@ -38,8 +39,9 @@ def band_days(cfg: dict | None = None) -> float:
     Fica atrás de função (e não solta no YAML) por causa da checagem: `band_days`
     e `band_months` descrevem a MESMA banda em unidades diferentes, e se alguém
     mexer num sem mexer no outro o eixo y passa a rotular uma banda que o corte
-    não usa — a figura mentiria em silêncio. 10% é folga para o desencontro
-    medido (90 vs 91.3125, 1.4%), não para uma banda de outro tamanho.
+    não usa: a figura mentiria em silêncio. 10% é folga para o desencontro
+    medido (90 vs 91.3125, 1.4%); uma banda de tamanho diferente cai fora
+    dessa margem e deve disparar o erro acima.
     """
     cfg = cfg or settings()
     bd = float(cfg["periods"]["band_days"])
@@ -57,16 +59,17 @@ def band_days(cfg: dict | None = None) -> float:
 def snapshot_dates(cfg: dict | None = None) -> list[pd.Timestamp]:
     """Série de snapshots em fins de trimestre civil.
 
-    Usa `QuarterEnd`, NÃO `DateOffset(months=3)` acumulado a partir do `start`.
-    O pandas aplica um DateOffset iterativamente, então o dia-do-mês é truncado
-    no primeiro mês curto e nunca se recupera: de 2010-03-31 saía 2010-06-30,
-    depois 2010-12-30, 2011-12-30, 2013-03-30 — todo o resto da série grudado no
-    dia 30. Jun/set pareciam corretos só por coincidência (esses meses acabam
-    mesmo no dia 30), o que escondia o bug. Ver docs/discrepancias.md §8.
+    Usa `QuarterEnd` para ancorar a série. A alternativa, `DateOffset(months=3)`
+    acumulado a partir do `start`, foi descartada: o pandas aplica um DateOffset
+    iterativamente, então o dia-do-mês é truncado no primeiro mês curto e nunca
+    se recupera: de 2010-03-31 saía 2010-06-30, depois 2010-12-30, 2011-12-30,
+    2013-03-30, e todo o resto da série ficava grudado no dia 30. Jun/set
+    pareciam corretos só por coincidência (esses meses acabam mesmo no dia 30),
+    o que escondia o bug. Ver docs/discrepancias.md, seção 8.
 
     `freq_months` continua respeitado, mas só em múltiplos de trimestre, que é o
-    que o método usa (IEICE16 §4.1: March, June, September). Qualquer outro
-    valor é erro de config, não um modo suportado.
+    que o método usa (IEICE16 seção 4.1: March, June, September). Qualquer outro
+    valor conta como erro de config.
     """
     s = (cfg or settings())["snapshots"]
     months = s["freq_months"]
@@ -86,9 +89,11 @@ def require_date_match(
 
     Regra geral do projeto: nenhum filtro/join contra a série de datas pode
     seguir com resultado vazio em silêncio. Uma data que não existe na série é
-    erro de config ou de geração da série — nunca "esse snapshot está vazio".
+    sempre erro de config ou de geração da série. A leitura "esse snapshot
+    está vazio" fica descartada, porque a série é gerada inteira antes do
+    filtro: uma data ausente denuncia um problema de configuração.
     Foi exatamente esse silêncio que deixou o bug do QuarterEnd passar
-    despercebido até 2026-08 (docs/discrepancias.md §8).
+    despercebido até 2026-08 (docs/discrepancias.md, seção 8).
     """
     if not result.empty:
         return result
@@ -128,7 +133,7 @@ def check_dates(cfg: dict | None = None) -> None:
             + ", ".join(str(t.date()) for t in near)
             + ". A série é ancorada em fim de trimestre CIVIL (QuarterEnd), "
             "então dez/mar caem no dia 31 e jun/set no dia 30 "
-            "(ver docs/discrepancias.md §8)."
+            "(ver docs/discrepancias.md, seção 8)."
         )
 
 
@@ -178,21 +183,22 @@ def pyramid_at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.Data
     # "6 months"; `floor` jogaria os dois para a banda seguinte. O arredondamento
     # evita que ruído de ponto flutuante mova alguém de banda.
     #
-    # O corte é em DIAS (`band_days`), não em `age_months`: a banda do artigo tem
-    # 90 dias, e mês de 365.25/12 empurrava para baixo quem estava a menos de um
-    # dia da fronteira — ver `config/settings.yaml` e `discrepancias.md` §21.
+    # O corte usa DIAS (`band_days`) como unidade. A unidade `age_months` foi
+    # descartada: um mês de 365.25/12 empurrava para baixo quem estava a menos
+    # de um dia da fronteira. Ver `config/settings.yaml` e `discrepancias.md`,
+    # seção 21.
     bd = float(band_days())
     per["band"] = (
         np.ceil((per["age_days"] / bd).round(9)).astype(int) - 1
     ).clip(lower=0)
     # "left the project when he/she did not give any contribution for more than
-    #  three months" — a pirâmide mostra a população viva no snapshot
+    #  three months". A pirâmide mostra a população viva no snapshot
     per["idle_days"] = (t - per["last_event"]).dt.total_seconds() / 86400.0
     per["active"] = per["idle_days"] <= gap_days
 
     # `idle_days` fica persistido para o consumidor escolher a janela sem
     # reconstruir o estágio: `metrics` usa `active` (3 meses, IEICE16 p.1306) e
-    # a pirâmide da Fig.2 usa 12 meses (medição da figura, discrepancias §19).
+    # a pirâmide da Fig.2 usa 12 meses (medição da figura, discrepancias seção 19).
     return per.reset_index()[
         [
             "contributor_id", "category", "age_days", "age_months", "band",

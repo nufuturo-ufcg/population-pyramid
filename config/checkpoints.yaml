@@ -184,6 +184,13 @@ replica_locks:
 # dentro do plots.py, onde viraria constante mágica sem procedência.
 # ---------------------------------------------------------------------------
 figures:
+  # "Fig. 5  CCR and NCR of 90 OSS projects in GitHub." Os anéis são os oito
+  # projetos que o próprio artigo nomeia adiante (Fig.6 e Fig.7); anelá-los
+  # aqui mostra, na mesma imagem, que a divergência de contagem por quadrante
+  # não toca em nenhum projeto nomeado. `highlight` é puro desenho — não entra
+  # em mediana, quadrante nem contagem — e o `--highlight` da CLI sobrescreve.
+  ieice16_fig5:
+    highlight: [25875, 78835, 49675, 91020, 63250, 22980, 79163, 78852]
   # "Fig. 6  Examples of software population pyramids of each type.
   #  (Note that scales are different.)" — a legenda avisa que a escala é por
   # painel, então a replicação também deixa cada painel se auto-escalar. Impor
@@ -210,6 +217,17 @@ figures:
   # passa no filtro de 100 contribuidores). Por isso 51671.
   ieice16_fig8:
     projects: [17515, 91020, 79163, 78852, 51671, 12]
+  # "Fig. 2  Distribution of magnet and sticky values" (MSR14). Régua e anéis
+  # saem da figura publicada, não do dado: os limites são os do artigo e os
+  # dois anelados são os dois projetos que ele nomeia no próprio gráfico.
+  # `highlight` é puro desenho — não entra em mediana, quadrante ou contagem —
+  # e o `--highlight` da CLI sobrescreve para inspeção de outro projeto.
+  msr14_fig2:
+    xlim: [-0.05, 0.92]
+    ylim: [-0.015, 0.23]
+    xticks: [0.0, 0.2, 0.4, 0.6, 0.8]
+    yticks: [0.00, 0.05, 0.10, 0.15, 0.20]
+    highlight: [79163, 69158]   # mxcl/homebrew, django/django
   # "Fig. 2  Software population pyramids and the current status." Os projetos
   # e o status esperado de cada um já estão em `attractiveness` — a figura só
   # aponta para lá para não haver duas listas para manter em sincronia.

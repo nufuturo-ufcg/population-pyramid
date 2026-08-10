@@ -1,4 +1,4 @@
-"""Estágio final — confere a replicação inteira contra `config/checkpoints.yaml`.
+"""Estágio final: confere a replicação inteira contra `config/checkpoints.yaml`.
 
 Cada checkpoint vira uma linha: de onde vem o número esperado (artigo ou trava
 da replicação), o valor esperado, o obtido e o veredito.
@@ -7,14 +7,14 @@ A regra que dá sentido ao comando: **divergência precisa estar declarada**. O
 bloco `known_divergences:` do yaml mapeia a chave do check para a seção de
 `docs/discrepancias.md` que a explica. Daí saem os dois vereditos que importam:
 
-* divergência não declarada é **FALHA** — apareceu algo que ninguém analisou;
-* divergência declarada que voltou a bater é **OBSOLETA** — o documento
+* divergência não declarada é **FALHA**: apareceu algo que ninguém analisou;
+* divergência declarada que voltou a bater é **OBSOLETA**: o documento
   descreve um problema que não existe mais, e ficar assim é pior do que a
   divergência original, porque a próxima pessoa lê uma explicação falsa.
 
 Uma chave terminada em `.*` declara um *grupo* (as 40 células da Tabela 3, por
 exemplo): vale para todo check com aquele prefixo. Grupo só fica obsoleto
-quando **todas** as suas células voltam a bater — enquanto uma diverge, a
+quando **todas** as suas células voltam a bater. Enquanto uma diverge, a
 seção de docs ainda descreve algo real.
 
 Nenhum dos dois é silenciado. `validate` sai com código 1 se qualquer um
@@ -22,13 +22,14 @@ aparecer, e com 0 quando o estado do repositório é exatamente o estado que a
 documentação descreve.
 
 Sobre o que é *gate* e o que é *informativo*: as 40 células da Tabela 3 e os 20
-p-valores da Tabela 4 entram como informativos, e isso não é conveniência — é a
-política que `docs/discrepancias.md` §12.5 já fixou depois da comparação célula
-a célula. Casar uma mediana de coorte em 0.5000 com um dataset diferente é o
-resultado mais provável por acaso naquele regime, não evidência de replicação.
-O que trava é o predicado agregado do §4, a direção dos pares e a contagem de
-células dentro da tolerância — e essas três travam contra números da *replicação*,
-declarados como tal na coluna `fonte`.
+p-valores da Tabela 4 entram como informativos por decisão documentada, a
+política que `docs/discrepancias.md`, seção 12.5, já fixou depois da
+comparação célula a célula. Casar uma mediana de coorte em 0.5000 com um
+dataset diferente é o resultado mais provável por acaso naquele regime; tomar
+isso como evidência de replicação seria um erro de interpretação.
+O que trava é o predicado agregado da seção 4, a direção dos pares e a
+contagem de células dentro da tolerância: essas três travam contra números
+da *replicação*, declarados como tal na coluna `fonte`.
 """
 
 from __future__ import annotations
@@ -110,14 +111,14 @@ class Report:
         return out
 
     def markdown(self) -> str:
-        """Relatório para anexar ao trabalho final (§10, "Definição de pronto").
+        """Relatório para anexar ao trabalho final (seção 10, "Definição de pronto").
 
         Difere do stdout em dois pontos deliberados: **lista todos os checks**,
         inclusive os informativos que batem (o terminal os esconde para caber na
         tela; um relatório que omite acertos não é auditável), e nomeia a seção
-        de `discrepancias.md` em cada linha declarada — quem lê isto sem ter
-        rodado nada precisa saber para onde ir, e é justamente o desvio
-        conhecido que exige explicação, não o acerto.
+        de `discrepancias.md` em cada linha declarada: quem lê isto sem ter
+        rodado nada precisa saber para onde ir. É justamente o desvio
+        conhecido que exige explicação; o acerto se explica sozinho.
         """
         cont = self.contagem()
         informativos = sum(1 for c in self.checks if not c.gate)
@@ -156,7 +157,7 @@ class Report:
                     "| check | fonte | esperado | obtido | status | referência |",
                     "|---|---|---|---|---|---|",
                 ]
-            nota = "  ".join(x for x in (c.ref, c.nota) if x) or "—"
+            nota = "  ".join(x for x in (c.ref, c.nota) if x) or "-"
             out.append(
                 f"| `{c.key}` | {c.fonte} | {_fmt(c.esperado)} | {_fmt(c.obtido)} "
                 f"| {c.status} | {nota} |"
@@ -173,7 +174,7 @@ class Report:
 def _perto(a: float, b: float, tol_rel: float) -> bool:
     """Igualdade relativa, com o zero tratado no absoluto.
 
-    `abs(a - b) <= tol * abs(b)` some quando o esperado é 0.0000 — e a Tabela 3
+    `abs(a - b) <= tol * abs(b)` some quando o esperado é 0.0000, e a Tabela 3
     tem uma célula assim (D/non_coding/baseline). Ali o critério vira a própria
     tolerância no absoluto, senão só o zero exato passaria.
     """
@@ -187,7 +188,7 @@ def _perto(a: float, b: float, tol_rel: float) -> bool:
 
 def _fmt(v: object) -> str:
     if v is None:
-        return "—"
+        return "-"
     if isinstance(v, float):
         return "nan" if pd.isna(v) else f"{v:.4f}"
     if isinstance(v, bool):
@@ -201,7 +202,7 @@ def _fmt(v: object) -> str:
 
 
 def _tipos(cfg: dict) -> list[Check]:
-    """IEICE16 Fig.5 — contagem por tipo e os 8 projetos nomeados."""
+    """IEICE16 Fig.5: contagem por tipo e os 8 projetos nomeados."""
     from . import metrics
     from .extract import source
 
@@ -264,7 +265,7 @@ def _tipos(cfg: dict) -> list[Check]:
 
 
 def _atratividade(cfg: dict) -> list[Check]:
-    """ESEM14 Fig.2 (quadrantes de dez/2011) e a regra de 2013 do §11.1."""
+    """ESEM14 Fig.2 (quadrantes de dez/2011) e a regra de 2013 da seção 11.1."""
     from . import attractiveness as at
 
     c = cfg["attractiveness"]
@@ -305,7 +306,7 @@ def _atratividade(cfg: dict) -> list[Check]:
                 )
             )
 
-    # §11.1: 2013 é renderizado mas não classificado. O artigo usa linguagem
+    # seção 11.1: 2013 é renderizado mas não classificado. O artigo usa linguagem
     # condicional para o jekyll em 2013 justamente porque o dataset dele tem o
     # mesmo corte em out/2013; atribuir quadrante ali seria inventar sinal que
     # nem os autores tinham.
@@ -319,7 +320,7 @@ def _atratividade(cfg: dict) -> list[Check]:
                 esperado=0,
                 obtido=com_quadrante,
                 bate=com_quadrante == 0,
-                nota=f"{len(sub)} projetos com forma, nenhum com quadrante (§11.1)",
+                nota=f"{len(sub)} projetos com forma, nenhum com quadrante (seção 11.1)",
             )
         )
 
@@ -345,7 +346,7 @@ def _atratividade(cfg: dict) -> list[Check]:
 
 
 def _msr14_tab2(cfg: dict) -> list[Check]:
-    """MSR14 Tabela 2 — histórico de quadrantes de 12 projetos, 2004-2011.
+    """MSR14 Tabela 2: histórico de quadrantes de 12 projetos, 2004-2011.
 
     Grade larga sobre o mesmo estágio que o ESEM14 só testa em um snapshot.
     Além do quadrante, testa a estrutura: "-" (projeto sem atividade no ano) e
@@ -430,7 +431,7 @@ def _msr14_tab2(cfg: dict) -> list[Check]:
 
 
 def _projecao(cfg: dict) -> list[Check]:
-    """IEICE16 §4 — Tabelas 3 e 4, curto vs. longo prazo."""
+    """IEICE16 seção 4: Tabelas 3 e 4, curto vs. longo prazo."""
     from . import projection as pj
 
     abre_cfg = cfg["projection_abre"]
@@ -473,7 +474,7 @@ def _projecao(cfg: dict) -> list[Check]:
         )
     )
 
-    # --- 40 células, informativas (§12.5) -----------------------------------
+    # --- 40 células, informativas (seção 12.5) -------------------------------
     dentro = 0
     concorda = 0
     for tipo, cats in abre_cfg["table"].items():
@@ -496,8 +497,8 @@ def _projecao(cfg: dict) -> list[Check]:
                     )
                 )
             # Direção: o achado da Tabela 3 é "cohort erra menos que baseline".
-            # Empate exato não conta como concordância nem como inversão — é
-            # resolução insuficiente (§12.5), e vai anotado.
+            # Empate exato não conta como concordância nem como inversão: é
+            # resolução insuficiente (seção 12.5), e vai anotado.
             art_dir = art_c < art_b
             got_dir = got_c < got_b
             empate = got_c == got_b
@@ -551,11 +552,11 @@ def _projecao(cfg: dict) -> list[Check]:
                 esperado=f"{travas[chave]}/{total}",
                 obtido=f"{obtido}/{total}",
                 bate=obtido == travas[chave],
-                nota="§12.5 — trava de deriva, não valor do artigo",
+                nota="seção 12.5: trava de deriva do processo de replicação",
             )
         )
 
-    # Predicado agregado do §4: é o que a replicação sustenta.
+    # Predicado agregado da seção 4: é o que a replicação sustenta.
     agg = travas.get("projection_agregado")
     if agg:
         got_c = float(med.loc["All types", "all_cohort"])
@@ -574,7 +575,7 @@ def _projecao(cfg: dict) -> list[Check]:
                     esperado=float(esperado),
                     obtido=obtido,
                     bate=_perto(obtido, esperado, tol),
-                    nota="§12.2 — predicado que se sustenta",
+                    nota="seção 12.2: predicado que se sustenta",
                 )
             )
         out.append(
@@ -586,7 +587,7 @@ def _projecao(cfg: dict) -> list[Check]:
                 obtido=f"cohort{'<' if got_c < got_b else '>'}baseline e "
                 f"{'significativo' if got_p < 0.05 else 'não significativo'}",
                 bate=bool(got_c < got_b and got_p < 0.05),
-                nota="o achado central do §4",
+                nota="o achado central da seção 4",
             )
         )
 

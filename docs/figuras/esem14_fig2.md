@@ -1,4 +1,4 @@
-# ESEM 2014 — Figura 2
+# ESEM 2014: Figura 2
 
 **Arquivo gerado:** `output/plots/esem14_fig2_status_2011-12-31.png`
 **Comando:** `pyramid plot --figure pyramid-grid-status`
@@ -9,7 +9,7 @@ Quatro projetos lado a lado, fotografados em 31/dez/2011: homebrew, paperclip,
 clojure e blueprint-css. Cada um vira uma pirâmide.
 
 A leitura é a de uma pirâmide populacional de país. Cada barra horizontal é uma
-faixa de idade — só que aqui "idade" é há quanto tempo a pessoa está no projeto,
+faixa de idade: só que aqui "idade" é há quanto tempo a pessoa está no projeto,
 contada em trimestres. A base é quem chegou agora, o topo é quem está lá desde o
 começo. As barras crescem para os dois lados: à esquerda quem só participa de
 discussão, à direita quem escreve código.
@@ -20,8 +20,8 @@ Cada ano de idade tem quatro barras, uma por trimestre.
 
 - **blueprint-css: idêntico ao artigo.** Todas as barras, inclusive o espaço
   vazio entre o terceiro e o quarto trimestre.
-- **O primeiro ano de todos os quatro projetos.** A base das quatro pirâmides —
-  que é onde está a maior parte das pessoas — reproduz o artigo.
+- **O primeiro ano de todos os quatro projetos.** A base das quatro pirâmides
+  (que é onde está a maior parte das pessoas) reproduz o artigo.
 - **A forma geral e a escala.** Cada painel tem escala própria, e a nossa bate
   com a do artigo: 750 no homebrew, 100 no paperclip, 10 no clojure, 5 no
   terminal.
@@ -41,12 +41,12 @@ do artigo:
 | homebrew | 3810 | 3882 | 363 pessoas (9%) |
 
 O tamanho da população bate nos quatro projetos (diferença de até 2%). O que
-sobra é gente na barra errada, não gente a mais ou a menos.
+sobra é gente na barra errada. Não é gente a mais ou a menos.
 
 ## Onde está a diferença
 
 Quase tudo é homebrew, e sempre no mesmo lugar: **no lado do código, nas barras
-de baixo** — quem entrou no projeto há menos de um ano. Ali temos
+de baixo**: quem entrou no projeto há menos de um ano. Ali temos
 consistentemente umas 14% de pessoas a mais que o artigo.
 
 | Barra | Código, no artigo | Código, na nossa |
@@ -62,14 +62,14 @@ Do lado da discussão, nas mesmas barras, a diferença é de menos de 3%
 ## Por que isso acontece
 
 Como o lado da discussão bate e o do código não, o problema não é a régua de
-idade nem o critério de quem está ativo — esses valeriam para os dois lados
+idade nem o critério de quem está ativo. Esses critérios valeriam para os dois lados
 igualmente. O que sobra é **a linha que separa "escreve código" de "só
 participa da discussão"**.
 
 O artigo lista os tipos de participação numa tabela, mas não diz de que lado
 ficam alguns casos de fronteira. Cada caso desses que a gente classifica como
 código e o artigo classificava como discussão empurra uma pessoa de um lado
-para o outro da mesma barra — que é exatamente o desvio observado.
+para o outro da mesma barra, e é exatamente esse o desvio observado.
 
 Já foram testadas e descartadas, porque pioravam o resultado:
 
@@ -83,21 +83,21 @@ de tipos do artigo.
 
 ## Nota de correção
 
-Até a §31 do log, este documento e os números do log registravam diferenças
-muito maiores (o total era 7734 em vez de 411). Era erro de conferência, não da
-figura: o programa que lia a imagem do artigo numerava as barras de cima para
-baixo e o nosso programa numera de baixo para cima, então a comparação casava o
-topo do artigo com a base da nossa. A figura em si nunca mudou.
+Até a seção 31 do log, este documento e os números do log registravam diferenças
+muito maiores (o total era 7734 em vez de 411). Era erro de conferência. Não era
+erro da figura: o programa que lia a imagem do artigo numerava as barras de cima
+para baixo e o nosso programa numera de baixo para cima, então a comparação casava
+o topo do artigo com a base da nossa. A figura em si nunca mudou.
 
-Detalhamento com números: `discrepancias.md` §20, §21, §31.
+Detalhamento com números: `docs/discrepancias.md`, seções 20, 21 e 31.
 
 ## O que já foi descartado (para não refazer)
 
 Duas hipóteses sobre "quem entra em cada lado da pirâmide" foram testadas e
 morreram. Ficam registradas aqui porque as duas pareciam boas no papel.
 
-**"Abrir um pull request devia contar como discussão, não como código."**
-Parece razoável — abrir um PR é pedir para conversar sobre um código, não
+**"Abrir um pull request devia contar como discussão. Não devia contar como código."**
+Parece razoável: abrir um PR é pedir para conversar sobre um código. Não é
 necessariamente escrever código. Mas quando mudamos o PR de lado, o erro contra
 o artigo triplica. E tem um argumento que fecha a questão: o painel do
 blueprint-css hoje é idêntico ao do artigo, quadradinho por quadradinho. Ele só
@@ -108,7 +108,7 @@ discussão. É assim no artigo e é assim que funciona.
 **"O artigo conta quem abre issue, e é essa a gente que falta na discussão."**
 O artigo de fato se contradiz: a tabela dele diz que abrir issue conta, o texto
 dele diz que não. Testamos as duas versões. Contar quem abre issue traz gente
-nova para o lado da discussão, sim — mas nas faixas de idade erradas, e o erro
+nova para o lado da discussão, sim, mas nas faixas de idade erradas, e o erro
 total *piora* (de 411 para 647). O texto do artigo ganha da tabela do próprio
 artigo. Seguimos com a versão do texto.
 
@@ -131,11 +131,11 @@ são exatos, e é isso que qualquer explicação futura precisa acertar.
 A primeira suspeita foi a idade. Hoje, quem escreve código tem a idade contada
 desde o primeiro commit; quem só conversa, desde a primeira conversa. Se o
 artigo contasse a idade de todo mundo desde a primeira aparição no projeto, os
-programadores ficariam mais velhos e sairiam das faixas jovens — que é para
+programadores ficariam mais velhos e sairiam das faixas jovens, que é para
 onde o nosso excesso aponta.
 
 Testamos. Não é isso, e o motivo é simples: mudar a régua da idade muda a
-**altura** em que a pessoa aparece na pirâmide, nunca o **lado**. Como o nosso
+**altura** em que a pessoa aparece na pirâmide. Nunca muda o **lado**. Como o nosso
 problema é de lado (129 pessoas na coluna errada), nenhum acerto de idade,
 janela ou faixa vai resolver. Isso fecha uma família inteira de tentativas.
 
@@ -150,7 +150,7 @@ com a forma do erro, então testamos duas maneiras de recortá-lo:
   13.171, e o número de autores distintos é idêntico. Não muda nada.
 - **Exigir que o pull request tenha sido aceito.** Dos 674, 661 nunca tiveram
   nenhum pull request aceito. A regra tiraria 661 pessoas quando precisamos
-  tirar 129 — erra por muito mais do que corrige.
+  tirar 129. A correção seria desproporcional ao problema.
 
 ### Onde isso fica
 
@@ -159,4 +159,4 @@ no momento. Os outros três painéis estão em erro 38 (paperclip), 11 (clojure)
 **0** (blueprint-css, idêntico ao artigo).
 
 O detalhamento técnico, com as tabelas de cada rodada, está em
-`docs/discrepancias.md` §33.
+`docs/discrepancias.md`, seção 33.

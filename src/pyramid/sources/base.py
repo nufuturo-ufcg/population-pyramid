@@ -13,10 +13,10 @@ from abc import ABC, abstractmethod
 import pandas as pd
 
 # Colunas obrigatórias do DataFrame de eventos:
-#   contributor_id : int64   — users.id (ou equivalente na fonte)
-#   event_type     : str     — um de EVENT_TYPES
+#   contributor_id : int64 (users.id, ou equivalente na fonte)
+#   event_type     : str (um de EVENT_TYPES)
 #   timestamp      : datetime64[ns]
-#   scope_id       : int64   — projeto hoje; linguagem no futuro
+#   scope_id       : int64 (projeto hoje; linguagem no futuro)
 EVENT_COLUMNS = ["scope_id", "contributor_id", "event_type", "timestamp"]
 
 # Enum fechado. Quem traduz o vocabulário da origem (nomes de tabela do MySQL

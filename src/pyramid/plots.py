@@ -1,8 +1,8 @@
-"""Estágio 6 — figuras. Leitura pura: nada aqui recalcula método.
+"""Estágio 6: figuras. Leitura pura: nada aqui recalcula método.
 
 Toda figura sai de um parquet que outro estágio já produziu e já foi conferido
 contra checkpoint. Se um número aparece aqui, ele veio de `snapshots`, `metrics`
-ou `attractiveness` — este módulo não decide categoria, não corta mediana e não
+ou `attractiveness`. Este módulo não decide categoria, não corta mediana e não
 classifica quadrante. Isso é deliberado: gráfico que refaz conta é gráfico que
 mente sem ninguém notar.
 
@@ -10,19 +10,21 @@ Consequência prática: `plots` não abre o MySQL. Os rótulos vêm do cache que
 `extract` gravou no manifesto (`extract.labels()`), então as figuras se regeram
 com o banco desligado.
 
-Sobre 2013 na Fig.3 — ver docs/discrepancias.md §11.1. A pirâmide é um estoque
-(olha para trás), então os quatro painéis são renderizados completos, 2013
-incluído. O que não existe em 2013 é a métrica anual de stickiness, que precisa
-de Y+1 e o dump acaba em out/2013. O painel leva a marca `right-censored` e
-NENHUM rótulo de quadrante — exatamente o que o ESEM14 faz no parágrafo do
-jekyll, onde os autores cravam "terminal" só para 2011 e falam de 2013 pela
-forma ("becomes balanced shape") mais uma condicional ("we think this project
-had a possibility to become attractive or fluctuating project in near future").
+Sobre 2013 na Fig.3, ver docs/discrepancias.md, seção 11.1. A pirâmide é um
+estoque (olha para trás), então os quatro painéis são renderizados completos,
+2013 incluído. O que não existe em 2013 é a métrica anual de stickiness, que
+precisa de Y+1 e o dump acaba em out/2013. O painel leva a marca
+`right-censored` e nenhum rótulo de quadrante. Isso é exatamente o que o
+ESEM14 faz no parágrafo do jekyll, onde os autores cravam "terminal" só para
+2011 e falam de 2013 pela forma ("becomes balanced shape") mais uma
+condicional ("we think this project had a possibility to become attractive or
+fluctuating project in near future").
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import matplotlib
 
@@ -45,7 +47,7 @@ log = logging.getLogger(__name__)
 STAGE = "plots"
 
 # Fundo cinza com grid branco: o estilo dos gráficos dos dois artigos (ggplot2
-# clássico). Não é enfeite — é para a figura ficar comparável de relance com a
+# clássico). Não é enfeite: é para a figura ficar comparável de relance com a
 # original ao lado.
 BG = "#EBEBEB"
 GRID = "#FFFFFF"
@@ -90,11 +92,12 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
 
     População controlada por `plots.pyramid_population` (ver AMBIGUIDADE 5 no
     settings.yaml). O default é `active`: o ESEM14 tira da pirâmide quem já
-    saiu da comunidade (Fig.1 — em t1 só dois dos três developers contam). O
-    `stock` foi tentado e descartado na §18/§19 das discrepâncias. A largura da
-    janela vem de `plots.pyramid_window_months` (12 meses) e NÃO de
-    `periods.inactivity_months` (3): são duas janelas diferentes de propósito,
-    fixadas pela medição em pixel da Fig.2 (§20).
+    saiu da comunidade (Fig.1: em t1 só dois dos três developers contam). O
+    `stock` foi tentado e descartado nas seções 18 e 19 das discrepâncias. A
+    largura da janela vem de `plots.pyramid_window_months` (12 meses).
+    `periods.inactivity_months` (3) não entra aqui: são duas janelas
+    diferentes de propósito, fixadas pela medição em pixel da Fig.2
+    (seção 20).
     """
     cut = snapshots.require_date_match(
         df[df["snapshot"] == t], t, "snapshot", "plots.pyramid_frame"
@@ -110,7 +113,7 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
         janela = float(cfg["pyramid_window_months"]) * snapshots.DAYS_PER_MONTH
         if "idle_days" not in cut.columns:
             raise ValueError(
-                "snapshots sem a coluna `idle_days` — estágio velho. "
+                "snapshots sem a coluna `idle_days`: estágio velho. "
                 "Rode `pyramid snapshots --force`."
             )
         cut = cut[cut["idle_days"] <= janela]
@@ -136,7 +139,7 @@ def draw_pyramid(
     """Desenha uma pirâmide num eixo. Devolve o (xmax, ymax) usado.
 
     `xmax`/`ymax` existem para o chamador impor escala comum a um conjunto de
-    painéis — sem isso, cada painel se auto-escala e a comparação entre eles
+    painéis. Sem isso, cada painel se auto-escala e a comparação entre eles
     vira ilusão de ótica.
 
     `xticks` fixa os ticks do lado positivo (o eixo espelha e acrescenta o 0),
@@ -173,7 +176,7 @@ def draw_pyramid(
     ax.set_ylim(-0.8, alto + 0.8)
     # Eixo central BRANCO e por cima das barras: com banda de 90 dias há
     # trimestre em que os dois lados estão ocupados, e barra preta encostada em
-    # barra preta virava um bloco só — o leitor não via onde acabava o
+    # barra preta virava um bloco só. O leitor não via onde acabava o
     # `non_coding` e começava o `coding`. Branco corta os dois.
     ax.axvline(0, color="white", linewidth=0.9, zorder=3)
 
@@ -183,7 +186,9 @@ def draw_pyramid(
         ax.text(0.5, 0.5, "nenhum contribuidor ativo", ha="center", va="center",
                 transform=ax.transAxes, fontsize=8, color="#888888", style="italic")
 
-    # Eixo x sem sinal: o lado esquerdo é contagem, não número negativo.
+    # Eixo x sem sinal: o lado esquerdo mostra contagem. O valor negativo do
+    # array só orienta a barra para a esquerda; ele não aparece como número
+    # real no eixo, porque contagem de contribuidor não é negativa.
     # Locator inteiro obrigatório: contribuidor não é fracionário, e em painel de
     # poucas pessoas (blueprint-css tem 1) o default do matplotlib punha tick em
     # ±0.5, que o formato `.0f` abaixo renderizava como um segundo "0" no eixo.
@@ -195,7 +200,7 @@ def draw_pyramid(
     ax.set_xticks(ticks)
     ax.set_xticklabels([f"{abs(v):.0f}" for v in ticks])
 
-    # Eixo y em anos de idade acumulada — as bandas são de `band_months`, mas o
+    # Eixo y em anos de idade acumulada: as bandas são de `band_months`, mas o
     # leitor pensa em anos, e é assim que o artigo rotula.
     #
     # A banda b termina em (b+1)*bm meses, então o rótulo "1 year" cai na banda
@@ -203,8 +208,8 @@ def draw_pyramid(
     # tick ali sugeria uma coorte de idade zero que a figura não tem.
     #
     # Grade menor em TODA banda: a Fig.2 tem quatro linhas por ano, uma por
-    # trimestre. Só as anuais deixavam a leitura de trimestre impossível — foi
-    # o que fez a replicação parecer um bloco anual por ano.
+    # trimestre. Só as anuais deixavam a leitura de trimestre impossível, o
+    # que fez a replicação parecer um bloco anual por ano.
     per_year = max(int(round(12 / bm)), 1)
     yt = list(range(per_year - 1, alto + 1, per_year))
     ax.set_yticks(yt)
@@ -233,7 +238,7 @@ def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None):
     fig, ax = plt.subplots(figsize=(4.2, 3.4))
     draw_pyramid(ax, frame)
     name = labels().get(int(scope_id), str(scope_id))
-    ax.set_title(f"{name} — {t.date()}", fontsize=9)
+    ax.set_title(f"{name}, {t.date()}", fontsize=9)
     ax.set_xlabel("contribuidores", fontsize=8)
     ax.set_ylabel("idade acumulada (anos)", fontsize=8)
     _legend(fig)
@@ -265,8 +270,22 @@ def _save(fig, stem: str, rect: tuple[float, float, float, float] = (0, 0.06, 1,
     return png
 
 
+def _dump(df: pd.DataFrame, stem: str) -> Path:
+    """Os pontos exatos que a figura desenhou, em CSV ao lado do PNG.
+
+    Sem isso a única forma de conferir uma dispersão contra o artigo é medir
+    pixel, que foi o que custou caro nas divergências de eixo. O CSV é o que
+    entrou no `ax`, não o parquet inteiro: mesma linha, mesma coluna, mesma
+    ordem de plotagem.
+    """
+    csv = out_dir() / f"{stem}.csv"
+    df.to_csv(csv, index=False)
+    log.info("dados da figura: %s", csv.name, extra={"stage": STAGE})
+    return csv
+
+
 # ---------------------------------------------------------------------------
-# ESEM14 Fig.3 — transições
+# ESEM14 Fig.3: transições
 # ---------------------------------------------------------------------------
 def fig3_dates() -> list[pd.Timestamp]:
     """Os quatro pontos de junho que o artigo mostra, validados contra a série.
@@ -304,7 +323,7 @@ def figure_fig3():
     for i, sid in enumerate(ids):
         # Escala comum na linha, nos DOIS eixos. A Fig.3 é sobre a pirâmide
         # mudar de forma ao longo do tempo: se cada painel se auto-escala, o
-        # crescimento em altura — que é o que o artigo aponta no homebrew — some
+        # crescimento em altura (que é o que o artigo aponta no homebrew) some
         # da figura, porque 2013 é redesenhado do tamanho de 2010.
         row = frames[sid]
         vivos = [f for f in row.values() if not f.empty]
@@ -324,7 +343,7 @@ def figure_fig3():
                 ax.set_xlabel("contribuidores", fontsize=8)
 
     _legend(fig)
-    fig.suptitle("ESEM14 Fig.3 — transições da pirâmide populacional", fontsize=10)
+    fig.suptitle("ESEM14 Fig.3: transições da pirâmide populacional", fontsize=10)
     return _save(fig, "esem14_fig3_transicoes", rect=(0, 0.05, 1, 0.96))
 
 
@@ -340,14 +359,131 @@ def _scatter(ax, x, y, vx, vy, xlabel, ylabel):
     ax.set_ylabel(ylabel, fontsize=8)
 
 
-def figure_fig2(year: int | None = None):
-    """MSR14 Fig.2: magnetismo × stickiness, com as medianas como eixos.
+def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, lbl: dict,
+            rotulo) -> None:
+    """Anel aberto + nome nos projetos que o artigo nomeia no próprio gráfico.
+
+    Sem o anel a anotação flutua perto de uma nuvem densa e não dá para saber a
+    qual ponto ela se refere. É puro desenho: não entra em mediana, quadrante
+    nem contagem.
+    """
+    ax.scatter(alvo[xcol], alvo[ycol], s=70, facecolors="none",
+               edgecolors="#B03A2E", linewidths=1.4, zorder=4)
+
+    fonte = 7
+    dpi = ax.figure.dpi
+    pt = dpi / 72.0                     # 1 ponto tipográfico em pixels
+    quadro = ax.get_window_extent()
+    ocupado: list[tuple[float, float, float, float]] = []
+
+    def _caixa(px, py, dx, dy, texto):
+        """Retângulo que o rótulo vai ocupar, em pixels, para testar colisão."""
+        linhas = texto.split("\n")
+        # Largura por caractere é estimada, não medida: medir exige renderer e
+        # o ganho não paga o acoplamento. Erra para mais, que é o lado seguro.
+        w = max(len(s) for s in linhas) * fonte * 0.58 * pt
+        h = len(linhas) * fonte * 1.35 * pt
+        x = px + dx * pt if dx > 0 else px + dx * pt - w
+        y = py + dy * pt if dy > 0 else py + dy * pt - h
+        return x, y, x + w, y + h
+
+    # Texto que já está no eixo (os rótulos de quadrante da Fig.5, por exemplo)
+    # também é obstáculo: sem isto o nome de um projeto de borda pousa em cima
+    # da contagem do quadrante, que é justamente o número que a figura existe
+    # para mostrar.
+    for texto in ax.texts:
+        tx, ty = ax.transData.transform(texto.get_position())
+        linhas = texto.get_text().split("\n")
+        tf = texto.get_fontsize()
+        w = max(len(s) for s in linhas) * tf * 0.58 * (dpi / 72.0)
+        h = len(linhas) * tf * 1.35 * (dpi / 72.0)
+        ha, va = texto.get_ha(), texto.get_va()
+        x0 = tx - w / 2 if ha == "center" else (tx - w if ha == "right" else tx)
+        y0 = ty - h / 2 if va == "center" else (ty - h if va == "top" else ty)
+        ocupado.append((x0, y0, x0 + w, y0 + h))
+
+    def _bate(c) -> bool:
+        if c[0] < quadro.x0 or c[2] > quadro.x1 or c[1] < quadro.y0 or c[3] > quadro.y1:
+            return True                  # rótulo saindo do gráfico
+        return any(not (c[2] <= o[0] or c[0] >= o[2] or c[3] <= o[1] or c[1] >= o[3])
+                   for o in ocupado)
+
+    meio_x = ax.get_xlim()[0] + (ax.get_xlim()[1] - ax.get_xlim()[0]) / 2
+    meio_y = ax.get_ylim()[0] + (ax.get_ylim()[1] - ax.get_ylim()[0]) / 2
+    # Ordem estável (não a do DataFrame) para que a figura não dependa de qual
+    # projeto o parquet devolveu primeiro: o desenho tem de ser reprodutível.
+    for _, r in alvo.sort_values([ycol, xcol], ascending=[False, True]).iterrows():
+        px, py = ax.transData.transform((r[xcol], r[ycol]))
+        # Preferência: para dentro do gráfico (ponto na metade direita recebe
+        # rótulo à esquerda, e vice-versa), que é o que basta quando os pontos
+        # estão soltos. Se a vaga já estiver tomada — nuvem densa do miolo —
+        # tenta as outras direções e vai afastando, senão os nomes se empilham
+        # e nenhum deles fica legível.
+        sx = 1 if r[xcol] < meio_x else -1
+        sy = 1 if r[ycol] < meio_y else -1
+        direcoes = [(sx, sy), (sx, -sy), (-sx, sy), (-sx, -sy)]
+        escolha = None
+        for raio in (1.0, 1.8, 2.8, 4.0, 5.6):
+            for ux, uy in direcoes:
+                dx, dy = ux * 14 * raio, uy * 12 * raio
+                c = _caixa(px, py, dx, dy, rotulo(r))
+                if not _bate(c):
+                    escolha = (dx, dy, c)
+                    break
+            if escolha:
+                break
+        if escolha is None:              # grafo lotado: volta ao padrão simples
+            dx, dy = sx * 14, sy * 12
+            escolha = (dx, dy, _caixa(px, py, dx, dy, rotulo(r)))
+        dx, dy, caixa = escolha
+        ocupado.append(caixa)
+        ax.annotate(
+            rotulo(r),
+            (r[xcol], r[ycol]),
+            textcoords="offset points",
+            xytext=(dx, dy),
+            ha="left" if dx > 0 else "right",
+            va="bottom" if dy > 0 else "top",
+            fontsize=fonte, color="#B03A2E", zorder=5,
+            arrowprops=dict(arrowstyle="-", color="#B03A2E", linewidth=0.6,
+                            shrinkA=0, shrinkB=6),
+        )
+
+
+def _anelados(cfg: dict, disponiveis, highlight, figura: str, onde: str) -> list[int]:
+    """Ids a anelar, com o `--highlight` da CLI sobrescrevendo o do checkpoints.
+
+    Anel pedido em projeto que não está no plano é erro de quem pediu, não
+    ponto a ignorar em silêncio: ou o id está errado, ou o projeto não é
+    elegível e a figura não tem onde marcá-lo.
+    """
+    ids = [int(s) for s in (highlight if highlight is not None else cfg.get("highlight", []))]
+    faltando = sorted(set(ids) - set(int(s) for s in disponiveis))
+    if faltando:
+        raise ValueError(
+            f"{figura}: highlight {faltando} não está entre os projetos "
+            f"elegíveis {onde}."
+        )
+    return ids
+
+
+def figure_fig2(year: int | None = None, highlight: list[int] | None = None):
+    """MSR14 Fig.2: stickiness (x) × magnetismo (y), com as medianas como eixos.
 
     É a figura que *origina* os quadrantes que a ESEM14 Fig.2 depois desenha
-    como pirâmides. Não está na lista do §6 da spec — fica porque é a única
-    vista do critério de classificação em si, e porque os quatro projetos
-    nomeados pelo ESEM14 aparecem anelados aqui, prontos para conferência.
+    como pirâmides. Não está na lista da seção 6 da spec: fica porque é a única
+    vista do critério de classificação em si.
+
+    Ordem dos eixos, ticks e limites vêm da figura publicada: Sticky na
+    horizontal, Magnet na vertical. Trocar os eixos não muda quadrante nenhum,
+    porque o quadrante sai da comparação com as medianas em `attractiveness`,
+    mas espelha a nuvem e atrapalha a comparação visual com o artigo.
+
+    `highlight` (ou `figures.msr14_fig2.highlight`) é só desenho: anela e nomeia
+    os project.id pedidos. Não entra em conta nenhuma, e o CSV irmão traz a
+    coluna `highlighted` para o anel ser conferível fora da imagem.
     """
+    cfg = _fig_cfg("msr14_fig2")
     ck = checkpoints()["attractiveness"]
     chave = next(k for k in ck if str(k).startswith("20"))
     y = attr.year_of(year or chave)
@@ -360,43 +496,42 @@ def figure_fig2(year: int | None = None):
     lbl = labels()
     fig, ax = plt.subplots(figsize=(5.0, 4.4))
     _scatter(
-        ax, df["magnetism"], df["stickiness"],
-        float(df["median_magnetism"].iloc[0]), float(df["median_stickiness"].iloc[0]),
-        "magnetismo", "stickiness",
+        ax, df["stickiness"], df["magnetism"],
+        float(df["median_stickiness"].iloc[0]), float(df["median_magnetism"].iloc[0]),
+        "stickiness (Sticky)", "magnetismo (Magnet)",
     )
+    # Régua da figura publicada, declarada em checkpoints. Os limites deixam
+    # folga só para o anel caber; ponto que passasse da régua continuaria
+    # desenhado.
+    ax.set_xlim(*cfg["xlim"])
+    ax.set_ylim(*cfg["ylim"])
+    ax.set_xticks(cfg["xticks"])
+    ax.set_yticks(cfg["yticks"])
 
-    nomeados = {int(k) for k in ck.get(str(chave), {})}
-    alvo = df[df["scope_id"].isin(nomeados)]
-    # Anel aberto por cima do ponto: sem isso a anotação flutua perto de uma
-    # nuvem densa e não dá para saber a qual ponto ela se refere.
-    ax.scatter(alvo["magnetism"], alvo["stickiness"], s=70, facecolors="none",
-               edgecolors="#B03A2E", linewidths=1.4, zorder=4)
+    anelados = _anelados(cfg, df["scope_id"], highlight, "Fig.2", f"de {y}")
+    _anelar(ax, df[df["scope_id"].isin(anelados)], "stickiness", "magnetism", lbl,
+            lambda r: f"{lbl.get(int(r['scope_id']), r['scope_id'])}\n({r['quadrant']})")
 
-    meio_x = ax.get_xlim()[0] + (ax.get_xlim()[1] - ax.get_xlim()[0]) / 2
-    meio_y = ax.get_ylim()[0] + (ax.get_ylim()[1] - ax.get_ylim()[0]) / 2
-    for _, r in alvo.iterrows():
-        # Texto sempre para dentro do gráfico: ponto na metade direita recebe
-        # rótulo à esquerda, e vice-versa. Senão nomes longos saem pela borda.
-        dir_x = r["magnetism"] < meio_x
-        dir_y = r["stickiness"] < meio_y
-        ax.annotate(
-            f"{lbl.get(int(r['scope_id']), r['scope_id'])}\n({r['quadrant']})",
-            (r["magnetism"], r["stickiness"]),
-            textcoords="offset points",
-            xytext=(14 if dir_x else -14, 12 if dir_y else -12),
-            ha="left" if dir_x else "right",
-            va="bottom" if dir_y else "top",
-            fontsize=7, color="#B03A2E", zorder=5,
-            arrowprops=dict(arrowstyle="-", color="#B03A2E", linewidth=0.6,
-                            shrinkA=0, shrinkB=6),
-        )
-
-    ax.set_title(f"MSR14 Fig.2 — magnetismo × stickiness, {y}  (n={len(df)})", fontsize=9)
-    return _save(fig, f"msr14_fig2_{y}")
+    ax.set_title(f"MSR14 Fig.2: stickiness × magnetismo, {y}  (n={len(df)})", fontsize=9)
+    stem = f"msr14_fig2_{y}"
+    dados = df[["scope_id", "stickiness", "magnetism", "quadrant",
+                "median_stickiness", "median_magnetism"]].copy()
+    dados.insert(1, "project", dados["scope_id"].map(lambda s: lbl.get(int(s), str(s))))
+    dados["highlighted"] = dados["scope_id"].isin(anelados)
+    _dump(dados.sort_values("scope_id"), stem)
+    return _save(fig, stem)
 
 
-def figure_fig5(snapshot: str | None = None):
-    """IEICE16 Fig.5: CCR × NCR no snapshot de classificação, quadrantes A-D."""
+def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None):
+    """IEICE16 Fig.5: NCR (x) × CCR (y) no snapshot de classificação, quadrantes A-D.
+
+    A ordem dos eixos é a do artigo, NÃO a do nome da figura: a Fig.5 publicada
+    põe NCR na horizontal e CCR na vertical, o que deixa os quadrantes lidos em
+    C, A, D, B (da esquerda para a direita, de cima para baixo). Inverter os
+    eixos não muda tipo nenhum, porque `metrics._type_of` decide por sinal de
+    CCR e NCR e não por posição, mas troca B e C de lado na figura e faz a
+    comparação visual com o artigo parecer um erro de classificação.
+    """
     t = pd.Timestamp(snapshot or settings()["snapshots"]["classification_snapshot"])
     df = metrics.load_all()
     if df.empty:
@@ -405,9 +540,10 @@ def figure_fig5(snapshot: str | None = None):
     cut = cut[cut["type"].notna()]
 
     fig, ax = plt.subplots(figsize=(5.0, 4.4))
-    # Corte em ZERO, não na mediana (IEICE16 s3) — a linha desenhada tem de ser
-    # a mesma que o `metrics` usou para atribuir o tipo.
-    _scatter(ax, cut["ccr"], cut["ncr"], 0.0, 0.0, "CCR", "NCR")
+    # O corte usa ZERO como referência (IEICE16 s3). A mediana não entra aqui:
+    # a linha desenhada tem de ser a mesma que o `metrics` usou para atribuir
+    # o tipo.
+    _scatter(ax, cut["ncr"], cut["ccr"], 0.0, 0.0, "NCR", "CCR")
     # Folga acima/abaixo do domínio real (CCR e NCR vivem em [-1, 1]) para os
     # rótulos de quadrante caberem sem pousar em cima dos pontos de borda.
     ax.set_xlim(-1.08, 1.08)
@@ -415,11 +551,15 @@ def figure_fig5(snapshot: str | None = None):
 
     contagem = cut["type"].value_counts().to_dict()
     # O artigo lado a lado, no próprio gráfico. Esta replicação não fecha o GATE
-    # exato do §9 (docs/discrepancias.md §1: sobra em A, falta em C), e uma Fig.5
-    # publicada só com os meus números seria lida como reprodução exata.
+    # exato da seção 9 (docs/discrepancias.md, seção 1: sobra em A, falta em
+    # C), e uma Fig.5 publicada só com os meus números seria lida como
+    # reprodução exata.
     alvo = checkpoints()["types"]["counts"]
+    # Posição de cada rótulo = quadrante do artigo com NCR em x e CCR em y:
+    # C em cima à esquerda, A em cima à direita, D embaixo à esquerda, B
+    # embaixo à direita.
     for tipo, (px, py) in {
-        "A": (0.54, 1.16), "B": (-0.54, 1.16), "C": (0.54, -1.16), "D": (-0.54, -1.16)
+        "A": (0.54, 1.16), "C": (-0.54, 1.16), "B": (0.54, -1.16), "D": (-0.54, -1.16)
     }.items():
         n = contagem.get(tipo, 0)
         ref = alvo[tipo]
@@ -427,13 +567,26 @@ def figure_fig5(snapshot: str | None = None):
         ax.text(px, py, f"Tipo {tipo}   n={n}   (artigo: {ref}){marca}",
                 fontsize=8, ha="center", color="#B03A2E")
 
+    # Os oito projetos que o artigo usa como exemplo nas Fig.6 e Fig.7. Anelar
+    # aqui é o único jeito de ver, na mesma imagem, que a divergência de
+    # contagem não toca em nenhum projeto que o artigo nomeia.
+    cfg = _fig_cfg("ieice16_fig5")
+    anelados = _anelados(cfg, cut["scope_id"], highlight, "Fig.5", f"em {t.date()}")
+    _anelar(ax, cut[cut["scope_id"].isin(anelados)], "ncr", "ccr", labels(),
+            lambda r: f"{labels().get(int(r['scope_id']), r['scope_id'])}\n({r['type']})")
+
     ax.set_title(
-        f"IEICE16 Fig.5 — CCR × NCR em {t.date()}\n"
+        f"IEICE16 Fig.5: NCR (x) × CCR (y) em {t.date()}\n"
         f"{len(cut)} projetos classificados (artigo: {checkpoints()['types']['total_classified']})"
-        " — ver docs/discrepancias.md §1",
+        ", ver docs/discrepancias.md, seção 1",
         fontsize=9,
     )
-    return _save(fig, f"ieice16_fig5_{t.date()}")
+    stem = f"ieice16_fig5_{t.date()}"
+    dados = cut[["scope_id", "ncr", "ccr", "type"]].copy()
+    dados.insert(1, "project", dados["scope_id"].map(lambda s: labels().get(int(s), str(s))))
+    dados["highlighted"] = dados["scope_id"].isin(anelados)
+    _dump(dados.sort_values(["type", "scope_id"]), stem)
+    return _save(fig, stem)
 
 
 # ---------------------------------------------------------------------------
@@ -466,7 +619,7 @@ def _cell(ax, sid: int, t: pd.Timestamp, *, sub: str | None = None,
 
 def _confere(obtido, esperado) -> str:
     """`replicação (artigo: X)` com marca quando os dois discordam."""
-    o = "—" if obtido is None or (isinstance(obtido, float) and pd.isna(obtido)) else str(obtido)
+    o = "-" if obtido is None or (isinstance(obtido, float) and pd.isna(obtido)) else str(obtido)
     return f"{o}   (artigo: {esperado})" + ("" if o == str(esperado) else "   ≠")
 
 
@@ -486,8 +639,8 @@ def figure_grid_status():
     fig, axes = plt.subplots(1, len(ids), figsize=(3.0 * len(ids), 3.2), squeeze=False)
     for j, sid in enumerate(ids):
         # Escala por painel: o artigo põe quatro projetos de portes muito
-        # diferentes lado a lado e o que ele compara é a *forma*, não o
-        # tamanho. Uma régua comum achataria clojure contra homebrew.
+        # diferentes lado a lado e o que ele compara é a *forma*. O tamanho
+        # fica de fora: uma régua comum achataria clojure contra homebrew.
         got = quad["quadrant"].get(sid) if sid in quad.index else None
         _cell(axes[0][j], sid, t, sub=_confere(got, esperado[sid]),
               xticks=ticks_artigo.get(sid))
@@ -496,7 +649,7 @@ def figure_grid_status():
 
     _legend(fig)
     fig.suptitle(
-        f"ESEM14 Fig.2 — pirâmides e status em {t.date()}"
+        f"ESEM14 Fig.2: pirâmides e status em {t.date()}"
         "   (eixo x: ticks do artigo; barra que passa do último tick é transbordo real)",
         fontsize=10,
     )
@@ -537,7 +690,7 @@ def figure_grid_types():
 
     _legend(fig)
     fig.suptitle(
-        f"IEICE16 Fig.6 — exemplos de cada tipo em {t.date()}"
+        f"IEICE16 Fig.6: exemplos de cada tipo em {t.date()}"
         "   (escalas independentes, como no original)",
         fontsize=10,
     )
@@ -569,12 +722,12 @@ def figure_grid_centered():
     axes[0][0].set_ylabel("idade acumulada (anos)", fontsize=8)
 
     _legend(fig)
-    fig.suptitle(f"IEICE16 Fig.7 — CCR e NCR próximos de zero, {t.date()}", fontsize=10)
+    fig.suptitle(f"IEICE16 Fig.7: CCR e NCR próximos de zero, {t.date()}", fontsize=10)
     return _save(fig, f"ieice16_fig7_centrados_{t.date()}", rect=(0, 0.12, 1, 0.93))
 
 
 # ---------------------------------------------------------------------------
-# IEICE16 Fig.8 — pirâmide medida com a projeção por cima
+# IEICE16 Fig.8: pirâmide medida com a projeção por cima
 # ---------------------------------------------------------------------------
 def _projection_frame(sub: pd.DataFrame, coluna: str) -> pd.DataFrame:
     piv = (
@@ -612,8 +765,8 @@ def figure_projection_overlay():
         real = _projection_frame(sub, "actual")
         pred = _projection_frame(sub, "cohort_pred")
 
-        # As barras vêm do `actual` da própria projeção, não de um novo
-        # `pyramid_frame`: a linha tem de passar sobre a mesma população que o
+        # As barras vêm do `actual` da própria projeção. Um novo `pyramid_frame`
+        # não entra aqui: a linha tem de passar sobre a mesma população que o
         # ABIRE mediu, senão a figura contradiz a Tabela 3 sem avisar.
         lim, _ = draw_pyramid(ax, real.astype({"band": int}))
         y = pred["band"].to_numpy()
@@ -623,7 +776,7 @@ def figure_projection_overlay():
             ax.plot(série, y, color="#B03A2E", linewidth=1.2, linestyle="--",
                     marker="o", markersize=2.5, zorder=6)
 
-        # Reescala se a projeção estourar a régua das barras — cortar a linha
+        # Reescala se a projeção estourar a régua das barras: cortar a linha
         # esconderia justamente o erro que a figura existe para mostrar.
         pico = float(max(abs(esq).max(initial=0.0), dirr.max(initial=0.0)))
         if pico > lim:
@@ -648,14 +801,15 @@ def figure_projection_overlay():
                 label="projeção (coorte)")]
     fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, fontsize=8)
     fig.suptitle(
-        f"IEICE16 Fig.8 — medido vs. projetado em {alvo.date()} (base {base})",
+        f"IEICE16 Fig.8: medido vs. projetado em {alvo.date()} (base {base})",
         fontsize=10,
     )
     return _save(fig, f"ieice16_fig8_projecao_{alvo.date()}", rect=(0, 0.07, 1, 0.95))
 
 
 # ---------------------------------------------------------------------------
-# IEICE16 Tabelas 3 e 4 — não é gráfico, mas é resultado obrigatório do §6
+# IEICE16 Tabelas 3 e 4: não são gráfico, mas são resultado obrigatório da
+# seção 6
 # ---------------------------------------------------------------------------
 def figure_abre_table():
     """Tabelas 3 e 4 lado a lado com o artigo, em CSV e markdown."""
@@ -665,18 +819,18 @@ def figure_abre_table():
     tol = float(checkpoints()["projection_abre"]["tolerance_rel"])
     ordem = [*snapshots.CATEGORIES, "all"]
 
-    # Mesmo critério de igualdade do `validate` — importado, não recopiado: se
+    # Mesmo critério de igualdade do `validate`, importado, não recopiado: se
     # esta tabela usasse um "perto" próprio, ela poderia dizer OK numa célula
     # que o veredito oficial reprova, e o leitor não teria como saber qual crer.
     from .validate import _perto
 
     linhas: list[str] = [
-        "# IEICE16 Tabelas 3 e 4 — replicação vs. artigo",
+        "# IEICE16 Tabelas 3 e 4: replicação vs. artigo",
         "",
         f"Gerado por `pyramid plot --figure abre-table`. Tolerância relativa: {tol:.0%}.",
         "Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da tolerância.",
         "",
-        "## Tabela 3 — mediana do ABRE (menor é melhor)",
+        "## Tabela 3: mediana do ABRE (menor é melhor)",
         "",
         "| tipo | projetos | pares | " + " | ".join(
             f"{c} coorte | {c} baseline" for c in ordem
@@ -699,7 +853,7 @@ def figure_abre_table():
 
     linhas += [
         "",
-        "## Tabela 4 — Wilcoxon pareado, coorte vs. baseline (95%)",
+        "## Tabela 4: Wilcoxon pareado, coorte vs. baseline (95%)",
         "",
         "| tipo | " + " | ".join(ordem) + " |",
         "|" + "---|" * (1 + len(ordem)),
@@ -728,7 +882,7 @@ def figure_abre_table():
     ck_t = checkpoints()["projection_term"]
     linhas += [
         "",
-        "`*` = significativo a 95%. Em Tab.4 o que se compara é a decisão, não o p exato.",
+        "`*` = significativo a 95%. Em Tab.4 compara-se a decisão; o p exato fica de fora.",
         "",
         "## Curto vs. longo prazo (corte em 1 ano de atividade)",
         "",
@@ -740,14 +894,14 @@ def figure_abre_table():
         f"(n={termo['long_n']}) | {ck_t['long_term_abre_median']} |",
         f"| p-valor | {termo['wilcoxon_p']:.4f} | {ck_t['wilcoxon_p']} |",
         "",
-        "A inversão de curto/longo prazo está analisada em `docs/discrepancias.md` §12.3.",
+        "A inversão de curto/longo prazo está analisada em `docs/discrepancias.md`, seção 12.3.",
         "",
         "## Resumo",
         "",
         f"- Tabela 3: **{dentro_t3}/{celulas_t3}** células dentro de {tol:.0%}.",
         f"- Tabela 4: **{dentro_t4}/{celulas_t4}** decisões de significância iguais às do artigo.",
         "",
-        "O veredito formal é do `pyramid validate` — esta tabela é a vista lado a",
+        "O veredito formal é do `pyramid validate`. Esta tabela é a vista lado a",
         "lado, e usa o mesmo critério de igualdade (`validate._perto`) para não",
         "poder discordar dele.",
         "",
@@ -783,8 +937,8 @@ SINGLE = "pyramid-single"
 def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **_) -> dict:
     """Assinatura de estágio: o 1º posicional é escopo em todo o pipeline.
 
-    As figuras dos artigos têm projeto fixo — a composição de cada painel vem
-    de `config/checkpoints.yaml: figures` — então um `--project` aqui não teria
+    As figuras dos artigos têm projeto fixo. A composição de cada painel vem
+    de `config/checkpoints.yaml: figures`, então um `--project` aqui não teria
     o que filtrar: avisa em vez de fingir que respeitou.
     """
     if scopes:

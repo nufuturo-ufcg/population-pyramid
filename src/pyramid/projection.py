@@ -1,4 +1,4 @@
-"""Estágio 6 — projeção coorte-componente (IEICE16 §4).
+"""Estágio 6: projeção coorte-componente (IEICE16 seção 4).
 
 Isserman [15] projeta população por coorte etária usando taxa de sobrevivência:
 
@@ -17,7 +17,7 @@ T = jun/2013 e T-n = mar/2013, projetando set/2013:
     SR(b)          = P(b+1, jun/2013) / P(b, mar/2013)
     P(b+1, set/13) = SR(b) × P(b, jun/2013)
 
-A coorte de base (band 0) não vem de sobrevivência — é o análogo demográfico dos
+A coorte de base (band 0) não vem de sobrevivência: é o análogo demográfico dos
 nascimentos. O artigo não tem taxa de fecundidade, então usa a média das duas
 contagens mais recentes (p.1311, col. esq.):
 
@@ -27,10 +27,10 @@ Migração líquida é zero por decisão explícita do artigo ("we do not consid
 that contributors move to other projects in our study").
 
 Baseline: "the baseline method, which assumes that the number of contributors
-of September and June 2013 are the same" — previsão = a contagem de jun/2013.
+of September and June 2013 are the same": previsão = a contagem de jun/2013.
 
 Erro: ABRE (Miyazaki et al. [19]), com denominador = min(real, previsto) nos
-dois ramos. Ver `abre` e docs/discrepancias.md §5.
+dois ramos. Ver `abre` e docs/discrepancias.md, seção 5.
 
 Três populações projetadas separadamente ("Populations are projected for
 non-coding, moved, and coding contributors, separately") + a coluna `all`.
@@ -57,16 +57,16 @@ STAGE = "projection"
 #
 # O artigo não diz isso em palavras, mas a Tabela 4 prova. Type D tem dois
 # projetos e p-value 0.00000; Type A tem quatro e 0.00014. Um Wilcoxon pareado
-# com n=2 não produz p abaixo de 0.5 (com n=4, o piso é 0.125) — são só 2^n
+# com n=2 não produz p abaixo de 0.5 (com n=4, o piso é 0.125): são só 2^n
 # arranjos de sinal. Para p da ordem de 1e-5 são precisos ~18 pares no mínimo.
 # Logo cada par é (projeto, categoria, coorte), e a mediana da Tabela 3 é sobre
 # coortes.
 #
 # A magnitude confirma por outro caminho: as medianas da Tabela 3 são 0.2500,
-# 0.3333, 0.5000, 0.6667, 0.7500, 1.0000 — frações de inteiros pequenos, que só
+# 0.3333, 0.5000, 0.6667, 0.7500, 1.0000: frações de inteiros pequenos, que só
 # saem de contagens de banda individual (2→3 dá 0.5; 3→4 dá 0.3333). Agregar por
 # projeto (100+ contribuidores) dá ABRE de 0.02, vinte vezes menor. Ver
-# docs/discrepancias.md §12.
+# docs/discrepancias.md, seção 12.
 #
 # `all` é a população total da coorte (as três categorias somadas naquela banda),
 # leitura direta de "projection of all contributors".
@@ -83,7 +83,7 @@ def abre(actual: float, predicted: float) -> float:
     IEICE16 p.1311 escreve os dois ramos com o denominador trocando de lado
     conforme o sinal de (x̂ − x). Como o ramo de cima vale quando x̂ ≥ x e usa x,
     e o de baixo vale quando x̂ < x e usa x̂, o denominador é sempre o MENOR dos
-    dois — que é o BRE de Miyazaki et al. tal como publicado. Escrito com `min`
+    dois, que é o BRE de Miyazaki et al. tal como publicado. Escrito com `min`
     aqui de propósito: a forma de dois ramos convida a inverter um sinal em
     revisão e o teste não pegaria (os ramos coincidem quando x = x̂).
 
@@ -131,7 +131,7 @@ def project(p_base: np.ndarray, p_last: np.ndarray) -> tuple[np.ndarray, int]:
       para b+1, e prever 0 é uma afirmação substantiva, não uma lacuna. No
       dataset são 3256 células e o alvo é de fato vazio em 98.9% delas.
     - `p_last[b] > 0` (coorte órfã): a banda apareceu povoada sem ter existido
-      no tempo anterior. A taxa de sobrevivência é indefinida — 0/0 vezes algo.
+      no tempo anterior. A taxa de sobrevivência é indefinida: 0/0 vezes algo.
       São 195 células, e o alvo tem gente de verdade em 73.8% delas, ou seja,
       cravar 0 ali seria errado na maioria das vezes. A célula fica `nan`
       (= "o método não responde") e sai do cálculo de erro, em vez de entrar
@@ -160,12 +160,14 @@ def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
     """"the 36 projects that have more than 100 contributors" (p.1311).
 
     O artigo não diz sobre qual snapshot nem se conta ativos ou acumulados.
-    Variante escolhida em docs/discrepancias.md §7/§9.2: ativos no primeiro
-    snapshot base. Dá 34, não 36 — ruído de fronteira.
+    Variante escolhida em docs/discrepancias.md, seções 7 e 9.2: ativos no
+    primeiro snapshot base. O resultado é 34; a diferença para os 36 do artigo
+    é ruído de fronteira.
 
-    O corte é `> limiar`, não `>=`, seguindo "more than 100" ao pé da letra. Não
-    é detalhe cosmético: o 35º projeto tem exatamente 100 contribuintes ativos,
-    então ler "more than" como `>=` devolveria 35. Ver §9.2.
+    O corte usa `> limiar`, seguindo "more than 100" ao pé da letra. A
+    alternativa `>=` foi descartada: não é detalhe cosmético, porque o 35º
+    projeto tem exatamente 100 contribuintes ativos, então ler "more than"
+    como `>=` devolveria 35. Ver seção 9.2.
     """
     cfg = settings()["projection"]
     limiar = cfg["min_contributors"]
@@ -173,7 +175,7 @@ def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
     if basis not in ("active", "cumulative"):
         raise ValueError(
             f"projection.min_contributors_basis={basis!r}: só 'active' ou "
-            "'cumulative'. Ver docs/discrepancias.md §7."
+            "'cumulative'. Ver docs/discrepancias.md, seção 7."
         )
 
     at = snaps[snaps["snapshot"] == base]
@@ -190,7 +192,7 @@ def compute() -> pd.DataFrame:
     if len(bases) != 2:
         raise ValueError(
             f"projection_base tem {len(bases)} datas; o método usa exatamente "
-            "duas (T−n e T) para tirar a taxa de sobrevivência. IEICE16 §4.2."
+            "duas (T−n e T) para tirar a taxa de sobrevivência. IEICE16 seção 4.2."
         )
     base, last = bases
 
@@ -216,9 +218,9 @@ def compute() -> pd.DataFrame:
     tipos = tipos[tipos["snapshot"] == snap_tipo].set_index("scope_id")["type"]
 
     n_bands = int(snaps["band"].max()) + 1
-    # Só os vivos. A pirâmide é a população ativa no snapshot — "a contributor
+    # Só os vivos. A pirâmide é a população ativa no snapshot: "a contributor
     # left the project when he/she did not give any contribution for more than
-    # three months" — e é o que metrics.py e plots.py já usam. Sem esse filtro a
+    # three months". É o que metrics.py e plots.py já usam. Sem esse filtro a
     # população é o acumulado histórico, onde ninguém morre: a banda de todo
     # mundo avança um degrau a cada trimestre, a taxa de sobrevivência é 1 por
     # construção e a projeção acerta na mosca sem ter previsto nada.
@@ -287,7 +289,7 @@ def _wilcoxon(a: np.ndarray, b: np.ndarray) -> float:
     try:
         return float(wilcoxon(a, b).pvalue)
     except ValueError:
-        # Todos os pares com diferença zero — o teste não tem o que ranquear.
+        # Todos os pares com diferença zero: o teste não tem o que ranquear.
         return float("nan")
 
 
@@ -301,7 +303,7 @@ def tables(df: pd.DataFrame | None = None) -> dict[str, pd.DataFrame]:
     # (erro relativo sem denominador), e isso atinge os dois métodos em coortes
     # diferentes. Tirar a mediana de cada coluna sobre o que sobrou compararia
     # duas amostras distintas e o Wilcoxon, que é pareado, já usaria só a
-    # interseção — as Tabelas 3 e 4 sairiam de populações diferentes.
+    # interseção: as Tabelas 3 e 4 sairiam de populações diferentes.
     completos = df[df["abre_cohort"].notna() & df["abre_baseline"].notna()]
 
     med, pval = [], []
@@ -327,7 +329,7 @@ def tables(df: pd.DataFrame | None = None) -> dict[str, pd.DataFrame]:
 
 
 def term_split(df: pd.DataFrame | None = None) -> dict:
-    """Curto vs. longo prazo — corte em 1 ano de atividade (IEICE16 §4.2 fim).
+    """Curto vs. longo prazo: corte em 1 ano de atividade (IEICE16 seção 4.2 fim).
 
     "The median of ABRE of short-term contributors is 0.4055, and median of
      ABRE of long-term contributors is 0.3333" (p-value = 0.0460).
@@ -337,8 +339,8 @@ def term_split(df: pd.DataFrame | None = None) -> dict:
 
     Aqui o teste é de duas amostras independentes (rank-sum), não pareado: os
     dois grupos são conjuntos de coortes de tamanhos diferentes, não há par
-    natural entre uma banda curta e uma longa. As medianas relatadas — 0.4055 e
-    0.3333 — são de novo frações de inteiro pequeno, coerentes com coorte.
+    natural entre uma banda curta e uma longa. As medianas relatadas, 0.4055 e
+    0.3333, são de novo frações de inteiro pequeno, coerentes com coorte.
     """
     from scipy.stats import ranksums
 
@@ -373,7 +375,7 @@ def run(
     if scopes is not None:
         raise ValueError(
             "projection não aceita --project: a amostra é definida pelo limiar "
-            "de 100 contribuidores (IEICE16 §4.2) e as Tabelas 3/4 são medianas "
+            "de 100 contribuidores (IEICE16 seção 4.2) e as Tabelas 3/4 são medianas "
             "sobre ela. Restringir o escopo devolveria uma mediana de outra "
             "população com a mesma cara."
         )

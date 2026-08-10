@@ -1,4 +1,4 @@
-"""CLI — um subcomando por estágio, na ordem em que rodam.
+"""CLI: um subcomando por estágio, na ordem em que rodam.
 
 Cada estágio é retomável: sem `--force`, unidades já registradas como ok no
 manifesto (`output/<estágio>/_manifest.json`) são puladas.
@@ -17,7 +17,7 @@ from .config import settings
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="Pirâmides de população de projetos OSS — replicação Onoue et al.",
+    help="Pirâmides de população de projetos OSS, replicação Onoue et al.",
 )
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def _resolve(project: str, nomes: dict[int, str]) -> int:
 
 
 def _scopes(project: str | None, project_all: bool) -> list[int] | None:
-    """Escopo de um estágio de escrita — resolve contra o banco, que é a fonte."""
+    """Escopo de um estágio de escrita: resolve contra o banco, que é a fonte."""
     if project_all or project is None:
         return None
     from .extract import source
@@ -78,12 +78,12 @@ def _stage_command(stage: str, help_text: str):
     return _cmd
 
 
-_stage_command("extract", "Estágio 1 — eventos crus por projeto/contribuidor.")
-_stage_command("classify", "Estágio 2 — init_c/init_d, spans de atividade.")
-_stage_command("snapshots", "Estágio 3 — pirâmides trimestrais (banda de 3 meses).")
-_stage_command("metrics", "Estágio 4 — CCR, NCR e Tipos A-D.")
-_stage_command("attractiveness", "Estágio 5 — magnetismo e stickiness anuais (§3.1).")
-_stage_command("projection", "Estágio 6 — projeção coorte-componente (IEICE16 §4).")
+_stage_command("extract", "Estágio 1: eventos crus por projeto/contribuidor.")
+_stage_command("classify", "Estágio 2: init_c/init_d, spans de atividade.")
+_stage_command("snapshots", "Estágio 3: pirâmides trimestrais (banda de 3 meses).")
+_stage_command("metrics", "Estágio 4: CCR, NCR e Tipos A-D.")
+_stage_command("attractiveness", "Estágio 5: magnetismo e stickiness anuais (seção 3.1).")
+_stage_command("projection", "Estágio 6: projeção coorte-componente (IEICE16 seção 4).")
 
 
 @app.command("run-all")
@@ -105,7 +105,7 @@ def run_all(
 def types(
     snapshot: str = typer.Option(None, "--snapshot", help="default: o da classificação"),
 ) -> None:
-    """Tabela dos Tipos A-D num snapshot — o equivalente da Fig.5 do IEICE16."""
+    """Tabela dos Tipos A-D num snapshot: o equivalente da Fig.5 do IEICE16."""
     from .metrics import table
 
     t = snapshot or settings()["snapshots"]["classification_snapshot"]
@@ -132,9 +132,15 @@ def plot(
     project: str = typer.Option(None, "--project", help="só para --figure pyramid-single"),
     snapshot: str = typer.Option(None, "--snapshot", help="data; default: o da classificação"),
     year: int = typer.Option(None, "--year", help="só para --figure magnet-sticky"),
+    highlight: str = typer.Option(
+        None, "--highlight",
+        help="só para --figure magnet-sticky ou type-scatter: projetos a anelar "
+             "(nome ou id, separados por vírgula); default vem de "
+             "checkpoints.figures",
+    ),
     listar: bool = typer.Option(False, "--list", help="lista as figuras e sai"),
 ) -> None:
-    """Figuras dos artigos. Lê só os parquets — não abre o banco."""
+    """Figuras dos artigos. Lê apenas os parquets já gerados pelo pipeline."""
     from . import plots
 
     if listar:
@@ -158,10 +164,24 @@ def plot(
     kw = {}
     if figure == "magnet-sticky" and year:
         kw["year"] = year
+    if highlight is not None:
+        if figure not in ("magnet-sticky", "type-scatter"):
+            raise typer.BadParameter(
+                "--highlight só vale para --figure magnet-sticky ou type-scatter"
+            )
+        # Mesmo `_resolve` do resto da CLI: aceita nome de projeto e falha alto
+        # em nome ambíguo, em vez de anelar o escopo errado calado.
+        lbl = plots.labels()
+        kw["highlight"] = [_resolve(p.strip(), lbl) for p in highlight.split(",") if p.strip()]
     if figure == "type-scatter" and snapshot:
         kw["snapshot"] = snapshot
     if figure != "all" and kw:
-        typer.echo(plots.FIGURES[figure](**kw))
+        try:
+            typer.echo(plots.FIGURES[figure](**kw))
+        except ValueError as e:
+            # Projeto que existe nas 90 raízes mas não é elegível no ano pedido
+            # é erro de uso, não bug: vale mensagem curta, não traceback.
+            raise typer.BadParameter(str(e)) from e
         return
 
     man = plots.run(figures=None if figure == "all" else [figure])
@@ -171,15 +191,13 @@ def plot(
         typer.echo(f"{nome:<28} FALHOU: {err}")
     if man["failed"]:
         raise typer.Exit(1)
-    if man["failed"]:
-        raise typer.Exit(1)
 
 
 @app.command("magnetism")
 def magnetism(
     year: int = typer.Option(None, "--year", help="default: o ano do snapshot de classificação"),
 ) -> None:
-    """Quadrantes magnetismo × stickiness de um ano — a Fig.3 em texto."""
+    """Quadrantes magnetismo × stickiness de um ano: a Fig.3 em texto."""
     from . import attractiveness as attr
 
     y = year or attr.year_of(settings()["snapshots"]["classification_snapshot"])
@@ -216,8 +234,8 @@ def validate(
 ) -> None:
     """Confere a replicação inteira contra config/checkpoints.yaml.
 
-    Sai com código 1 se houver divergência não declarada em `known_divergences:`
-    — ou divergência declarada que voltou a bater, porque nesse caso é
+    Sai com código 1 se houver divergência não declarada em `known_divergences:`,
+    ou divergência declarada que voltou a bater, porque nesse caso é
     docs/discrepancias.md que está mentindo.
     """
     from . import validate as v

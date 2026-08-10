@@ -45,8 +45,8 @@ Vou usar uma pessoa de verdade: o contribuidor `2617` do projeto paperclip.
 
 Olhamos tudo que a pessoa fez no projeto e separamos em dois montes:
 
-- **código** — mandou commit, abriu pull request;
-- **conversa** — comentou num commit, num pull request, numa issue.
+- **código**: mandou commit, abriu pull request;
+- **conversa**: comentou num commit, num pull request, numa issue.
 
 Quem só tem o segundo monte fica à esquerda. Quem tem o primeiro fica à
 direita.
@@ -55,14 +55,14 @@ Existe um terceiro caso, e é o interessante: gente que **começou conversando e
 depois virou programador**. É exatamente o caso do `2617`. Ele apareceu no
 paperclip em novembro de 2009 comentando; o primeiro código dele só veio em
 outubro de 2011, quase dois anos depois. Essa pessoa aparece do lado do código,
-mas marcada à parte — é a evidência de que o projeto converte conversador em
+mas marcada à parte: é a evidência de que o projeto converte conversador em
 programador, que é uma das coisas que os artigos querem medir.
 
 ### 2. Em que altura ela fica?
 
 Conta-se o tempo desde a primeira vez que a pessoa fez aquilo que a colocou no
-lado dela. Para o `2617`, o relógio do lado do código começa em outubro de 2011
-— não em 2009. Ele é um programador *novo* no projeto, mesmo sendo uma cara
+lado dela. Para o `2617`, o relógio do lado do código começa em outubro de 2011.
+Não em 2009. Ele é um programador *novo* no projeto, mesmo sendo uma cara
 conhecida há dois anos.
 
 Esse tempo cai numa faixa. As faixas são trimestres, então cada ano de idade
@@ -74,34 +74,34 @@ Uma pessoa que não dá sinal de vida há muito tempo saiu, na prática. O progr
 marca cada pessoa como ativa ou inativa conforme ela tenha aparecido ou não
 dentro de uma janela recente.
 
-O `2617` também serve aqui: ele aparece no paperclip em três blocos separados —
-alguns dias em 2009, um dia em 2011, um dia em 2012 — com anos de silêncio no
+O `2617` também serve aqui: ele aparece no paperclip em três blocos separados
+(alguns dias em 2009, um dia em 2011, um dia em 2012) com anos de silêncio no
 meio. Dependendo da data em que você fotografa o projeto, ele está vivo ou não.
 
 **Um detalhe que confunde e vale fixar:** a pirâmide desenha *todo mundo que já
-passou pelo projeto*, não só quem está ativo. Ela é uma foto do acervo, não do
-movimento. Quem está ativo importa para as *contas* (crescimento, projeção), não
-para o desenho. Errar isso foi um bug real aqui — as figuras saíam achatadas a
-um décimo do tamanho.
+passou pelo projeto*. Não desenha só quem está ativo. Ela é uma foto do acervo.
+Não é do movimento. Quem está ativo importa para as *contas* (crescimento,
+projeção). Não importa para o desenho. Errar isso foi um bug real aqui: as
+figuras saíam achatadas a um décimo do tamanho.
 
 ## Do banco de dados à figura
 
 Cinco etapas. Cada uma lê o resultado da anterior e grava o seu, então dá para
 parar no meio, conferir e recomeçar dali.
 
-1. **Extrair** — varre o dump do GitHub e reduz cada projeto a uma lista de
+1. **Extrair**: varre o dump do GitHub e reduz cada projeto a uma lista de
    eventos: quem, o quê, quando.
-2. **Perfilar** — junta os eventos por pessoa e responde as três perguntas
+2. **Perfilar**: junta os eventos por pessoa e responde as três perguntas
    acima: o lado dela, quando o relógio dela começou, seus períodos de
    atividade.
-3. **Fotografar** — escolhe uma data (por exemplo 31/dez/2011) e produz o
+3. **Fotografar**: escolhe uma data (por exemplo 31/dez/2011) e produz o
    retrato do projeto naquele dia: cada pessoa com seu lado, sua faixa e seu
    estado. Isso é a pirâmide.
-4. **Interpretar** — compara fotos de datas diferentes e responde perguntas
+4. **Interpretar**: compara fotos de datas diferentes e responde perguntas
    sobre o projeto: ele atrai gente nova? segura quem chega? para onde ele vai?
    Daí saem os rótulos que os artigos usam (atrativo, flutuante, estagnado,
    terminal) e a projeção de futuro.
-5. **Desenhar e conferir** — gera as 8 figuras dos artigos e roda a checagem
+5. **Desenhar e conferir**: gera as 8 figuras dos artigos e roda a checagem
    descrita abaixo.
 
 Um comando por etapa, na ordem:
@@ -131,15 +131,15 @@ pontos de comparação.
 
 Cada ponto tem um de três destinos:
 
-- **bate** — nada a fazer;
-- **não bate, e sabemos por quê** — a divergência fica registrada com o motivo,
+- **bate**: nada a fazer;
+- **não bate, e sabemos por quê**: a divergência fica registrada com o motivo,
   e o programa passa a exigir que ela continue exatamente daquele tamanho;
-- **não bate e não sabemos por quê** — o programa falha. Não existe a opção de
+- **não bate e não sabemos por quê**: o programa falha. Não existe a opção de
   arredondar para ficar perto.
 
 O segundo caso é o mais útil e o menos óbvio. Quando não conseguimos chegar no
-número do artigo, não escondemos o desvio: **travamos** ele. Se um dia alguém
-mexer no código e o desvio mudar de tamanho, o programa avisa na hora — mesmo
+número do artigo, não escondemos o desvio. **Travamos** ele. Se um dia alguém
+mexer no código e o desvio mudar de tamanho, o programa avisa na hora, mesmo
 que mude "para melhor". Isso transforma cada discordância com o artigo em um
 alarme, em vez de deixá-la virar ruído de fundo.
 
