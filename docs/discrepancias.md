@@ -15,9 +15,13 @@ Checkpoint de referência: **IEICE16 Fig. 5**, snapshot set/2013 —
 | | A | B | C | D | classificados | sem contribuidor |
 |---|---|---|---|---|---|---|
 | IEICE16 Fig.5 | 23 | 42 | 18 | 3 | 86 | 4 |
-| Esta replicação | 27 | 40 | 14 | 4 | 85 | 5 |
+| Esta replicação | 26 | 40 | 15 | 4 | 85 | 5 |
 
-Erro L1 = 11 tipos, sobre 85 projetos classificados (contra 86 no artigo). O
+*(Valores em vigor, conferidos contra `output/validation_report.md` e §38.1. Até
+2026-08-08 esta tabela trazia `27/40/14/4` e `L1 = 11`, de uma rodada anterior à
+correção do §32; o viés e as conclusões abaixo não mudam.)*
+
+Erro L1 = 9 tipos, sobre 85 projetos classificados (contra 86 no artigo). O
 viés é sistemático e sempre o mesmo: **sobra projeto em A, falta em C** — ou
 seja, classifico newcomer demais. A e C só diferem pelo sinal do NCR, então
 bastariam 4 projetos com mais experientes que novos para fechar.
@@ -668,12 +672,12 @@ método ao resultado. `test_checkpoint_projetos_elegiveis_perto_dos_36` trava 34
 para que a contagem não deslize em silêncio.
 
 **(b) `non-coding` inverte o sinal.** No agregado o artigo tem cohort 0.5000 <
-baseline 0.6667; nós temos 0.5664 > 0.5000, com Wilcoxon p = 0.32 (não
+baseline 0.6667; nós temos 0.5804 > 0.5000, com Wilcoxon p = 0.1145 (não
 significativo). É a única das quatro categorias que anda para o lado errado.
 
 **(c) curto vs. longo prazo inverte.** IEICE16 §4 reporta short-term 0.4055 pior
-que long-term 0.3333 (p = 0.0460). Nós obtemos short 0.3412 e long 0.5000
-(p = 0.1192) — ordem trocada e sem significância. A suspeita é que nossa cauda
+que long-term 0.3333 (p = 0.0460). Nós obtemos short 0.3363 e long 0.4816
+(p = 0.1768, n = 135/200) — ordem trocada e sem significância. A suspeita é que nossa cauda
 longa seja rala demais: com a janela de 2010-2013 e 34 projetos, as bandas
 acima de ~4 anos têm poucos contribuintes por coorte, e o ABRE de contagens
 pequenas é dominado por ruído de ±1 pessoa. Não investigado a fundo.
