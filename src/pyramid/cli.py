@@ -22,7 +22,15 @@ app = typer.Typer(
 log = logging.getLogger(__name__)
 
 # Ordem canônica dos estágios de escrita. `validate` e `plot` leem, não escrevem.
-STAGE_ORDER = ["extract", "classify", "snapshots", "metrics", "attractiveness", "projection", "plots"]
+STAGE_ORDER = [
+    "extract",
+    "classify",
+    "snapshots",
+    "metrics",
+    "attractiveness",
+    "projection",
+    "plots",
+]
 
 
 def _module(stage: str):
@@ -133,10 +141,11 @@ def plot(
     snapshot: str = typer.Option(None, "--snapshot", help="data; default: o da classificação"),
     year: int = typer.Option(None, "--year", help="só para --figure magnet-sticky"),
     highlight: str = typer.Option(
-        None, "--highlight",
+        None,
+        "--highlight",
         help="só para --figure magnet-sticky ou type-scatter: projetos a anelar "
-             "(nome ou id, separados por vírgula); default vem de "
-             "checkpoints.figures",
+        "(nome ou id, separados por vírgula); default vem de "
+        "checkpoints.figures",
     ),
     listar: bool = typer.Option(False, "--list", help="lista as figuras e sai"),
 ) -> None:
@@ -229,7 +238,9 @@ def magnetism(
 @app.command("validate")
 def validate(
     group: str = typer.Option(None, "--group", help="types | attractiveness | projection"),
-    verbose: bool = typer.Option(False, "--verbose", help="mostra também os checks informativos que batem"),
+    verbose: bool = typer.Option(
+        False, "--verbose", help="mostra também os checks informativos que batem"
+    ),
     report: Path = typer.Option(None, "--report", help="grava o relatório completo em markdown"),
 ) -> None:
     """Confere a replicação inteira contra config/checkpoints.yaml.

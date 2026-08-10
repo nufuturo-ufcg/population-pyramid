@@ -186,7 +186,9 @@ def relatorio(res: dict, projetos: list[int], snapshot: str) -> str:
     escopos = list(res)
     ls = []
     ls.append(f"Fig.2 @ {snapshot} — replicação x leitura em pixel do artigo (bars_read_px)")
-    ls.append("L1 = soma de |replicação - artigo| banda a banda, dois lados; rel = L1 / população lida.")
+    ls.append(
+        "L1 = soma de |replicação - artigo| banda a banda, dois lados; rel = L1 / população lida."
+    )
     ls.append("")
     cab = f"{'projeto':<16}" + "".join(f"{e:>26}" for e in escopos)
     ls.append(cab)
@@ -262,10 +264,14 @@ def main() -> int:
     for e in escopos:
         print(f"[{e}] extract/classify/snapshots nos {len(projetos)} projetos...", file=sys.stderr)
         cmd = [
-            sys.executable, str(Path(__file__).resolve()),
-            "--_run-one", e,
-            "--snapshot", a.snapshot,
-            "--projects", ",".join(str(p) for p in projetos),
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--_run-one",
+            e,
+            "--snapshot",
+            a.snapshot,
+            "--projects",
+            ",".join(str(p) for p in projetos),
         ]
         p = subprocess.run(cmd, capture_output=True, text=True, env=os.environ.copy())
         if p.returncode != 0:

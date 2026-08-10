@@ -119,10 +119,7 @@ def check_dates(cfg: dict | None = None) -> None:
         ("snapshots.classification_snapshot", s["classification_snapshot"]),
         ("snapshots.projection_target", s["projection_target"]),
     ]
-    wanted += [
-        (f"snapshots.projection_base[{i}]", d)
-        for i, d in enumerate(s["projection_base"])
-    ]
+    wanted += [(f"snapshots.projection_base[{i}]", d) for i, d in enumerate(s["projection_base"])]
     bad = [(k, d) for k, d in wanted if pd.Timestamp(d) not in series]
     if bad:
         near = sorted(series)[-6:]
@@ -188,9 +185,7 @@ def pyramid_at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.Data
     # de um dia da fronteira. Ver `config/settings.yaml` e `discrepancias.md`,
     # seção 21.
     bd = float(band_days())
-    per["band"] = (
-        np.ceil((per["age_days"] / bd).round(9)).astype(int) - 1
-    ).clip(lower=0)
+    per["band"] = (np.ceil((per["age_days"] / bd).round(9)).astype(int) - 1).clip(lower=0)
     # "left the project when he/she did not give any contribution for more than
     #  three months". A pirâmide mostra a população viva no snapshot
     per["idle_days"] = (t - per["last_event"]).dt.total_seconds() / 86400.0
@@ -201,8 +196,13 @@ def pyramid_at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.Data
     # a pirâmide da Fig.2 usa 12 meses (medição da figura, discrepancias seção 19).
     return per.reset_index()[
         [
-            "contributor_id", "category", "age_days", "age_months", "band",
-            "idle_days", "active",
+            "contributor_id",
+            "category",
+            "age_days",
+            "age_months",
+            "band",
+            "idle_days",
+            "active",
         ]
     ]
 
@@ -263,7 +263,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             df = (
                 pd.concat(frames, ignore_index=True)
                 if frames
-                else pd.DataFrame(columns=["snapshot", "contributor_id", "category", "band", "active"])
+                else pd.DataFrame(
+                    columns=["snapshot", "contributor_id", "category", "band", "active"]
+                )
             )
             df.insert(0, "scope_id", sid)
             df.to_parquet(path(sid), index=False)
@@ -278,8 +280,11 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             man["failed"].pop(key, None)
             log.info(
                 "%-38s %6d linhas  %4d ativos em %s",
-                src.scope_label(sid), len(df), man["ok"][key]["active_at_last_snapshot"],
-                dates[-1].date(), extra={"scope_id": sid, "stage": STAGE},
+                src.scope_label(sid),
+                len(df),
+                man["ok"][key]["active_at_last_snapshot"],
+                dates[-1].date(),
+                extra={"scope_id": sid, "stage": STAGE},
             )
         except Exception as e:  # noqa: BLE001
             man["failed"][key] = f"{type(e).__name__}: {e}"

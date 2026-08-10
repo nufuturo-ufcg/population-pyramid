@@ -47,8 +47,18 @@ def main() -> int:
             if chave not in cache:
                 prefixo = Path(tmp) / f"{Path(pdf).stem}_{page}"
                 subprocess.run(
-                    ["pdftoppm", "-r", str(DPI), "-f", str(page), "-l", str(page),
-                     "-png", str(PAPERS / pdf), str(prefixo)],
+                    [
+                        "pdftoppm",
+                        "-r",
+                        str(DPI),
+                        "-f",
+                        str(page),
+                        "-l",
+                        str(page),
+                        "-png",
+                        str(PAPERS / pdf),
+                        str(prefixo),
+                    ],
                     check=True,
                 )
                 rendered = sorted(Path(tmp).glob(f"{prefixo.name}-*.png"))

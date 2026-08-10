@@ -73,7 +73,7 @@ def validate_canonical_schema(df: pd.DataFrame, *, scope_id=None) -> pd.DataFram
     # Data no futuro é lixo de parser (fuso trocado, epoch zerado), não dado.
     ts = df["timestamp"]
     agora = pd.Timestamp.now(tz=ts.dt.tz) if ts.dt.tz else pd.Timestamp.now()
-    if (futuros := int((ts > agora).sum())):
+    if futuros := int((ts > agora).sum()):
         raise ValueError(f"{onde}: {futuros} timestamps no futuro (máx {ts.max()})")
 
     return df

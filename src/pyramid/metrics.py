@@ -103,8 +103,16 @@ def from_pyramids(df: pd.DataFrame) -> pd.DataFrame:
     projeto naquele instante e não pode pesar no CCR/NCR.
     """
     cols = [
-        "scope_id", "snapshot", "coding", "non_coding", "new", "experienced",
-        "total", "ccr", "ncr", "type",
+        "scope_id",
+        "snapshot",
+        "coding",
+        "non_coding",
+        "new",
+        "experienced",
+        "total",
+        "ccr",
+        "ncr",
+        "type",
     ]
     if df.empty:
         return pd.DataFrame(columns=cols)
@@ -194,13 +202,18 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             if last is None:
                 log.warning(
                     "%-38s sem população ativa em nenhum snapshot",
-                    src.scope_label(sid), extra={"scope_id": sid, "stage": STAGE},
+                    src.scope_label(sid),
+                    extra={"scope_id": sid, "stage": STAGE},
                 )
             else:
                 log.info(
                     "%-38s %3d snapshots  último: CCR %+.3f  NCR %+.3f  Tipo %s",
-                    src.scope_label(sid), len(out), last["ccr"], last["ncr"],
-                    last["type"] or "-", extra={"scope_id": sid, "stage": STAGE},
+                    src.scope_label(sid),
+                    len(out),
+                    last["ccr"],
+                    last["ncr"],
+                    last["type"] or "-",
+                    extra={"scope_id": sid, "stage": STAGE},
                 )
         except Exception as e:  # noqa: BLE001
             man["failed"][key] = f"{type(e).__name__}: {e}"

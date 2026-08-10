@@ -122,9 +122,7 @@ def test_janela_e_banda_versionadas_sao_as_medidas_na_figura():
 # Régua do artigo na Fig.2 (checkpoints.yaml esem14_fig2.x_ticks)
 # ---------------------------------------------------------------------------
 def _frame(maior: int) -> pd.DataFrame:
-    return pd.DataFrame(
-        {"band": [0], "non_coding": [0], "moved": [0], "coding": [maior]}
-    )
+    return pd.DataFrame({"band": [0], "non_coding": [0], "moved": [0], "coding": [maior]})
 
 
 def test_xticks_do_artigo_sao_espelhados_com_zero(monkeypatch):

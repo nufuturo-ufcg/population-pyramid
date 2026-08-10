@@ -103,11 +103,11 @@ def _at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.DataFrame:
 @pytest.mark.parametrize(
     ("cid", "categoria"),
     [
-        ("C1", "coding"),      # só codou
+        ("C1", "coding"),  # só codou
         ("C3", "non_coding"),  # ainda não tinha codado em t1
-        ("C4", "coding"),      # codou antes de discutir → coding, não moved
+        ("C4", "coding"),  # codou antes de discutir → coding, não moved
         ("C5", "non_coding"),
-        ("C6", "moved"),       # discutiu antes de codar
+        ("C6", "moved"),  # discutiu antes de codar
     ],
 )
 def test_categoria_em_t1(spans, gap_days, cid, categoria):
@@ -119,7 +119,7 @@ def test_categoria_em_t1(spans, gap_days, cid, categoria):
     [
         ("C1", "coding"),
         ("C2", "non_coding"),
-        ("C3", "moved"),   # migrou entre t1 e t2 — o ponto central da Fig. 4
+        ("C3", "moved"),  # migrou entre t1 e t2 — o ponto central da Fig. 4
         ("C4", "coding"),
         ("C5", "non_coding"),
         ("C6", "moved"),

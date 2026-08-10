@@ -22,13 +22,12 @@ from pyramid import validate as v
 
 
 def _check(**kw):
-    base = dict(
-        key="k", grupo="g", fonte=v.ARTIGO, esperado=1, obtido=1, bate=True
-    )
+    base = dict(key="k", grupo="g", fonte=v.ARTIGO, esperado=1, obtido=1, bate=True)
     return v.Check(**{**base, **kw})
 
 
 # --- tabela de status ---------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "gate,bate,ref,esperado",
@@ -68,12 +67,15 @@ def test_indisponivel_e_obsoleta_sao_fatais():
 
 # --- agregação ----------------------------------------------------------------
 
+
 def test_relatorio_ok_ignora_conhecida_e_til():
-    rep = v.Report([
-        _check(key="a"),
-        _check(key="b", bate=False, ref="§7"),
-        _check(key="c", gate=False, bate=False),
-    ])
+    rep = v.Report(
+        [
+            _check(key="a"),
+            _check(key="b", bate=False, ref="§7"),
+            _check(key="c", gate=False, bate=False),
+        ]
+    )
     assert rep.ok
     assert rep.falhas == []
     assert rep.contagem() == {v.OK: 1, v.CONHECIDA: 1, "~": 1}
@@ -94,11 +96,10 @@ def test_obsoleta_derruba_o_relatorio():
 
 # --- integração com o yaml ----------------------------------------------------
 
+
 def test_chave_orfa_no_yaml_vira_falha(monkeypatch):
     """Declaração que não casa com nenhum check não protege nada."""
-    monkeypatch.setattr(
-        v, "checkpoints", lambda: {"known_divergences": {"nao.existe": "§99"}}
-    )
+    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"nao.existe": "§99"}})
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="existe")]})
 
     rep = v.run()
@@ -109,9 +110,7 @@ def test_chave_orfa_no_yaml_vira_falha(monkeypatch):
 
 def test_orfa_nao_e_checada_em_rodada_parcial(monkeypatch):
     """`validate --grupo x` não vê os outros grupos: acusar órfã ali seria ruído."""
-    monkeypatch.setattr(
-        v, "checkpoints", lambda: {"known_divergences": {"outro.grupo": "§99"}}
-    )
+    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"outro.grupo": "§99"}})
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="existe")]})
 
     rep = v.run(["g"])
@@ -127,12 +126,8 @@ def test_grupo_desconhecido_e_erro(monkeypatch):
 
 
 def test_declaracao_do_yaml_chega_no_check(monkeypatch):
-    monkeypatch.setattr(
-        v, "checkpoints", lambda: {"known_divergences": {"existe": "§13"}}
-    )
-    monkeypatch.setattr(
-        v, "GRUPOS", {"g": lambda cfg: [_check(key="existe", bate=False)]}
-    )
+    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"existe": "§13"}})
+    monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="existe", bate=False)]})
     rep = v.run()
     assert rep.checks[0].ref == "§13"
     assert rep.checks[0].status == v.CONHECIDA
@@ -140,6 +135,7 @@ def test_declaracao_do_yaml_chega_no_check(monkeypatch):
 
 
 # --- declaração por prefixo ---------------------------------------------------
+
 
 def _cfg_prefixo():
     return {"known_divergences": {"tab.*": "§12"}}
@@ -160,9 +156,7 @@ def test_prefixo_cobre_todas_as_celulas_do_grupo(monkeypatch):
 def test_prefixo_nao_vaza_para_chave_de_fora(monkeypatch):
     """`tab.*` não pode pegar `tabela.x` — divergência de fora fica FALHA."""
     monkeypatch.setattr(v, "checkpoints", _cfg_prefixo)
-    monkeypatch.setattr(
-        v, "GRUPOS", {"g": lambda cfg: [_check(key="tabela.x", bate=False)]}
-    )
+    monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="tabela.x", bate=False)]})
     rep = v.run()
     assert rep.checks[0].status == v.FALHA
     assert not rep.ok
@@ -174,9 +168,7 @@ def test_chave_exata_ganha_do_prefixo(monkeypatch):
         "checkpoints",
         lambda: {"known_divergences": {"tab.*": "§12", "tab.A.x": "§16"}},
     )
-    monkeypatch.setattr(
-        v, "GRUPOS", {"g": lambda cfg: [_check(key="tab.A.x", bate=False)]}
-    )
+    monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="tab.A.x", bate=False)]})
     assert v.run().checks[0].ref == "§16"
 
 
@@ -219,6 +211,7 @@ def test_prefixo_sem_nenhuma_celula_e_orfao(monkeypatch):
 
 
 # --- comparação numérica ------------------------------------------------------
+
 
 def test_perto_usa_tolerancia_relativa():
     assert v._perto(0.4055, 0.4000, 0.02)

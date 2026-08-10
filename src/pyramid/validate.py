@@ -228,7 +228,12 @@ def _tipos(cfg: dict) -> list[Check]:
     vistos = tab["type"].value_counts(dropna=False).to_dict()
     for tipo, n in c["counts"].items():
         out.append(
-            mk(key=f"types.counts.{tipo}", esperado=n, obtido=int(vistos.get(tipo, 0)), bate=int(vistos.get(tipo, 0)) == n)
+            mk(
+                key=f"types.counts.{tipo}",
+                esperado=n,
+                obtido=int(vistos.get(tipo, 0)),
+                bate=int(vistos.get(tipo, 0)) == n,
+            )
         )
 
     classificados = int(tab["type"].notna().sum())
@@ -242,10 +247,22 @@ def _tipos(cfg: dict) -> list[Check]:
         )
     )
     out.append(
-        mk(key="types.total_projects", esperado=c["total_projects"], obtido=total, bate=total == c["total_projects"])
+        mk(
+            key="types.total_projects",
+            esperado=c["total_projects"],
+            obtido=total,
+            bate=total == c["total_projects"],
+        )
     )
     sem = total - classificados
-    out.append(mk(key="types.unclassified", esperado=c["unclassified"], obtido=sem, bate=sem == c["unclassified"]))
+    out.append(
+        mk(
+            key="types.unclassified",
+            esperado=c["unclassified"],
+            obtido=sem,
+            bate=sem == c["unclassified"],
+        )
+    )
 
     por_id = tab.set_index("scope_id")
     for sid, esperado in c["examples"].items():
@@ -376,7 +393,10 @@ def _msr14_tab2(cfg: dict) -> list[Check]:
         ]
 
     anos = list(c["years"])
-    por_nome = {str(p): sid for sid, p in df[["scope_id", "project"]].drop_duplicates().itertuples(index=False)}
+    por_nome = {
+        str(p): sid
+        for sid, p in df[["scope_id", "project"]].drop_duplicates().itertuples(index=False)
+    }
     celula: dict[tuple[int, int], str] = {}
     for r in df.itertuples():
         q = r.quadrant
@@ -509,7 +529,9 @@ def _projecao(cfg: dict) -> list[Check]:
                     grupo="projection/tab3",
                     fonte=ARTIGO,
                     esperado="cohort<baseline" if art_dir else "cohort>baseline",
-                    obtido="empate" if empate else ("cohort<baseline" if got_dir else "cohort>baseline"),
+                    obtido="empate"
+                    if empate
+                    else ("cohort<baseline" if got_dir else "cohort>baseline"),
                     bate=(not empate) and (art_dir == got_dir),
                     gate=False,
                 )

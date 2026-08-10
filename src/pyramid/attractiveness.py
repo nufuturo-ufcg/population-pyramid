@@ -45,10 +45,20 @@ QUADRANTS = {
 }
 
 COLUMNS = [
-    "scope_id", "year", "devs", "newcomers_here", "newcomers_total",
-    "retained", "magnetism", "stickiness", "eligible",
-    "median_magnetism", "median_stickiness", "quadrant",
-    "left_censored", "right_censored",
+    "scope_id",
+    "year",
+    "devs",
+    "newcomers_here",
+    "newcomers_total",
+    "retained",
+    "magnetism",
+    "stickiness",
+    "eligible",
+    "median_magnetism",
+    "median_stickiness",
+    "quadrant",
+    "left_censored",
+    "right_censored",
 ]
 
 
@@ -184,11 +194,17 @@ def annual(
             log.warning(
                 "o ano %d está incompleto (dataset acaba em %s): a stickiness "
                 "de %d subestima, porque quem voltaria depois de %s conta como "
-                "perdido", fim.year, fim.date(), fim.year - 1, fim.date(),
+                "perdido",
+                fim.year,
+                fim.date(),
+                fim.year - 1,
+                fim.date(),
                 extra={"stage": STAGE},
             )
 
-    per["eligible"] = (per["devs"] > min_devs) & per["magnetism"].notna() & per["stickiness"].notna()
+    per["eligible"] = (
+        (per["devs"] > min_devs) & per["magnetism"].notna() & per["stickiness"].notna()
+    )
 
     el = per[per["eligible"]]
     med_m = el.groupby("year")["magnetism"].median()
@@ -227,8 +243,7 @@ def table(year: int | str | pd.Timestamp | None = None) -> pd.DataFrame:
         if got.empty:
             anos = ", ".join(str(a) for a in sorted(df["year"].unique()))
             raise ValueError(
-                f"attractiveness.table: ano {y} não existe no resultado. "
-                f"Anos disponíveis: {anos}."
+                f"attractiveness.table: ano {y} não existe no resultado. Anos disponíveis: {anos}."
             )
         df = got
     src = source()
@@ -304,20 +319,28 @@ def run(
             "median_stickiness": None
             if el.empty
             else round(float(el["median_stickiness"].iloc[0]), 6),
-            **{k: int(counts.get(k, 0)) for k in ("attractive", "floating", "stagnant", "terminal")},
+            **{
+                k: int(counts.get(k, 0)) for k in ("attractive", "floating", "stagnant", "terminal")
+            },
         }
         man["failed"].pop(str(int(y)), None)
         log.info(
             "%d  %2d/%2d elegíveis  atrativo=%d flutuante=%d estagnado=%d terminal=%d",
-            int(y), len(el), len(g),
-            counts.get("attractive", 0), counts.get("floating", 0),
-            counts.get("stagnant", 0), counts.get("terminal", 0),
+            int(y),
+            len(el),
+            len(g),
+            counts.get("attractive", 0),
+            counts.get("floating", 0),
+            counts.get("stagnant", 0),
+            counts.get("terminal", 0),
             extra={"stage": STAGE},
         )
         if g["right_censored"].all():
             log.warning(
                 "%d é o último ano do dataset: sem Y+1 não há stickiness, "
-                "nenhum projeto é classificado", int(y), extra={"stage": STAGE},
+                "nenhum projeto é classificado",
+                int(y),
+                extra={"stage": STAGE},
             )
 
     runlog.save(STAGE, man)

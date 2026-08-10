@@ -1,4 +1,5 @@
 """Projeção coorte-componente — IEICE16 §4."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -11,6 +12,7 @@ from pyramid.projection import abre, project, tables
 # --------------------------------------------------------------------------- #
 # ABRE
 # --------------------------------------------------------------------------- #
+
 
 def test_abre_usa_o_menor_denominador_nos_dois_sentidos():
     # Superestimar 2 -> 3 e subestimar 3 -> 2 têm o mesmo denominador (2), então
@@ -54,6 +56,7 @@ def test_abre_reproduz_as_fracoes_da_tabela_3():
 # passo de projeção
 # --------------------------------------------------------------------------- #
 
+
 def test_projeta_cada_banda_pela_sobrevivencia_do_passo_anterior():
     # p_base = T-3m, p_last = T. SR da banda 0 = p_last[1]/p_base[0] = 5/10 = 0.5,
     # aplicado sobre p_last[0] = 20 -> 10 na banda 1.
@@ -61,7 +64,7 @@ def test_projeta_cada_banda_pela_sobrevivencia_do_passo_anterior():
     p_last = np.array([20.0, 5.0, 4.0])
     proj, orfas = project(p_base, p_last)
 
-    assert proj[1] == pytest.approx(10.0)          # (5/10) * 20
+    assert proj[1] == pytest.approx(10.0)  # (5/10) * 20
     assert proj[2] == pytest.approx(4.0 / 8.0 * 5.0)
     assert orfas == 0
 
@@ -112,10 +115,7 @@ def test_projecao_nunca_e_negativa_onde_definida():
         p_last = rng.integers(0, 30, size=8).astype(float)
         proj, orfas = project(p_base, p_last)
         assert (proj[np.isfinite(proj)] >= 0).all()
-        esperado_nan = {
-            b + 1 for b in range(len(p_last) - 1)
-            if p_base[b] == 0 and p_last[b] > 0
-        }
+        esperado_nan = {b + 1 for b in range(len(p_last) - 1) if p_base[b] == 0 and p_last[b] > 0}
         assert set(np.flatnonzero(np.isnan(proj))) == esperado_nan
         assert len(esperado_nan) == orfas
 
@@ -131,7 +131,7 @@ def test_populacao_imortal_e_projetada_sem_erro():
     tiver caído de novo.
     """
     p_base = np.array([10.0, 9.0, 8.0, 7.0])
-    p_last = np.array([12.0, 10.0, 9.0, 8.0])   # p_last[b+1] == p_base[b]
+    p_last = np.array([12.0, 10.0, 9.0, 8.0])  # p_last[b+1] == p_base[b]
     proj, _ = project(p_base, p_last)
     # SR = 1 em todas as bandas -> a projeção é o deslocamento puro de p_last.
     assert proj[1:] == pytest.approx(p_last[:-1])
@@ -141,9 +141,19 @@ def test_populacao_imortal_e_projetada_sem_erro():
 # tabelas
 # --------------------------------------------------------------------------- #
 
+
 def _df(linhas):
-    cols = ["scope_id", "type", "category", "band",
-            "actual", "cohort_pred", "baseline_pred", "abre_cohort", "abre_baseline"]
+    cols = [
+        "scope_id",
+        "type",
+        "category",
+        "band",
+        "actual",
+        "cohort_pred",
+        "baseline_pred",
+        "abre_cohort",
+        "abre_baseline",
+    ]
     return pd.DataFrame(linhas, columns=cols)
 
 
@@ -151,23 +161,27 @@ def test_tabelas_usam_so_pares_completos():
     # A segunda linha tem baseline sem denominador: entra no parquet mas não
     # pode entrar na mediana, senão as Tabelas 3 e 4 sairiam de amostras
     # diferentes (o Wilcoxon é pareado e já usaria só a interseção).
-    df = _df([
-        (1, "A", "all", 0, 4.0, 6.0, 5.0, 0.5, 0.25),
-        (1, "A", "all", 1, 4.0, 6.0, 0.0, 0.5, float("nan")),
-        (2, "A", "all", 0, 4.0, 8.0, 6.0, 1.0, 0.5),
-    ])
+    df = _df(
+        [
+            (1, "A", "all", 0, 4.0, 6.0, 5.0, 0.5, 0.25),
+            (1, "A", "all", 1, 4.0, 6.0, 0.0, 0.5, float("nan")),
+            (2, "A", "all", 0, 4.0, 8.0, 6.0, 1.0, 0.5),
+        ]
+    )
     t = tables(df)
     linha = t["abre"].set_index("type").loc["A"]
     assert linha["pairs"] == 2
-    assert linha["all_cohort"] == pytest.approx(0.75)     # mediana de 0.5 e 1.0
+    assert linha["all_cohort"] == pytest.approx(0.75)  # mediana de 0.5 e 1.0
     assert linha["all_baseline"] == pytest.approx(0.375)  # mediana de 0.25 e 0.5
 
 
 def test_all_types_agrega_todos_os_tipos():
-    df = _df([
-        (1, "A", "all", 0, 4.0, 6.0, 5.0, 0.5, 0.25),
-        (2, "B", "all", 0, 4.0, 8.0, 6.0, 1.0, 0.5),
-    ])
+    df = _df(
+        [
+            (1, "A", "all", 0, 4.0, 6.0, 5.0, 0.5, 0.25),
+            (2, "B", "all", 0, 4.0, 8.0, 6.0, 1.0, 0.5),
+        ]
+    )
     t = tables(df).__getitem__("abre").set_index("type")
     assert t.loc["All types", "projects"] == 2
     assert t.loc["All types", "all_cohort"] == pytest.approx(0.75)
@@ -175,10 +189,12 @@ def test_all_types_agrega_todos_os_tipos():
 
 def test_wilcoxon_e_nan_quando_os_metodos_empatam():
     # Sem diferença não há o que ranquear — o teste não pode devolver p=0.
-    df = _df([
-        (1, "A", "all", 0, 4.0, 6.0, 6.0, 0.5, 0.5),
-        (2, "A", "all", 0, 4.0, 8.0, 8.0, 1.0, 1.0),
-    ])
+    df = _df(
+        [
+            (1, "A", "all", 0, 4.0, 6.0, 6.0, 0.5, 0.5),
+            (2, "A", "all", 0, 4.0, 8.0, 8.0, 1.0, 1.0),
+        ]
+    )
     assert np.isnan(tables(df)["wilcoxon"].set_index("type").loc["A", "all"])
 
 
@@ -186,8 +202,10 @@ def test_wilcoxon_e_nan_quando_os_metodos_empatam():
 # checkpoints IEICE16 Tabelas 3 e 4
 # --------------------------------------------------------------------------- #
 
+
 def _abre_publicado():
     from pyramid.config import checkpoints
+
     return checkpoints()["projection_abre"]
 
 
@@ -246,7 +264,7 @@ def test_checkpoint_coorte_bate_o_baseline_no_agregado():
 
 @pytest.mark.checkpoint
 def test_checkpoint_projetos_elegiveis_perto_dos_36():
-    """"We used 36 projects that have more than 100 contributors" (IEICE16 §4).
+    """ "We used 36 projects that have more than 100 contributors" (IEICE16 §4).
 
     Temos 34: o corte é sobre contribuidores ativos no snapshot base, e o nosso
     dump tem dois projetos na fronteira dos 100. O teste trava a contagem para

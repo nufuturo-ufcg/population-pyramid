@@ -1,4 +1,5 @@
 import argparse
+
 """§35 — pontua hipoteses de 'novato'/atividade contra a GRADE INTEIRA da
 Tabela 2 do MSR14 (12 projetos x 8 anos), nao contra os 5 projetos nomeados.
 
@@ -102,9 +103,8 @@ def main():
     per = annual(p_cod, fy_cod)  # placeholder p/ estrutura
     d = p_cod.drop_duplicates().copy()
     d["_nov"] = d.groupby(["scope_id", "contributor_id"]).year.transform("min") == d["year"]
-    perd = (
-        d.groupby(["scope_id", "year"], as_index=False)
-        .agg(devs=("contributor_id", "nunique"), nh=("_nov", "sum"))
+    perd = d.groupby(["scope_id", "year"], as_index=False).agg(
+        devs=("contributor_id", "nunique"), nh=("_nov", "sum")
     )
     perd["tot"] = perd["year"].map(d.groupby("year")._nov.sum()).fillna(0)
     ret = (
@@ -122,8 +122,13 @@ def main():
     mm = perd["year"].map(el.groupby("year")["m"].median())
     ms = perd["year"].map(el.groupby("year")["s"].median())
     perd["quadrant"] = [
-        ({(1, 1): "attractive", (1, 0): "floating", (0, 1): "stagnant", (0, 0): "terminal"}[
-            (int(a > b), int(c > dd))] if e else "*")
+        (
+            {(1, 1): "attractive", (1, 0): "floating", (0, 1): "stagnant", (0, 0): "terminal"}[
+                (int(a > b), int(c > dd))
+            ]
+            if e
+            else "*"
+        )
         for a, b, c, dd, e in zip(perd["m"], mm, perd["s"], ms, perd["el"])
     ]
     lo, ln, eo, en = pontua(perd)
@@ -138,8 +143,10 @@ def sweep(args):
     fy = p.groupby("contributor_id")["year"].min()
     per = annual(p, fy, min_devs=args.min_devs, sticky=args.sticky, tie=args.tie)
     lo, ln, eo, en = pontua(per, verbose=args.errors)
-    print(f"min_devs={args.min_devs} tie={args.tie} sticky={args.sticky}"
-          f"  ->  letras {lo}/{ln}   estrutura {eo}/{en}")
+    print(
+        f"min_devs={args.min_devs} tie={args.tie} sticky={args.sticky}"
+        f"  ->  letras {lo}/{ln}   estrutura {eo}/{en}"
+    )
 
 
 def cli():

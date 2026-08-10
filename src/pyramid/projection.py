@@ -71,9 +71,15 @@ STAGE = "projection"
 # `all` é a população total da coorte (as três categorias somadas naquela banda),
 # leitura direta de "projection of all contributors".
 COLUMNS = [
-    "scope_id", "type", "category", "band",
-    "actual", "cohort_pred", "baseline_pred",
-    "abre_cohort", "abre_baseline",
+    "scope_id",
+    "type",
+    "category",
+    "band",
+    "actual",
+    "cohort_pred",
+    "baseline_pred",
+    "abre_cohort",
+    "abre_baseline",
 ]
 
 
@@ -157,7 +163,7 @@ def project(p_base: np.ndarray, p_last: np.ndarray) -> tuple[np.ndarray, int]:
 
 
 def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
-    """"the 36 projects that have more than 100 contributors" (p.1311).
+    """ "the 36 projects that have more than 100 contributors" (p.1311).
 
     O artigo não diz sobre qual snapshot nem se conta ativos ou acumulados.
     Variante escolhida em docs/discrepancias.md, seções 7 e 9.2: ativos no
@@ -197,17 +203,20 @@ def compute() -> pd.DataFrame:
     base, last = bases
 
     snaps = load_snapshots(dates=[base, last, target])
-    for d, nome in ((base, "projection_base[0]"), (last, "projection_base[1]"),
-                    (target, "projection_target")):
-        require_date_match(
-            snaps[snaps["snapshot"] == d], d, "snapshot", f"projection.{nome}"
-        )
+    for d, nome in (
+        (base, "projection_base[0]"),
+        (last, "projection_base[1]"),
+        (target, "projection_target"),
+    ):
+        require_date_match(snaps[snaps["snapshot"] == d], d, "snapshot", f"projection.{nome}")
 
     scopes = eligible_scopes(snaps, base)
     log.info(
         "%d projetos com mais de %d contribuidores (%s em %s)",
-        len(scopes), settings()["projection"]["min_contributors"],
-        settings()["projection"]["min_contributors_basis"], base.date(),
+        len(scopes),
+        settings()["projection"]["min_contributors"],
+        settings()["projection"]["min_contributors_basis"],
+        base.date(),
         extra={"stage": STAGE},
     )
 
@@ -233,18 +242,14 @@ def compute() -> pd.DataFrame:
         vetores = {}
         for d, df in por_data.items():
             g = df[df["scope_id"] == sid]
-            vetores[d] = {c: _counts_by_band(g[g["category"] == c], n_bands)
-                          for c in CATEGORIES}
+            vetores[d] = {c: _counts_by_band(g[g["category"] == c], n_bands) for c in CATEGORIES}
 
         # `all` = população total da coorte, projetada como as outras: soma as
         # três categorias por banda ANTES de projetar. Somar as três projeções
         # daria quase o mesmo, mas a taxa de sobrevivência da população inteira
         # é a que o artigo chama de "projection of all contributors".
-        series = {c: (vetores[base][c], vetores[last][c], vetores[target][c])
-                  for c in CATEGORIES}
-        series["all"] = tuple(
-            sum(vetores[d][c] for c in CATEGORIES) for d in (base, last, target)
-        )
+        series = {c: (vetores[base][c], vetores[last][c], vetores[target][c]) for c in CATEGORIES}
+        series["all"] = tuple(sum(vetores[d][c] for c in CATEGORIES) for d in (base, last, target))
 
         for cat, (p_base, p_last, p_alvo) in series.items():
             pred, orfas = project(p_base, p_last)
@@ -257,24 +262,35 @@ def compute() -> pd.DataFrame:
                     # relativo a medir e manter a linha só encheria a mediana de
                     # nan. A cauda da pirâmide é quase toda assim.
                     continue
-                linhas.append({
-                    "scope_id": sid, "type": tipo, "category": cat, "band": b,
-                    "actual": a, "cohort_pred": cp, "baseline_pred": bp,
-                    "abre_cohort": abre(a, cp), "abre_baseline": abre(a, bp),
-                })
+                linhas.append(
+                    {
+                        "scope_id": sid,
+                        "type": tipo,
+                        "category": cat,
+                        "band": b,
+                        "actual": a,
+                        "cohort_pred": cp,
+                        "baseline_pred": bp,
+                        "abre_cohort": abre(a, cp),
+                        "abre_baseline": abre(a, bp),
+                    }
+                )
 
     if orfas_total:
         log.warning(
             "%d coortes sem denominador em %s (excluídas do erro, não "
             "projetadas como 0): a sobrevivência é indefinida quando a banda "
             "anterior está vazia",
-            orfas_total, base.date(), extra={"stage": STAGE},
+            orfas_total,
+            base.date(),
+            extra={"stage": STAGE},
         )
     return pd.DataFrame(linhas, columns=COLUMNS)
 
 
 def checkpoint_snapshot() -> str:
     from .config import checkpoints
+
     return checkpoints()["types"]["snapshot"]
 
 
@@ -355,8 +371,7 @@ def term_split(df: pd.DataFrame | None = None) -> dict:
         "short_n": len(curto),
         "long_n": len(longo),
         "wilcoxon_p": (
-            float(ranksums(curto, longo).pvalue)
-            if len(curto) and len(longo) else float("nan")
+            float(ranksums(curto, longo).pvalue) if len(curto) and len(longo) else float("nan")
         ),
     }
 
@@ -369,9 +384,7 @@ def load() -> pd.DataFrame:
     return pd.read_parquet(path())
 
 
-def run(
-    scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False
-) -> dict:
+def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
     if scopes is not None:
         raise ValueError(
             "projection não aceita --project: a amostra é definida pelo limiar "
@@ -411,11 +424,17 @@ def run(
         log.info(
             "%-9s %2d proj/%4d pares  non-coding %.4f/%.4f  moved %.4f/%.4f  "
             "coding %.4f/%.4f  all %.4f/%.4f",
-            r["type"], r["projects"], r["pairs"],
-            r["non_coding_cohort"], r["non_coding_baseline"],
-            r["moved_cohort"], r["moved_baseline"],
-            r["coding_cohort"], r["coding_baseline"],
-            r["all_cohort"], r["all_baseline"],
+            r["type"],
+            r["projects"],
+            r["pairs"],
+            r["non_coding_cohort"],
+            r["non_coding_baseline"],
+            r["moved_cohort"],
+            r["moved_baseline"],
+            r["coding_cohort"],
+            r["coding_baseline"],
+            r["all_cohort"],
+            r["all_baseline"],
             extra={"stage": STAGE},
         )
     man["failed"].pop("all", None)

@@ -7,6 +7,7 @@ from pyramid.config import checkpoints
 
 # --- unidade: retenção por escopo (ambiguidade 4) -----------------------------
 
+
 def _pairs(rows):
     return pd.DataFrame(rows, columns=["scope_id", "contributor_id", "year"])
 
@@ -46,6 +47,7 @@ def test_retained_rejeita_escopo_desconhecido():
 
 # --- GATE: exemplo trabalhado da Fig.1 do MSR'14 ------------------------------
 
+
 def test_msr14_fig1_exemplo_dos_autores():
     """Os autores publicaram os números do próprio exemplo; a replicação os devolve.
 
@@ -65,17 +67,20 @@ def test_msr14_fig1_exemplo_dos_autores():
     """
     pairs = _pairs(
         [
-            (1, "A", 2010),                        # A não é novato em 2011
-            (1, "A", 2011), (1, "A", 2012),
-            (1, "B", 2011), (1, "B", 2012),
-            (1, "C", 2011),                        # estreia e some
-            (2, "D", 2011), (2, "D", 2012),
-            (2, "E", 2012),                        # entra só depois: fora do sticky
+            (1, "A", 2010),  # A não é novato em 2011
+            (1, "A", 2011),
+            (1, "A", 2012),
+            (1, "B", 2011),
+            (1, "B", 2012),
+            (1, "C", 2011),  # estreia e some
+            (2, "D", 2011),
+            (2, "D", 2012),
+            (2, "E", 2012),  # entra só depois: fora do sticky
         ]
     )
     got = attr.annual(pairs).set_index(["scope_id", "year"])
 
-    assert got.loc[(1, 2011), "newcomers_total"] == 3        # B, C e D
+    assert got.loc[(1, 2011), "newcomers_total"] == 3  # B, C e D
     assert got.loc[(1, 2011), "magnetism"] == pytest.approx(2 / 3)
     assert got.loc[(2, 2011), "magnetism"] == pytest.approx(1 / 3)
     assert got.loc[(1, 2011), "stickiness"] == pytest.approx(2 / 3)
@@ -99,9 +104,10 @@ def test_novato_e_do_dataset_nao_do_projeto():
     """
     pairs = _pairs(
         [
-            (1, "V", 2010), (1, "V", 2011),
-            (2, "V", 2011),                        # veterano estreando no projeto 2
-            (1, "N", 2011),                        # o único novato do dataset em 2011
+            (1, "V", 2010),
+            (1, "V", 2011),
+            (2, "V", 2011),  # veterano estreando no projeto 2
+            (1, "N", 2011),  # o único novato do dataset em 2011
         ]
     )
     got = attr.annual(pairs).set_index(["scope_id", "year"])
@@ -113,6 +119,7 @@ def test_novato_e_do_dataset_nao_do_projeto():
 
 # --- GATE: Fig.2 do ESEM14, snapshot dez/2011 ---------------------------------
 
+
 def _table(year):
     """Corte do ano, ou skip explicando que falta rodar o estágio.
 
@@ -122,6 +129,7 @@ def _table(year):
     if not attr.path().exists():
         pytest.skip(f"falta {attr.path()}: rode `pyramid attractiveness`")
     return attr.table(year)
+
 
 @pytest.mark.checkpoint
 def test_checkpoint_quadrantes_dez_2011():
@@ -138,9 +146,7 @@ def test_checkpoint_quadrantes_dez_2011():
     faltando = [s for s in esperado if s not in got]
     assert not faltando, f"projetos do checkpoint fora do output: {faltando}"
 
-    errados = {
-        s: (got[s], q) for s, q in esperado.items() if got[s] != q
-    }
+    errados = {s: (got[s], q) for s, q in esperado.items() if got[s] != q}
     assert not errados, f"quadrante != paper (got, esperado): {errados}"
 
 
@@ -183,6 +189,7 @@ def test_checkpoint_jekyll_2011_diverge():
 
 
 # --- bordas do dataset --------------------------------------------------------
+
 
 def test_ultimo_ano_nao_e_classificado():
     """2013 não tem Y+1 no dataset: stickiness é NaN e ninguém é elegível."""

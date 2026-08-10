@@ -3,7 +3,6 @@ import pytest
 from pyramid import snapshots
 
 
-
 # --- guarda de datas de config (docs/discrepancias.md §7) ---------------------
 
 BASE_CFG = {
@@ -68,9 +67,9 @@ def test_require_date_match_deixa_passar_nao_vazio():
     import pandas as pd
 
     df = pd.DataFrame({"snapshot": [pd.Timestamp("2011-12-31")]})
-    assert snapshots.require_date_match(
-        df, pd.Timestamp("2011-12-31"), "snapshot", "teste"
-    ).equals(df)
+    assert snapshots.require_date_match(df, pd.Timestamp("2011-12-31"), "snapshot", "teste").equals(
+        df
+    )
 
 
 def test_check_dates_rejeita_target_inexistente():

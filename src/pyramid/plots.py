@@ -117,8 +117,7 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
     populacao = cfg["pyramid_population"]
     if populacao not in ("stock", "active"):
         raise ValueError(
-            f"plots.pyramid_population inválido: {populacao!r}. "
-            f"Use 'stock' ou 'active'."
+            f"plots.pyramid_population inválido: {populacao!r}. Use 'stock' ou 'active'."
         )
     if populacao == "active":
         janela = float(cfg["pyramid_window_months"]) * snapshots.DAYS_PER_MONTH
@@ -132,9 +131,7 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
         return pd.DataFrame(columns=["band", *snapshots.CATEGORIES])
 
     piv = (
-        cut.pivot_table(
-            index="band", columns="category", values="contributor_id", aggfunc="size"
-        )
+        cut.pivot_table(index="band", columns="category", values="contributor_id", aggfunc="size")
         .reindex(columns=snapshots.CATEGORIES, fill_value=0)
         .fillna(0)
         .astype(int)
@@ -144,7 +141,10 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
 
 
 def draw_pyramid(
-    ax, frame: pd.DataFrame, xmax: float | None = None, ymax: int | None = None,
+    ax,
+    frame: pd.DataFrame,
+    xmax: float | None = None,
+    ymax: int | None = None,
     xticks: list[float] | None = None,
 ) -> tuple[float, int]:
     """Desenha uma pirâmide num eixo. Devolve o (xmax, ymax) usado.
@@ -170,15 +170,30 @@ def draw_pyramid(
         moved = frame["moved"].to_numpy()
         coding = frame["coding"].to_numpy()
         topo = int(y.max())
-        ax.barh(y, -non, height=0.85, color=FILL["non_coding"], hatch=HATCH["non_coding"],
-                edgecolor="#4D4D4D", linewidth=0.5)
-        ax.barh(y, moved, height=0.85, color=FILL["moved"], edgecolor="#4D4D4D",
-                linewidth=0.5)
-        ax.barh(y, coding, height=0.85, left=moved, color=FILL["coding"],
-                edgecolor="#4D4D4D", linewidth=0.5)
+        ax.barh(
+            y,
+            -non,
+            height=0.85,
+            color=FILL["non_coding"],
+            hatch=HATCH["non_coding"],
+            edgecolor="#4D4D4D",
+            linewidth=0.5,
+        )
+        ax.barh(y, moved, height=0.85, color=FILL["moved"], edgecolor="#4D4D4D", linewidth=0.5)
+        ax.barh(
+            y,
+            coding,
+            height=0.85,
+            left=moved,
+            color=FILL["coding"],
+            edgecolor="#4D4D4D",
+            linewidth=0.5,
+        )
 
-    lim = xmax if xmax is not None else (
-        max(float(non.max()), float((moved + coding).max()), 1.0) if not frame.empty else 1.0
+    lim = (
+        xmax
+        if xmax is not None
+        else (max(float(non.max()), float((moved + coding).max()), 1.0) if not frame.empty else 1.0)
     )
     if xticks:
         lim = max(lim, float(max(xticks)))
@@ -207,8 +222,17 @@ def draw_pyramid(
     if frame.empty:
         # Painel vazio mantém a escala dos vizinhos: o vazio é o dado (projeto
         # sem ninguém ativo), e só dá para ver isso contra a mesma régua.
-        ax.text(0.5, 0.5, "nenhum contribuidor ativo", ha="center", va="center",
-                transform=ax.transAxes, fontsize=8, color="#888888", style="italic")
+        ax.text(
+            0.5,
+            0.5,
+            "nenhum contribuidor ativo",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=8,
+            color="#888888",
+            style="italic",
+        )
 
     # Eixo x sem sinal: o lado esquerdo mostra contagem. O valor negativo do
     # array só orienta a barra para a esquerda; ele não aparece como número
@@ -225,7 +249,8 @@ def draw_pyramid(
         # 160 80 0 80 160 240 320" saía com os números encostados uns nos
         # outros, ilegível. O artigo usa dois ou três por lado.
         lado = [
-            t for t in matplotlib.ticker.MaxNLocator(
+            t
+            for t in matplotlib.ticker.MaxNLocator(
                 nbins=3, integer=True, steps=[1, 2, 2.5, 5, 10]
             ).tick_values(0, lim)
             if 0 < t <= lim * 1.08
@@ -246,10 +271,9 @@ def draw_pyramid(
     # que fez a replicação parecer um bloco anual por ano.
     yt = list(range(por_ano - 1, alto + 1, por_ano))
     ax.set_yticks(yt)
-    ax.set_yticklabels([
-        f"{(b + 1) * bm // 12} year" + ("s" if (b + 1) * bm // 12 > 1 else "")
-        for b in yt
-    ])
+    ax.set_yticklabels(
+        [f"{(b + 1) * bm // 12} year" + ("s" if (b + 1) * bm // 12 > 1 else "") for b in yt]
+    )
     ax.set_yticks([b + 0.5 for b in range(-1, alto + 1)], minor=True)
     ax.grid(True, which="minor", axis="y", color=GRID, linewidth=0.4)
     ax.grid(False, which="major", axis="y")
@@ -257,8 +281,16 @@ def draw_pyramid(
     # ano o rótulo anual sozinho não diz em qual trimestre a barra está. O
     # traço é a régua de trimestre, e fica claro (0.4pt, cinza) para não
     # competir com a barra.
-    ax.tick_params(axis="y", which="minor", length=3, width=0.6, color=TICK,
-                   direction="out", left=True, right=False)
+    ax.tick_params(
+        axis="y",
+        which="minor",
+        length=3,
+        width=0.6,
+        color=TICK,
+        direction="out",
+        left=True,
+        right=False,
+    )
     return lim, alto
 
 
@@ -344,9 +376,7 @@ def figure_fig3():
     ids = [int(k) for k in ck["transitions"]]
     dates = fig3_dates()
 
-    frames = {
-        sid: {t: pyramid_frame(snapshots.load(sid), t) for t in dates} for sid in ids
-    }
+    frames = {sid: {t: pyramid_frame(snapshots.load(sid), t) for t in dates} for sid in ids}
 
     fig, axes = plt.subplots(
         len(ids), len(dates), figsize=(3.0 * len(dates), 2.5 * len(ids)), squeeze=False
@@ -402,12 +432,19 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
     qual ponto ela se refere. É puro desenho: não entra em mediana, quadrante
     nem contagem.
     """
-    ax.scatter(alvo[xcol], alvo[ycol], s=70, facecolors="none",
-               edgecolors="#B03A2E", linewidths=1.4, zorder=4)
+    ax.scatter(
+        alvo[xcol],
+        alvo[ycol],
+        s=70,
+        facecolors="none",
+        edgecolors="#B03A2E",
+        linewidths=1.4,
+        zorder=4,
+    )
 
     fonte = 7
     dpi = ax.figure.dpi
-    pt = dpi / 72.0                     # 1 ponto tipográfico em pixels
+    pt = dpi / 72.0  # 1 ponto tipográfico em pixels
     quadro = ax.get_window_extent()
     ocupado: list[tuple[float, float, float, float]] = []
 
@@ -439,9 +476,10 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
 
     def _bate(c) -> bool:
         if c[0] < quadro.x0 or c[2] > quadro.x1 or c[1] < quadro.y0 or c[3] > quadro.y1:
-            return True                  # rótulo saindo do gráfico
-        return any(not (c[2] <= o[0] or c[0] >= o[2] or c[3] <= o[1] or c[1] >= o[3])
-                   for o in ocupado)
+            return True  # rótulo saindo do gráfico
+        return any(
+            not (c[2] <= o[0] or c[0] >= o[2] or c[3] <= o[1] or c[1] >= o[3]) for o in ocupado
+        )
 
     meio_x = ax.get_xlim()[0] + (ax.get_xlim()[1] - ax.get_xlim()[0]) / 2
     meio_y = ax.get_ylim()[0] + (ax.get_ylim()[1] - ax.get_ylim()[0]) / 2
@@ -467,7 +505,7 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
                     break
             if escolha:
                 break
-        if escolha is None:              # grafo lotado: volta ao padrão simples
+        if escolha is None:  # grafo lotado: volta ao padrão simples
             dx, dy = sx * 14, sy * 12
             escolha = (dx, dy, _caixa(px, py, dx, dy, rotulo(r)))
         dx, dy, caixa = escolha
@@ -479,9 +517,10 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
             xytext=(dx, dy),
             ha="left" if dx > 0 else "right",
             va="bottom" if dy > 0 else "top",
-            fontsize=fonte, color="#B03A2E", zorder=5,
-            arrowprops=dict(arrowstyle="-", color="#B03A2E", linewidth=0.6,
-                            shrinkA=0, shrinkB=6),
+            fontsize=fonte,
+            color="#B03A2E",
+            zorder=5,
+            arrowprops=dict(arrowstyle="-", color="#B03A2E", linewidth=0.6, shrinkA=0, shrinkB=6),
         )
 
 
@@ -496,8 +535,7 @@ def _anelados(cfg: dict, disponiveis, highlight, figura: str, onde: str) -> list
     faltando = sorted(set(ids) - set(int(s) for s in disponiveis))
     if faltando:
         raise ValueError(
-            f"{figura}: highlight {faltando} não está entre os projetos "
-            f"elegíveis {onde}."
+            f"{figura}: highlight {faltando} não está entre os projetos elegíveis {onde}."
         )
     return ids
 
@@ -531,9 +569,13 @@ def figure_fig2(year: int | None = None, highlight: list[int] | None = None):
     lbl = labels()
     fig, ax = plt.subplots(figsize=(5.0, 4.4))
     _scatter(
-        ax, df["stickiness"], df["magnetism"],
-        float(df["median_stickiness"].iloc[0]), float(df["median_magnetism"].iloc[0]),
-        "stickiness (Sticky)", "magnetismo (Magnet)",
+        ax,
+        df["stickiness"],
+        df["magnetism"],
+        float(df["median_stickiness"].iloc[0]),
+        float(df["median_magnetism"].iloc[0]),
+        "stickiness (Sticky)",
+        "magnetismo (Magnet)",
     )
     # Régua da figura publicada, declarada em checkpoints. Os limites deixam
     # folga só para o anel caber; ponto que passasse da régua continuaria
@@ -544,13 +586,19 @@ def figure_fig2(year: int | None = None, highlight: list[int] | None = None):
     ax.set_yticks(cfg["yticks"])
 
     anelados = _anelados(cfg, df["scope_id"], highlight, "Fig.2", f"de {y}")
-    _anelar(ax, df[df["scope_id"].isin(anelados)], "stickiness", "magnetism",
-            lambda r: f"{_repo(r['scope_id'])}\n({r['quadrant']})")
+    _anelar(
+        ax,
+        df[df["scope_id"].isin(anelados)],
+        "stickiness",
+        "magnetism",
+        lambda r: f"{_repo(r['scope_id'])}\n({r['quadrant']})",
+    )
 
     ax.set_title(f"MSR14 Fig.2: stickiness × magnetismo, {y}  (n={len(df)})", fontsize=9)
     stem = f"msr14_fig2_{y}"
-    dados = df[["scope_id", "stickiness", "magnetism", "quadrant",
-                "median_stickiness", "median_magnetism"]].copy()
+    dados = df[
+        ["scope_id", "stickiness", "magnetism", "quadrant", "median_stickiness", "median_magnetism"]
+    ].copy()
     dados.insert(1, "project", dados["scope_id"].map(lambda s: lbl.get(int(s), str(s))))
     dados["highlighted"] = dados["scope_id"].isin(anelados)
     _dump(dados.sort_values("scope_id"), stem)
@@ -599,21 +647,35 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
     # C em cima à esquerda, A em cima à direita, D embaixo à esquerda, B
     # embaixo à direita.
     for tipo, (px, py) in {
-        "A": (0.54, 1.16), "C": (-0.54, 1.16), "B": (0.54, -1.16), "D": (-0.54, -1.16)
+        "A": (0.54, 1.16),
+        "C": (-0.54, 1.16),
+        "B": (0.54, -1.16),
+        "D": (-0.54, -1.16),
     }.items():
         n = contagem.get(tipo, 0)
         ref = alvo[tipo]
         marca = "" if n == ref else "  ≠"
-        ax.text(px, py, f"Tipo {tipo}   n={n}   (artigo: {ref}){marca}",
-                fontsize=8, ha="center", color="#B03A2E")
+        ax.text(
+            px,
+            py,
+            f"Tipo {tipo}   n={n}   (artigo: {ref}){marca}",
+            fontsize=8,
+            ha="center",
+            color="#B03A2E",
+        )
 
     # Os oito projetos que o artigo usa como exemplo nas Fig.6 e Fig.7. Anelar
     # aqui é o único jeito de ver, na mesma imagem, que a divergência de
     # contagem não toca em nenhum projeto que o artigo nomeia.
     cfg = _fig_cfg("ieice16_fig5")
     anelados = _anelados(cfg, cut["scope_id"], highlight, "Fig.5", f"em {t.date()}")
-    _anelar(ax, cut[cut["scope_id"].isin(anelados)], "ncr", "ccr",
-            lambda r: f"{_repo(r['scope_id'])}\n({r['type']})")
+    _anelar(
+        ax,
+        cut[cut["scope_id"].isin(anelados)],
+        "ncr",
+        "ccr",
+        lambda r: f"{_repo(r['scope_id'])}\n({r['type']})",
+    )
 
     ax.set_title(
         f"IEICE16 Fig.5: NCR (x) × CCR (y) em {t.date()}\n"
@@ -642,19 +704,26 @@ def _fig_cfg(nome: str) -> dict:
         ) from e
 
 
-def _cell(ax, sid: int, t: pd.Timestamp, *, sub: str | None = None,
-          xmax: float | None = None, ymax: int | None = None,
-          xticks: list[float] | None = None) -> None:
+def _cell(
+    ax,
+    sid: int,
+    t: pd.Timestamp,
+    *,
+    sub: str | None = None,
+    xmax: float | None = None,
+    ymax: int | None = None,
+    xticks: list[float] | None = None,
+) -> None:
     """Um painel de grade: pirâmide + nome do projeto + nota de conferência."""
-    draw_pyramid(ax, pyramid_frame(snapshots.load(sid), t), xmax=xmax, ymax=ymax,
-                 xticks=xticks)
+    draw_pyramid(ax, pyramid_frame(snapshots.load(sid), t), xmax=xmax, ymax=ymax, xticks=xticks)
     ax.set_title(_repo(sid), fontsize=9)
     if sub:
         # Vermelho só quando há divergência; o "=" fica cinza para o olho poder
         # varrer a grade atrás do que não bate.
         cor = "#B03A2E" if "≠" in sub else "#555555"
-        ax.text(0.5, -0.30, sub, transform=ax.transAxes, ha="center", va="top",
-                fontsize=7.5, color=cor)
+        ax.text(
+            0.5, -0.30, sub, transform=ax.transAxes, ha="center", va="top", fontsize=7.5, color=cor
+        )
 
 
 def _confere(obtido, esperado) -> str:
@@ -680,16 +749,14 @@ def figure_grid_status():
     # ficar posição a posição contra a Fig.2 publicada.
     ncols = 2 if len(ids) == 4 else len(ids)
     nrows = -(-len(ids) // ncols)
-    fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 3.4 * nrows),
-                             squeeze=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 3.4 * nrows), squeeze=False)
     for j, sid in enumerate(ids):
         # Escala por painel: o artigo põe quatro projetos de portes muito
         # diferentes lado a lado e o que ele compara é a *forma*. O tamanho
         # fica de fora: uma régua comum achataria clojure contra homebrew.
         ax = axes[j // ncols][j % ncols]
         got = quad["quadrant"].get(sid) if sid in quad.index else None
-        _cell(ax, sid, t, sub=_confere(got, esperado[sid]),
-              xticks=ticks_artigo.get(sid))
+        _cell(ax, sid, t, sub=_confere(got, esperado[sid]), xticks=ticks_artigo.get(sid))
         ax.set_xlabel("contribuidores", fontsize=8)
     for i in range(nrows):
         axes[i][0].set_ylabel("idade acumulada (anos)", fontsize=8)
@@ -723,8 +790,9 @@ def figure_grid_types():
     tipos = _tipos_no_snapshot(t)
 
     ncols = max(len(v) for v in rows.values())
-    fig, axes = plt.subplots(len(rows), ncols, figsize=(3.2 * ncols, 2.7 * len(rows)),
-                             squeeze=False)
+    fig, axes = plt.subplots(
+        len(rows), ncols, figsize=(3.2 * ncols, 2.7 * len(rows)), squeeze=False
+    )
     for i, (tipo, ids) in enumerate(rows.items()):
         for j in range(ncols):
             ax = axes[i][j]
@@ -764,9 +832,16 @@ def figure_grid_centered():
         ax = axes[0][j]
         # CCR/NCR no rótulo: o recorte desta figura é justamente "perto de 0",
         # e sem os dois números o leitor tem de aceitar a alegação na palavra.
-        ccr, ncr = float(cut["ccr"].get(sid, float("nan"))), float(cut["ncr"].get(sid, float("nan")))
-        _cell(ax, sid, t,
-              sub=f"CCR={ccr:+.3f}  NCR={ncr:+.3f}\n{_confere(tipos.get(sid), esperado.get(sid, '?'))}")
+        ccr, ncr = (
+            float(cut["ccr"].get(sid, float("nan"))),
+            float(cut["ncr"].get(sid, float("nan"))),
+        )
+        _cell(
+            ax,
+            sid,
+            t,
+            sub=f"CCR={ccr:+.3f}  NCR={ncr:+.3f}\n{_confere(tipos.get(sid), esperado.get(sid, '?'))}",
+        )
         ax.set_xlabel("contribuidores", fontsize=8)
     axes[0][0].set_ylabel("idade acumulada (anos)", fontsize=8)
 
@@ -826,8 +901,16 @@ def figure_projection_overlay():
         esq = -pred["non_coding"].to_numpy()
         dirr = (pred["moved"] + pred["coding"]).to_numpy()
         for série in (esq, dirr):
-            ax.plot(série, y, color="#B03A2E", linewidth=1.2, linestyle="--",
-                    marker="o", markersize=2.5, zorder=6)
+            ax.plot(
+                série,
+                y,
+                color="#B03A2E",
+                linewidth=1.2,
+                linestyle="--",
+                marker="o",
+                markersize=2.5,
+                zorder=6,
+            )
 
         # Reescala se a projeção estourar a régua das barras: cortar a linha
         # esconderia justamente o erro que a figura existe para mostrar.
@@ -837,8 +920,16 @@ def figure_projection_overlay():
 
         med = sub.loc[sub["category"] == "all", "abre_cohort"].median()
         ax.set_title(_repo(sid), fontsize=9)
-        ax.text(0.5, -0.28, f"ABRE(coorte, all) = {med:.3f}", transform=ax.transAxes,
-                ha="center", va="top", fontsize=7.5, color="#555555")
+        ax.text(
+            0.5,
+            -0.28,
+            f"ABRE(coorte, all) = {med:.3f}",
+            transform=ax.transAxes,
+            ha="center",
+            va="top",
+            fontsize=7.5,
+            color="#555555",
+        )
         if k // NC == nlin - 1:
             ax.set_xlabel("contribuidores", fontsize=8)
         if k % NC == 0:
@@ -852,8 +943,17 @@ def figure_projection_overlay():
     handles = [
         Patch(facecolor=FILL[c], hatch=HATCH[c], edgecolor="#4D4D4D", label=PT_LABEL[c])
         for c in ["non_coding", "moved", "coding"]
-    ] + [Line2D([], [], color="#B03A2E", linestyle="--", marker="o", markersize=3,
-                label="projeção (coorte)")]
+    ] + [
+        Line2D(
+            [],
+            [],
+            color="#B03A2E",
+            linestyle="--",
+            marker="o",
+            markersize=3,
+            label="projeção (coorte)",
+        )
+    ]
     fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, fontsize=8)
     fig.suptitle(
         f"IEICE16 Fig.8: medido vs. projetado em {alvo.date()} (base {base})",
@@ -887,9 +987,9 @@ def figure_abre_table():
         "",
         "## Tabela 3: mediana do ABRE (menor é melhor)",
         "",
-        "| tipo | projetos | pares | " + " | ".join(
-            f"{c} coorte | {c} baseline" for c in ordem
-        ) + " |",
+        "| tipo | projetos | pares | "
+        + " | ".join(f"{c} coorte | {c} baseline" for c in ordem)
+        + " |",
         "|" + "---|" * (3 + 2 * len(ordem)),
     ]
     dentro_t3 = celulas_t3 = 0
@@ -967,9 +1067,16 @@ def figure_abre_table():
     tabs["wilcoxon"].to_csv(d / "ieice16_tab4_wilcoxon.csv", index=False)
     md = d / "ieice16_tab3_tab4.md"
     md.write_text("\n".join(linhas), encoding="utf-8")
-    log.info("tabelas: %s (Tab.3 %d/%d dentro de %.0f%%, Tab.4 %d/%d decisões iguais)",
-             md.name, dentro_t3, celulas_t3, tol * 100, dentro_t4, celulas_t4,
-             extra={"stage": STAGE})
+    log.info(
+        "tabelas: %s (Tab.3 %d/%d dentro de %.0f%%, Tab.4 %d/%d decisões iguais)",
+        md.name,
+        dentro_t3,
+        celulas_t3,
+        tol * 100,
+        dentro_t4,
+        celulas_t4,
+        extra={"stage": STAGE},
+    )
     return md
 
 
@@ -1063,8 +1170,9 @@ def figure_quadrant_table():
     ]
     md = out_dir() / "msr14_tab2_replicacao.md"
     md.write_text("\n".join(linhas), encoding="utf-8")
-    log.info("tabela: %s (%d/%d células iguais ao artigo)", md.name, batem, total,
-             extra={"stage": STAGE})
+    log.info(
+        "tabela: %s (%d/%d células iguais ao artigo)", md.name, batem, total, extra={"stage": STAGE}
+    )
     return md
 
 

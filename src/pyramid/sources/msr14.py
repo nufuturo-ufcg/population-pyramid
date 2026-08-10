@@ -193,12 +193,10 @@ class MSR14Source(ActivityDataSource):
     def _build_query(self) -> str:
         parts = []
         for act in self.activities:
-            body = (
-                _COMMIT_SCOPE_SQL[self.commit_scope]
-                if act == "commits"
-                else _ACTIVITY_SQL[act]
+            body = _COMMIT_SCOPE_SQL[self.commit_scope] if act == "commits" else _ACTIVITY_SQL[act]
+            parts.append(
+                f"SELECT '{act}' AS event_type, contributor_id, ts FROM ({body}) AS _{act}"
             )
-            parts.append(f"SELECT '{act}' AS event_type, contributor_id, ts FROM ({body}) AS _{act}")
         return "\nUNION ALL\n".join(parts)
 
     def get_events(self, scope_id: int) -> pd.DataFrame:
@@ -219,7 +217,9 @@ class MSR14Source(ActivityDataSource):
         df = df[df["ts"].notna()]
 
         if n_raw and (dropped := n_raw - len(df)):
-            log.debug("scope %s: %d/%d eventos descartados (id ou data nula)", scope_id, dropped, n_raw)
+            log.debug(
+                "scope %s: %d/%d eventos descartados (id ou data nula)", scope_id, dropped, n_raw
+            )
 
         df = df.rename(columns={"ts": "timestamp"})
         df["scope_id"] = scope_id
@@ -273,9 +273,23 @@ def get_projects(ids: list[int]) -> pd.DataFrame:
 # Nomes que aparecem em `users.name` mas não identificam ninguém: fundir por
 # eles juntaria pessoas diferentes. Lista fechada, não heurística de tamanho.
 _NOMES_VAZIOS = {
-    "unknown", "none", "n/a", "na", "null", "admin", "administrator",
-    "system administrator", "root", "nobody", "your name", "user", "test",
-    "guest", "-", "--", "?",
+    "unknown",
+    "none",
+    "n/a",
+    "na",
+    "null",
+    "admin",
+    "administrator",
+    "system administrator",
+    "root",
+    "nobody",
+    "your name",
+    "user",
+    "test",
+    "guest",
+    "-",
+    "--",
+    "?",
 }
 
 
@@ -353,10 +367,16 @@ def _fundir_identidades(df: pd.DataFrame, modo: str, scope_id: int) -> pd.DataFr
         return df
 
     df = df.copy()
-    df["contributor_id"] = df["contributor_id"].map(lambda i: mapa.get(int(i), int(i))).astype("int64")
+    df["contributor_id"] = (
+        df["contributor_id"].map(lambda i: mapa.get(int(i), int(i))).astype("int64")
+    )
     log.info(
         "scope %s: %d identidades fundidas em %d pessoas (%d -> %d)",
-        scope_id, len(mapa), len({v for v in mapa.values()}), len(ids), df["contributor_id"].nunique(),
+        scope_id,
+        len(mapa),
+        len({v for v in mapa.values()}),
+        len(ids),
+        df["contributor_id"].nunique(),
         extra={"scope_id": scope_id, "stage": "extract"},
     )
     return df

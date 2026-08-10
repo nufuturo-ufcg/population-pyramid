@@ -129,7 +129,10 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             man["failed"].pop(key, None)
             log.info(
                 "%-38s %5d contribuidores (%4d codaram)  %5d spans",
-                src.scope_label(sid), n_total, n_c, len(df),
+                src.scope_label(sid),
+                n_total,
+                n_c,
+                len(df),
                 extra={"scope_id": sid, "stage": STAGE},
             )
         except Exception as e:  # noqa: BLE001

@@ -87,7 +87,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             man["failed"].pop(key, None)
             log.info(
                 "%-38s %7d eventos  %5d contribuidores",
-                src.scope_label(sid), len(df), df["contributor_id"].nunique(),
+                src.scope_label(sid),
+                len(df),
+                df["contributor_id"].nunique(),
                 extra={"scope_id": sid, "stage": STAGE},
             )
         except Exception as e:  # noqa: BLE001
