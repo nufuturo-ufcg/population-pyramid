@@ -84,6 +84,17 @@ def _theme(ax) -> None:
     ax.tick_params(length=0, labelsize=8)
 
 
+def _repo(sid) -> str:
+    """Rótulo curto de um projeto: só o pedaço depois da barra.
+
+    Os três artigos nomeiam os painéis pelo repositório ("jekyll", "homebrew"),
+    e o dono ocupa metade da largura útil em nomes como
+    "FortAwesome/Font-Awesome". O nome completo continua nos CSVs e nas
+    mensagens de erro, onde a identificação tem de ser única.
+    """
+    return str(labels().get(int(sid), sid)).rsplit("/", 1)[-1]
+
+
 # ---------------------------------------------------------------------------
 # pirâmide
 # ---------------------------------------------------------------------------
@@ -171,8 +182,21 @@ def draw_pyramid(
     )
     if xticks:
         lim = max(lim, float(max(xticks)))
-    alto = ymax if ymax is not None else topo
-    ax.set_xlim(-lim * 1.08, lim * 1.08)
+    # Topo arredondado para a próxima fronteira de ano: o rótulo do eixo y só
+    # existe na banda que fecha um ano, então uma pirâmide que termina no meio
+    # do ano (blueprint-css em 2012 acaba na banda de 4 anos e meio) desenhava a
+    # barra de cima acima do último rótulo, encostada na moldura, com cara de
+    # figura cortada. Sobra no máximo o resto de um ano em branco, e a régua
+    # passa a fechar sempre num "N years".
+    por_ano = max(int(round(12 / bm)), 1)
+    bruto = ymax if ymax is not None else topo
+    alto = -(-(bruto + 1) // por_ano) * por_ano - 1
+    # Folga maior quando a régua é nossa: com escala automática o limite sai do
+    # próprio dado, então a barra máxima terminava exatamente na moldura (o
+    # blueprint-css tem 4 pessoas e o eixo ia a 4) e parecia transbordo. Com a
+    # régua do artigo o limite é dele, e apertar ou afrouxar seria reescrevê-la.
+    folga = 1.08 if xticks else 1.15
+    ax.set_xlim(-lim * folga, lim * folga)
     ax.set_ylim(-0.8, alto + 0.8)
     # Eixo central BRANCO e por cima das barras: com banda de 90 dias há
     # trimestre em que os dois lados estão ocupados, e barra preta encostada em
@@ -195,8 +219,18 @@ def draw_pyramid(
     if xticks:
         ticks = [-v for v in sorted(xticks, reverse=True)] + [0] + sorted(xticks)
     else:
-        ax.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-        ticks = [t for t in ax.get_xticks() if abs(t) <= lim * 1.08]
+        # Ticks contados de um lado só e espelhados, no máximo três por lado.
+        # O locator padrão trabalha no eixo inteiro (-lim a +lim) e chegava a
+        # nove rótulos num painel de 3,6 polegadas: em projeto grande, "320 240
+        # 160 80 0 80 160 240 320" saía com os números encostados uns nos
+        # outros, ilegível. O artigo usa dois ou três por lado.
+        lado = [
+            t for t in matplotlib.ticker.MaxNLocator(
+                nbins=3, integer=True, steps=[1, 2, 2.5, 5, 10]
+            ).tick_values(0, lim)
+            if 0 < t <= lim * 1.08
+        ]
+        ticks = [-t for t in reversed(lado)] + [0.0] + lado
     ax.set_xticks(ticks)
     ax.set_xticklabels([f"{abs(v):.0f}" for v in ticks])
 
@@ -210,8 +244,7 @@ def draw_pyramid(
     # Grade menor em TODA banda: a Fig.2 tem quatro linhas por ano, uma por
     # trimestre. Só as anuais deixavam a leitura de trimestre impossível, o
     # que fez a replicação parecer um bloco anual por ano.
-    per_year = max(int(round(12 / bm)), 1)
-    yt = list(range(per_year - 1, alto + 1, per_year))
+    yt = list(range(por_ano - 1, alto + 1, por_ano))
     ax.set_yticks(yt)
     ax.set_yticklabels([
         f"{(b + 1) * bm // 12} year" + ("s" if (b + 1) * bm // 12 > 1 else "")
@@ -237,8 +270,7 @@ def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None):
 
     fig, ax = plt.subplots(figsize=(4.2, 3.4))
     draw_pyramid(ax, frame)
-    name = labels().get(int(scope_id), str(scope_id))
-    ax.set_title(f"{name}, {t.date()}", fontsize=9)
+    ax.set_title(f"{_repo(scope_id)}, {t.date()}", fontsize=9)
     ax.set_xlabel("contribuidores", fontsize=8)
     ax.set_ylabel("idade acumulada (anos)", fontsize=8)
     _legend(fig)
@@ -311,7 +343,6 @@ def figure_fig3():
     shape_only = set(ck.get("shape_only_years", []))
     ids = [int(k) for k in ck["transitions"]]
     dates = fig3_dates()
-    lbl = labels()
 
     frames = {
         sid: {t: pyramid_frame(snapshots.load(sid), t) for t in dates} for sid in ids
@@ -338,7 +369,12 @@ def figure_fig3():
             marca = "  [right-censored]" if t.year in shape_only else ""
             ax.set_title(f"{t.year}{marca}", fontsize=9)
             if j == 0:
-                ax.set_ylabel(f"{lbl.get(sid, sid)}\nidade acumulada (anos)", fontsize=8)
+                ax.set_ylabel(f"{_repo(sid)}\nidade acumulada (anos)", fontsize=8)
+            else:
+                # Escala de y é comum na linha, então repetir "1 year, 2 years,
+                # ..." nos quatro painéis é tinta gasta duas vezes e largura a
+                # menos para a barra. O artigo rotula só a coluna da esquerda.
+                ax.tick_params(axis="y", labelleft=False)
             if i == len(ids) - 1:
                 ax.set_xlabel("contribuidores", fontsize=8)
 
@@ -359,8 +395,7 @@ def _scatter(ax, x, y, vx, vy, xlabel, ylabel):
     ax.set_ylabel(ylabel, fontsize=8)
 
 
-def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, lbl: dict,
-            rotulo) -> None:
+def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
     """Anel aberto + nome nos projetos que o artigo nomeia no próprio gráfico.
 
     Sem o anel a anotação flutua perto de uma nuvem densa e não dá para saber a
@@ -509,8 +544,8 @@ def figure_fig2(year: int | None = None, highlight: list[int] | None = None):
     ax.set_yticks(cfg["yticks"])
 
     anelados = _anelados(cfg, df["scope_id"], highlight, "Fig.2", f"de {y}")
-    _anelar(ax, df[df["scope_id"].isin(anelados)], "stickiness", "magnetism", lbl,
-            lambda r: f"{lbl.get(int(r['scope_id']), r['scope_id'])}\n({r['quadrant']})")
+    _anelar(ax, df[df["scope_id"].isin(anelados)], "stickiness", "magnetism",
+            lambda r: f"{_repo(r['scope_id'])}\n({r['quadrant']})")
 
     ax.set_title(f"MSR14 Fig.2: stickiness × magnetismo, {y}  (n={len(df)})", fontsize=9)
     stem = f"msr14_fig2_{y}"
@@ -548,6 +583,11 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
     # rótulos de quadrante caberem sem pousar em cima dos pontos de borda.
     ax.set_xlim(-1.08, 1.08)
     ax.set_ylim(-1.30, 1.30)
+    # Régua fixa nos extremos e no corte. CCR e NCR vivem em [-1, 1] e é o zero
+    # que separa os tipos, então marcar -1, 0 e 1 basta; deixar no autolocator
+    # faz a régua mudar de snapshot para snapshot conforme o dado.
+    ax.set_xticks([-1, 0, 1])
+    ax.set_yticks([-1, 0, 1])
 
     contagem = cut["type"].value_counts().to_dict()
     # O artigo lado a lado, no próprio gráfico. Esta replicação não fecha o GATE
@@ -572,8 +612,8 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
     # contagem não toca em nenhum projeto que o artigo nomeia.
     cfg = _fig_cfg("ieice16_fig5")
     anelados = _anelados(cfg, cut["scope_id"], highlight, "Fig.5", f"em {t.date()}")
-    _anelar(ax, cut[cut["scope_id"].isin(anelados)], "ncr", "ccr", labels(),
-            lambda r: f"{labels().get(int(r['scope_id']), r['scope_id'])}\n({r['type']})")
+    _anelar(ax, cut[cut["scope_id"].isin(anelados)], "ncr", "ccr",
+            lambda r: f"{_repo(r['scope_id'])}\n({r['type']})")
 
     ax.set_title(
         f"IEICE16 Fig.5: NCR (x) × CCR (y) em {t.date()}\n"
@@ -608,7 +648,7 @@ def _cell(ax, sid: int, t: pd.Timestamp, *, sub: str | None = None,
     """Um painel de grade: pirâmide + nome do projeto + nota de conferência."""
     draw_pyramid(ax, pyramid_frame(snapshots.load(sid), t), xmax=xmax, ymax=ymax,
                  xticks=xticks)
-    ax.set_title(labels().get(int(sid), str(sid)), fontsize=9)
+    ax.set_title(_repo(sid), fontsize=9)
     if sub:
         # Vermelho só quando há divergência; o "=" fica cinza para o olho poder
         # varrer a grade atrás do que não bate.
@@ -636,16 +676,25 @@ def figure_grid_status():
 
     ids = list(esperado)
     ticks_artigo = {int(k): list(v) for k, v in (cfg.get("x_ticks") or {}).items()}
-    fig, axes = plt.subplots(1, len(ids), figsize=(3.0 * len(ids), 3.2), squeeze=False)
+    # Mesma grade do artigo: 2x2 quando são os quatro painéis, para a leitura
+    # ficar posição a posição contra a Fig.2 publicada.
+    ncols = 2 if len(ids) == 4 else len(ids)
+    nrows = -(-len(ids) // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 3.4 * nrows),
+                             squeeze=False)
     for j, sid in enumerate(ids):
         # Escala por painel: o artigo põe quatro projetos de portes muito
         # diferentes lado a lado e o que ele compara é a *forma*. O tamanho
         # fica de fora: uma régua comum achataria clojure contra homebrew.
+        ax = axes[j // ncols][j % ncols]
         got = quad["quadrant"].get(sid) if sid in quad.index else None
-        _cell(axes[0][j], sid, t, sub=_confere(got, esperado[sid]),
+        _cell(ax, sid, t, sub=_confere(got, esperado[sid]),
               xticks=ticks_artigo.get(sid))
-        axes[0][j].set_xlabel("contribuidores", fontsize=8)
-    axes[0][0].set_ylabel("idade acumulada (anos)", fontsize=8)
+        ax.set_xlabel("contribuidores", fontsize=8)
+    for i in range(nrows):
+        axes[i][0].set_ylabel("idade acumulada (anos)", fontsize=8)
+    for k in range(len(ids), nrows * ncols):
+        axes[k // ncols][k % ncols].axis("off")
 
     _legend(fig)
     fig.suptitle(
@@ -758,9 +807,13 @@ def figure_projection_overlay():
             f"{ck['min_contributors']} contribuidores os excluiu."
         )
 
-    fig, axes = plt.subplots(2, 3, figsize=(10.2, 6.4), squeeze=False)
+    # Mesma grade do artigo: 3 linhas x 2 colunas, painel a painel na mesma
+    # posição da Fig.8 publicada.
+    NC = 2
+    nlin = -(-len(ids) // NC)
+    fig, axes = plt.subplots(nlin, NC, figsize=(7.2, 3.1 * nlin), squeeze=False)
     for k, sid in enumerate(ids):
-        ax = axes[k // 3][k % 3]
+        ax = axes[k // NC][k % NC]
         sub = df[df["scope_id"] == sid]
         real = _projection_frame(sub, "actual")
         pred = _projection_frame(sub, "cohort_pred")
@@ -783,13 +836,15 @@ def figure_projection_overlay():
             ax.set_xlim(-pico * 1.08, pico * 1.08)
 
         med = sub.loc[sub["category"] == "all", "abre_cohort"].median()
-        ax.set_title(labels().get(sid, str(sid)), fontsize=9)
+        ax.set_title(_repo(sid), fontsize=9)
         ax.text(0.5, -0.28, f"ABRE(coorte, all) = {med:.3f}", transform=ax.transAxes,
                 ha="center", va="top", fontsize=7.5, color="#555555")
-        if k // 3 == 1:
+        if k // NC == nlin - 1:
             ax.set_xlabel("contribuidores", fontsize=8)
-        if k % 3 == 0:
+        if k % NC == 0:
             ax.set_ylabel("idade acumulada (anos)", fontsize=8)
+    for k in range(len(ids), nlin * NC):
+        axes[k // NC][k % NC].axis("off")
 
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
@@ -918,6 +973,101 @@ def figure_abre_table():
     return md
 
 
+# ---------------------------------------------------------------------------
+# MSR14 Tabela 2: a grade de quadrantes. O artigo publica a dele; esta é a
+# nossa, no mesmo formato, para o leitor comparar célula a célula.
+# ---------------------------------------------------------------------------
+def figure_quadrant_table():
+    """Tabela 2 do MSR'14 na versão da replicação, em markdown."""
+    ck = checkpoints()["msr14_tab2"]
+    anos = list(ck["years"])
+    grade = ck["grid"]
+    # Mesmo vocabulário do artigo: ele escreve "Fluctuating" onde o nosso
+    # código escreve "floating". Traduzir aqui evita que o leitor ache que
+    # são estados diferentes.
+    LETRA = {"A": "Attractive", "F": "Fluctuating", "S": "Stagnant", "T": "Terminal"}
+    NOSSO = {
+        "attractive": "Attractive",
+        "floating": "Fluctuating",
+        "stagnant": "Stagnant",
+        "terminal": "Terminal",
+    }
+
+    df = attr.table()
+    por_nome = {
+        str(p): sid
+        for sid, p in df[["scope_id", "project"]].drop_duplicates().itertuples(index=False)
+    }
+    celula: dict[tuple[int, int], str] = {}
+    for r in df.itertuples():
+        q = r.quadrant
+        celula[(int(r.scope_id), int(r.year))] = (
+            "*" if not bool(r.eligible) or q is None or pd.isna(q) else str(q)
+        )
+
+    # A primeira coluna do artigo agrupa por "Quadrant in 2011", que é a última
+    # coluna da grade. Reproduzir o agrupamento mantém as duas tabelas
+    # sobreponíveis linha a linha.
+    ultimo = {nome: str(linha).split()[-1] for nome, linha in grade.items()}
+
+    linhas: list[str] = [
+        "# MSR14 Tabela 2: a grade de quadrantes da replicação",
+        "",
+        "Gerado por `pyramid plot --figure quadrant-table`.",
+        "",
+        "Mesmo formato da Tabela 2 do artigo, com os mesmos 12 projetos e os mesmos",
+        "anos, para comparar célula a célula. `-` é ano sem atividade no projeto e",
+        "`*` é ano ativo com 10 desenvolvedores ou menos, que o artigo deixa fora do",
+        "filtro. Onde a replicação discorda do artigo, a célula traz o valor do",
+        "artigo entre parênteses.",
+        "",
+        "| quadrante em 2011 | projeto | " + " | ".join(str(a) for a in anos[:-1]) + " |",
+        "|" + "---|" * (2 + len(anos) - 1),
+    ]
+    # Duas contagens separadas de propósito: as células com quadrante são o
+    # critério de aceite, as de estrutura ("-" e "*") só confirmam que estamos
+    # olhando o mesmo recorte de projeto e ano.
+    batem = total = 0
+    batem_e = total_e = 0
+    for nome, linha in grade.items():
+        sid = por_nome.get(nome)
+        esperados = str(linha).split()
+        cels = [LETRA.get(ultimo[nome], ultimo[nome]), f"`{nome}`"]
+        for ano, esp in list(zip(anos, esperados))[:-1]:
+            got = "-" if sid is None else celula.get((int(sid), ano), "-")
+            nosso = NOSSO.get(got, got)
+            artigo = LETRA.get(esp, esp)
+            ok = nosso == artigo
+            if esp in {"-", "*"}:
+                total_e += 1
+                batem_e += ok
+            else:
+                total += 1
+                batem += ok
+            cels.append(nosso if ok else f"**{nosso}** ({artigo})")
+        linhas.append("| " + " | ".join(cels) + " |")
+
+    linhas += [
+        "",
+        f"Células com quadrante iguais às do artigo: **{batem}/{total}**. Células de",
+        f"estrutura (`-` e `*`): **{batem_e}/{total_e}**. As divergentes estão em",
+        "negrito, com o valor do artigo ao lado, e cada uma tem causa no",
+        "`docs/RESUMO_EXECUTIVO.md`, seção 3.",
+        "",
+        "O total aqui é menor que os 55 da seção 3 porque a coluna de 2011 virou a",
+        "primeira coluna, como no artigo, e não se repete.",
+        "",
+        "O veredito formal continua sendo o do `pyramid validate`: esta tabela é a",
+        "vista lado a lado, não um segundo juiz.",
+        "",
+    ]
+    md = out_dir() / "msr14_tab2_replicacao.md"
+    md.write_text("\n".join(linhas), encoding="utf-8")
+    log.info("tabela: %s (%d/%d células iguais ao artigo)", md.name, batem, total,
+             extra={"stage": STAGE})
+    return md
+
+
 FIGURES = {
     "pyramid-grid-status": figure_grid_status,
     "pyramid-transition": figure_fig3,
@@ -926,6 +1076,7 @@ FIGURES = {
     "pyramid-grid-centered": figure_grid_centered,
     "pyramid-projection-overlay": figure_projection_overlay,
     "abre-table": figure_abre_table,
+    "quadrant-table": figure_quadrant_table,
     "magnet-sticky": figure_fig2,
 }
 

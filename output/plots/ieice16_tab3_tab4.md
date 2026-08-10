@@ -13,7 +13,7 @@ Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da toler�
 | D | 2 | 38 | 0.4280 (0.3137) ≠ | 0.2857 (0.0000) ≠ | 0.3333 (0.2578) ≠ | 0.5000 (0.2500) ≠ | 0.6154 (0.4988) ≠ | 0.8750 (0.6154) ≠ | 0.2980 (0.3333) ≠ | 0.3571 (0.7500) ≠ |
 | All types | 34 | 335 | 0.5804 (0.5000) ≠ | 0.5000 (0.6667) ≠ | 0.4411 (0.3299) ≠ | 0.5000 (0.5000) | 0.5000 (0.4074) ≠ | 0.6154 (0.5417) ≠ | 0.3894 (0.4000) ≠ | 0.5000 (0.6000) ≠ |
 
-## Tabela 4 — Wilcoxon pareado, coorte vs. baseline (95%)
+## Tabela 4: Wilcoxon pareado, coorte vs. baseline (95%)
 
 | tipo | non_coding | moved | coding | all |
 |---|---|---|---|---|
@@ -23,7 +23,7 @@ Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da toler�
 | D | 0.79384 (0.00001*) ≠ | 0.09180 (0.02700*) ≠ | 0.10989 (0.02901*) ≠ | 0.22171 (0.00000*) ≠ |
 | All types | 0.11451 (0.00000*) ≠ | 0.03333* (0.00000*) | 0.03450* (0.00116*) | 0.01243* (0.00000*) |
 
-`*` = significativo a 95%. Em Tab.4 o que se compara é a decisão, não o p exato.
+`*` = significativo a 95%. Em Tab.4 compara-se a decisão; o p exato fica de fora.
 
 ## Curto vs. longo prazo (corte em 1 ano de atividade)
 
@@ -33,13 +33,13 @@ Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da toler�
 | ABRE mediano, longo prazo | 0.4816 (n=200) | 0.3333 |
 | p-valor | 0.1768 | 0.046 |
 
-A inversão de curto/longo prazo está analisada em `docs/discrepancias.md` §12.3.
+A inversão de curto/longo prazo está analisada em `docs/discrepancias.md`, seção 12.3.
 
 ## Resumo
 
 - Tabela 3: **6/40** células dentro de 2%.
 - Tabela 4: **7/20** decisões de significância iguais às do artigo.
 
-O veredito formal é do `pyramid validate` — esta tabela é a vista lado a
+O veredito formal é do `pyramid validate`. Esta tabela é a vista lado a
 lado, e usa o mesmo critério de igualdade (`validate._perto`) para não
 poder discordar dele.
