@@ -9,11 +9,12 @@ O achado central do IEICE'16 se sustenta. No agregado, prever crescimento por fa
 menos que a previsão ingênua (cohort 0,3894 contra baseline 0,5000, p = 0,0124).
 
 Este documento lista o que diverge, com a explicação mais provável e o que já testamos sem sucesso.
+Onde o número bate, ele aparece só como linha de placar, sem discussão.
 
-## Quem entra na conta
+## Escopo: quais projetos e quais pessoas entram
 
-- **Universo.** Os 90 projetos do dump. O escopo é sempre `project.id`, porque o nome `symfony`
-  aparece duas vezes na lista.
+- **Universo.** Os 90 projetos do dump. O escopo é sempre o id do projeto, nunca o nome, porque
+  `symfony` aparece duas vezes na lista.
 - **Contribuidor vivo em T.** Teve atividade nos 3 meses anteriores ao snapshot T.
 - **Tipos A-D (item 1).** Entram os projetos com ao menos um contribuidor vivo no snapshot de
   2013-09-30. Passam 85 dos 90, e 5 ficam sem contribuidor vivo. O artigo classifica 86 e deixa
@@ -35,11 +36,16 @@ ficam lado a lado, e o arquivo que desenha o número. As figuras estão em
 [`docs/figuras/`](figuras/). Quem quiser refazer tudo do zero acha o passo a passo no
 [`README.md`](../README.md).
 
-Os nomes de check carregam o `project.id`, não o nome do projeto, porque `symfony` aparece duas
-vezes na lista dos 90. Os cinco que aparecem neste documento: **79163** `mxcl/homebrew`,
-**79166** `mojombo/jekyll`, **104307** `thoughtbot/paperclip`, **19786** `clojure/clojure`,
-**101472** `joshuaclayton/blueprint-css`. Assim, `attractiveness.2011.79166` se lê "o quadrante do
-jekyll em 2011".
+Os nomes de check terminam no id do projeto, não no nome, porque `symfony` aparece duas vezes na
+lista dos 90. Os ids que aparecem neste documento:
+
+- **79163** é `mxcl/homebrew`
+- **79166** é `mojombo/jekyll`
+- **104307** é `thoughtbot/paperclip`
+- **19786** é `clojure/clojure`
+- **101472** é `joshuaclayton/blueprint-css`
+
+Assim, o check `attractiveness.2011.79166` se lê "o quadrante do jekyll em 2011".
 
 **L1** é a medida de desacordo usada aqui: a soma das diferenças, uma a uma, entre o artigo e a
 réplica. L1 = 0 é acordo perfeito. Nos tipos (item 1) a unidade é projeto; na Fig.2 do ESEM'14
@@ -76,8 +82,13 @@ O que já testamos e não explica:
 - Base de idade (`age_basis`) e largura de banda: varridas nas duas leituras possíveis, o eixo A contra C não se mexe.
 - Desempate no zero: a Tabela 2 do MSR'14 é inconsistente nele, 4 empates pedem `>` e 2 pedem `>=`, e a leitura literal de "higher than" é a que maximiza acordo.
 
-**Conferir:** `types.counts.A-D`, `types.total_classified`, `types.unclassified` ·
-`output/plots/ieice16_fig5_2013-09-30.png` · [`docs/figuras/ieice16_fig5.md`](figuras/ieice16_fig5.md).
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): as quatro linhas com a contagem de
+  cada tipo, a linha com o total de projetos classificados e a linha com os não classificados
+  (`types.counts.A-D`, `types.total_classified`, `types.unclassified`).
+- A figura: [`output/plots/ieice16_fig5_2013-09-30.png`](../output/plots/ieice16_fig5_2013-09-30.png).
+- A leitura em prosa: [`docs/figuras/ieice16_fig5.md`](figuras/ieice16_fig5.md).
 
 ## 2. `mojombo/jekyll` em 2011: artigo `terminal`, replicação `floating`
 
@@ -98,9 +109,12 @@ O que já testamos e não explica:
 - Offset global de um ano na série: o deslocamento é local ao jekyll, os outros projetos ficam no lugar.
 - Janela de ano civil no lugar de janela móvel: não muda o quadrante do jekyll.
 
-**Conferir:** `attractiveness.2011.79166` (jekyll, o que erra), contra `...79163` (homebrew),
-`...104307` (paperclip), `...19786` (clojure) e `...101472` (blueprint-css), que batem ·
-`output/plots/msr14_fig2_2011.png`.
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): a linha do quadrante do jekyll em
+  2011, que é a que erra, e as quatro linhas que batem, dos outros projetos da mesma figura
+  (homebrew, paperclip, clojure e blueprint-css).
+- A figura: [`output/plots/msr14_fig2_2011.png`](../output/plots/msr14_fig2_2011.png).
 
 ## 3. Tabela 2 do MSR'14, 48 de 55 células (87%)
 
@@ -133,16 +147,29 @@ O que já testamos e não explica:
 - Inverter a regra de empate para o lado alto: corrige as 2 células do xbmc e quebra 4 que hoje batem, o total cai de 48 para 46.
 - Varredura de `min_active_devs` e de `stickiness_scope`: o ótimo continua na configuração atual.
 
-**Conferir:** `msr14.tab2.concordancia` e as 55 linhas `msr14.tab2.<ano>.<projeto>` ·
-`output/attractiveness/attractiveness.parquet`.
+A mesma grade, na versão da replicação, está em
+[`output/plots/msr14_tab2_replicacao.md`](../output/plots/msr14_tab2_replicacao.md), no formato do
+artigo: quadrante de 2011 na primeira coluna, um projeto por linha, um ano por coluna, e as sete
+células que discordam em negrito com o valor do artigo ao lado.
+
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): a linha com a concordância geral da
+  tabela e uma linha por célula, nomeada por ano e projeto (`msr14.tab2.<ano>.<id do projeto>`).
+- A grade lado a lado: [`output/plots/msr14_tab2_replicacao.md`](../output/plots/msr14_tab2_replicacao.md).
+- Os dados por trás: `output/attractiveness/attractiveness.parquet`.
 
 ## 4. Projeção: 34 projetos elegíveis, o artigo diz 36
 
-Detalhe do corte na seção "Quem entra na conta". Dois projetos ficam em cima da linha dos 100.
-Mexer no corte para chegar a 36 ajustaria o método ao resultado, então mantivemos 34, com a
-contagem travada por teste.
+Detalhe do corte na seção "Escopo". Dois projetos ficam em cima da linha dos 100. Mexer no corte
+para chegar a 36 ajustaria o método ao resultado, então mantivemos 34, com a contagem travada por
+teste.
 
-**Conferir:** `projection.n_projects` · `output/projection/projection.parquet`.
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): a linha com o número de projetos
+  elegíveis para a projeção (`projection.n_projects`).
+- Os dados por trás: `output/projection/projection.parquet`.
 
 ## 5. Tabela 3 do IEICE'16, célula a célula: 6 de 40 dentro de ±2 p.p.
 
@@ -155,8 +182,12 @@ o que interessa aqui não é o valor absoluto de cada célula, é a direção, q
 de coorte pequena é dominado por ruído de uma pessoa. A comparação célula a célula fica pouco
 conclusiva nos dois sentidos, inclusive nas células que casaram.
 
-**Conferir:** `projection.abre.*` (40 linhas) e a trava `replica_locks.projection_celulas_2pct` ·
-`output/plots/ieice16_tab3_abre.csv` e `ieice16_tab3_tab4.md`.
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): as 40 linhas de erro de previsão,
+  uma por célula, e a trava que registra quantas caíram dentro de ±2 p.p.
+- A tabela: [`output/plots/ieice16_tab3_abre.csv`](../output/plots/ieice16_tab3_abre.csv) e a
+  leitura em prosa em [`output/plots/ieice16_tab3_tab4.md`](../output/plots/ieice16_tab3_tab4.md).
 
 ## 6. Direção da comparação: 14 de 20 pares batem
 
@@ -169,8 +200,11 @@ de sinal também no agregado (artigo 0,5000 contra 0,6667; replicação 0,5804 c
 significância (p = 0,1145). Mesma família de causa do item 5, porque as coortes de discussão são
 as mais ralas.
 
-**Conferir:** `projection.direcao.*` (20 linhas) e a trava `replica_locks.projection_direcao_pares` ·
-`output/plots/ieice16_tab3_abre.csv`.
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): as 20 linhas de direção, uma por
+  par, e a trava que registra quantos pares batem.
+- A tabela: [`output/plots/ieice16_tab3_abre.csv`](../output/plots/ieice16_tab3_abre.csv).
 
 ## 7. Significância estatística: o artigo acha 16, nós achamos 5
 
@@ -183,7 +217,10 @@ na replicação e não no artigo (`A.coding` p = 0,0003; `C.non_coding` p = 0,02
 altas. O sinal existe e sobrevive no agregado, com força menor do que o artigo sugere. A vantagem
 da previsão por faixa se dilui quando o recorte é isolado.
 
-**Conferir:** `projection.wilcoxon.*` (20 linhas) · `output/plots/ieice16_tab4_wilcoxon.csv`.
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): as 20 linhas do teste, uma por par.
+- A tabela: [`output/plots/ieice16_tab4_wilcoxon.csv`](../output/plots/ieice16_tab4_wilcoxon.csv).
 
 ## 8. Curto contra longo prazo: ordem trocada
 
@@ -200,8 +237,11 @@ da previsão por faixa se dilui quando o recorte é isolado.
 acima de 4 anos têm poucos contribuintes por coorte (n = 135/200) e o resultado fica dominado por
 ruído.
 
-**Conferir:** `projection.term.direcao` e `projection.term.significancia` ·
-`output/plots/ieice16_fig8_projecao_2013-09-30.png`.
+**Onde conferir:**
+
+- No [`validation_report.md`](../output/validation_report.md): a linha da direção entre curto e
+  longo prazo e a linha da significância desse par.
+- A figura: [`output/plots/ieice16_fig8_projecao_2013-09-30.png`](../output/plots/ieice16_fig8_projecao_2013-09-30.png).
 
 ## 9. Fig.2 do ESEM'14 (dez/2011), banda a banda: L1 = 411 pessoas
 
@@ -234,12 +274,15 @@ O que já testamos e não explica:
 - Limiar de 2 eventos de código: 589 pessoas têm exatamente um evento de código no homebrew, então a identidade 200 = 129 + 71 é coincidência.
 - Dump anterior do GHTorrent: explicaria a população maior e o excesso nas faixas novas, e não temos o dump antigo para testar. Fica como observação.
 
-**Conferir:** `output/plots/esem14_fig2_status_2011-12-31.png` contra a Fig.2 do artigo · tabela
-banda a banda em [`docs/figuras/esem14_fig2.md`](figuras/esem14_fig2.md).
+**Onde conferir:**
+
+- A figura, contra a Fig.2 do artigo:
+  [`output/plots/esem14_fig2_status_2011-12-31.png`](../output/plots/esem14_fig2_status_2011-12-31.png).
+- A tabela banda a banda: [`docs/figuras/esem14_fig2.md`](figuras/esem14_fig2.md).
 
 ---
 
-## O fio comum
+## O que as divergências têm em comum
 
 1. **Classificamos novato demais.** Duas métricas independentes apontam o mesmo viés na mesma
    direção: sobra A e falta C nos tipos (item 1), e o magnetismo do jekyll sai alto (item 2). É a
