@@ -47,7 +47,7 @@ def test_retained_rejeita_escopo_desconhecido():
 # --- GATE: exemplo trabalhado da Fig.1 do MSR'14 ------------------------------
 
 def test_msr14_fig1_exemplo_dos_autores():
-    """Os autores publicaram os números do próprio exemplo; a réplica os devolve.
+    """Os autores publicaram os números do próprio exemplo; a replicação os devolve.
 
     MSR'14 §2, Fig. 1, período 2011: cinco desenvolvedores (A-E) e dois
     projetos. "There are three new developers (B, C and D), and two of them
@@ -157,7 +157,7 @@ def test_checkpoint_2011_usa_os_quatro_quadrantes():
 
 @pytest.mark.checkpoint
 def test_checkpoint_jekyll_2011_diverge():
-    """jekyll é o 5º projeto rotulado para 2011, e a réplica NÃO o reproduz.
+    """jekyll é o 5º projeto rotulado para 2011, e a replicação NÃO o reproduz.
 
     O ESEM14 chama jekyll de "also a terminal project in 2011" (p.5, discussão
     da Fig.3). Aqui ele sai `floating` em 2011 e `terminal` em 2010. A causa

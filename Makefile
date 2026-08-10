@@ -1,4 +1,4 @@
-.PHONY: setup check run-all extract classify snapshots metrics attractiveness project validate plots test clean
+.PHONY: setup check run-all extract classify snapshots metrics attractiveness project validate plots figuras-artigo test clean
 .DEFAULT_GOAL := help
 
 UV := uv run
@@ -30,6 +30,7 @@ attractiveness: ; $(UV) pyramid attractiveness --year all
 project:        ; $(UV) pyramid project
 plots:          ; $(UV) pyramid plot --figure all
 validate:       ; $(UV) pyramid validate --report output/validation_report.md
+figuras-artigo: ; $(UV) --with pillow python scripts/crop_figuras_artigo.py
 
 run-all: check
 	$(UV) pyramid run-all

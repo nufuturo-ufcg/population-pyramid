@@ -33,7 +33,7 @@ dividido em quatro quadrantes, batizados de tipo A, B, C e D.
 
 A contagem por quadrante desloca dois ou três projetos:
 
-| | Artigo | Réplica |
+| | Artigo | Replicação |
 |---|---|---|
 | Tipo A | 23 | 26 |
 | Tipo B | 42 | 40 |

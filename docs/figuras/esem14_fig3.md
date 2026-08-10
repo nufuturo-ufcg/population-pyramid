@@ -21,7 +21,7 @@ fica instável o tempo todo) e jekyll.
 
 ## O que saiu diferente
 
-**Jekyll em 2011.** O artigo classifica como *terminal*; a nossa réplica dá
+**Jekyll em 2011.** O artigo classifica como *terminal*; a nossa replicação dá
 *flutuante*. É a única classificação divergente da figura.
 
 ## Por que isso acontece

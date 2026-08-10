@@ -204,7 +204,7 @@ def draw_pyramid(
     #
     # Grade menor em TODA banda: a Fig.2 tem quatro linhas por ano, uma por
     # trimestre. Só as anuais deixavam a leitura de trimestre impossível — foi
-    # o que fez a réplica parecer um bloco anual por ano.
+    # o que fez a replicação parecer um bloco anual por ano.
     per_year = max(int(round(12 / bm)), 1)
     yt = list(range(per_year - 1, alto + 1, per_year))
     ax.set_yticks(yt)
@@ -465,7 +465,7 @@ def _cell(ax, sid: int, t: pd.Timestamp, *, sub: str | None = None,
 
 
 def _confere(obtido, esperado) -> str:
-    """`réplica (artigo: X)` com marca quando os dois discordam."""
+    """`replicação (artigo: X)` com marca quando os dois discordam."""
     o = "—" if obtido is None or (isinstance(obtido, float) and pd.isna(obtido)) else str(obtido)
     return f"{o}   (artigo: {esperado})" + ("" if o == str(esperado) else "   ≠")
 
@@ -671,10 +671,10 @@ def figure_abre_table():
     from .validate import _perto
 
     linhas: list[str] = [
-        "# IEICE16 Tabelas 3 e 4 — réplica vs. artigo",
+        "# IEICE16 Tabelas 3 e 4 — replicação vs. artigo",
         "",
         f"Gerado por `pyramid plot --figure abre-table`. Tolerância relativa: {tol:.0%}.",
-        "Cada célula traz `réplica (artigo)`; `≠` marca quem está fora da tolerância.",
+        "Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da tolerância.",
         "",
         "## Tabela 3 — mediana do ABRE (menor é melhor)",
         "",
@@ -732,7 +732,7 @@ def figure_abre_table():
         "",
         "## Curto vs. longo prazo (corte em 1 ano de atividade)",
         "",
-        "| medida | réplica | artigo |",
+        "| medida | replicação | artigo |",
         "|---|---|---|",
         f"| ABRE mediano, curto prazo | {termo['short_term_abre_median']:.4f} "
         f"(n={termo['short_n']}) | {ck_t['short_term_abre_median']} |",

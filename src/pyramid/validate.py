@@ -1,7 +1,7 @@
-"""Estágio final — confere a réplica inteira contra `config/checkpoints.yaml`.
+"""Estágio final — confere a replicação inteira contra `config/checkpoints.yaml`.
 
 Cada checkpoint vira uma linha: de onde vem o número esperado (artigo ou trava
-da réplica), o valor esperado, o obtido e o veredito.
+da replicação), o valor esperado, o obtido e o veredito.
 
 A regra que dá sentido ao comando: **divergência precisa estar declarada**. O
 bloco `known_divergences:` do yaml mapeia a chave do check para a seção de
@@ -27,7 +27,7 @@ política que `docs/discrepancias.md` §12.5 já fixou depois da comparação c�
 a célula. Casar uma mediana de coorte em 0.5000 com um dataset diferente é o
 resultado mais provável por acaso naquele regime, não evidência de replicação.
 O que trava é o predicado agregado do §4, a direção dos pares e a contagem de
-células dentro da tolerância — e essas três travam contra números da *réplica*,
+células dentro da tolerância — e essas três travam contra números da *replicação*,
 declarados como tal na coluna `fonte`.
 """
 
@@ -51,7 +51,7 @@ OBSOLETA = "OBSOLETA"
 INDISPONIVEL = "n/d"
 
 ARTIGO = "artigo"
-REPLICA = "réplica"
+REPLICA = "replicação"
 
 #: O yaml transcreve o rótulo do PDF ("All"); `projection.tables()` usa o rótulo
 #: interno ("All types"). Traduzir aqui, e não em nenhum dos dois lados, mantém
@@ -350,7 +350,7 @@ def _msr14_tab2(cfg: dict) -> list[Check]:
     Grade larga sobre o mesmo estágio que o ESEM14 só testa em um snapshot.
     Além do quadrante, testa a estrutura: "-" (projeto sem atividade no ano) e
     "*" (ativo, mas devs <= 10, fora do filtro) são afirmações do artigo sobre
-    a elegibilidade, e a réplica tem de reproduzi-las.
+    a elegibilidade, e a replicação tem de reproduzi-las.
     """
     from . import attractiveness as at
 
@@ -532,11 +532,11 @@ def _projecao(cfg: dict) -> list[Check]:
                     obtido=got_sig,
                     bate=got_sig == bool(art_sig),
                     gate=False,
-                    nota=f"p artigo {art_p:.4f} / réplica {got_p:.4f}",
+                    nota=f"p artigo {art_p:.4f} / replicação {got_p:.4f}",
                 )
             )
 
-    # --- travas da réplica --------------------------------------------------
+    # --- travas da replicação --------------------------------------------------
     for chave, obtido, total in (
         ("projection_celulas_2pct", dentro, 40),
         ("projection_direcao_pares", concorda, 20),
@@ -555,7 +555,7 @@ def _projecao(cfg: dict) -> list[Check]:
             )
         )
 
-    # Predicado agregado do §4: é o que a réplica sustenta.
+    # Predicado agregado do §4: é o que a replicação sustenta.
     agg = travas.get("projection_agregado")
     if agg:
         got_c = float(med.loc["All types", "all_cohort"])
@@ -603,7 +603,7 @@ def _projecao(cfg: dict) -> list[Check]:
             obtido="short>long" if got_dir else "short<long",
             bate=art_dir == got_dir,
             nota=f"artigo {term_cfg['short_term_abre_median']:.4f}/{term_cfg['long_term_abre_median']:.4f}"
-            f" · réplica {term['short_term_abre_median']:.4f}/{term['long_term_abre_median']:.4f}"
+            f" · replicação {term['short_term_abre_median']:.4f}/{term['long_term_abre_median']:.4f}"
             f" (n={term['short_n']}/{term['long_n']})",
         )
     )
@@ -616,7 +616,7 @@ def _projecao(cfg: dict) -> list[Check]:
             esperado=bool(term_cfg["significant"]),
             obtido=bool(got_sig),
             bate=bool(got_sig) == bool(term_cfg["significant"]),
-            nota=f"p artigo {term_cfg['wilcoxon_p']:.4f} / réplica {term['wilcoxon_p']:.4f}",
+            nota=f"p artigo {term_cfg['wilcoxon_p']:.4f} / replicação {term['wilcoxon_p']:.4f}",
         )
     )
     return out

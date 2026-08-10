@@ -3,7 +3,11 @@
 Antes de qualquer coisa neste repo, ler:
 
 - **`INSTRUCOES_CLAUDE_CODE.MD`** — spec de implementação (fonte da verdade; vence sobre qualquer outra doc em caso de conflito).
-- **`docs/discrepancias.md`** — log vivo de ambiguidades investigadas. Toda entrada nova cita o comando/query exato usado, não só o número.
+- **`docs/discrepancias.md`** — log vivo de ambiguidades investigadas. Toda entrada nova cita o comando/query exato usado, além do número obtido.
+
+Escrita: o usuário proíbe a estrutura antitética ("é X, não Y" / "não é X, é Y" e variantes)
+em qualquer texto — doc, commit, comentário, resposta. Regra completa e exemplos em
+`~/.claude/CLAUDE.md`. Afirme direto o que é; alternativa descartada vira frase própria.
 
 Regras que já custaram caro e não se renegociam:
 
@@ -11,5 +15,5 @@ Regras que já custaram caro e não se renegociam:
 - Nunca usar `information_schema.table_rows` para sanity check — só `COUNT(*)`.
 - Nunca escrever SQL fora de `src/pyramid/sources/`.
 - Escopo é sempre por `project.id`, nunca por `name` (`symfony` aparece duas vezes nos 90).
-- Reprodutibilidade exata é o critério de aceite: número que não bate é bug ou ambiguidade, nunca "arredondar pra ficar perto".
-- 2013 é right-censored (dump acaba em out/2013): **renderiza pirâmide, não recebe quadrante**. Forma é estoque (olha pra trás, não sofre censura); stickiness é fluxo (precisa de Y+1, não existe). O ESEM14 faz o mesmo com o mesmo corte — ver `discrepancias.md` §11.1. Não anualizar 9 meses para forçar classificação.
+- Reprodutibilidade exata é o critério de aceite. Número que não bate se resolve como bug ou como ambiguidade declarada. Arredondar para ficar perto está proibido.
+- 2013 é right-censored (dump acaba em out/2013): **renderiza pirâmide e fica sem quadrante**. Forma é estoque, olha para trás e escapa da censura; stickiness é fluxo e exige Y+1, que o dump não tem. O ESEM14 faz o mesmo com o mesmo corte — ver `discrepancias.md` §11.1. Não anualizar 9 meses para forçar classificação.

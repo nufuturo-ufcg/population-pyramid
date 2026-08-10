@@ -217,7 +217,7 @@ plots:
   # Não é mais um chute: as barras da Fig.2 do ESEM14 foram MEDIDAS em pixel
   # (eixo calibrado pelas linhas de grade: 750/500/250 no homebrew, 100/50 no
   # paperclip, 10/5 no clojure, 5 no blueprint-css) e comparadas banda a banda
-  # com a réplica em 2011-12-31, varrendo a janela em 3/6/9/12/18/24/∞ meses.
+  # com a replicação em 2011-12-31, varrendo a janela em 3/6/9/12/18/24/∞ meses.
   # 12 meses minimiza o erro L1 nos QUATRO painéis ao mesmo tempo:
   #
   #   janela |  3m   6m   9m  12m  18m  24m   ∞

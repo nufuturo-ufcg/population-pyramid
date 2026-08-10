@@ -214,7 +214,7 @@ def validate(
     verbose: bool = typer.Option(False, "--verbose", help="mostra também os checks informativos que batem"),
     report: Path = typer.Option(None, "--report", help="grava o relatório completo em markdown"),
 ) -> None:
-    """Confere a réplica inteira contra config/checkpoints.yaml.
+    """Confere a replicação inteira contra config/checkpoints.yaml.
 
     Sai com código 1 se houver divergência não declarada em `known_divergences:`
     — ou divergência declarada que voltou a bater, porque nesse caso é

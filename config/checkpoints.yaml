@@ -111,7 +111,7 @@ attractiveness:
       nota: >-
         sai de terminal para forma balanceada em 2013; o artigo não classifica
         2013, apenas sugere "possibility to become attractive or fluctuating".
-        ATENÇÃO: este 2011 é o único rótulo do artigo que a réplica NÃO
+        ATENÇÃO: este 2011 é o único rótulo do artigo que a replicação NÃO
         reproduz — aqui jekyll é terminal em 2010 e floating em 2011. A
         divergência é real (não é janela: a ancoragem em junho foi testada e
         piora), está declarada em known_divergences e analisada no §13.
@@ -131,7 +131,7 @@ attractiveness:
 #   "*" means that the project started, yet, lacked a large enough contributing
 #       team to satisfy our filtering criteria
 # Ou seja: "-" = sem atividade nenhuma no ano; "*" = ativo mas devs <= 10.
-# Isso torna a coluna de elegibilidade da réplica verificável contra o artigo,
+# Isso torna a coluna de elegibilidade da replicação verificável contra o artigo,
 # e não só o quadrante.
 #
 # A x B C D...: A=attractive F=floating S=stagnant T=terminal
@@ -156,7 +156,7 @@ msr14_tab2:
     "joshuaclayton/blueprint-css": "- - - * * T * T"
 
 # ---------------------------------------------------------------------------
-# Travas da réplica — NÃO são valores do artigo.
+# Travas da replicação — NÃO são valores do artigo.
 # São números que esta replicação produz hoje e que docs/discrepancias.md já
 # analisou. Ficam aqui para que uma mudança de método apareça como divergência
 # em vez de passar despercebida. Mexer em um destes exige atualizar o documento
@@ -180,13 +180,13 @@ replica_locks:
 
 # ---------------------------------------------------------------------------
 # Composição dos painéis das figuras: quem aparece em qual painel, e em que
-# data. É dado do artigo, não escolha da réplica — por isso mora aqui e não
+# data. É dado do artigo, não escolha da replicação — por isso mora aqui e não
 # dentro do plots.py, onde viraria constante mágica sem procedência.
 # ---------------------------------------------------------------------------
 figures:
   # "Fig. 6  Examples of software population pyramids of each type.
   #  (Note that scales are different.)" — a legenda avisa que a escala é por
-  # painel, então a réplica também deixa cada painel se auto-escalar. Impor
+  # painel, então a replicação também deixa cada painel se auto-escalar. Impor
   # régua comum aqui seria "melhorar" a figura para além do original.
   # Tipo D não aparece na Fig.6 (só 3 projetos no dataset inteiro); os dois
   # projetos com CCR/NCR ≈ 0 ficam na Fig.7, que é o painel dedicado a eles.
@@ -219,7 +219,7 @@ figures:
     # Ticks do eixo x LIDOS DA FIGURA DO ARTIGO, lado positivo (o desenho
     # espelha para a esquerda e acrescenta o 0). Ficam fixos de propósito:
     # escala automática esconde exatamente o que queremos ver, que é a barra
-    # da réplica passando (ou não) do último tick do artigo. Barra que
+    # da replicação passando (ou não) do último tick do artigo. Barra que
     # ultrapassa continua desenhada inteira — o transbordo é o achado, não um
     # erro de plotagem. Só a Fig.2 usa isto; as demais seguem auto-escala.
     x_ticks:
@@ -269,7 +269,7 @@ figures:
     # afirmamos qual é `moved` e qual é `coding`: a legenda da figura não foi
     # decidida com confiança e chutar o mapeamento inventaria um dado. Por isso
     # §22/§28 comparam sempre a SOMA dos dois contra `moved + coding` da
-    # réplica, que é uma quantidade bem definida dos dois lados.
+    # replicação, que é uma quantidade bem definida dos dois lados.
     bars_read_px:
       79163:   # homebrew
         non_coding:  [581.38, 739.93, 364.93, 218.96, 75.5, 57.89, 45.3, 65.44, 32.72, 17.62]

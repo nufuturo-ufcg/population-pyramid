@@ -30,7 +30,7 @@ Nada de substantivo.
 
 ## Uma observação sobre o tipo D
 
-O tipo D não aparece nesta figura. Não é omissão da réplica: o dataset inteiro
+O tipo D não aparece nesta figura. Não é omissão da replicação: o dataset inteiro
 tem só três ou quatro projetos desse tipo, e o artigo dedica a eles um painel
 separado — a Figura 7.
 

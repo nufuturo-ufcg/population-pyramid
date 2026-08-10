@@ -300,7 +300,7 @@ limiar cai num degrau:
 Note onde o corte caiu: o 35º projeto tem **exatamente 100**. O artigo diz
 "more than 100 contributors", e `> 100` o exclui — mas ler a mesma frase como
 "pelo menos 100" devolveria 35. A escolha está em `eligible_scopes()` como `>`,
-seguindo o texto ao pé da letra, e é a diferença entre 34 e 35 nesta réplica.
+seguindo o texto ao pé da letra, e é a diferença entre 34 e 35 nesta replicação.
 
 O 36º candidato está 3 abaixo do corte. Qualquer alargamento pequeno na
 definição de "ativo" (janela de 3 meses um pouco maior, ou uma tabela de evento
@@ -650,7 +650,7 @@ Com o filtro correto, `All types / all`:
 | | cohort | baseline |
 |---|---|---|
 | IEICE16 Tabela 3 | 0.4000 | 0.6000 |
-| réplica | 0.4208 | 0.5000 |
+| replicação | 0.4208 | 0.5000 |
 
 O `cohort` fica a ~5% do publicado. Algumas células batem de forma quase
 literal — Type C / non-coding sai **0.6723 / 1.0000** contra **0.6711 / 1.0000**
@@ -685,7 +685,7 @@ pequenas é dominado por ruído de ±1 pessoa. Não investigado a fundo.
 **(d) 195 coortes sem denominador — tratado, ver 12.4.**
 
 **Leitura honesta do conjunto:** a mecânica do §4 está reproduzida e a tese
-central se sustenta, mas (b) e (c) são resultados do artigo que a réplica **não**
+central se sustenta, mas (b) e (c) são resultados do artigo que a replicação **não**
 reproduz. O dataset não é o mesmo (34 projetos contra 36, coortes diferentes),
 o que torna a comparação célula a célula pouco conclusiva nos dois sentidos —
 inclusive nas células que casaram.
@@ -759,7 +759,7 @@ passar por esta comparação. Tolerância de 2% relativa (`tolerance_rel` em
 
 **7 de 40 células dentro de 2%.** As que batem:
 
-| célula | artigo | réplica |
+| célula | artigo | replicação |
 |---|---|---|
 | A / all / baseline | 0.5000 | 0.5000 |
 | B / moved / baseline | 0.5000 | 0.5000 |
@@ -776,7 +776,7 @@ de C/all são as únicas coincidências não triviais, e §12.2 já as classific
 como amostra pequena, não validação.
 
 **Direção (cohort < baseline?) concorda em 14 de 20 pares.** Das 6 que
-discordam, 4 são empate exato na réplica (`c = b`, todas em 0.5000): B/moved,
+discordam, 4 são empate exato na replicação (`c = b`, todas em 0.5000): B/moved,
 B/all, C/moved, e o par de B/non_coding. Empate não é inversão — é resolução
 insuficiente. Inversões reais, com o cohort de fato pior que a baseline:
 **non_coding em B e no agregado**, e **D/moved**. É exatamente o 12.3(b), agora
@@ -803,7 +803,7 @@ ESEM14 nomeia um quinto projeto no **corpo do texto**, na discussão da Fig.3
 > which was **also a terminal project in 2011**."
 
 Esse "also" liga jekyll aos projetos terminais da Fig.2. É um rótulo publicado,
-verificável, e a réplica erra:
+verificável, e a replicação erra:
 
 | ano | magnetismo | mediana | stickiness | mediana | quadrante |
 |---|---|---|---|---|---|
@@ -842,7 +842,7 @@ snapshot de dez/2011. **A hipótese da janela está descartada; o desvio de
 jekyll é real.**
 
 **O que isto provavelmente é.** A direção do erro coincide com a do §3.1: lá
-sobra projeto no Tipo A e falta no Tipo C, isto é, a réplica **classifica
+sobra projeto no Tipo A e falta no Tipo C, isto é, a replicação **classifica
 novato demais**. Aqui o magnetismo — que é literalmente uma contagem de novatos
 sobre o total — sai alto demais para jekyll, e é exatamente isso que o empurra
 de terminal para floating. São duas métricas independentes apontando o mesmo
@@ -851,9 +851,9 @@ sozinha. jekyll é o caso onde esse viés mais aparece porque foi o projeto que
 mais cresceu em contribuidores no período (14 → 40 → 29 → 77 → 81 devs/ano):
 quanto mais entrante, mais exposto ao critério de "primeira aparição".
 
-Consistente com isso, a **trajetória** da réplica reproduz a narrativa do artigo
+Consistente com isso, a **trajetória** da replicação reproduz a narrativa do artigo
 adiantada em um ano: terminal → (cresce) → attractive, com o artigo pondo
-"terminal" em 2011 e a réplica em 2010. Note que os outros quatro projetos
+"terminal" em 2011 e a replicação em 2010. Note que os outros quatro projetos
 batem no ano civil de 2011 sem deslocamento nenhum — **não** há offset global de
 um ano; é específico de jekyll.
 
@@ -926,7 +926,7 @@ nome estável é o esperado**.
 
 ## 15. Novato é do dataset, não do projeto (§3.1) — hipótese testada e descartada
 
-O §13 fechou com uma suspeita nomeada: a réplica classificaria "novato demais",
+O §13 fechou com uma suspeita nomeada: a replicação classificaria "novato demais",
 e jekyll/2011 cairia em `attractive` porque o magnetismo sai alto. A única
 alavanca real por trás disso é a definição de novato. Ou o numerador do
 magnetismo conta *quem estreou no dataset*, ou conta *quem estreou naquele
@@ -1004,7 +1004,7 @@ novatos sob G: 2906
 novatos sob P: 3047  (+4.9%)
 ```
 
-Se a réplica classifica novato demais, a variante alternativa classificaria
+Se a replicação classifica novato demais, a variante alternativa classificaria
 ~5% a mais ainda. Não existe leitura de "novato" que empurre jekyll/2011 na
 direção do artigo: o eixo está esgotado. O §13 continua aberto, mas sem este
 suspeito — o resíduo de jekyll não vem da definição de novato, e a próxima
@@ -1029,7 +1029,7 @@ Dois testes em `tests/test_attractiveness.py`:
 
 A Tabela 2 do MSR'14 virou instrumento permanente de validação (§11.1): 12
 projetos × 8 anos, 55 células com quadrante publicado, mais as células `-`
-(sem atividade) e `*` (devs ≤ 10) que testam a elegibilidade. A réplica bate
+(sem atividade) e `*` (devs ≤ 10) que testam a elegibilidade. A replicação bate
 **48/55**, e a estrutura `-`/`*` bate **integralmente**. Esta seção fecha as 7
 restantes — cada uma com causa nomeada e medida, nenhuma com correção de
 conveniência.
@@ -1082,7 +1082,7 @@ depende de precisão numérica:
 
 Das 6, **4 estão a ≤ 5,1% da mediana** e 2 estão *exatamente em cima* dela:
 
-| ano | projeto | artigo | réplica | magnet vs mediana | sticky vs mediana | margem |
+| ano | projeto | artigo | replicação | magnet vs mediana | sticky vs mediana | margem |
 |---|---|---|---|---|---|---|
 | 2007 | `xbmc/xbmc` | attractive | floating | +83,3% | **+0,0%** | **0,0%** |
 | 2009 | `xbmc/xbmc` | attractive | stagnant | **+0,0%** | +198,3% | **0,0%** |
@@ -1100,7 +1100,7 @@ reproduz; o que não reproduz é o desempate.
 
 ### scala/2010: buraco de 18 meses no dump, não erro de classificação
 
-Único caso em que a réplica não produz rótulo nenhum (`-`, "sem atividade")
+Único caso em que a replicação não produz rótulo nenhum (`-`, "sem atividade")
 contra um `floating` publicado. A causa está no dado bruto, antes de qualquer
 código nosso:
 
@@ -1138,7 +1138,7 @@ Django migrou para o GitHub em abril/2012. Todo o histórico de 2005-2011 no
 dump é importação de SVN: só commits, sem discussão, sem PR, sem issue. A
 comunidade de 2011 aparece com 25 devs; em 2012, com 387. O stickiness alto
 (0,84, +335% acima da mediana) confirma o retrato: um núcleo pequeno e fechado
-de committers, que é o que a importação preserva. A réplica lê o dado que está
+de committers, que é o que a importação preserva. A replicação lê o dado que está
 lá. Por que o MSR'14 lê `attractive` na mesma célula do mesmo dump é uma
 pergunta sem resposta a partir dos artefatos publicados — e não há leitura de
 magnetismo que transforme 4 novatos em 50.
@@ -1427,7 +1427,7 @@ evento único são:
 | clojure/clojure | 49 | 22 | 45% |
 | joshuaclayton/blueprint-css | 13 | 9 | 69% |
 
-E é exatamente onde a réplica estoura o artigo:
+E é exatamente onde a replicação estoura o artigo:
 
 * clojure banda 3 (9-12 meses): nossa 10, artigo 7 — **7 dos 10 são de evento
   único** (`age_days == idle_days`, um dia só de atividade, entre jan e mar/2011).
@@ -1542,7 +1542,7 @@ O clojure praticamente não tem discussão no dump — em todo 2011: 2.669 commi
 contra 27 `issue_comments`, **zero** `issue_events` e **zero**
 `pull_request_comments` (o projeto usava JIRA/Assembla, não as issues do
 GitHub). Por isso o lado non-coding do painel do clojure é quase vazio na
-réplica (1, 0, 1, 1 nas bandas 0-3) — e é quase vazio no artigo também, o que é
+replicação (1, 0, 1, 1 nas bandas 0-3) — e é quase vazio no artigo também, o que é
 uma confirmação a mais de que o dump é o mesmo.
 
 Consequência prática: tirar `issue_events` da taxonomia (variante `table1`) não
@@ -1595,12 +1595,12 @@ varreduras do §19.
 A barra desenhada tem contorno preto, e o contorno entra na corrida de pixels.
 Isso infla a leitura sistematicamente em ~2%: totais medidos 3946 / 535 / 47 /
 13 (homebrew / paperclip / clojure / blueprint-css) contra 3882 / 524 / 49 / 13
-da réplica na janela de 12 meses. O erro é para cima e é o mesmo em todos os
+da replicação na janela de 12 meses. O erro é para cima e é o mesmo em todos os
 painéis, então **diferenças de ±2% não são achado**; o que se usa aqui é a forma
 (qual banda tem barra, qual está vazia) e diferenças grandes.
 
 Por isso o teste que mais pesa nas decisões não é o de tamanho, é o **teste do
-buraco**: banda vazia na figura tem de estar vazia na réplica. Buraco não tem
+buraco**: banda vazia na figura tem de estar vazia na replicação. Buraco não tem
 borda para inflar, não depende de calibração de escala e não perdoa: o
 blueprint-css tem a banda 3 vazia entre barras cheias, e é isso que derruba
 tanto o estoque (§19.3) quanto `band_days: 91.3125` (§21).
@@ -1639,7 +1639,7 @@ Varrendo as duas larguras contra os pixels (§20), com a janela em 365,25 dias:
 90 ganha em todas as janelas testadas (360, 364, 365, 365,25, 366, 370 dias).
 No blueprint-css o resultado é categórico: com 90 as seis bandas do artigo batem
 uma a uma, **incluindo o buraco na banda 3 e o topo na banda 15**; com 91,3125 o
-contribuidor do topo cai uma banda, o buraco some e a réplica desenha três
+contribuidor do topo cai uma banda, o buraco some e a replicação desenha três
 quadrados grudados — que foi exatamente o sintoma reportado na inspeção visual
 ("o quarto quadrado está logo acima dos três, sem o espaço vazio"). No paperclip
 o mesmo 90 põe o topo na banda 15, que é o que faz o rótulo do eixo bater em
@@ -1648,7 +1648,7 @@ o mesmo 90 põe o topo na banda 15, que é o que faz o rótulo do eixo bater em
 Fica registrado o incômodo, porque ele é real: a **janela** da pirâmide continua
 em 365,25 dias (com 360 o blueprint-css desencaixa), enquanto a **banda** usa
 mês de 30 dias. O artigo não usa uma convenção só, e unificar por gosto de
-simetria quebra a réplica. `band_days` é chave própria em
+simetria quebra a replicação. `band_days` é chave própria em
 `config/settings.yaml` justamente para isso ficar explícito em vez de escondido
 numa constante.
 
@@ -1700,12 +1700,12 @@ o efeito colateral nos Tipos A-D antes de tocar no default.
 Sintoma visual: no nosso painel a barra da banda 21 (idade 270–360 d) encosta no
 tick 10 do eixo, que é o limite lido do artigo. No artigo essa barra tem ~6 e a
 vizinha (banda 20, 360–450 d) tem 7. ~~**O total das duas bate: 14 no artigo, 14
-na réplica.** Não é sobrecontagem — é deslocamento de ~3 pessoas entre bandas
+na replicação.** Não é sobrecontagem — é deslocamento de ~3 pessoas entre bandas
 adjacentes.~~
 
 > **ERRO, corrigido em §25.** O total *não* bate: 14 no artigo contra **15** na
-> réplica, e o desvio na banda 21 é de 4 pessoas, não 3. A conta acima somou a
-> réplica errado e por isso a §23 concluiu "deslocamento puro" cedo demais.
+> replicação, e o desvio na banda 21 é de 4 pessoas, não 3. A conta acima somou a
+> replicação errado e por isso a §23 concluiu "deslocamento puro" cedo demais.
 > A leitura correta e o que ela abre está em §25.
 
 ### Teste 1 — geometria (largura da banda × deslocamento de idade)
@@ -1743,7 +1743,7 @@ sempre com `band_days: 90`:
 triplica o erro e piora o clojure também (17,1 contra 10,7). O evento único não
 é ruído a filtrar: ele é parte da população que o artigo desenha. §19 fica
 corrigido nesse ponto — o mecanismo lá descrito existe, mas não é o que separa a
-réplica do artigo.
+replicação do artigo.
 
 ### O que sobra
 
@@ -1755,7 +1755,7 @@ velhas. Nenhuma convenção de calendário testada produz isso sem mover o resto
 Num painel onde 1 pessoa = 1 unidade e o eixo vai a 10, três pessoas na fronteira
 é o piso de ruído do menor dos quatro projetos. Fica **aberto e medido** (L1 =
 10,7 em 47 pessoas), não fechado como "ok". A barra encostar no tick 10 é
-consequência disso, não erro de plotagem: o eixo é o do artigo e a réplica tem
+consequência disso, não erro de plotagem: o eixo é o do artigo e a replicação tem
 mesmo 11 ali.
 
 ## 24. As figuras do IEICE16 (2016): o que dá para checar e o que não dá
@@ -1789,13 +1789,13 @@ residuais). O que este repositório não faz é *assumir* isso — cada divergê
 sai com o comando que a produziu, para que a hipótese "erro do artigo" seja
 verificável em vez de conveniente.
 
-## 25. clojure, banda a banda: onde exatamente a réplica difere do artigo
+## 25. clojure, banda a banda: onde exatamente a replicação difere do artigo
 
 §23 fechou cedo demais e com uma soma errada. Refeita a conta banda a banda,
 alinhando o índice do artigo (banda 1 = topo, 24 bandas) ao nosso (banda 0 =
 base), com `pyramid_frame` de 2011-12-31:
 
-| nossa banda | idade (d) | artigo (coding) | réplica (coding) | |
+| nossa banda | idade (d) | artigo (coding) | replicação (coding) | |
 |---|---|---|---|---|
 | 0 | 0–90 | 8 | 8 | ok |
 | 1 | 90–180 | 5 | 5 | ok |
@@ -1859,7 +1859,7 @@ passar do ponto. Só o teste real, nos quatro projetos ao mesmo tempo, decide.
 
 ### Estado honesto
 
-A barra do clojure continua encostando no 10 porque a réplica **tem mesmo** 10
+A barra do clojure continua encostando no 10 porque a replicação **tem mesmo** 10
 pessoas com 270–360 dias de idade em 2011-12-31, e nenhuma convenção de eixo,
 largura ou origem de idade testada até aqui muda isso sem quebrar painel que já
 está certo. Não vou baixar o tick nem filtrar gente até a barra caber: isso
@@ -1879,7 +1879,7 @@ já nomeado (`users.fake`).
 | `replica_locks.projection_agregado.p` | 0.0073 | 0.0124 |
 
 Isso é pior do que um número fora de lugar: são travas de deriva da **própria
-réplica**, não valores do artigo. Uma trava de deriva que falha significa que o
+replicação**, não valores do artigo. Uma trava de deriva que falha significa que o
 código de hoje não reproduz o código de ontem.
 
 ### Quem mexeu
@@ -2065,7 +2065,7 @@ em **y crescente** (homebrew: 286.5 … 485.5) e, em coordenada de imagem, y
 cresce para baixo. O laço faz `band=k+1`, então `band=1` é a barra do **topo**
 do painel (a coorte mais velha). Já `snapshots.band` é 0-based de **baixo para
 cima** (`0 = (0,90]d`, os recém-chegados). O harness comparava `art[b]` contra
-`nossa_band[b]`, casando o topo do artigo com a base da réplica.
+`nossa_band[b]`, casando o topo do artigo com a base da replicação.
 
 O mapeamento correto é `art_band = N - nossa_band`, com `N` = número de bandas
 do painel.
@@ -2074,7 +2074,7 @@ do painel.
 
 Snapshot `2011-12-31`, população `active`, janela 12m, `band_days: 90`:
 
-| projeto | pop. artigo | pop. réplica | L1 como estava | L1 corrigido | L1/pop |
+| projeto | pop. artigo | pop. replicação | L1 como estava | L1 corrigido | L1/pop |
 |---|---|---|---|---|---|
 | homebrew | 3810 | 3882 | 6624 | **363** | 9.5% |
 | paperclip | 519 | 524 | 997 | **38** | 7.3% |
@@ -2082,7 +2082,7 @@ Snapshot `2011-12-31`, população `active`, janela 12m, `band_days: 90`:
 | blueprint-css | 13 | 13 | 22 | **0** | 0% |
 | **total** | | | **7734** | **411** | |
 
-A réplica da Fig.2 é ~19× melhor do que este log vinha registrando. O
+A replicação da Fig.2 é ~19× melhor do que este log vinha registrando. O
 blueprint-css bate **exato**, célula a célula. As populações totais dos quatro
 painéis batem dentro de 2%.
 
@@ -2132,7 +2132,7 @@ propósito deste log.
 Homebrew concentra 363 dos 411. A assinatura é única e limpa: no **lado coding
 das bandas jovens** temos sistematicamente ~14% de gente a mais que o artigo.
 
-| banda (artigo) | artigo, coding | réplica, coding |
+| banda (artigo) | artigo, coding | replicação, coding |
 |---|---|---|
 | 10 (base, 0–90d) | 320 | 368 |
 | 9 (90–180d) | 393 | 451 |
@@ -2453,7 +2453,7 @@ cache do repo):
 uv run python scripts/sweep_commit_scope.py --json /tmp/sweep_scope.json
 ```
 
-Distância: por painel, `L1 = Σ_bandas |réplica − artigo|`, dois lados somados, contra
+Distância: por painel, `L1 = Σ_bandas |replicação − artigo|`, dois lados somados, contra
 `esem14_fig2.bars_read_px` (leitura em pixel, §20) no snapshot `2011-12-31`.
 
 | painel | `root` | `family_project_commits` | `family_project_id` |
@@ -2464,7 +2464,7 @@ Distância: por painel, `L1 = Σ_bandas |réplica − artigo|`, dois lados somad
 | blueprint-css | **0.2** (1.5%) | 1.2 (9.3%) | 1.2 (9.3%) |
 | média rel | **10.3%** | 13.3% | 13.3% |
 
-População (réplica/artigo): homebrew `3882 / 3986 / 3987` contra 3810; paperclip
+População (replicação/artigo): homebrew `3882 / 3986 / 3987` contra 3810; paperclip
 `524 / 536 / 536` contra 519; clojure `49` nos três contra 46; blueprint-css
 `13 / 14 / 14` contra 13. Contagem de bandas idêntica nos três escopos, em todos os
 painéis (10/16/24/16) — o escopo **não** mexe na banda a mais do §30.
@@ -2477,7 +2477,7 @@ do código (`L1_coding` 233 → 328 / 316). Trazer o histórico do fork faz exat
 que se esperaria — promove a discussão a código e cria contribuidor onde não havia —
 e isso é o oposto do que o alvo pede. Não existe ajuste de escopo que subtraia.
 
-O `blueprint-css` volta a servir de trava, como no §33–§34: é o painel que a réplica
+O `blueprint-css` volta a servir de trava, como no §33–§34: é o painel que a replicação
 acerta (`L1=0.19`, dentro do ±1 pessoa/barra da leitura em pixel), e os dois escopos
 de família o quebram, inventando 1 pessoa no lado do código. Uma regra que estraga o
 painel exato para piorar os outros três não é candidata.
@@ -2551,7 +2551,7 @@ qualquer fonte futura, não só a MSR14.
 
 O critério de aceite do projeto é reprodutibilidade exata; um artefato cujo md5 muda
 entre execuções corretas quebra qualquer verificação por hash, mesmo sem alterar um
-número sequer. Era uma armadilha esperando quem tentasse conferir a réplica por
+número sequer. Era uma armadilha esperando quem tentasse conferir a replicação por
 checksum.
 
 ### 37.5 Desfecho do teste de instalação do zero
@@ -2583,7 +2583,7 @@ Somado, o desvio dos Tipos A-D em 2013-09-30 é pequeno (L1=9 em 85 projetos) e
 parece ruído espalhado. Decompondo pelo corte de elegibilidade do próprio artigo
 (>100 contribuidores, o subconjunto da Fig.7/Tab.3), ele se concentra:
 
-| subconjunto | réplica A/B/C/D | artigo | L1 |
+| subconjunto | replicação A/B/C/D | artigo | L1 |
 |---|---|---|---|
 | todos | 26/40/15/4 (n=85) | 23/42/18/3 (n=86) | 9 |
 | **elegíveis (>100 contrib.)** | **8/19/5/2 (n=34)** | **4/21/9/2 (n=36)** | **10** |

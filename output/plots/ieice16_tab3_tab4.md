@@ -1,7 +1,7 @@
-# IEICE16 Tabelas 3 e 4 — réplica vs. artigo
+# IEICE16 Tabelas 3 e 4 — replicação vs. artigo
 
 Gerado por `pyramid plot --figure abre-table`. Tolerância relativa: 2%.
-Cada célula traz `réplica (artigo)`; `≠` marca quem está fora da tolerância.
+Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da tolerância.
 
 ## Tabela 3 — mediana do ABRE (menor é melhor)
 
@@ -27,7 +27,7 @@ Cada célula traz `réplica (artigo)`; `≠` marca quem está fora da tolerânci
 
 ## Curto vs. longo prazo (corte em 1 ano de atividade)
 
-| medida | réplica | artigo |
+| medida | replicação | artigo |
 |---|---|---|
 | ABRE mediano, curto prazo | 0.3363 (n=135) | 0.4055 |
 | ABRE mediano, longo prazo | 0.4816 (n=200) | 0.3333 |

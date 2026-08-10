@@ -142,7 +142,7 @@ def test_xticks_do_artigo_sao_espelhados_com_zero(monkeypatch):
 def test_xticks_do_artigo_nao_recortam_barra_que_transborda(monkeypatch):
     """Barra maior que o último tick continua inteira dentro do eixo.
 
-    O transbordo é o achado (a réplica conta mais gente que o artigo); recortar
+    O transbordo é o achado (a replicação conta mais gente que o artigo); recortar
     a barra na régua do artigo esconderia exatamente a divergência.
     """
     monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))

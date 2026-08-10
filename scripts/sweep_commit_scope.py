@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Varre `commit_scope` e mede a distância entre a Fig.2 da réplica e a do artigo.
+"""Varre `commit_scope` e mede a distância entre a Fig.2 da replicação e a do artigo.
 
 Motivação (docs/discrepancias.md §21, §22): o `commit_scope=root` conta só os
 commits registrados NO projeto raiz. Fork tem cópia do histórico da mãe em
 `project_commits`, então há duas outras leituras plausíveis do que é "commit do
 projeto" — e o homebrew, que é o painel onde mais sobra gente, é justamente um
 projeto com muito fork. A pergunta é se algum dos três escopos aproxima a
-réplica da figura publicada, e EM QUANTO.
+replicação da figura publicada, e EM QUANTO.
 
 O que a varredura faz, por escopo:
 
@@ -22,7 +22,7 @@ Cada escopo roda num SUBPROCESSO próprio. Os estágios têm cache em disco e
 resultado contaminado antes, e o subprocesso é a garantia barata de que não
 volta a dar.
 
-DISTÂNCIA. Por painel, L1 = soma sobre as bandas de |réplica - artigo|, dos
+DISTÂNCIA. Por painel, L1 = soma sobre as bandas de |replicação - artigo|, dos
 dois lados somados (esquerda = `non_coding`; direita = `moved + coding`, ver a
 nota de `bars_read_px` sobre por que não separamos os dois segmentos da
 direita). Bandas que só existem de um lado entram com zero do outro — banda
@@ -185,8 +185,8 @@ def relatorio(res: dict, projetos: list[int], snapshot: str) -> str:
     nomes = _rotulos(projetos)
     escopos = list(res)
     ls = []
-    ls.append(f"Fig.2 @ {snapshot} — réplica x leitura em pixel do artigo (bars_read_px)")
-    ls.append("L1 = soma de |réplica - artigo| banda a banda, dois lados; rel = L1 / população lida.")
+    ls.append(f"Fig.2 @ {snapshot} — replicação x leitura em pixel do artigo (bars_read_px)")
+    ls.append("L1 = soma de |replicação - artigo| banda a banda, dois lados; rel = L1 / população lida.")
     ls.append("")
     cab = f"{'projeto':<16}" + "".join(f"{e:>26}" for e in escopos)
     ls.append(cab)
@@ -205,7 +205,7 @@ def relatorio(res: dict, projetos: list[int], snapshot: str) -> str:
         linha += f"{'':>15} ({med:>5.1%})"
     ls.append(linha)
     ls.append("")
-    ls.append("População (réplica / artigo), por painel:")
+    ls.append("População (replicação / artigo), por painel:")
     for sid in projetos:
         k = str(sid)
         peca = "  ".join(
@@ -215,7 +215,7 @@ def relatorio(res: dict, projetos: list[int], snapshot: str) -> str:
         )
         ls.append(f"  {nomes[sid][:15]:<16} {peca}")
     ls.append("")
-    ls.append("Bandas (réplica / artigo):")
+    ls.append("Bandas (replicação / artigo):")
     for sid in projetos:
         k = str(sid)
         peca = "  ".join(

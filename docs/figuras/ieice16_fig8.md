@@ -34,7 +34,7 @@ corte na nossa contagem.
 do resultado é a mesma do artigo — mas o valor não.
 
 **Um resultado secundário inverte.** O artigo conclui que a previsão de curto
-prazo é melhor que a de longo prazo; na réplica acontece o contrário, e sem
+prazo é melhor que a de longo prazo; na replicação acontece o contrário, e sem
 significância estatística. É o único achado do artigo que não reproduz.
 
 ## Por que isso acontece

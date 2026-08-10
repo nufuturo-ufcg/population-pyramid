@@ -19,14 +19,14 @@ as medianas do próprio conjunto de projetos. Cada quadrante recebe um nome
 - **A estrutura da tabela do artigo: 41 de 41.** O artigo marca algumas células
   com traço (projeto sem atividade naquele ano) e outras com asterisco (menos de
   dez pessoas, poucas para classificar). Todas as 41 caem no mesmo lugar na
-  réplica.
+  replicação.
 - **48 das 55 classificações, ou 87%.**
 
 ## O que saiu diferente
 
 Sete células, de um total de 55:
 
-| Projeto | Ano | Artigo | Réplica |
+| Projeto | Ano | Artigo | Replicação |
 |---|---|---|---|
 | xbmc/xbmc | 2007 | atrativo | flutuante |
 | xbmc/xbmc | 2009 | atrativo | estagnado |
@@ -48,7 +48,7 @@ o mesmo problema.
 
 - **scala em 2010** — o dump tem um buraco de 18 meses nesse projeto. Não há
   atividade registrada no período, então não há o que classificar. É limitação
-  dos dados de origem, não da réplica.
+  dos dados de origem, não da replicação.
 - **django em 2011** — o repositório ainda não tinha migrado para o GitHub
   nessa época. O que o dump enxerga é uma fração da atividade real.
 
