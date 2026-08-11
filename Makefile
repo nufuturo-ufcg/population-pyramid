@@ -1,4 +1,4 @@
-.PHONY: help setup hooks check run-all extract classify snapshots metrics attractiveness project validate plots figuras-artigo test lint fmt types qa clean
+.PHONY: help setup hooks check run-all extract classify snapshots metrics attractiveness projection validate plots figuras-artigo test lint fmt types qa clean
 .DEFAULT_GOAL := help
 
 UV := uv run
@@ -8,15 +8,25 @@ ADAPTER ?= msr14
 PREPARE := adapters/$(ADAPTER)/prepare_dataset.sh
 
 help:
-	@echo "make setup [DATASET_DIR=/caminho/absoluto]  cria .env, instala deps e hooks"
-	@echo "make check                                  valida a fonte de dados"
-	@echo "make run-all                                pipeline inteiro (estagios 1-8)"
-	@echo "make validate                               compara com config/checkpoints.yaml"
-	@echo "make test                                   testes unitarios"
-	@echo "make lint                                   ruff check"
-	@echo "make fmt                                    ruff format"
-	@echo "make types                                  mypy em src/"
-	@echo "make qa                                     hooks do prek em todos os arquivos + testes"
+	@echo "preparo"
+	@echo "  make setup [DATASET_DIR=/caminho/absoluto]  cria .env, instala deps e hooks"
+	@echo "  make hooks                                  so instala os hooks do prek"
+	@echo "  make check [ADAPTER=msr14]                  prepara e valida a fonte de dados"
+	@echo "pipeline (ADAPTER escolhe a fonte; padrao msr14)"
+	@echo "  make run-all                                check + os 7 estagios na ordem"
+	@echo "  make extract classify snapshots metrics     estagios 1 a 4, isolados"
+	@echo "  make attractiveness projection plots        estagios 5 a 7, isolados"
+	@echo "  make validate                               compara com config/checkpoints.yaml"
+	@echo "  make figuras-artigo                         recorta as figuras dos PDFs originais"
+	@echo "qualidade"
+	@echo "  make test                                   testes unitarios"
+	@echo "  make lint                                   ruff check"
+	@echo "  make fmt                                    ruff format"
+	@echo "  make types                                  mypy em src/"
+	@echo "  make qa                                     hooks do prek em tudo + testes"
+	@echo "  make clean                                  apaga output/ e logs/, menos output/plots/"
+	@echo ""
+	@echo "cada comando aceita as flags da CLI: uv run pyramid --help"
 
 setup:
 	@test -f .env || cp .env.example .env
@@ -40,7 +50,7 @@ classify:       ; $(UV) pyramid classify
 snapshots:      ; $(UV) pyramid snapshots
 metrics:        ; $(UV) pyramid metrics
 attractiveness: ; $(UV) pyramid attractiveness --year all
-project:        ; $(UV) pyramid project
+projection:     ; $(UV) pyramid projection
 plots:          ; $(UV) pyramid plot --figure all
 validate:       ; $(UV) pyramid validate --report output/validation_report.md
 figuras-artigo: ; $(UV) --with pillow python scripts/crop_figuras_artigo.py
@@ -64,5 +74,9 @@ qa:
 	$(UV) prek run --all-files
 	$(UV) pytest -q
 
+# output/plots/ é a única pasta de saída versionada: os docs embutem as figuras.
+# Regerar é `make plots`, e o diff conta se a figura mudou.
 clean:
-	rm -rf output/* logs/*
+	@mkdir -p output logs
+	find output -mindepth 1 -maxdepth 1 ! -name plots -exec rm -rf {} +
+	rm -rf logs/*

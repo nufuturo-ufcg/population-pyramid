@@ -1,15 +1,20 @@
-"""Janela de tempo pedida na linha de comando.
+"""Superfície da linha de comando.
 
 O que estes testes prendem: `--inicio`/`--fim` chegam ao estado do processo sem
-tocar em `config/settings.yaml`, e data fora do formato ISO morre no parse,
-antes de qualquer estágio abrir banco ou parquet.
+tocar em `config/settings.yaml`, data fora do formato ISO morre no parse antes
+de qualquer estágio abrir banco ou parquet, e todo comando que o Makefile chama
+existe na CLI. O README citou `pyramid project` por um tempo, comando que não
+existe, e o erro só aparecia na hora de rodar.
 """
+
+import re
 
 import pytest
 from typer.testing import CliRunner
 
 from pyramid import config
 from pyramid.cli import app
+from pyramid.config import ROOT
 
 runner = CliRunner()
 
@@ -65,3 +70,27 @@ def test_data_fora_do_iso_morre_no_parse(valor, espia):
     assert r.exit_code != 0
     assert "AAAA-MM-DD" in r.output
     assert "janela" not in espia
+
+
+def _comandos_da_cli() -> set[str]:
+    return {c.name or c.callback.__name__ for c in app.registered_commands}
+
+
+def _comandos_do_makefile() -> set[str]:
+    txt = (ROOT / "Makefile").read_text()
+    return set(re.findall(r"pyramid\s+([a-z][a-z-]*)", txt))
+
+
+def test_makefile_so_chama_comando_que_existe():
+    faltam = _comandos_do_makefile() - _comandos_da_cli()
+
+    assert not faltam, f"Makefile chama comando inexistente: {sorted(faltam)}"
+
+
+def test_make_help_cita_todo_alvo_do_phony():
+    txt = (ROOT / "Makefile").read_text()
+    phony = set(re.search(r"^\.PHONY:(.*)$", txt, re.M).group(1).split()) - {"help"}
+    corpo = txt[txt.index("help:") : txt.index("setup:")]
+    citados = set(re.findall(r"[a-z][a-z-]*", corpo))
+
+    assert not phony - citados, f"alvo fora do make help: {sorted(phony - citados)}"

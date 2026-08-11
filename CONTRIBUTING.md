@@ -1,12 +1,16 @@
 # Como contribuir
 
-Este repositório reproduz números publicados. O critério de aceite é
-reprodutibilidade exata. Toda mudança que mexe em número precisa dizer qual
-número mudou e por quê.
+A ferramenta é aceita quando reproduz, sobre o dump MSR14, os números
+publicados por Onoue et al. O critério é reprodutibilidade exata. Toda mudança
+que mexe em número precisa dizer qual número mudou e por quê.
 
-Leia o README antes. Leia `INSTRUCOES_CLAUDE_CODE.MD` antes de mexer em
-qualquer estágio do pipeline: é a fonte da verdade e vence sobre qualquer
-outra doc em caso de conflito.
+O motor de cálculo não conhece dataset. Origem de dado vive em `adapters/`, e
+mudança lá não pode alcançar o cálculo.
+
+Leia o README antes. Para mexer em entrada de dado, leia
+`docs/ferramenta/FONTES.md`, que define o contrato de adaptador. Para mexer em
+qualquer estágio do pipeline, leia `INSTRUCOES_CLAUDE_CODE.MD`: é a fonte da
+verdade e vence sobre qualquer outra doc em caso de conflito.
 
 ## Ambiente
 
@@ -38,6 +42,12 @@ make validate   # compara a saída com config/checkpoints.yaml
 
 `make qa` roda o mesmo conjunto que a CI roda.
 
+A lista acima é o caminho comum. `make help` lista todos os alvos e
+`uv run pyramid --help` lista todos os comandos com as flags de cada um. Os
+dois são gerados do próprio código, então não envelhecem: um teste em
+`tests/test_cli.py` recusa alvo do Makefile que chame comando inexistente e
+alvo do `.PHONY` que não apareça no `make help`.
+
 Experimento que não deve sujar `output/` vai com `--rotulo`:
 
 ```bash
@@ -65,7 +75,7 @@ de propaganda de ferramenta. A autoria do commit é de quem assina.
 
 ## Testes
 
-146 testes, 2 s de suíte inteira. Rodam sem dump e sem banco.
+171 testes, 2 s de suíte inteira. Rodam sem dump e sem banco.
 
 Quatro categorias:
 
@@ -105,6 +115,21 @@ O dump de 423 MB não entra na CI. Isso deixa de fora a validação contra
 `make run-all && make validate` na sua máquina antes de abrir merge request que
 toque em qualquer estágio, e cole a linha de diferença do
 `output/validation_report.md` na descrição.
+
+## Adaptador novo
+
+O passo a passo completo está em `docs/ferramenta/FONTES.md`, seção "Escrever um
+adaptador novo". O resumo:
+
+1. Crie `adapters/<nome>/source.py` com uma classe que implementa
+   `ActivityDataSource`.
+2. Exponha a classe em `SOURCE` e ponha na mesma pasta os scripts de preparação
+   do dado, se houver.
+3. Aponte `input.adapter` para `<nome>` em `config/settings.yaml`.
+
+Um adaptador entra sem que nenhum arquivo de `src/pyramid/` mude. Se você
+precisou mexer no motor, o contrato está faltando alguma coisa: conserte o
+contrato e o teste dele, e só depois o adaptador.
 
 ## Mudança que mexe em número
 
@@ -149,18 +174,20 @@ bandas. Tabela 2 do IEICE16 voltou a bater.
 
 | caminho | o que é |
 |---|---|
-| `src/pyramid/sources/` | único lugar onde pode haver SQL |
+| `adapters/<nome>/` | um dataset: `source.py` e os scripts de preparação dele |
+| `src/pyramid/sources/` | contrato de adaptador e carregador |
 | `src/pyramid/` | estágios do pipeline, um módulo por estágio |
 | `config/` | `settings.yaml` (parâmetros) e `checkpoints.yaml` (valores esperados) |
+| `docs/ferramenta/` | como o programa funciona e o contrato de entrada |
 | `docs/replicacao/discrepancias.md` | log de ambiguidade investigada |
-| `output/` | saída do pipeline, fora do versionamento |
+| `output/` | saída do pipeline, fora do versionamento. `output/plots/` é a exceção: os docs embutem as figuras, então elas entram no commit e o diff mostra quando mudaram |
 | `scripts/` | investigação pontual e hooks de git |
 
 ## Regras que não se renegociam
 
 - Nunca mover, copiar ou apagar nada dentro de `DATASET_DIR`.
 - Nunca usar `information_schema.table_rows` para sanity check. Use `COUNT(*)`.
-- Nunca escrever SQL fora de `src/pyramid/sources/`.
+- Nunca escrever SQL fora de `adapters/` e de `src/pyramid/sources/`.
 - Escopo sempre por `project.id`. O nome `symfony` aparece duas vezes nos 90.
 - 2013 renderiza pirâmide e fica sem quadrante. Ver `docs/replicacao/discrepancias.md`,
   seção 11.1.
