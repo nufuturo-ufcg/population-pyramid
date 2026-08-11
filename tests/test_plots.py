@@ -151,3 +151,28 @@ def test_xticks_do_artigo_nao_recortam_barra_que_transborda(monkeypatch):
     assert ax.get_xlim()[1] >= 180
     assert list(ax.get_xticks()) == [-100.0, -50.0, 0.0, 50.0, 100.0]
     plt.close("all")
+
+
+def test_pdf_da_figura_nao_carrega_relogio(tmp_path, monkeypatch):
+    """Duas gravações da mesma figura dão o mesmo arquivo PDF.
+
+    O PDF do matplotlib grava CreationDate por padrão. Com o relógio dentro do
+    arquivo, rodar o pipeline duas vezes suja o diff do repositório e a
+    conferência por checksum deixa de valer.
+    """
+    import matplotlib.pyplot as plt
+
+    monkeypatch.setattr(plots, "out_dir", lambda: tmp_path)
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    plots._save(fig, "primeira")
+    primeiro = (tmp_path / "primeira.pdf").read_bytes()
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    plots._save(fig, "segunda")
+    segundo = (tmp_path / "segunda.pdf").read_bytes()
+
+    assert b"CreationDate" not in primeiro
+    assert primeiro == segundo
+    plt.close("all")

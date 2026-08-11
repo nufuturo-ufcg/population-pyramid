@@ -335,7 +335,10 @@ def _save(
     pdf = out_dir() / f"{stem}.pdf"
     # bbox_inches="tight" garante que nada de texto fique fora do papel.
     fig.savefig(png, dpi=200, bbox_inches="tight")
-    fig.savefig(pdf, bbox_inches="tight")
+    # CreationDate=None tira o relógio de dentro do PDF. Sem isso o mesmo
+    # gráfico gera bytes diferentes a cada execução e o diff do repositório
+    # acusa mudança onde não houve.
+    fig.savefig(pdf, bbox_inches="tight", metadata={"CreationDate": None})
     plt.close(fig)
     log.info("figura: %s", png.name, extra={"stage": STAGE})
     return png
