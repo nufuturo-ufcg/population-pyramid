@@ -49,7 +49,7 @@ from . import logging_config as runlog
 from .config import settings, stage_dir
 from .extract import source
 from .metrics import load_all as load_metrics
-from .snapshots import CATEGORIES, require_date_match
+from .snapshots import CATEGORIES, anchors, require_date_match
 from .snapshots import load_all as load_snapshots
 
 log = logging.getLogger(__name__)
@@ -157,7 +157,7 @@ def project(p_base: np.ndarray, p_last: np.ndarray) -> tuple[np.ndarray, int]:
         if p_base[b] == 0:
             if p_last[b] > 0:
                 orfas += 1
-                proj[b + 1] = np.nan  # indefinido, não "morreu"
+                proj[b + 1] = np.nan  # taxa indefinida; a célula sai do erro
             continue
         proj[b + 1] = (p_last[b + 1] / p_base[b]) * p_last[b]
 
@@ -201,9 +201,12 @@ def compute() -> pd.DataFrame:
     Uma linha por projeto, com a forma observada, a projetada e o erro por
     banda. Ver IEICE16 seção 4.2.
     """
-    cfg = settings()
-    bases = [pd.Timestamp(d) for d in cfg["snapshots"]["projection_base"]]
-    target = pd.Timestamp(cfg["snapshots"]["projection_target"])
+    # `anchors` resolve as datas contra a série que a janela pedida na CLI
+    # produziu. Ler a config crua aqui ignoraria o reancoramento e pediria
+    # datas que a janela não gera.
+    ancoras = anchors()
+    bases = [pd.Timestamp(d) for d in ancoras["projection_base"]]
+    target = pd.Timestamp(ancoras["projection_target"])
     if len(bases) != 2:
         raise ValueError(
             f"projection_base tem {len(bases)} datas; o método usa exatamente "
@@ -229,8 +232,10 @@ def compute() -> pd.DataFrame:
         extra={"stage": STAGE},
     )
 
-    # O tipo A-D vem do snapshot de classificação, não do alvo da projeção: as
-    # Tabelas 3 e 4 quebram por tipo e o tipo do artigo é o da Fig.5.
+    # O tipo A-D vem do snapshot de classificação. As Tabelas 3 e 4 quebram por
+    # tipo e o tipo do artigo é o da Fig.5. O alvo da projeção foi descartado
+    # como fonte do tipo porque classificaria o projeto pelo futuro que a
+    # projeção tenta prever.
     snap_tipo = pd.Timestamp(checkpoint_snapshot())
     tipos = load_metrics()
     tipos = tipos[tipos["snapshot"] == snap_tipo].set_index("scope_id")["type"]
@@ -303,9 +308,17 @@ def compute() -> pd.DataFrame:
 
 
 def checkpoint_snapshot() -> str:
-    """Snapshot que os checkpoints do IEICE16 usam para a tabela de tipos."""
-    from .config import checkpoints
+    """Snapshot em que os tipos A-D são lidos.
 
+    Com a janela padrão, é o snapshot dos checkpoints do IEICE16, e a
+    replicação compara contra os números do artigo. Com janela pedida na CLI,
+    os checkpoints do artigo não se aplicam e a data vem do reancoramento.
+    """
+    from .config import checkpoints, window_override
+    from .snapshots import classification_snapshot
+
+    if window_override() != (None, None):
+        return classification_snapshot()
     return checkpoints()["types"]["snapshot"]
 
 

@@ -101,3 +101,53 @@ def test_banda_zero_e_a_base_da_piramide():
 
     assert list(bandas) == [0, 0, 1, 2]
     assert bandas.iloc[0] < bandas.iloc[-1], "banda tem de crescer com a idade"
+
+
+# --- janela pedida na CLI (--desde/--ate) -------------------------------------
+
+
+def test_janela_da_cli_reancora_as_datas_da_projecao(monkeypatch):
+    """A janela desloca âncoras e checkpoint juntos.
+
+    Sem isto, `--ate 2012-12-31` gera uma série que termina em dez/2012 e a
+    projeção continua pedindo set/2013, uma data que a série não tem: o
+    `require_date_match` derruba a execução inteira.
+    """
+    import copy
+
+    from pyramid import config, projection
+
+    cfg = copy.deepcopy(BASE_CFG)
+    monkeypatch.setattr(config, "settings", lambda: cfg)
+    monkeypatch.setattr(snapshots, "settings", lambda: cfg)
+
+    config.set_window(fim="2012-12-31")
+    try:
+        a = snapshots.anchors(cfg)
+        assert a["classification_snapshot"] == "2012-12-31"
+        assert a["projection_target"] == "2012-12-31"
+        assert a["projection_base"] == ["2012-06-30", "2012-09-30"]
+        assert snapshots.classification_snapshot(cfg) == "2012-12-31"
+        assert projection.checkpoint_snapshot() == "2012-12-31"
+    finally:
+        config.set_window(None, None)
+
+
+def test_sem_janela_o_checkpoint_e_o_do_artigo(monkeypatch):
+    """Janela padrão mantém o snapshot dos checkpoints do IEICE16."""
+    from pyramid import config, projection
+
+    monkeypatch.setattr(config, "checkpoints", lambda: {"types": {"snapshot": "2013-09-30"}})
+    config.set_window(None, None)
+    assert projection.checkpoint_snapshot() == "2013-09-30"
+
+
+def test_janela_invertida_falha_alto():
+    from pyramid import config
+
+    config.set_window("2013-01-01", "2012-01-01")
+    try:
+        with pytest.raises(ValueError, match="janela vazia"):
+            snapshots.window(BASE_CFG)
+    finally:
+        config.set_window(None, None)

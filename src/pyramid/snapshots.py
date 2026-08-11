@@ -26,7 +26,7 @@ import pandas as pd
 from . import logging_config as runlog
 from .classify import DAYS_PER_MONTH
 from .classify import load as load_spans
-from .config import settings, stage_dir
+from .config import settings, stage_dir, window_override
 from .extract import source
 
 log = logging.getLogger(__name__)
@@ -80,8 +80,31 @@ def snapshot_dates(cfg: dict | None = None) -> list[pd.Timestamp]:
             f"snapshots.freq_months={months}: a série é ancorada em fim de "
             "trimestre civil, então só múltiplos de 3 são suportados."
         )
-    dates = pd.date_range(s["start"], s["end"], freq=pd.offsets.QuarterEnd())
+    inicio, fim = window(cfg)
+    dates = pd.date_range(inicio, fim, freq=pd.offsets.QuarterEnd())
     return list(dates[:: months // 3])
+
+
+def window(cfg: dict | None = None) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Janela de tempo que esta execução cobre, em (começo, fim).
+
+    Sai de `snapshots.start`/`snapshots.end`, com a janela pedida na CLI por
+    cima (`--desde`/`--ate`, guardada em `config.set_window`). Cada ponta é
+    independente: quem passa só `--desde` mantém o fim da config.
+
+    A janela corta a SÉRIE de snapshots. Os estágios de leitura do banco
+    (`extract`, `classify`) continuam varrendo o histórico inteiro, porque a
+    idade de um contribuidor em T conta desde o primeiro evento dele, que
+    costuma ser anterior ao começo da janela. Cortar a extração encolheria a
+    pirâmide junto.
+    """
+    s = (cfg or settings())["snapshots"]
+    pedido_ini, pedido_fim = window_override()
+    inicio = pd.Timestamp(pedido_ini or s["start"])
+    fim = pd.Timestamp(pedido_fim or s["end"])
+    if inicio > fim:
+        raise ValueError(f"janela vazia: começo {inicio.date()} depois do fim {fim.date()}.")
+    return inicio, fim
 
 
 def require_date_match(
@@ -108,32 +131,92 @@ def require_date_match(
     )
 
 
-def check_dates(cfg: dict | None = None) -> None:
-    """Falha alto se uma data pedida na config não existe na série.
+ANCORAS_MINIMAS = 3
 
-    Sem isso, `projection_base: 2013-03-31` (data que a série não gera) filtra
-    zero linhas em silêncio e a projeção roda sobre um DataFrame vazio.
+
+def anchors(cfg: dict | None = None) -> dict[str, str | list[str]]:
+    """Datas âncora da execução: classificação, bases e alvo da projeção.
+
+    Devolve o que está na config quando as datas existem na série gerada, que é
+    o caso da janela publicada.
+
+    Quando a janela veio da CLI, as datas da config caem fora da série e são
+    reancoradas no FIM da série: alvo e classificação no último snapshot, bases
+    nos dois anteriores. Essa regra reproduz exatamente os valores de
+    `settings.yaml` quando aplicada à janela publicada (2013-09-30 é o último
+    snapshot, 2013-06-30 e 2013-03-31 são os dois anteriores), então mexer na
+    janela desloca a análise sem mudar o método. O deslocamento sai no log.
+
+    Sem janela pedida na CLI, data ausente da série continua sendo erro de
+    config e para tudo aqui. Foi esse silêncio que deixou o bug do QuarterEnd
+    passar despercebido até 2026-08 (docs/replicacao/discrepancias.md, seção 8).
     """
     cfg = cfg or settings()
     s = cfg["snapshots"]
-    series = set(snapshot_dates(cfg))
-    wanted: list[tuple[str, str]] = [
-        ("snapshots.classification_snapshot", s["classification_snapshot"]),
-        ("snapshots.projection_target", s["projection_target"]),
+    serie = snapshot_dates(cfg)
+    pedidas: list[tuple[str, str]] = [
+        ("snapshots.classification_snapshot", str(s["classification_snapshot"])),
+        ("snapshots.projection_target", str(s["projection_target"])),
     ]
-    wanted += [(f"snapshots.projection_base[{i}]", d) for i, d in enumerate(s["projection_base"])]
-    bad = [(k, d) for k, d in wanted if pd.Timestamp(d) not in series]
-    if bad:
-        near = sorted(series)[-6:]
+    pedidas += [
+        (f"snapshots.projection_base[{i}]", str(d)) for i, d in enumerate(s["projection_base"])
+    ]
+    fora = [(k, d) for k, d in pedidas if pd.Timestamp(d) not in set(serie)]
+    if not fora:
+        return {
+            "classification_snapshot": str(s["classification_snapshot"]),
+            "projection_target": str(s["projection_target"]),
+            "projection_base": [str(d) for d in s["projection_base"]],
+        }
+
+    if window_override() == (None, None):
+        near = sorted(serie)[-6:]
         raise ValueError(
             "datas de config ausentes da série de snapshots: "
-            + ", ".join(f"{k}={d}" for k, d in bad)
+            + ", ".join(f"{k}={d}" for k, d in fora)
             + ". A série termina em: "
             + ", ".join(str(t.date()) for t in near)
             + ". A série é ancorada em fim de trimestre CIVIL (QuarterEnd), "
             "então dez/mar caem no dia 31 e jun/set no dia 30 "
             "(ver docs/replicacao/discrepancias.md, seção 8)."
         )
+
+    if len(serie) < ANCORAS_MINIMAS:
+        inicio, fim = window(cfg)
+        raise ValueError(
+            f"janela {inicio.date()}..{fim.date()} rende {len(serie)} snapshot(s). "
+            f"A projeção precisa de {ANCORAS_MINIMAS} (duas bases e um alvo), "
+            "então a janela tem de cobrir pelo menos três fins de trimestre."
+        )
+
+    alvo, penultimo, antepenultimo = serie[-1], serie[-2], serie[-3]
+    novas: dict[str, str | list[str]] = {
+        "classification_snapshot": str(alvo.date()),
+        "projection_target": str(alvo.date()),
+        "projection_base": [str(antepenultimo.date()), str(penultimo.date())],
+    }
+    log.info(
+        "janela pedida na CLI: âncoras reancoradas no fim da série (%s), bases %s. Config diz %s.",
+        novas["classification_snapshot"],
+        ", ".join(novas["projection_base"]),
+        ", ".join(f"{k}={d}" for k, d in fora),
+        extra={"stage": STAGE},
+    )
+    return novas
+
+
+def classification_snapshot(cfg: dict | None = None) -> str:
+    """Snapshot da Fig.5 e das Tabelas de tipo, já resolvido contra a janela."""
+    return str(anchors(cfg)["classification_snapshot"])
+
+
+def check_dates(cfg: dict | None = None) -> None:
+    """Falha alto se uma data pedida na config não existe na série.
+
+    Sem isso, `projection_base: 2013-03-31` (data que a série não gera) filtra
+    zero linhas em silêncio e a projeção roda sobre um DataFrame vazio.
+    """
+    anchors(cfg)
 
 
 def pyramid_at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.DataFrame:

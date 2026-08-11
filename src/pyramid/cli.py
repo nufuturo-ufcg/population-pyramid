@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from datetime import date
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
@@ -15,7 +16,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from . import logging_config as runlog
-from .config import settings, start_run
+from .config import set_window, start_run
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="Pirâmides de população de projetos OSS, replicação Onoue et al.",
+    help="Pirâmides de população de comunidades de software.",
 )
 log = logging.getLogger(__name__)
 
@@ -43,6 +44,10 @@ STAGE_ORDER = [
 # run-all descreverem a mesma coisa da mesma forma.
 RUN_HELP = "grava os entregáveis em output/runs/<carimbo>/ em vez da saída canônica"
 ROTULO_HELP = "sufixo do nome da pasta da execução; implica --run"
+
+# A janela corta a série de snapshots. A leitura do banco continua inteira: a
+# data de entrada de cada contribuidor costuma ser anterior ao começo pedido.
+JANELA_HELP = "data AAAA-MM-DD; corta a série de snapshots de settings.yaml"
 
 
 def _module(stage: str) -> ModuleType:
@@ -89,11 +94,31 @@ def _scopes(project: str | None, project_all: bool) -> list[int] | None:
     return [_resolve(project, {s: src.scope_label(s) for s in ids})]
 
 
+def _data(valor: str | None, flag: str) -> str | None:
+    """Aceita só data ISO (`AAAA-MM-DD`), para o erro sair antes de rodar estágio."""
+    if not valor:
+        return None
+    try:
+        date.fromisoformat(valor)
+    except ValueError as exc:
+        raise typer.BadParameter(f"{flag} espera AAAA-MM-DD, veio {valor!r}.") from exc
+    return valor
+
+
 @app.callback()
-def main(log_level: str = typer.Option("INFO", "--log-level")) -> None:
-    """Pipeline de replicação das pirâmides de população (IEICE16 e ESEM14)."""
+def main(
+    log_level: str = typer.Option("INFO", "--log-level"),
+    inicio: str = typer.Option(None, "--inicio", help=JANELA_HELP),
+    fim: str = typer.Option(None, "--fim", help=JANELA_HELP),
+) -> None:
+    """Pirâmides de população de comunidades de software.
+
+    `--inicio` e `--fim` valem para a execução inteira e vêm antes do
+    subcomando: `pyramid --inicio 2011-01-01 run-all`.
+    """
     p = runlog.setup(log_level)
     log.debug("log desta execução: %s", p)
+    set_window(_data(inicio, "--inicio"), _data(fim, "--fim"))
 
 
 def _stage_command(stage: str, help_text: str) -> Callable[..., None]:
@@ -141,8 +166,9 @@ def types(
 ) -> None:
     """Tabela dos Tipos A-D num snapshot: o equivalente da Fig.5 do IEICE16."""
     from .metrics import table
+    from .snapshots import classification_snapshot
 
-    t = snapshot or settings()["snapshots"]["classification_snapshot"]
+    t = snapshot or classification_snapshot()
     df = table(t)
     if df.empty:
         typer.echo(f"sem métricas em {t}; rode `pyramid metrics` antes.")
@@ -260,8 +286,9 @@ def magnetism(
 ) -> None:
     """Quadrantes magnetismo × stickiness de um ano: a Fig.3 em texto."""
     from . import attractiveness as attr
+    from .snapshots import classification_snapshot
 
-    y = year or attr.year_of(settings()["snapshots"]["classification_snapshot"])
+    y = year or attr.year_of(classification_snapshot())
     df = attr.table(y)
     if df.empty:
         typer.echo(f"sem attractiveness em {y}; rode `pyramid attractiveness` antes.")

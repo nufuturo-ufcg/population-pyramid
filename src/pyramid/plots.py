@@ -301,7 +301,7 @@ def draw_pyramid(
 
 def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None) -> Path:
     """Pirâmide avulsa de um projeto num snapshot."""
-    t = pd.Timestamp(snapshot or settings()["snapshots"]["classification_snapshot"])
+    t = pd.Timestamp(snapshot or snapshots.classification_snapshot())
     df = snapshots.load(scope_id)
     frame = pyramid_frame(df, t)
 
@@ -648,7 +648,7 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
     CCR e NCR e não por posição, mas troca B e C de lado na figura e faz a
     comparação visual com o artigo parecer um erro de classificação.
     """
-    t = pd.Timestamp(snapshot or settings()["snapshots"]["classification_snapshot"])
+    t = pd.Timestamp(snapshot or snapshots.classification_snapshot())
     df = metrics.load_all()
     if df.empty:
         raise ValueError("Fig.5: sem métricas; rode `pyramid metrics` antes.")

@@ -24,13 +24,16 @@ LOG_DIR = ROOT / "logs"
 
 
 class _Estado:
-    """Pasta desta execução, quando alguém abriu uma.
+    """O que vale só para esta execução e não está versionado em `config/`.
 
     `run = None` significa saída canônica: `output/<estágio>/`, que é o que os
     docs embutem e o que o validate compara.
+
+    `janela = (None, None)` significa a janela de tempo de `settings.yaml`.
     """
 
     run: Path | None = None
+    janela: tuple[str | None, str | None] = (None, None)
 
 
 _estado = _Estado()
@@ -59,6 +62,26 @@ def analysis_unit() -> str:
             f"Implementadas: {', '.join(UNITS_IMPLEMENTADAS)}."
         )
     return unit
+
+
+def set_window(inicio: str | None = None, fim: str | None = None) -> None:
+    """Guarda a janela de tempo pedida na linha de comando, válida nesta execução.
+
+    Mora no estado do processo em vez de entrar em `settings()`. `settings()` é
+    o YAML lido do disco, e um pedido de terminal não pode se disfarçar de
+    valor versionado: o que a pessoa digitou some quando o processo acaba, e o
+    arquivo continua descrevendo a janela publicada. `snapshots.window()` junta
+    os dois na hora de gerar a série.
+
+    Data vazia mantém a ponta correspondente como está na config, então dá para
+    mexer só no começo ou só no fim.
+    """
+    _estado.janela = (inicio or None, fim or None)
+
+
+def window_override() -> tuple[str | None, str | None]:
+    """Janela pedida na CLI, `(None, None)` quando ninguém pediu nada."""
+    return _estado.janela
 
 
 @cache
