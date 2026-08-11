@@ -51,7 +51,7 @@ make setup DATASET_DIR=/caminho/absoluto   # .env, deps (uv) e hooks de git
 make check                                 # valida a fonte de dados
 make run-all                               # pipeline inteiro
 make validate                              # compara com config/checkpoints.yaml
-make test                                  # testes (138, ~2 s, sem banco)
+make test                                  # testes (139, ~2 s, sem banco)
 make qa                                    # o que a CI roda: prek + testes
 ```
 
@@ -61,6 +61,11 @@ Cada estágio é retomável e grava checkpoint; ver seção 7.3 da spec.
 
 Figuras e tabelas exigidas (seção 6 da spec) saem em `output/plots/`, com
 `_manifest.json` declarando o que foi gerado com sucesso.
+
+Rodar o mesmo estágio duas vezes gera os mesmos bytes. PNG, PDF, CSV e
+parquet saem idênticos e o `git status` fica limpo. A única exceção é o campo
+`updated_at` dentro de cada `_manifest.json`, que registra a hora da execução.
+Comparação por checksum entre duas rodadas ignora esse campo.
 
 ## Vai codificar aqui
 
