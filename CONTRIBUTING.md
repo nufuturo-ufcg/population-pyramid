@@ -38,6 +38,17 @@ make validate   # compara a saída com config/checkpoints.yaml
 
 `make qa` roda o mesmo conjunto que a CI roda.
 
+Experimento que não deve sujar `output/` vai com `--rotulo`:
+
+```bash
+uv run pyramid run-all --rotulo minha-hipotese
+```
+
+Os entregáveis caem em `output/runs/<carimbo>-minha-hipotese/`, com `_run.json`
+registrando comando e commit. Só o `git diff` da saída canônica conta como
+mudança de número publicado, e a seção "Mudança que mexe em número" continua
+valendo para ele.
+
 ## O que os hooks barram
 
 | hook | quando | o que recusa |
@@ -54,7 +65,7 @@ de propaganda de ferramenta. A autoria do commit é de quem assina.
 
 ## Testes
 
-138 testes, 1.8 s de suíte inteira. Rodam sem dump e sem banco.
+146 testes, 2 s de suíte inteira. Rodam sem dump e sem banco.
 
 Quatro categorias:
 

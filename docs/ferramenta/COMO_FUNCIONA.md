@@ -148,6 +148,15 @@ programadoras e o artigo classifica como conversadoras. Não descobrimos por qu�
 (seis hipóteses testadas e derrubadas). Então o número 129 está travado, com
 nome e endereço, e qualquer alteração nele quebra a checagem.
 
+## Testar uma ideia sem estragar o resultado oficial
+
+Quem quer experimentar uma mudança pede um rótulo para a rodada. O programa
+abre uma pasta nova, carimbada com data e hora, e joga as figuras, tabelas e o
+relatório lá dentro, junto com um bilhete que diz qual comando gerou aquilo,
+em qual versão do código e em qual fonte de dados. A pasta oficial fica
+intacta. Comparar as duas é olhar duas pastas lado a lado, e o histórico do
+repositório continua mostrando só o resultado publicado.
+
 ## Onde ler mais
 
 | Quero saber... | Vou em |

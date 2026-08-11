@@ -51,7 +51,7 @@ make setup DATASET_DIR=/caminho/absoluto   # .env, deps (uv) e hooks de git
 make check                                 # valida a fonte de dados
 make run-all                               # pipeline inteiro
 make validate                              # compara com config/checkpoints.yaml
-make test                                  # testes (139, ~2 s, sem banco)
+make test                                  # testes (146, ~2 s, sem banco)
 make qa                                    # o que a CI roda: prek + testes
 ```
 
@@ -66,6 +66,25 @@ Rodar o mesmo estágio duas vezes gera os mesmos bytes. PNG, PDF, CSV e
 parquet saem idênticos e o `git status` fica limpo. A única exceção é o campo
 `updated_at` dentro de cada `_manifest.json`, que registra a hora da execução.
 Comparação por checksum entre duas rodadas ignora esse campo.
+
+### Execução isolada
+
+Para experimentar sem sujar a saída canônica, `run-all`, `plot` e `validate`
+aceitam `--run` e `--rotulo`:
+
+```bash
+uv run pyramid plot --figure pyramid-grid-types --rotulo hipotese-x
+uv run pyramid validate --rotulo hipotese-x
+```
+
+Os entregáveis (figuras, tabelas, relatório) vão para
+`output/runs/<AAAAMMDD-HHMMSS>-<rotulo>/`, e `output/runs/latest` aponta para a
+última. Cada pasta leva um `_run.json` com comando, commit, `DATASET_SOURCE` e
+horário, o bastante para saber de onde a figura veio.
+
+Os parquets de estágio continuam em `output/<estágio>/` mesmo com `--run`. Eles
+são a entrada do estágio seguinte, lida por caminho fixo, e movê-los quebraria
+a cadeia. A execução isolada guarda os entregáveis.
 
 ## Vai codificar aqui
 

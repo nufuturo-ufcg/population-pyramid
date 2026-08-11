@@ -7,6 +7,7 @@ manifesto (`output/<estágio>/_manifest.json`) são puladas.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
@@ -14,7 +15,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from . import logging_config as runlog
-from .config import settings
+from .config import settings, start_run
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -26,7 +27,7 @@ app = typer.Typer(
 )
 log = logging.getLogger(__name__)
 
-# Ordem canônica dos estágios de escrita. `validate` e `plot` leem, não escrevem.
+# Ordem canônica dos estágios de escrita. `validate` e `plot` só leem parquet.
 STAGE_ORDER = [
     "extract",
     "classify",
@@ -38,10 +39,26 @@ STAGE_ORDER = [
 ]
 
 
+# Texto único para as duas flags de execução isolada, para plot, validate e
+# run-all descreverem a mesma coisa da mesma forma.
+RUN_HELP = "grava os entregáveis em output/runs/<carimbo>/ em vez da saída canônica"
+ROTULO_HELP = "sufixo do nome da pasta da execução; implica --run"
+
+
 def _module(stage: str) -> ModuleType:
     from importlib import import_module
 
     return import_module(f".{stage}", __package__)
+
+
+def _abrir_run(*, run: bool, rotulo: str | None) -> Path | None:
+    """Abre a execução isolada quando pedida. Devolve a pasta, ou `None`."""
+    if not run and not rotulo:
+        return None
+    comando = " ".join(["pyramid", *sys.argv[1:]])
+    destino = start_run(rotulo or "", comando=comando)
+    typer.echo(f"execução isolada: {destino}")
+    return destino
 
 
 def _resolve(project: str, nomes: dict[int, str]) -> int:
@@ -105,8 +122,11 @@ def run_all(
     from_stage: str = typer.Option(None, "--from-stage", help="retoma a partir deste estágio"),
     force: bool = typer.Option(False, "--force"),
     fail_fast: bool = typer.Option(False, "--fail-fast"),
+    run: bool = typer.Option(False, "--run", help=RUN_HELP),
+    rotulo: str = typer.Option(None, "--rotulo", help=ROTULO_HELP),
 ) -> None:
     """Pipeline inteiro, na ordem, parando no primeiro estágio que falhar."""
+    _abrir_run(run=run, rotulo=rotulo)
     start = STAGE_ORDER.index(from_stage) if from_stage else 0
     for stage in STAGE_ORDER[start:]:
         log.info("=== %s ===", stage)
@@ -191,6 +211,8 @@ def plot(
         "checkpoints.figures",
     ),
     listar: bool = typer.Option(False, "--list", help="lista as figuras e sai"),
+    run: bool = typer.Option(False, "--run", help=RUN_HELP),
+    rotulo: str = typer.Option(None, "--rotulo", help=ROTULO_HELP),
 ) -> None:
     """Figuras dos artigos. Lê apenas os parquets já gerados pelo pipeline."""
     from . import plots
@@ -198,6 +220,8 @@ def plot(
     if listar:
         _plot_list()
         return
+
+    _abrir_run(run=run, rotulo=rotulo)
 
     if figure == plots.SINGLE:
         if not project:
@@ -270,6 +294,8 @@ def validate(
         False, "--verbose", help="mostra também os checks informativos que batem"
     ),
     report: Path = typer.Option(None, "--report", help="grava o relatório completo em markdown"),
+    run: bool = typer.Option(False, "--run", help=RUN_HELP),
+    rotulo: str = typer.Option(None, "--rotulo", help=ROTULO_HELP),
 ) -> None:
     """Confere a replicação inteira contra config/checkpoints.yaml.
 
@@ -278,6 +304,15 @@ def validate(
     docs/replicacao/discrepancias.md que está mentindo.
     """
     from . import validate as v
+
+    destino = _abrir_run(run=run, rotulo=rotulo)
+    if destino:
+        # O relatório é o entregável do validate, então segue a execução
+        # isolada. Caminho absoluto no --report continua mandando.
+        if report is None:
+            report = destino / "validation_report.md"
+        elif not report.is_absolute():
+            report = destino / report
 
     try:
         rep = v.run([group] if group else None)

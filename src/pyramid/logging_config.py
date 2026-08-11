@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .config import LOG_DIR, stage_dir
+from .config import LOG_DIR, artifact_dir
 
 
 class JsonLines(logging.Formatter):
@@ -58,7 +58,9 @@ def setup(level: str = "INFO") -> Path:
 
 
 def _path(stage: str) -> Path:
-    return stage_dir(stage) / "_manifest.json"
+    # Segue o entregável. Numa execução isolada o manifesto descreve aquela
+    # execução, e a saída canônica que ninguém tocou fica com o manifesto dela.
+    return artifact_dir(stage) / "_manifest.json"
 
 
 def load(stage: str) -> dict:

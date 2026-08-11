@@ -41,7 +41,7 @@ from matplotlib.figure import Figure
 from . import attractiveness as attr
 from . import logging_config as runlog
 from . import metrics, projection, snapshots
-from .config import checkpoints, settings, stage_dir
+from .config import artifact_dir, checkpoints, settings
 from .extract import labels
 
 log = logging.getLogger(__name__)
@@ -76,8 +76,8 @@ PT_LABEL = {
 
 
 def out_dir() -> Path:
-    """Pasta deste estágio: `output/plots/`."""
-    return stage_dir(STAGE)
+    """Pasta deste estágio: `output/plots/`, ou a da execução aberta."""
+    return artifact_dir(STAGE)
 
 
 def _theme(ax: Axes) -> None:
