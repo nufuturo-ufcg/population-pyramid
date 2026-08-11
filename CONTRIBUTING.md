@@ -54,9 +54,9 @@ de propaganda de ferramenta. A autoria do commit é de quem assina.
 
 ## Testes
 
-114 testes, 1.7 s de suíte inteira. Rodam sem dump e sem banco.
+138 testes, 1.8 s de suíte inteira. Rodam sem dump e sem banco.
 
-Três categorias:
+Quatro categorias:
 
 - **Contrato de fonte** (`test_sources_contract.py`, `test_sources.py`): a
   query certa é a query que o artigo pede. Roda contra fake engine.
@@ -67,6 +67,10 @@ Três categorias:
   `test_attractiveness.py`): a saída do pipeline vive na ordem de grandeza da
   célula publicada. Estes dão `skip` quando o parquet do estágio não existe,
   que é o caso de um clone limpo.
+- **Hooks** (`test_hooks.py`): o hook de SQL e o de mensagem de commit dão o
+  mesmo veredito com caminho relativo e com caminho absoluto, pegam `SELECT` de
+  verdade e deixam passar a palavra `select` em prosa. Este arquivo guarda SQL
+  de exemplo, então está nomeado como isento dentro do próprio hook.
 
 ```bash
 uv run pytest -q                      # tudo

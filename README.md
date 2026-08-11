@@ -51,7 +51,7 @@ make setup DATASET_DIR=/caminho/absoluto   # .env, deps (uv) e hooks de git
 make check                                 # valida a fonte de dados
 make run-all                               # pipeline inteiro
 make validate                              # compara com config/checkpoints.yaml
-make test                                  # testes (114, ~2 s, sem banco)
+make test                                  # testes (138, ~2 s, sem banco)
 make qa                                    # o que a CI roda: prek + testes
 ```
 

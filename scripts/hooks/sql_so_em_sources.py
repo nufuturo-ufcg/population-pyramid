@@ -16,10 +16,15 @@ import re
 import sys
 from pathlib import Path
 
+RAIZ = Path(__file__).resolve().parents[2]
 PERMITIDO = Path("src/pyramid/sources")
 # O próprio hook carrega os padrões que procura. Auditar a si mesmo daria
 # violação em toda rodada.
 ISENTO = Path("scripts/hooks")
+# O teste do hook carrega SQL de exemplo para provar que o hook pega. Ele é o
+# único arquivo isento fora da pasta acima, e está nomeado aqui de propósito:
+# a lista é curta e revisável em code review.
+ISENTOS = (Path("tests/test_hooks.py"),)
 # Só o começo de um comando SQL dentro de string. `select` como palavra solta
 # aparece em prosa e em nome de método de DataFrame.
 SQL = re.compile(
@@ -27,6 +32,23 @@ SQL = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 ESTIMATIVA = re.compile(r"information_schema\.table_rows", re.IGNORECASE)
+
+
+def _sob(caminho: Path, pasta: Path) -> bool:
+    """Diz se `caminho` está dentro de `pasta`, do jeito que o git entrega.
+
+    O prek passa caminho relativo à raiz do repo, mas `git commit` com hook
+    chamado à mão passa absoluto. Comparar `Path("scripts/hooks")` contra os
+    parents de um caminho absoluto dá sempre falso, e o hook passaria a acusar
+    a si mesmo e a própria fonte MSR14.
+    """
+    return (RAIZ / pasta) in (RAIZ / caminho).resolve().parents
+
+
+def _e_isento(caminho: Path) -> bool:
+    """Diz se o arquivo está na lista curta de isentos nomeados."""
+    alvo = (RAIZ / caminho).resolve()
+    return any((RAIZ / f).resolve() == alvo for f in ISENTOS)
 
 
 def _violacoes(caminho: Path) -> list[str]:
@@ -39,7 +61,7 @@ def _violacoes(caminho: Path) -> list[str]:
             f"{caminho}:{linha}: information_schema.table_rows é estimativa do otimizador. "
             f"Use COUNT(*)."
         )
-    if PERMITIDO in caminho.parents:
+    if _sob(caminho, PERMITIDO):
         return achados
     for m in SQL.finditer(texto):
         linha = texto.count("\n", 0, m.start()) + 1
@@ -58,7 +80,7 @@ def main(argv: list[str]) -> int:
         caminho = Path(arg)
         if caminho.suffix != ".py" or not caminho.exists():
             continue
-        if ISENTO in caminho.parents:
+        if _sob(caminho, ISENTO) or _e_isento(caminho):
             continue
         achados += _violacoes(caminho)
     for a in achados:
