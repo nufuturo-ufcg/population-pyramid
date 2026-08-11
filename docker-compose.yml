@@ -12,7 +12,7 @@ services:
     ports: ["3307:3306"]
     volumes:
       # bind-mount READ-ONLY: o dump de 423 MB nunca é copiado nem alterado
-      - "${DATASET_DIR:?DATASET_DIR nao definido — rode `make setup` ou edite .env}/msr14-mysql:/docker-entrypoint-initdb.d/dump.sql:ro"
+      - "${DATASET_DIR:?DATASET_DIR nao definido: rode `make setup` ou edite .env}/msr14-mysql:/docker-entrypoint-initdb.d/dump.sql:ro"
       - db-data:/var/lib/mysql
     command: >
       --innodb-buffer-pool-size=1G

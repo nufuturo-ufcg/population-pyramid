@@ -1,0 +1,55 @@
+# Espelho do .github/workflows/ci.yml. Os dois rodam os mesmos comandos, para
+# que o repositório suba em qualquer um dos dois ambientes sem ajuste.
+default:
+  image: python:3.12-slim
+  interruptible: true
+
+variables:
+  UV_FROZEN: "1"
+  UV_CACHE_DIR: .uv-cache
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+stages: [qa]
+
+.deps: &deps
+  before_script:
+    - pip install --quiet uv
+    - uv sync --frozen
+  cache:
+    key:
+      files: [uv.lock]
+    paths: [.uv-cache]
+
+lint:
+  stage: qa
+  <<: *deps
+  script:
+    - uv run ruff check
+    - uv run ruff format --check
+
+tipos:
+  stage: qa
+  <<: *deps
+  script:
+    - uv run mypy
+
+hooks:
+  stage: qa
+  <<: *deps
+  script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - uv run prek run --all-files --show-diff-on-failure
+
+# O dump de 423 MB não entra na CI. Os testes que dependem dos parquets do
+# pipeline dão skip sozinhos quando o artefato não existe, e o resto roda
+# contra fixture. Ver CONTRIBUTING.md, seção "O que a CI cobre".
+testes:
+  stage: qa
+  <<: *deps
+  script:
+    - uv run pytest -q --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml

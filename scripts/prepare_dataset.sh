@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Valida/prepara a fonte de dados ANTES de `docker compose up`.
 # Existe porque o Compose, se o bind-mount não existir, cria um DIRETÓRIO vazio
-# no lugar em vez de dar erro — e aí o MariaDB sobe limpo, sem importar nada, e
+# no lugar em vez de dar erro. Aí o MariaDB sobe limpo, sem importar nada, e
 # o pipeline falha lá na frente com "tabela não existe". Falha cedo e explícito.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ ok()  { echo "${GRN}ok:${RST} $*"; }
 warn(){ echo "${YLW}aviso:${RST} $*" >&2; }
 
 cd "$(dirname "$0")/.."
-[[ -f .env ]] || die "sem .env — rode: make setup DATASET_DIR=/caminho/absoluto"
+[[ -f .env ]] || die "sem .env. Rode: make setup DATASET_DIR=/caminho/absoluto"
 set -a; source .env; set +a
 
 : "${DATASET_SOURCE:?DATASET_SOURCE nao definido no .env}"
@@ -34,7 +34,7 @@ compose_up_db() {
   [[ "${DB_PORT:-}" == "3307" ]] || die "no modo ${DATASET_SOURCE} o compose publica a 3307; ajuste DB_PORT=3307 no .env (recebi '${DB_PORT:-vazio}')"
 
   if [[ "$(docker inspect -f '{{.State.Running}}' pyramid-db 2>/dev/null || echo false)" == "true" ]]; then
-    ok "container pyramid-db ja esta de pe — reaproveitando (para reimportar do zero: docker rm -f pyramid-db && docker volume rm pyramid-replication_db-data)"
+    ok "container pyramid-db ja esta de pe, reaproveitando (para reimportar do zero: docker rm -f pyramid-db && docker volume rm pyramid-replication_db-data)"
   else
     ok "subindo o banco (compose, profile withdb). O PRIMEIRO boot importa 423 MB e demora."
     docker compose --profile withdb up -d db || die "compose falhou ao subir o db"
@@ -57,7 +57,7 @@ compose_up_db() {
 case "$DATASET_SOURCE" in
 
   existing_db)
-    ok "modo existing_db — nao vou subir banco nenhum"
+    ok "modo existing_db: nao vou subir banco nenhum"
     command -v docker >/dev/null || die "docker nao encontrado"
     ;;
 
