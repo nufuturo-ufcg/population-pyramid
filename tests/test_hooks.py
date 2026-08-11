@@ -122,7 +122,7 @@ def test_assinatura_de_assistente_e_recusada(msg: str) -> None:
 
 def test_coautoria_humana_passa() -> None:
     """A regra é sobre assistente. Coautoria de pessoa continua valendo."""
-    msg = "corrige o corte do limiar\n\nCo-authored-by: Wendell <w@ufcg.edu.br>\n"
+    msg = "corrige o corte do limiar\n\nCo-authored-by: Alguem <alguem@exemplo.org>\n"
     assert msg_hook.problemas(msg) == []
 
 

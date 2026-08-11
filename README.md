@@ -111,3 +111,12 @@ recusa.
 - Reprodutibilidade exata é o critério de aceite. Número que não bate se resolve
   como bug ou como ambiguidade declarada. Arredondar para ficar perto está
   proibido.
+
+## Licença
+
+Código, configuração e documentação escrita: MIT, ver `LICENSE`.
+
+Os PDFs em `docs/replicacao/papers/` e os recortes em
+`docs/replicacao/figuras/artigo/` são dos autores e das editoras (IEICE, ACM).
+Estão aqui como referência de estudo e seguem os direitos originais. O dataset
+MSR14 tem licença própria e nunca entra neste repositório: ver seção Dados.
