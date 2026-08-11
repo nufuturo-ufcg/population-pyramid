@@ -18,12 +18,14 @@ mostra ao longo dos anos.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import logging_config as runlog
-from .classify import DAYS_PER_MONTH, load as load_spans
+from .classify import DAYS_PER_MONTH
+from .classify import load as load_spans
 from .config import settings, stage_dir
 from .extract import source
 
@@ -207,11 +209,13 @@ def pyramid_at(spans: pd.DataFrame, t: pd.Timestamp, gap_days: float) -> pd.Data
     ]
 
 
-def path(scope_id: int):
+def path(scope_id: int) -> Path:
+    """Arquivo de snapshots de um projeto."""
     return stage_dir(STAGE) / f"{scope_id}.parquet"
 
 
 def load(scope_id: int) -> pd.DataFrame:
+    """Lê os snapshots de um projeto."""
     return pd.read_parquet(path(scope_id))
 
 
@@ -220,8 +224,9 @@ def load_all(
 ) -> pd.DataFrame:
     """Empilha os snapshots de vários projetos.
 
-    `dates` filtra na leitura de cada arquivo, não depois: a série inteira são
-    ~19 bandas × 90 projetos × 16 trimestres e a projeção só precisa de 3 datas.
+    `dates` filtra na leitura de cada arquivo. A série inteira são ~19 bandas
+    × 90 projetos × 16 trimestres e a projeção só precisa de 3 datas; filtrar
+    depois do empilhamento carregaria tudo à toa.
     """
     ids = scopes if scopes is not None else source().list_scopes()
     want = None if dates is None else {pd.Timestamp(d) for d in dates}
@@ -235,6 +240,13 @@ def load_all(
 
 
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
+    """Executa o estágio snapshots nos projetos pedidos.
+
+    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
+    padrão anota a falha no manifesto e segue para o próximo. Devolve o
+    manifesto.
+    """
     cfg = settings()
     check_dates(cfg)
     gap_days = cfg["periods"]["inactivity_months"] * DAYS_PER_MONTH
@@ -286,7 +298,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
                 dates[-1].date(),
                 extra={"scope_id": sid, "stage": STAGE},
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             man["failed"][key] = f"{type(e).__name__}: {e}"
             log.exception("falha em %s", sid, extra={"scope_id": sid, "stage": STAGE})
             if fail_fast:

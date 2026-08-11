@@ -1,7 +1,7 @@
 [project]
 name = "pyramid"
 version = "0.1.0"
-description = "Replicação de Onoue et al. — pirâmides de população de software (ESEM14 / IEICE16)"
+description = "Pirâmides de população de software: ferramenta de parsing e análise, com a replicação de Onoue et al. (ESEM14 / IEICE16)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "pandas>=2.2",
@@ -21,9 +21,12 @@ pyramid = "pyramid.cli:app"
 
 [dependency-groups]
 dev = [
+    "mypy>=2.3.0",
+    "prek>=0.4.13",
     "pypdf>=6.14.2",
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    "ruff>=0.16.2",
 ]
 
 [build-system]
@@ -36,6 +39,90 @@ packages = ["src/pyramid"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--strict-markers --strict-config"
 markers = [
     "checkpoint: compara com número/rótulo publicado nos papers (exige os parquets gerados)",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # ordem de import
+    "UP",        # sintaxe moderna
+    "B",         # bugbear
+    "SIM",       # simplificações
+    "C90",       # complexidade ciclomática
+    "N",         # nomes
+    "ANN",       # anotação de tipo
+    "D",         # docstring
+    "ARG",       # argumento não usado
+    "RET",       # return
+    "PTH",       # pathlib em vez de os.path
+    "TID",       # import absoluto entre pacotes
+    "PL",        # pylint
+    "RUF",
+]
+ignore = [
+    # Import dentro de função é proposital em vários pontos: matplotlib, scipy e
+    # sqlalchemy custam segundos no import e a CLI precisa abrir rápido para
+    # `--help` e para os estágios que não tocam nesses pacotes.
+    "PLC0415",
+    # Comparação com literal: os cortes deste domínio (3 meses de banda, 2 lados
+    # da pirâmide) são lidos de config e conferidos em teste. Batizar cada um
+    # deles de constante só afastaria o número da linha que o usa.
+    "PLR2004",
+    # Prosa em português tem acento, aspa tipográfica e "×". O aviso de caractere
+    # ambíguo dispara em docstring e string de rótulo de figura.
+    "RUF001", "RUF002", "RUF003",
+    # Escolha de convenção de docstring: D203/D213 conflitam com D211/D212.
+    "D203", "D213",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Teste é lido em sequência e o nome do teste já é a documentação. Exigir
+# docstring e anotação em cada `def test_` afogaria o sinal do linter.
+"tests/**" = ["D", "ANN", "ARG", "PLR0913", "PLR0917"]
+# `scripts/` guarda utilitário de apoio (recorte de figura do PDF, contrafactual).
+# Continua sujeito a bug, complexidade e import; sem exigência de tipo formal.
+# Sweep é varredura de hipótese: cada hipótese vira um parâmetro, e a contagem
+# de argumentos passa de 5 sem que isso indique desenho ruim.
+"scripts/**" = ["D", "ANN", "PLR0913", "PLR0917"]
+# Typer declara flag como valor default do parâmetro (`typer.Option(...)`), que é
+# exatamente o que B008 proíbe. A chamada não guarda estado entre invocações.
+# A contagem de argumentos de um subcomando reflete a interface de linha de
+# comando. `plot` expõe 6 opções porque o usuário precisa das 6.
+"src/pyramid/cli.py" = ["B008", "PLR0913", "PLR0917"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true
+# pandas, matplotlib e scipy não publicam stub que valha o custo de manter aqui.
+# O contrato de dados deste projeto é conferido nos testes de `tests/test_sources_contract.py`
+# e nos checkpoints. O type checker não alcança esse nível de verificação.
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pandas.*", "matplotlib.*", "scipy.*", "sqlalchemy.*", "yaml.*", "typer.*"]
+follow_imports = "skip"

@@ -20,14 +20,15 @@ import pandas as pd
 EVENT_COLUMNS = ["scope_id", "contributor_id", "event_type", "timestamp"]
 
 # Enum fechado. Quem traduz o vocabulário da origem (nomes de tabela do MySQL
-# hoje, campos de GraphQL amanhã) para cá é o parser da fonte — de `classify`
-# em diante ninguém sabe de onde veio.
+# hoje, campos de GraphQL amanhã) para cá é o parser da fonte. De `classify` em
+# diante ninguém sabe de onde veio.
 #
-# São 7 e não os 6 do §8 da spec: `issues` (abrir uma issue) existe porque a
-# variante `table1` da taxonomia — IEICE16 Tabela 1 — conta abertura de issue
-# como não-coding, enquanto a variante `prose` a exclui. Os nomes ficam no
-# plural, como no dump, para não invalidar os parquets já extraídos; o que o
-# contrato exige é o conjunto ser fechado, não a grafia (docs/discrepancias.md §17).
+# São 7 tipos. A spec, na seção 8, lista 6. O sétimo é `issues` (abrir uma
+# issue), que existe porque a variante `table1` da taxonomia (IEICE16 Tabela 1)
+# conta abertura de issue como não-coding, enquanto a variante `prose` a exclui.
+# Os nomes ficam no plural, como no dump, para não invalidar os parquets já
+# extraídos. O contrato exige que o conjunto seja fechado. A grafia fica livre
+# (docs/discrepancias.md, seção 17).
 EVENT_TYPES = frozenset(
     [
         "commits",
@@ -41,12 +42,13 @@ EVENT_TYPES = frozenset(
 )
 
 
-def validate_canonical_schema(df: pd.DataFrame, *, scope_id=None) -> pd.DataFrame:
+def validate_canonical_schema(df: pd.DataFrame, *, scope_id: int | None = None) -> pd.DataFrame:
     """Falha alto se o DataFrame não é o formato canônico. Devolve o próprio df.
 
-    Roda no fim de todo `get_events()`. A alternativa — confiar que quem
-    escreveu o parser lembrou — troca um erro aqui por uma pirâmide errada três
-    estágios adiante, que ninguém identifica como problema de parser.
+    Roda no fim de todo `get_events()`. A alternativa seria confiar que quem
+    escreveu o parser lembrou do contrato. Ela troca um erro aqui por uma
+    pirâmide errada três estágios adiante, que ninguém identifica como problema
+    de parser.
     """
     onde = f"fonte (scope {scope_id})" if scope_id is not None else "fonte"
 
@@ -64,13 +66,13 @@ def validate_canonical_schema(df: pd.DataFrame, *, scope_id=None) -> pd.DataFram
 
     nulos = df[["contributor_id", "timestamp"]].isna().sum()
     if nulos.any():
-        raise ValueError(f"{onde}: nulos em {nulos[nulos > 0].to_dict()} — limpeza é da fonte")
+        raise ValueError(f"{onde}: nulos em {nulos[nulos > 0].to_dict()}; limpeza é da fonte")
 
     fora = sorted(set(df["event_type"].unique()) - EVENT_TYPES)
     if fora:
         raise ValueError(f"{onde}: event_type fora do enum: {fora}")
 
-    # Data no futuro é lixo de parser (fuso trocado, epoch zerado), não dado.
+    # Data no futuro sai de defeito de parser: fuso trocado, epoch zerado.
     ts = df["timestamp"]
     agora = pd.Timestamp.now(tz=ts.dt.tz) if ts.dt.tz else pd.Timestamp.now()
     if futuros := int((ts > agora).sum()):
@@ -90,8 +92,8 @@ class ActivityDataSource(ABC):
     def get_events(self, scope_id: int) -> pd.DataFrame:
         """Eventos de um escopo, com as colunas de EVENT_COLUMNS.
 
-        Deve vir sem nulos em contributor_id/timestamp e sem duplicatas
-        exatas — a limpeza é responsabilidade da fonte, não do consumidor.
+        Deve vir sem nulos em contributor_id/timestamp e sem duplicatas exatas.
+        A limpeza é responsabilidade da fonte. O consumidor recebe pronto.
         """
 
     def scope_label(self, scope_id: int) -> str:

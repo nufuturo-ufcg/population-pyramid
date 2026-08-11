@@ -30,6 +30,7 @@ grande e já cai fora da banda de novato.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -45,6 +46,7 @@ DAYS_PER_MONTH = 365.25 / 12  # 30.4375
 
 
 def coding_events() -> set[str]:
+    """Eventos de código da variante de taxonomia ativa em `settings.yaml`."""
     s = settings()["taxonomy"]
     return set(s["variants"][s["variant"]]["coding"])
 
@@ -89,15 +91,24 @@ def profile(events: pd.DataFrame, coding: set[str], gap_days: float) -> pd.DataF
     return spans.merge(firsts, on="contributor_id", how="left")
 
 
-def path(scope_id: int):
+def path(scope_id: int) -> Path:
+    """Arquivo de perfis de um projeto."""
     return stage_dir(STAGE) / f"{scope_id}.parquet"
 
 
 def load(scope_id: int) -> pd.DataFrame:
+    """Lê os perfis de contribuidor de um projeto."""
     return pd.read_parquet(path(scope_id))
 
 
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
+    """Executa o estágio classify nos projetos pedidos.
+
+    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
+    padrão anota a falha no manifesto e segue para o próximo. Devolve o
+    manifesto.
+    """
     cfg = settings()
     gap_days = cfg["periods"]["inactivity_months"] * DAYS_PER_MONTH
     coding = coding_events()
@@ -135,7 +146,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
                 len(df),
                 extra={"scope_id": sid, "stage": STAGE},
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             man["failed"][key] = f"{type(e).__name__}: {e}"
             log.exception("falha em %s", sid, extra={"scope_id": sid, "stage": STAGE})
             if fail_fast:

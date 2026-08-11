@@ -16,7 +16,8 @@ import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import Engine, bindparam, create_engine, text
 
-from ..config import ROOT
+from pyramid.config import ROOT
+
 from .base import EVENT_COLUMNS, ActivityDataSource, validate_canonical_schema
 
 log = logging.getLogger(__name__)
@@ -24,9 +25,11 @@ log = logging.getLogger(__name__)
 
 @cache
 def engine() -> Engine:
-    """Engine do dump. Mora aqui porque MySQL é detalhe DESTA fonte: nenhum
-    estágio do motor de cálculo pode importar driver de banco (seção 8 da
-    spec). Pool pequeno: o pipeline é sequencial por projeto."""
+    """Engine do dump, com pool pequeno porque o pipeline é sequencial.
+
+    Mora aqui porque MySQL é detalhe DESTA fonte: nenhum estágio do motor de
+    cálculo pode importar driver de banco (seção 8 da spec).
+    """
     load_dotenv(ROOT / ".env")
     u = os.getenv("DB_USER", "root")
     p = os.getenv("DB_PASSWORD", "root")
@@ -44,7 +47,7 @@ def _ping(eng: Engine, alvo: str) -> None:
     try:
         with eng.connect() as cx:
             cx.execute(text("SELECT 1"))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise SystemExit(
             f"nao consegui conectar em {alvo}.\n"
             "  container de pe?   docker start msr14\n"
@@ -123,7 +126,14 @@ _ACTIVITY_SQL = {
 class MSR14Source(ActivityDataSource):
     """Escopo = projeto raiz."""
 
-    def __init__(self, settings: dict, engine_: Engine | None = None):
+    def __init__(self, settings: dict, engine_: Engine | None = None) -> None:
+        """Configura a fonte a partir de `settings.yaml`.
+
+        Args:
+            settings: dicionário de `config.settings()`.
+            engine_: engine já pronto. Serve para o teste injetar um fake e
+                para reaproveitar conexão. Sem ele, abre o engine do dump.
+        """
         self.engine = engine_ if engine_ is not None else engine()
         self.settings = settings
         p = settings["projects"]
@@ -142,7 +152,7 @@ class MSR14Source(ActivityDataSource):
 
     # -- escopos ---------------------------------------------------------------
     def _load_labels(self) -> dict[int, str]:
-        """id -> "owner/name" dos escopos raiz. Memoizado por instância."""
+        """Id -> "owner/name" dos escopos raiz. Memoizado por instância."""
         if self._labels:
             return self._labels
 
@@ -168,6 +178,7 @@ class MSR14Source(ActivityDataSource):
         return self._labels
 
     def list_scopes(self) -> list[int]:
+        """IDs dos projetos raiz, conferidos contra `projects.expected_count`."""
         ids = list(self._load_labels())
 
         # Nunca confiar que o banco apontado é o certo só porque conectou.
@@ -181,11 +192,11 @@ class MSR14Source(ActivityDataSource):
     def scope_label(self, scope_id: int) -> str:
         """Nome legível do escopo.
 
-        Carrega o mapa sob demanda: antes isto dependia de `list_scopes()` ter
+        Carrega o mapa sob demanda. Antes isto dependia de `list_scopes()` ter
         sido chamado na mesma instância, e quem chamasse direto (metrics.table,
         a legenda da Fig.5) recebia o id de volta como se fosse o nome, sem
         erro, só uma tabela de projetos numerados. Id desconhecido continua
-        virando string, mas aí é um escopo que realmente não é raiz.
+        virando string, e nesse caso o escopo realmente não é raiz.
         """
         return self._load_labels().get(scope_id, str(scope_id))
 
@@ -200,6 +211,7 @@ class MSR14Source(ActivityDataSource):
         return "\nUNION ALL\n".join(parts)
 
     def get_events(self, scope_id: int) -> pd.DataFrame:
+        """Eventos canônicos de um projeto, já limpos e validados."""
         sql = self._build_query()
         with self.engine.connect() as cx:
             df = pd.read_sql(text(sql), cx, params={"sid": scope_id})
@@ -259,8 +271,11 @@ WHERE p.id IN :ids
 
 
 def get_projects(ids: list[int]) -> pd.DataFrame:
-    """owner/name de cada project.id. Diagnóstico só, serve pra provar que o
-    id no checkpoints.yaml é o projeto que o rótulo diz que é."""
+    """owner/name de cada project.id.
+
+    Serve de diagnóstico: prova que o id no checkpoints.yaml é o projeto que o
+    rótulo diz que é.
+    """
     with engine().connect() as cx:
         return pd.read_sql(
             text(_PROJ_SQL).bindparams(bindparam("ids", expanding=True)),
@@ -312,9 +327,12 @@ def _chave_email(v: object) -> str | None:
 
 
 def _alias_map(users: pd.DataFrame, modo: str) -> dict[int, int]:
-    """`{id_duplicado: id_canonico}`. Canônico = menor id do grupo (estável e
-    reprodutível; qual id sobrevive não muda contagem nem idade, porque a fusão
-    reagrega TODOS os eventos do grupo)."""
+    """Mapa `{id_duplicado: id_canonico}`.
+
+    Canônico é o menor id do grupo, escolha estável e reprodutível. Qual id
+    sobrevive não muda contagem nem idade, porque a fusão reagrega TODOS os
+    eventos do grupo.
+    """
     chaves = [("email", _chave_email)]
     if modo == "email_name":
         chaves.append(("name", _chave_nome))

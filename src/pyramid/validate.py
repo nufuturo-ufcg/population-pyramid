@@ -35,6 +35,7 @@ da *replicação*, declarados como tal na coluna `fonte`.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -83,6 +84,7 @@ class Check:
 
     @property
     def status(self) -> str:
+        """Símbolo do check: OK, FALHA, CONHECIDA, OBSOLETA, INDISPONIVEL ou `~`."""
         if self.indisponivel:
             return INDISPONIVEL
         if not self.gate:
@@ -94,17 +96,22 @@ class Check:
 
 @dataclass
 class Report:
+    """Conjunto de checks de uma rodada de validação."""
+
     checks: list[Check] = field(default_factory=list)
 
     @property
     def falhas(self) -> list[Check]:
+        """Checks com status fatal, os que derrubam o exit code."""
         return [c for c in self.checks if c.status in FATAIS]
 
     @property
     def ok(self) -> bool:
+        """True quando nenhum check fatal falhou."""
         return not self.falhas
 
     def contagem(self) -> dict[str, int]:
+        """Quantidade de checks por status."""
         out: dict[str, int] = {}
         for c in self.checks:
             out[c.status] = out.get(c.status, 0) + 1
@@ -376,7 +383,7 @@ def _msr14_tab2(cfg: dict) -> list[Check]:
     if not c:
         return []
     mk = lambda **kw: Check(grupo="msr14/tab2", fonte=ARTIGO, **kw)  # noqa: E731
-    LETRA = {"A": "attractive", "F": "floating", "S": "stagnant", "T": "terminal"}
+    letra = {"A": "attractive", "F": "floating", "S": "stagnant", "T": "terminal"}
 
     try:
         df = at.table()  # com a coluna `project` (rótulo do escopo)
@@ -409,15 +416,20 @@ def _msr14_tab2(cfg: dict) -> list[Check]:
     for nome, linha in c["grid"].items():
         sid = por_nome.get(nome)
         esperados = str(linha).split()
-        for ano, esp in zip(anos, esperados):
+        if len(esperados) != len(anos):
+            raise ValueError(
+                f"msr14_tab2.grid['{nome}'] tem {len(esperados)} células para "
+                f"{len(anos)} anos declarados em `years`."
+            )
+        for ano, esp in zip(anos, esperados, strict=True):
             got = "-" if sid is None else celula.get((int(sid), ano), "-")
             if esp in {"-", "*"}:
                 # Estrutura: agregada em um check só, para não afogar o relatório.
                 estrut_n += 1
                 estrut_ok += got == esp
                 continue
-            alvo = LETRA[esp]
-            obtido = LETRA.get(got, got)  # "-"/"*" passam cru: são a divergência
+            alvo = letra[esp]
+            obtido = letra.get(got, got)  # "-"/"*" passam cru: são a divergência
             out.append(
                 mk(
                     key=f"msr14.tab2.{ano}.{nome}",
@@ -490,7 +502,10 @@ def _projecao(cfg: dict) -> list[Check]:
             esperado=abre_cfg["n_projects"],
             obtido=n_proj,
             bate=n_proj == abre_cfg["n_projects"],
-            nota=f"> {abre_cfg['min_contributors']} contribuidores ativos em {abre_cfg['base_snapshots'][0]}",
+            nota=(
+                f"> {abre_cfg['min_contributors']} contribuidores ativos "
+                f"em {abre_cfg['base_snapshots'][0]}"
+            ),
         )
     )
 
@@ -584,7 +599,7 @@ def _projecao(cfg: dict) -> list[Check]:
         got_c = float(med.loc["All types", "all_cohort"])
         got_b = float(med.loc["All types", "all_baseline"])
         got_p = float(pval.loc["All types", "all"])
-        for rotulo, esperado, obtido in (
+        for rotulo, esperado, valor in (
             ("cohort", agg["cohort"], got_c),
             ("baseline", agg["baseline"], got_b),
             ("p", agg["p"], got_p),
@@ -595,8 +610,8 @@ def _projecao(cfg: dict) -> list[Check]:
                     grupo="projection",
                     fonte=REPLICA,
                     esperado=float(esperado),
-                    obtido=obtido,
-                    bate=_perto(obtido, esperado, tol),
+                    obtido=valor,
+                    bate=_perto(valor, esperado, tol),
                     nota="seção 12.2: predicado que se sustenta",
                 )
             )
@@ -625,9 +640,13 @@ def _projecao(cfg: dict) -> list[Check]:
             esperado="short>long" if art_dir else "short<long",
             obtido="short>long" if got_dir else "short<long",
             bate=art_dir == got_dir,
-            nota=f"artigo {term_cfg['short_term_abre_median']:.4f}/{term_cfg['long_term_abre_median']:.4f}"
-            f" · replicação {term['short_term_abre_median']:.4f}/{term['long_term_abre_median']:.4f}"
-            f" (n={term['short_n']}/{term['long_n']})",
+            nota=(
+                f"artigo {term_cfg['short_term_abre_median']:.4f}"
+                f"/{term_cfg['long_term_abre_median']:.4f}"
+                f" · replicação {term['short_term_abre_median']:.4f}"
+                f"/{term['long_term_abre_median']:.4f}"
+                f" (n={term['short_n']}/{term['long_n']})"
+            ),
         )
     )
     got_sig = term["wilcoxon_p"] < 0.05
@@ -658,14 +677,13 @@ GRUPOS = {
 # ---------------------------------------------------------------------------
 
 
-def run(grupos: list[str] | None = None) -> Report:
-    cfg = checkpoints()
-    declaradas = cfg.get("known_divergences") or {}
-    alvo = grupos or list(GRUPOS)
-    desconhecido = [g for g in alvo if g not in GRUPOS]
-    if desconhecido:
-        raise ValueError(f"grupo desconhecido: {desconhecido}. Disponíveis: {sorted(GRUPOS)}")
+def _resolvedor(declaradas: dict[str, str]) -> Callable[[str], tuple[str, bool]]:
+    """Devolve a função que casa a chave de um check com uma divergência declarada.
 
+    O segundo elemento do retorno diz se o casamento veio de uma declaração de
+    grupo (`chave.*`), informação que o status do check usa para não marcar
+    OBSOLETA uma célula isolada que voltou a bater.
+    """
     prefixos = {k[:-1]: v for k, v in declaradas.items() if k.endswith(".*")}
 
     def referencia(key: str) -> tuple[str, bool]:
@@ -676,46 +694,76 @@ def run(grupos: list[str] | None = None) -> Report:
                 return ref, True
         return "", False
 
+    return referencia
+
+
+def _orfa(key: str, nota: str) -> Check:
+    return Check(
+        key=key,
+        grupo="known_divergences",
+        fonte=REPLICA,
+        esperado="check existente",
+        obtido="chave órfã no yaml",
+        bate=False,
+        nota=nota,
+    )
+
+
+def _grupo_reproduzido(key: str, ref: str, n: int) -> Check:
+    return Check(
+        key=key,
+        grupo="known_divergences",
+        fonte=REPLICA,
+        esperado="ao menos uma célula divergente",
+        obtido=f"{n}/{n} batem",
+        bate=True,  # -> OBSOLETA: o grupo inteiro reproduz
+        ref=ref,
+    )
+
+
+def _auditar_declaracoes(rep: Report, declaradas: dict[str, str]) -> list[Check]:
+    """Checks sobre o próprio `known_divergences`.
+
+    Uma declaração sem check correspondente é lixo acumulado: aponta para uma
+    chave que não existe mais, então não protege nada e engana quem lê. E um
+    grupo cujas células *todas* voltaram a bater é a mesma mentira que a
+    OBSOLETA individual pega, espalhada por várias linhas.
+    """
+    chaves = {c.key for c in rep.checks}
+    out: list[Check] = []
+    for k, ref in declaradas.items():
+        if k.endswith(".*"):
+            membros = [c for c in rep.checks if c.key.startswith(k[:-1])]
+            if membros and all(c.bate for c in membros):
+                out.append(_grupo_reproduzido(k, ref, len(membros)))
+            if membros:
+                continue
+        elif k in chaves:
+            continue
+        out.append(_orfa(k, ref))
+    return out
+
+
+def run(grupos: list[str] | None = None) -> Report:
+    """Roda os grupos de checks pedidos, ou todos, e devolve o relatório.
+
+    A auditoria de `known_divergences` só entra na rodada completa: com um
+    subconjunto de grupos, toda declaração dos grupos de fora pareceria órfã.
+    """
+    cfg = checkpoints()
+    declaradas = cfg.get("known_divergences") or {}
+    alvo = grupos or list(GRUPOS)
+    desconhecido = [g for g in alvo if g not in GRUPOS]
+    if desconhecido:
+        raise ValueError(f"grupo desconhecido: {desconhecido}. Disponíveis: {sorted(GRUPOS)}")
+
+    referencia = _resolvedor(declaradas)
     rep = Report()
     for nome in alvo:
         for c in GRUPOS[nome](cfg):
             c.ref, c.ref_grupo = referencia(c.key)
             rep.checks.append(c)
 
-    # Uma declaração sem check correspondente é lixo acumulado: aponta para uma
-    # chave que não existe mais, então não protege nada e engana quem lê.
-    # E um grupo cujas células *todas* voltaram a bater é a mesma mentira que a
-    # OBSOLETA individual pega, só que espalhada por várias linhas.
     if grupos is None:
-        chaves = {c.key for c in rep.checks}
-        for k, ref in declaradas.items():
-            if k.endswith(".*"):
-                membros = [c for c in rep.checks if c.key.startswith(k[:-1])]
-                if membros and all(c.bate for c in membros):
-                    rep.checks.append(
-                        Check(
-                            key=k,
-                            grupo="known_divergences",
-                            fonte=REPLICA,
-                            esperado="ao menos uma célula divergente",
-                            obtido=f"{len(membros)}/{len(membros)} batem",
-                            bate=True,  # -> OBSOLETA: o grupo inteiro reproduz
-                            ref=ref,
-                        )
-                    )
-                if membros:
-                    continue
-            elif k in chaves:
-                continue
-            rep.checks.append(
-                Check(
-                    key=k,
-                    grupo="known_divergences",
-                    fonte=REPLICA,
-                    esperado="check existente",
-                    obtido="chave órfã no yaml",
-                    bate=False,
-                    nota=ref,
-                )
-            )
+        rep.checks.extend(_auditar_declaracoes(rep, declaradas))
     return rep

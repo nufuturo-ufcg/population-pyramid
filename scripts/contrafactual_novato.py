@@ -8,8 +8,6 @@ definições e compara com o gabarito publicado. Não toca no repositório.
 
 from __future__ import annotations
 
-import pandas as pd
-
 from pyramid import attractiveness as at
 from pyramid.config import checkpoints
 from pyramid.extract import source
@@ -96,7 +94,7 @@ def main() -> None:
         falhas = []
         for nome, linha in cfg["grid"].items():
             sid = ids.get(nome)
-            for y, esperado in zip(anos, str(linha).split()):
+            for y, esperado in zip(anos, str(linha).split(), strict=True):
                 if esperado in "-*":
                     continue  # célula não classificada pelo artigo
                 got = g.get((sid, y), "-")

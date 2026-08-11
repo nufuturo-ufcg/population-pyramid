@@ -26,6 +26,7 @@ Quadrantes (ESEM14 Fig.2):
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -63,6 +64,7 @@ COLUMNS = [
 
 
 def coding_events() -> list[str]:
+    """Eventos que contam como atividade de código, na ordem do `settings.yaml`."""
     return list(settings()["attractiveness"]["events"])
 
 
@@ -226,11 +228,13 @@ def annual(
     return per.sort_values(["year", "scope_id"])[COLUMNS].reset_index(drop=True)
 
 
-def path():
+def path() -> Path:
+    """Arquivo único do estágio: a tabela anual dos 90 projetos."""
     return stage_dir(STAGE) / "attractiveness.parquet"
 
 
 def load() -> pd.DataFrame:
+    """Lê a tabela anual gravada pelo estágio."""
     return pd.read_parquet(path())
 
 
@@ -296,7 +300,7 @@ def run(
         pairs, coverage = activity()
         out = annual(pairs, coverage)
         out.to_parquet(path(), index=False)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         man["failed"]["all"] = f"{type(e).__name__}: {e}"
         log.exception("falha no estágio %s", STAGE, extra={"stage": STAGE})
         runlog.save(STAGE, man)

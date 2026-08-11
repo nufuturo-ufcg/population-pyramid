@@ -93,7 +93,7 @@ def _frames(escopo: str, projetos: list[int], snapshot: str) -> dict:
     # Redireciona ANTES de importar os estágios. `stage_dir()` lê o global no
     # momento da chamada, então basta trocar em `config`; `logging_config` é a
     # exceção, que faz `from .config import LOG_DIR` e prende o nome.
-    import pyramid.config as config
+    from pyramid import config
 
     config.CONFIG_DIR = scratch / "config"
     config.OUTPUT_DIR = scratch / "output"
@@ -101,7 +101,7 @@ def _frames(escopo: str, projetos: list[int], snapshot: str) -> dict:
     config.settings.cache_clear()
     config.checkpoints.cache_clear()
 
-    import pyramid.logging_config as logging_config
+    from pyramid import logging_config
 
     logging_config.LOG_DIR = config.LOG_DIR
 
@@ -135,17 +135,17 @@ def _l1(replica: list[float], artigo: list[float]) -> tuple[float, int]:
     n = max(len(replica), len(artigo))
     r = list(replica) + [0.0] * (n - len(replica))
     a = list(artigo) + [0.0] * (n - len(artigo))
-    return sum(abs(x - y) for x, y in zip(r, a)), n
+    return sum(abs(x - y) for x, y in zip(r, a, strict=True)), n
 
 
-def compara(frames: dict, snapshot: str) -> dict:
+def compara(frames: dict) -> dict:
     from pyramid.config import checkpoints
 
     lido = checkpoints()["figures"]["esem14_fig2"]["bars_read_px"]
     saida = {}
     for sid_str, fr in frames.items():
         alvo = lido[int(sid_str)]
-        art_dir = [a + b for a, b in zip(alvo["right_light"], alvo["right_dark"])]
+        art_dir = [a + b for a, b in zip(alvo["right_light"], alvo["right_dark"], strict=True)]
         l1_esq, n_esq = _l1(fr["non_coding"], alvo["non_coding"])
         l1_dir, n_dir = _l1(fr["coding"], art_dir)
         pop_artigo = sum(alvo["non_coding"]) + sum(art_dir)
@@ -273,11 +273,11 @@ def main() -> int:
             "--projects",
             ",".join(str(p) for p in projetos),
         ]
-        p = subprocess.run(cmd, capture_output=True, text=True, env=os.environ.copy())
+        p = subprocess.run(cmd, capture_output=True, text=True, env=os.environ.copy(), check=False)
         if p.returncode != 0:
             sys.stderr.write(p.stderr)
             raise SystemExit(f"escopo {e} falhou (rc={p.returncode})")
-        res[e] = compara(json.loads(p.stdout), a.snapshot)
+        res[e] = compara(json.loads(p.stdout))
 
     print(relatorio(res, projetos, a.snapshot))
     if a.json:

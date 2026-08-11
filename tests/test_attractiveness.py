@@ -4,7 +4,6 @@ import pytest
 from pyramid import attractiveness as attr
 from pyramid.config import checkpoints
 
-
 # --- unidade: retenção por escopo (ambiguidade 4) -----------------------------
 
 

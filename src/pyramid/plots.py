@@ -24,21 +24,25 @@ fluctuating project in near future").
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402
-import matplotlib.ticker  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.pyplot as plt
+import matplotlib.ticker
+import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
-from . import attractiveness as attr  # noqa: E402
-from . import logging_config as runlog  # noqa: E402
-from . import metrics, projection, snapshots  # noqa: E402
-from .config import checkpoints, settings, stage_dir  # noqa: E402
-from .extract import labels  # noqa: E402
+from . import attractiveness as attr
+from . import logging_config as runlog
+from . import metrics, projection, snapshots
+from .config import checkpoints, settings, stage_dir
+from .extract import labels
 
 log = logging.getLogger(__name__)
 # Mesmo nome do módulo: `_module()` importa pelo nome do estágio e o manifesto
@@ -71,11 +75,12 @@ PT_LABEL = {
 }
 
 
-def out_dir():
+def out_dir() -> Path:
+    """Pasta deste estágio: `output/plots/`."""
     return stage_dir(STAGE)
 
 
-def _theme(ax) -> None:
+def _theme(ax: Axes) -> None:
     ax.set_facecolor(BG)
     ax.set_axisbelow(True)
     ax.grid(True, color=GRID, linewidth=0.8)
@@ -84,7 +89,7 @@ def _theme(ax) -> None:
     ax.tick_params(length=0, labelsize=8)
 
 
-def _repo(sid) -> str:
+def _repo(sid: int | str) -> str:
     """Rótulo curto de um projeto: só o pedaço depois da barra.
 
     Os três artigos nomeiam os painéis pelo repositório ("jekyll", "homebrew"),
@@ -141,7 +146,7 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
 
 
 def draw_pyramid(
-    ax,
+    ax: Axes,
     frame: pd.DataFrame,
     xmax: float | None = None,
     ymax: int | None = None,
@@ -203,7 +208,7 @@ def draw_pyramid(
     # barra de cima acima do último rótulo, encostada na moldura, com cara de
     # figura cortada. Sobra no máximo o resto de um ano em branco, e a régua
     # passa a fechar sempre num "N years".
-    por_ano = max(int(round(12 / bm)), 1)
+    por_ano = max(round(12 / bm), 1)
     bruto = ymax if ymax is not None else topo
     alto = -(-(bruto + 1) // por_ano) * por_ano - 1
     # Folga maior quando a régua é nossa: com escala automática o limite sai do
@@ -294,7 +299,7 @@ def draw_pyramid(
     return lim, alto
 
 
-def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None):
+def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None) -> Path:
     """Pirâmide avulsa de um projeto num snapshot."""
     t = pd.Timestamp(snapshot or settings()["snapshots"]["classification_snapshot"])
     df = snapshots.load(scope_id)
@@ -309,7 +314,7 @@ def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None):
     return _save(fig, f"pyramid_{scope_id}_{t.date()}")
 
 
-def _legend(fig) -> None:
+def _legend(fig: Figure) -> None:
     from matplotlib.patches import Patch
 
     handles = [
@@ -319,7 +324,9 @@ def _legend(fig) -> None:
     fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=8)
 
 
-def _save(fig, stem: str, rect: tuple[float, float, float, float] = (0, 0.06, 1, 1)):
+def _save(
+    fig: Figure, stem: str, rect: tuple[float, float, float, float] = (0, 0.06, 1, 1)
+) -> Path:
     # O `rect` é por figura: quem tem suptitle precisa reservar o topo, quem tem
     # legenda embaixo precisa reservar a base. Aplicar um rect fixo aqui
     # descartaria o layout que a figura já escolheu e cortaria o título.
@@ -369,7 +376,7 @@ def fig3_dates() -> list[pd.Timestamp]:
     return want
 
 
-def figure_fig3():
+def figure_fig3() -> Path:
     """Fig.3 do ESEM14: as pirâmides dos mesmos projetos ao longo dos anos."""
     ck = checkpoints()["attractiveness"]
     shape_only = set(ck.get("shape_only_years", []))
@@ -416,7 +423,15 @@ def figure_fig3():
 # ---------------------------------------------------------------------------
 # dispersões
 # ---------------------------------------------------------------------------
-def _scatter(ax, x, y, vx, vy, xlabel, ylabel):
+def _scatter(  # noqa: PLR0913, PLR0917
+    ax: Axes,
+    x: pd.Series,
+    y: pd.Series,
+    vx: float,
+    vy: float,
+    xlabel: str,
+    ylabel: str,
+) -> None:
     _theme(ax)
     ax.axvline(vx, color="#B03A2E", linewidth=0.9, linestyle="--", zorder=1)
     ax.axhline(vy, color="#B03A2E", linewidth=0.9, linestyle="--", zorder=1)
@@ -425,7 +440,13 @@ def _scatter(ax, x, y, vx, vy, xlabel, ylabel):
     ax.set_ylabel(ylabel, fontsize=8)
 
 
-def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
+def _anelar(
+    ax: Axes,
+    alvo: pd.DataFrame,
+    xcol: str,
+    ycol: str,
+    rotulo: Callable[[pd.Series], str],
+) -> None:
     """Anel aberto + nome nos projetos que o artigo nomeia no próprio gráfico.
 
     Sem o anel a anotação flutua perto de uma nuvem densa e não dá para saber a
@@ -448,7 +469,9 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
     quadro = ax.get_window_extent()
     ocupado: list[tuple[float, float, float, float]] = []
 
-    def _caixa(px, py, dx, dy, texto):
+    def _caixa(
+        px: float, py: float, dx: float, dy: float, texto: str
+    ) -> tuple[float, float, float, float]:
         """Retângulo que o rótulo vai ocupar, em pixels, para testar colisão."""
         linhas = texto.split("\n")
         # Largura por caractere é estimada, não medida: medir exige renderer e
@@ -466,15 +489,16 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
     for texto in ax.texts:
         tx, ty = ax.transData.transform(texto.get_position())
         linhas = texto.get_text().split("\n")
-        tf = texto.get_fontsize()
+        tf = float(texto.get_fontsize())
         w = max(len(s) for s in linhas) * tf * 0.58 * (dpi / 72.0)
         h = len(linhas) * tf * 1.35 * (dpi / 72.0)
-        ha, va = texto.get_ha(), texto.get_va()
+        ha = texto.get_horizontalalignment()
+        va = texto.get_verticalalignment()
         x0 = tx - w / 2 if ha == "center" else (tx - w if ha == "right" else tx)
         y0 = ty - h / 2 if va == "center" else (ty - h if va == "top" else ty)
         ocupado.append((x0, y0, x0 + w, y0 + h))
 
-    def _bate(c) -> bool:
+    def _bate(c: tuple[float, float, float, float]) -> bool:
         if c[0] < quadro.x0 or c[2] > quadro.x1 or c[1] < quadro.y0 or c[3] > quadro.y1:
             return True  # rótulo saindo do gráfico
         return any(
@@ -524,12 +548,18 @@ def _anelar(ax, alvo: pd.DataFrame, xcol: str, ycol: str, rotulo) -> None:
         )
 
 
-def _anelados(cfg: dict, disponiveis, highlight, figura: str, onde: str) -> list[int]:
+def _anelados(
+    cfg: dict,
+    disponiveis: pd.Series,
+    highlight: list[int] | None,
+    figura: str,
+    onde: str,
+) -> list[int]:
     """Ids a anelar, com o `--highlight` da CLI sobrescrevendo o do checkpoints.
 
-    Anel pedido em projeto que não está no plano é erro de quem pediu, não
-    ponto a ignorar em silêncio: ou o id está errado, ou o projeto não é
-    elegível e a figura não tem onde marcá-lo.
+    Anel pedido em projeto fora do plano interrompe a figura. Ou o id está
+    errado, ou o projeto não é elegível, e nos dois casos a figura não tem
+    onde marcá-lo.
     """
     ids = [int(s) for s in (highlight if highlight is not None else cfg.get("highlight", []))]
     faltando = sorted(set(ids) - set(int(s) for s in disponiveis))
@@ -540,7 +570,7 @@ def _anelados(cfg: dict, disponiveis, highlight, figura: str, onde: str) -> list
     return ids
 
 
-def figure_fig2(year: int | None = None, highlight: list[int] | None = None):
+def figure_fig2(year: int | None = None, highlight: list[int] | None = None) -> Path:
     """MSR14 Fig.2: stickiness (x) × magnetismo (y), com as medianas como eixos.
 
     É a figura que *origina* os quadrantes que a ESEM14 Fig.2 depois desenha
@@ -605,7 +635,7 @@ def figure_fig2(year: int | None = None, highlight: list[int] | None = None):
     return _save(fig, stem)
 
 
-def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None):
+def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None) -> Path:
     """IEICE16 Fig.5: NCR (x) × CCR (y) no snapshot de classificação, quadrantes A-D.
 
     A ordem dos eixos é a do artigo, NÃO a do nome da figura: a Fig.5 publicada
@@ -704,8 +734,8 @@ def _fig_cfg(nome: str) -> dict:
         ) from e
 
 
-def _cell(
-    ax,
+def _cell(  # noqa: PLR0913
+    ax: Axes,
     sid: int,
     t: pd.Timestamp,
     *,
@@ -726,13 +756,13 @@ def _cell(
         )
 
 
-def _confere(obtido, esperado) -> str:
+def _confere(obtido: object, esperado: object) -> str:
     """`replicação (artigo: X)` com marca quando os dois discordam."""
     o = "-" if obtido is None or (isinstance(obtido, float) and pd.isna(obtido)) else str(obtido)
     return f"{o}   (artigo: {esperado})" + ("" if o == str(esperado) else "   ≠")
 
 
-def figure_grid_status():
+def figure_grid_status() -> Path:
     """ESEM14 Fig.2: as quatro pirâmides com o status de cada projeto."""
     cfg = _fig_cfg("esem14_fig2")
     chave = cfg["from_attractiveness"]
@@ -782,7 +812,7 @@ def _tipos_no_snapshot(t: pd.Timestamp) -> pd.Series:
     return cut.set_index("scope_id")["type"]
 
 
-def figure_grid_types():
+def figure_grid_types() -> Path:
     """IEICE16 Fig.6: dois exemplos de cada tipo (A, B, C), uma linha por tipo."""
     cfg = _fig_cfg("ieice16_fig6")
     t = pd.Timestamp(cfg["snapshot"])
@@ -814,7 +844,7 @@ def figure_grid_types():
     return _save(fig, f"ieice16_fig6_tipos_{t.date()}", rect=(0, 0.05, 1, 0.95))
 
 
-def figure_grid_centered():
+def figure_grid_centered() -> Path:
     """IEICE16 Fig.7: os dois projetos com CCR e NCR perto de zero."""
     cfg = _fig_cfg("ieice16_fig7")
     t = pd.Timestamp(cfg["snapshot"])
@@ -840,7 +870,10 @@ def figure_grid_centered():
             ax,
             sid,
             t,
-            sub=f"CCR={ccr:+.3f}  NCR={ncr:+.3f}\n{_confere(tipos.get(sid), esperado.get(sid, '?'))}",
+            sub=(
+                f"CCR={ccr:+.3f}  NCR={ncr:+.3f}\n"
+                f"{_confere(tipos.get(sid), esperado.get(sid, '?'))}"
+            ),
         )
         ax.set_xlabel("contribuidores", fontsize=8)
     axes[0][0].set_ylabel("idade acumulada (anos)", fontsize=8)
@@ -863,7 +896,7 @@ def _projection_frame(sub: pd.DataFrame, coluna: str) -> pd.DataFrame:
     return piv.reset_index().rename(columns={"index": "band"})
 
 
-def figure_projection_overlay():
+def figure_projection_overlay() -> Path:
     """IEICE16 Fig.8: pirâmide real com a linha da projeção sobreposta."""
     cfg = _fig_cfg("ieice16_fig8")
     ids = [int(s) for s in cfg["projects"]]
@@ -884,11 +917,11 @@ def figure_projection_overlay():
 
     # Mesma grade do artigo: 3 linhas x 2 colunas, painel a painel na mesma
     # posição da Fig.8 publicada.
-    NC = 2
-    nlin = -(-len(ids) // NC)
-    fig, axes = plt.subplots(nlin, NC, figsize=(7.2, 3.1 * nlin), squeeze=False)
+    ncol = 2
+    nlin = -(-len(ids) // ncol)
+    fig, axes = plt.subplots(nlin, ncol, figsize=(7.2, 3.1 * nlin), squeeze=False)
     for k, sid in enumerate(ids):
-        ax = axes[k // NC][k % NC]
+        ax = axes[k // ncol][k % ncol]
         sub = df[df["scope_id"] == sid]
         real = _projection_frame(sub, "actual")
         pred = _projection_frame(sub, "cohort_pred")
@@ -900,9 +933,9 @@ def figure_projection_overlay():
         y = pred["band"].to_numpy()
         esq = -pred["non_coding"].to_numpy()
         dirr = (pred["moved"] + pred["coding"]).to_numpy()
-        for série in (esq, dirr):
+        for serie in (esq, dirr):
             ax.plot(
-                série,
+                serie,
                 y,
                 color="#B03A2E",
                 linewidth=1.2,
@@ -930,12 +963,12 @@ def figure_projection_overlay():
             fontsize=7.5,
             color="#555555",
         )
-        if k // NC == nlin - 1:
+        if k // ncol == nlin - 1:
             ax.set_xlabel("contribuidores", fontsize=8)
-        if k % NC == 0:
+        if k % ncol == 0:
             ax.set_ylabel("idade acumulada (anos)", fontsize=8)
-    for k in range(len(ids), nlin * NC):
-        axes[k // NC][k % NC].axis("off")
+    for k in range(len(ids), nlin * ncol):
+        axes[k // ncol][k % ncol].axis("off")
 
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
@@ -966,7 +999,7 @@ def figure_projection_overlay():
 # IEICE16 Tabelas 3 e 4: não são gráfico, mas são resultado obrigatório da
 # seção 6
 # ---------------------------------------------------------------------------
-def figure_abre_table():
+def figure_abre_table() -> Path:
     """Tabelas 3 e 4 lado a lado com o artigo, em CSV e markdown."""
     tabs = projection.tables()
     ck_abre = checkpoints()["projection_abre"]["table"]
@@ -1084,7 +1117,7 @@ def figure_abre_table():
 # MSR14 Tabela 2: a grade de quadrantes. O artigo publica a dele; esta é a
 # nossa, no mesmo formato, para o leitor comparar célula a célula.
 # ---------------------------------------------------------------------------
-def figure_quadrant_table():
+def figure_quadrant_table() -> Path:
     """Tabela 2 do MSR'14 na versão da replicação, em markdown."""
     ck = checkpoints()["msr14_tab2"]
     anos = list(ck["years"])
@@ -1092,8 +1125,8 @@ def figure_quadrant_table():
     # Mesmo vocabulário do artigo: ele escreve "Fluctuating" onde o nosso
     # código escreve "floating". Traduzir aqui evita que o leitor ache que
     # são estados diferentes.
-    LETRA = {"A": "Attractive", "F": "Fluctuating", "S": "Stagnant", "T": "Terminal"}
-    NOSSO = {
+    letra = {"A": "Attractive", "F": "Fluctuating", "S": "Stagnant", "T": "Terminal"}
+    nosso_para_artigo = {
         "attractive": "Attractive",
         "floating": "Fluctuating",
         "stagnant": "Stagnant",
@@ -1139,11 +1172,11 @@ def figure_quadrant_table():
     for nome, linha in grade.items():
         sid = por_nome.get(nome)
         esperados = str(linha).split()
-        cels = [LETRA.get(ultimo[nome], ultimo[nome]), f"`{nome}`"]
-        for ano, esp in list(zip(anos, esperados))[:-1]:
+        cels = [letra.get(ultimo[nome], ultimo[nome]), f"`{nome}`"]
+        for ano, esp in list(zip(anos, esperados, strict=True))[:-1]:
             got = "-" if sid is None else celula.get((int(sid), ano), "-")
-            nosso = NOSSO.get(got, got)
-            artigo = LETRA.get(esp, esp)
+            nosso = nosso_para_artigo.get(got, got)
+            artigo = letra.get(esp, esp)
             ok = nosso == artigo
             if esp in {"-", "*"}:
                 total_e += 1
@@ -1193,7 +1226,7 @@ FIGURES = {
 SINGLE = "pyramid-single"
 
 
-def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **_) -> dict:
+def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **_: object) -> dict:
     """Assinatura de estágio: o 1º posicional é escopo em todo o pipeline.
 
     As figuras dos artigos têm projeto fixo. A composição de cada painel vem
@@ -1208,13 +1241,13 @@ def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **
             extra={"stage": STAGE},
         )
     alvos = figures or list(FIGURES)
-    man = {"stage": STAGE, "ok": {}, "failed": {}}
+    man: dict[str, Any] = {"stage": STAGE, "ok": {}, "failed": {}}
     for nome in alvos:
         if nome not in FIGURES:
             raise ValueError(f"figura desconhecida: {nome}. Conhecidas: {sorted(FIGURES)}")
         try:
             man["ok"][nome] = str(FIGURES[nome]().name)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             man["failed"][nome] = f"{type(e).__name__}: {e}"
             log.exception("falha na figura %s", nome, extra={"stage": STAGE})
     runlog.save(STAGE, man)

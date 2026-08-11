@@ -3,14 +3,18 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
 
-# Saídas do pipeline (reproduzíveis a partir do banco)
-output/
+# Saídas do pipeline (reproduzíveis a partir do banco).
+# output/plots é exceção versionada: os docs embutem as figuras.
+output/*
+!output/plots/
 logs/
 
-# Dados brutos — o dump tem 423 MB, nunca entra no repo
+# Dados brutos. O dump tem 423 MB e nunca entra no repo.
 data/
 *.sql
 msr14-mysql*

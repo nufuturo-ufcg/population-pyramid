@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 
@@ -15,11 +16,16 @@ STAGE = "extract"
 
 
 def source() -> MSR14Source:
-    # A fonte abre a própria conexão: o motor de cálculo não conhece banco.
+    """Fonte de dados configurada.
+
+    A fonte abre a própria conexão. O motor de cálculo trabalha sobre
+    DataFrame e desconhece banco.
+    """
     return MSR14Source(settings())
 
 
-def events_path(scope_id: int):
+def events_path(scope_id: int) -> Path:
+    """Arquivo de eventos brutos de um projeto."""
     return stage_dir(STAGE) / f"{scope_id}.parquet"
 
 
@@ -41,14 +47,23 @@ def labels() -> dict[int, str]:
 
 
 def label_of(scope_id: int) -> str:
+    """Nome `owner/name` do projeto. Devolve o próprio id quando não houver nome."""
     return labels().get(int(scope_id), str(scope_id))
 
 
 def load_events(scope_id: int) -> pd.DataFrame:
+    """Lê os eventos extraídos de um projeto."""
     return pd.read_parquet(events_path(scope_id))
 
 
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
+    """Executa o estágio extract nos projetos pedidos.
+
+    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
+    padrão anota a falha no manifesto e segue para o próximo. Devolve o
+    manifesto.
+    """
     src = source()
     man = runlog.load(STAGE)
     if force:
@@ -92,7 +107,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
                 df["contributor_id"].nunique(),
                 extra={"scope_id": sid, "stage": STAGE},
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             man["failed"][key] = f"{type(e).__name__}: {e}"
             log.exception("falha em %s", sid, extra={"scope_id": sid, "stage": STAGE})
             if fail_fast:

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -48,7 +49,8 @@ from . import logging_config as runlog
 from .config import settings, stage_dir
 from .extract import source
 from .metrics import load_all as load_metrics
-from .snapshots import CATEGORIES, load_all as load_snapshots, require_date_match
+from .snapshots import CATEGORIES, require_date_match
+from .snapshots import load_all as load_snapshots
 
 log = logging.getLogger(__name__)
 STAGE = "projection"
@@ -163,7 +165,9 @@ def project(p_base: np.ndarray, p_last: np.ndarray) -> tuple[np.ndarray, int]:
 
 
 def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
-    """ "the 36 projects that have more than 100 contributors" (p.1311).
+    """Projetos acima do limiar de contribuidores no snapshot base.
+
+    "the 36 projects that have more than 100 contributors" (p.1311).
 
     O artigo não diz sobre qual snapshot nem se conta ativos ou acumulados.
     Variante escolhida em docs/discrepancias.md, seções 7 e 9.2: ativos no
@@ -171,7 +175,7 @@ def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
     é ruído de fronteira.
 
     O corte usa `> limiar`, seguindo "more than 100" ao pé da letra. A
-    alternativa `>=` foi descartada: não é detalhe cosmético, porque o 35º
+    alternativa `>=` foi descartada. A escolha decide o resultado: o 35º
     projeto tem exatamente 100 contribuintes ativos, então ler "more than"
     como `>=` devolveria 35. Ver seção 9.2.
     """
@@ -192,6 +196,11 @@ def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
 
 
 def compute() -> pd.DataFrame:
+    """Projeta a forma de cada projeto elegível para o snapshot alvo.
+
+    Uma linha por projeto, com a forma observada, a projetada e o erro por
+    banda. Ver IEICE16 seção 4.2.
+    """
     cfg = settings()
     bases = [pd.Timestamp(d) for d in cfg["snapshots"]["projection_base"]]
     target = pd.Timestamp(cfg["snapshots"]["projection_target"])
@@ -248,8 +257,13 @@ def compute() -> pd.DataFrame:
         # três categorias por banda ANTES de projetar. Somar as três projeções
         # daria quase o mesmo, mas a taxa de sobrevivência da população inteira
         # é a que o artigo chama de "projection of all contributors".
-        series = {c: (vetores[base][c], vetores[last][c], vetores[target][c]) for c in CATEGORIES}
-        series["all"] = tuple(sum(vetores[d][c] for c in CATEGORIES) for d in (base, last, target))
+        series: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {
+            c: (vetores[base][c], vetores[last][c], vetores[target][c]) for c in CATEGORIES
+        }
+        soma = {
+            d: np.sum([vetores[d][c] for c in CATEGORIES], axis=0) for d in (base, last, target)
+        }
+        series["all"] = (soma[base], soma[last], soma[target])
 
         for cat, (p_base, p_last, p_alvo) in series.items():
             pred, orfas = project(p_base, p_last)
@@ -289,6 +303,7 @@ def compute() -> pd.DataFrame:
 
 
 def checkpoint_snapshot() -> str:
+    """Snapshot que os checkpoints do IEICE16 usam para a tabela de tipos."""
     from .config import checkpoints
 
     return checkpoints()["types"]["snapshot"]
@@ -376,15 +391,23 @@ def term_split(df: pd.DataFrame | None = None) -> dict:
     }
 
 
-def path():
+def path() -> Path:
+    """Arquivo único do estágio: a projeção dos projetos elegíveis."""
     return stage_dir(STAGE) / "projection.parquet"
 
 
 def load() -> pd.DataFrame:
+    """Lê a projeção gravada pelo estágio."""
     return pd.read_parquet(path())
 
 
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
+    """Executa o estágio projection sobre a amostra elegível inteira.
+
+    `scopes` é recusado: a amostra vem do limiar de 100 contribuidores e as
+    tabelas são medianas sobre ela. `force` recalcula o que já está gravado.
+    `fail_fast` propaga o erro do cálculo. Devolve o manifesto.
+    """
     if scopes is not None:
         raise ValueError(
             "projection não aceita --project: a amostra é definida pelo limiar "
@@ -403,7 +426,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     try:
         df = compute()
         df.to_parquet(path(), index=False)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         man["failed"]["all"] = f"{type(e).__name__}: {e}"
         log.exception("falha no estágio %s", STAGE, extra={"stage": STAGE})
         runlog.save(STAGE, man)

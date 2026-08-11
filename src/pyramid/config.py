@@ -20,15 +20,18 @@ LOG_DIR = ROOT / "logs"
 
 @cache
 def settings() -> dict:
+    """Parâmetros de método, lidos uma vez por processo de `config/settings.yaml`."""
     return yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
 
 
 @cache
 def checkpoints() -> dict:
+    """Valores publicados nos artigos e travas da replicação, de `config/checkpoints.yaml`."""
     return yaml.safe_load((CONFIG_DIR / "checkpoints.yaml").read_text())
 
 
 def stage_dir(stage: str) -> Path:
+    """Diretório de saída do estágio, criado na primeira chamada."""
     d = OUTPUT_DIR / stage
     d.mkdir(parents=True, exist_ok=True)
     return d

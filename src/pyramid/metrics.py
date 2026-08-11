@@ -47,13 +47,14 @@ deliberadamente não configurável.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import logging_config as runlog
 from . import snapshots
-from .config import settings, stage_dir
+from .config import stage_dir
 from .extract import source
 
 log = logging.getLogger(__name__)
@@ -139,15 +140,18 @@ def from_pyramids(df: pd.DataFrame) -> pd.DataFrame:
     return out[cols]
 
 
-def path(scope_id: int):
+def path(scope_id: int) -> Path:
+    """Arquivo de métricas de um projeto."""
     return stage_dir(STAGE) / f"{scope_id}.parquet"
 
 
 def load(scope_id: int) -> pd.DataFrame:
+    """Lê as métricas de um projeto."""
     return pd.read_parquet(path(scope_id))
 
 
 def load_all(scopes: list[int] | None = None) -> pd.DataFrame:
+    """Empilha as métricas dos projetos pedidos, pulando o que ainda não rodou."""
     ids = scopes if scopes is not None else source().list_scopes()
     frames = [load(s) for s in ids if path(s).exists()]
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
@@ -168,8 +172,13 @@ def table(snapshot: str | pd.Timestamp, scopes: list[int] | None = None) -> pd.D
 
 
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
-    cfg = settings()
+    """Executa o estágio metrics nos projetos pedidos.
 
+    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
+    padrão anota a falha no manifesto e segue para o próximo. Devolve o
+    manifesto.
+    """
     src = source()
     targets = scopes if scopes is not None else src.list_scopes()
 
@@ -215,7 +224,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
                     last["type"] or "-",
                     extra={"scope_id": sid, "stage": STAGE},
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             man["failed"][key] = f"{type(e).__name__}: {e}"
             log.exception("falha em %s", sid, extra={"scope_id": sid, "stage": STAGE})
             if fail_fast:

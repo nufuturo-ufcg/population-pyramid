@@ -1,23 +1,25 @@
+"""Pontua hipóteses de novato/atividade contra a grade inteira da Tabela 2 do
+MSR14: 12 projetos x 8 anos, 96 células. Os 5 projetos nomeados no texto do
+artigo cobrem pouco da grade e deixam hipótese errada passar. Ver
+docs/discrepancias.md, seção 35.
+
+Não escreve nada no repo.
+"""
+
 import argparse
 
-"""§35 — pontua hipoteses de 'novato'/atividade contra a GRADE INTEIRA da
-Tabela 2 do MSR14 (12 projetos x 8 anos), nao contra os 5 projetos nomeados.
-
-Nao escreve nada no repo.
-"""
 import numpy as np
-import pandas as pd
 
-from pyramid.attractiveness import activity, _retained
-from pyramid.config import checkpoints, settings
+from pyramid.attractiveness import _retained, activity
+from pyramid.config import checkpoints
 from pyramid.extract import source
 
 LETRA = {"A": "attractive", "F": "floating", "S": "stagnant", "T": "terminal"}
 COD = ["commits", "pull_requests"]
-TUDO = COD + ["commit_comments", "issue_comments", "pull_request_comments", "issue_events"]
+TUDO = [*COD, "commit_comments", "issue_comments", "pull_request_comments", "issue_events"]
 
 
-def annual(pairs, first_year, tot=None, min_devs=10, sticky="project", tie="baixo"):
+def annual(pairs, first_year, tot=None, *, min_devs=10, sticky="project", tie="baixo"):
     pairs = pairs.drop_duplicates()
     per = (
         pairs.assign(_nov=pairs["contributor_id"].map(first_year) == pairs["year"])
@@ -44,9 +46,9 @@ def annual(pairs, first_year, tot=None, min_devs=10, sticky="project", tie="baix
         {(1, 1): "attractive", (1, 0): "floating", (0, 1): "stagnant", (0, 0): "terminal"}[
             (int(a > b or (tie == "alto" and a == b)), int(c > d or (tie == "alto" and c == d)))
         ]
-        for a, b, c, d in zip(per["m"], mm, per["s"], ms)
+        for a, b, c, d in zip(per["m"], mm, per["s"], ms, strict=True)
     ]
-    per["quadrant"] = [x if e else "*" for x, e in zip(q, per["el"])]
+    per["quadrant"] = [x if e else "*" for x, e in zip(q, per["el"], strict=True)]
     return per
 
 
@@ -60,7 +62,7 @@ def pontua(per, verbose=False):
     erros = []
     for nome, linha in c["grid"].items():
         sid = por_nome.get(nome)
-        for ano, esp in zip(anos, str(linha).split()):
+        for ano, esp in zip(anos, str(linha).split(), strict=True):
             got = "-" if sid is None else cel.get((int(sid), ano), "-")
             if esp in {"-", "*"}:
                 est_n += 1
@@ -88,13 +90,13 @@ def main():
     loc = p_cod.copy()
     loc["_fy"] = loc.groupby(["scope_id", "contributor_id"]).year.transform("min")
 
-    CEN = [
+    cenarios = [
         ("A  atual: novato=1o codigo, global", p_cod, fy_cod, None),
         ("B  novato = 1o evento de qualquer tipo", p_cod, fy_tudo, None),
         ("C  novato e projeto = qualquer evento", p_tudo, fy_tudo, None),
     ]
     print(f"{'variante':<40} {'letras':>10}  {'estrutura':>10}")
-    for nome, pairs, fy, tot in CEN:
+    for nome, pairs, fy, tot in cenarios:
         per = annual(pairs, fy, tot)
         lo, ln, eo, en = pontua(per)
         print(f"{nome:<40} {lo:>6}/{ln:<3} {eo:>6}/{en:<3}")
@@ -129,7 +131,7 @@ def main():
             if e
             else "*"
         )
-        for a, b, c, dd, e in zip(perd["m"], mm, perd["s"], ms, perd["el"])
+        for a, b, c, dd, e in zip(perd["m"], mm, perd["s"], ms, perd["el"], strict=True)
     ]
     lo, ln, eo, en = pontua(perd)
     print(f"{'D  novato local (estreia no projeto)':<40} {lo:>6}/{ln:<3} {eo:>6}/{en:<3}")

@@ -1,0 +1,61 @@
+# Hooks do repositório. Rodam com prek (`prek install`) e com pre-commit: o
+# formato do arquivo é o mesmo.
+#
+#   uv run prek install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
+#   uv run prek run --all-files
+#
+# Os hooks locais chamam `uv run`, então o ambiente do projeto é o mesmo que o
+# do desenvolvedor e o do CI.
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      # Figura de artigo recortada passa de 200 KB. Dump, parquet e PDF de
+      # tamanho de dado bruto não entram no repositório.
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.2
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (tipos de src/)
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: sql-so-em-sources
+        name: SQL só em src/pyramid/sources/
+        entry: uv run python scripts/hooks/sql_so_em_sources.py
+        language: system
+        types: [python]
+
+      - id: sem-assinatura-de-assistente
+        name: commit sem coautoria de assistente
+        entry: uv run python scripts/hooks/mensagem_de_commit.py
+        language: system
+        stages: [commit-msg]
+
+      - id: pytest
+        name: pytest (suíte inteira, ~2 s)
+        entry: uv run pytest -q
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]

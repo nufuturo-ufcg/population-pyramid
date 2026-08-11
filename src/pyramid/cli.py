@@ -8,11 +8,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from types import ModuleType
+from typing import TYPE_CHECKING
 
 import typer
 
 from . import logging_config as runlog
 from .config import settings
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 app = typer.Typer(
     add_completion=False,
@@ -33,14 +38,14 @@ STAGE_ORDER = [
 ]
 
 
-def _module(stage: str):
+def _module(stage: str) -> ModuleType:
     from importlib import import_module
 
     return import_module(f".{stage}", __package__)
 
 
 def _resolve(project: str, nomes: dict[int, str]) -> int:
-    """id ou sufixo do nome; ambíguo é erro, não escolha silenciosa."""
+    """Resolve id ou sufixo do nome. Nome ambíguo aborta com a lista de candidatos."""
     if project.isdigit():
         pid = int(project)
         if pid not in nomes:
@@ -69,11 +74,12 @@ def _scopes(project: str | None, project_all: bool) -> list[int] | None:
 
 @app.callback()
 def main(log_level: str = typer.Option("INFO", "--log-level")) -> None:
+    """Pipeline de replicação das pirâmides de população (IEICE16 e ESEM14)."""
     p = runlog.setup(log_level)
     log.debug("log desta execução: %s", p)
 
 
-def _stage_command(stage: str, help_text: str):
+def _stage_command(stage: str, help_text: str) -> Callable[..., None]:
     @app.command(stage.replace("_", "-"), help=help_text)
     def _cmd(
         project: str = typer.Option(None, "--project", help="id ou nome de um projeto só"),
@@ -134,6 +140,43 @@ def types(
     typer.echo(f"\n{t}: {resumo}  total={len(df)}")
 
 
+def _plot_list() -> None:
+    """Imprime o catálogo de figuras com a primeira linha do docstring de cada."""
+    from . import plots
+
+    for nome, fn in plots.FIGURES.items():
+        typer.echo(f"{nome:<28} {(fn.__doc__ or '').splitlines()[0]}")
+    typer.echo(f"{plots.SINGLE:<28} Pirâmide avulsa de um projeto (exige --project).")
+
+
+def _plot_kwargs(
+    figure: str, year: int | None, highlight: str | None, snapshot: str | None
+) -> dict:
+    """Traduz as opções da CLI para os argumentos da figura pedida.
+
+    Opção que não vale para a figura escolhida aborta com mensagem. Passar
+    `--highlight` numa figura sem anel seria um pedido que a saída ignora em
+    silêncio, e o usuário só descobriria olhando o PNG.
+    """
+    from . import plots
+
+    kw: dict = {}
+    if figure == "magnet-sticky" and year:
+        kw["year"] = year
+    if highlight is not None:
+        if figure not in ("magnet-sticky", "type-scatter"):
+            raise typer.BadParameter(
+                "--highlight só vale para --figure magnet-sticky ou type-scatter"
+            )
+        # Mesmo `_resolve` do resto da CLI: aceita nome de projeto e aborta em
+        # nome ambíguo. Anelar o escopo errado calado seria pior.
+        lbl = plots.labels()
+        kw["highlight"] = [_resolve(p.strip(), lbl) for p in highlight.split(",") if p.strip()]
+    if figure == "type-scatter" and snapshot:
+        kw["snapshot"] = snapshot
+    return kw
+
+
 @app.command("plot")
 def plot(
     figure: str = typer.Option("all", "--figure", help="nome da figura, ou 'all'"),
@@ -153,9 +196,7 @@ def plot(
     from . import plots
 
     if listar:
-        for nome, fn in plots.FIGURES.items():
-            typer.echo(f"{nome:<28} {(fn.__doc__ or '').splitlines()[0]}")
-        typer.echo(f"{plots.SINGLE:<28} Pirâmide avulsa de um projeto (exige --project).")
+        _plot_list()
         return
 
     if figure == plots.SINGLE:
@@ -170,26 +211,13 @@ def plot(
             f"figura desconhecida: {figure}. Use --list para ver as disponíveis."
         )
 
-    kw = {}
-    if figure == "magnet-sticky" and year:
-        kw["year"] = year
-    if highlight is not None:
-        if figure not in ("magnet-sticky", "type-scatter"):
-            raise typer.BadParameter(
-                "--highlight só vale para --figure magnet-sticky ou type-scatter"
-            )
-        # Mesmo `_resolve` do resto da CLI: aceita nome de projeto e falha alto
-        # em nome ambíguo, em vez de anelar o escopo errado calado.
-        lbl = plots.labels()
-        kw["highlight"] = [_resolve(p.strip(), lbl) for p in highlight.split(",") if p.strip()]
-    if figure == "type-scatter" and snapshot:
-        kw["snapshot"] = snapshot
+    kw = _plot_kwargs(figure, year, highlight, snapshot)
     if figure != "all" and kw:
         try:
             typer.echo(plots.FIGURES[figure](**kw))
         except ValueError as e:
-            # Projeto que existe nas 90 raízes mas não é elegível no ano pedido
-            # é erro de uso, não bug: vale mensagem curta, não traceback.
+            # Projeto que existe nas 90 raízes e não é elegível no ano pedido
+            # configura erro de uso. Mensagem curta serve melhor que traceback.
             raise typer.BadParameter(str(e)) from e
         return
 

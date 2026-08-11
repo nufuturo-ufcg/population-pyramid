@@ -13,7 +13,10 @@ from .config import LOG_DIR, stage_dir
 
 
 class JsonLines(logging.Formatter):
+    """Formata cada registro como uma linha JSON, com os campos do domínio."""
+
     def format(self, r: logging.LogRecord) -> str:
+        """Serializa o registro em JSON de uma linha."""
         d: dict[str, Any] = {
             "ts": datetime.fromtimestamp(r.created, UTC).isoformat(),
             "level": r.levelname,
@@ -29,6 +32,7 @@ class JsonLines(logging.Formatter):
 
 
 def setup(level: str = "INFO") -> Path:
+    """Liga o log em arquivo JSON e no terminal. Devolve o caminho do arquivo."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     path = LOG_DIR / f"run_{datetime.now(UTC):%Y%m%dT%H%M%SZ}.log"
 
@@ -58,6 +62,7 @@ def _path(stage: str) -> Path:
 
 
 def load(stage: str) -> dict:
+    """Manifesto do estágio. Devolve um manifesto vazio quando ainda não houver arquivo."""
     p = _path(stage)
     if not p.exists():
         return {"stage": stage, "ok": {}, "failed": {}}
@@ -65,11 +70,15 @@ def load(stage: str) -> dict:
 
 
 def save(stage: str, man: dict) -> None:
+    """Grava o manifesto do estágio com o horário da execução."""
     man["updated_at"] = datetime.now(UTC).isoformat()
-    _path(stage).write_text(json.dumps(man, indent=2, ensure_ascii=False, default=str))
+    # A quebra final deixa o arquivo estável sob o hook end-of-file-fixer: sem
+    # ela, hook e pipeline reescreviam o manifesto um atrás do outro.
+    _path(stage).write_text(json.dumps(man, indent=2, ensure_ascii=False, default=str) + "\n")
 
 
 def summarize(stage: str, man: dict) -> str:
+    """Linha de resumo do manifesto para o terminal."""
     ok, bad = len(man.get("ok", {})), len(man.get("failed", {}))
     s = f"[{stage}] {ok} ok, {bad} falhas"
     if bad:
