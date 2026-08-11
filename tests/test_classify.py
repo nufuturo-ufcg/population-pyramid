@@ -16,7 +16,7 @@ de cada lado, mais o desenho das duas pirâmides resultantes:
 Isso amarra três decisões que o texto sozinho deixa ambíguas:
 
 1. C3 em t2 tem 6 meses de non-coding e 2 de coding, e a Fig. 4(b) o desenha na
-   banda "3 months" — ou seja, a idade de quem migrou (`moved`) é contada a
+   banda "3 months". A idade de quem migrou (`moved`) é contada a
    partir do PRIMEIRO EVENTO DE CODING (`init_c`), não do início da atividade.
    Mesma coisa com C6 (8 non-coding / 6 coding, desenhado na banda "6 months").
 
@@ -25,7 +25,7 @@ Isso amarra três decisões que o texto sozinho deixa ambíguas:
    discutido ANTES de codar.
 
 3. C3 tem exatamente 3 meses em t1 e a Fig. 4(a) o coloca na banda "3 months",
-   não na de 6 — as bandas são fechadas em cima: (0,3], (3,6], (6,9].
+   não na de 6: as bandas são fechadas em cima: (0,3], (3,6], (6,9].
    C6, com exatos 6 em t2, idem: banda "6 months".
 """
 
@@ -38,7 +38,8 @@ from pyramid.classify import DAYS_PER_MONTH, coding_events, profile
 from pyramid.config import settings
 from pyramid.snapshots import band_days, pyramid_at
 
-# O "mês" da Fig.4 do IEICE16 é o mês da BANDA (90/3 = 30 dias), não 365.25/12.
+# O "mês" da Fig.4 do IEICE16 é o mês da BANDA (90/3 = 30 dias). O mês de
+# calendário (365.25/12) fica de fora.
 # O exemplo é sintético e afirma "C3 tem exatamente 3 meses e cai na banda
 # '3 months'": só faz sentido se os 3 meses do enunciado forem a mesma unidade
 # que a banda usa para cortar. Construir os eventos com 30.4375 punha C3 a 1,3
@@ -65,7 +66,7 @@ def _events() -> pd.DataFrame:
     """Um evento por mês desde o início de cada lado até t2.
 
     A atividade é contínua (sem lacuna de 3 meses), então a idade é a mesma sob
-    `calendar_tenure` e sob `accumulated_active` — o teste vale para as duas
+    `calendar_tenure` e sob `accumulated_active`. O teste vale para as duas
     configurações de `periods.age_basis`.
     """
     rows = []
@@ -119,7 +120,7 @@ def test_categoria_em_t1(spans, gap_days, cid, categoria):
     [
         ("C1", "coding"),
         ("C2", "non_coding"),
-        ("C3", "moved"),  # migrou entre t1 e t2 — o ponto central da Fig. 4
+        ("C3", "moved"),  # migrou entre t1 e t2, o ponto central da Fig. 4
         ("C4", "coding"),
         ("C5", "non_coding"),
         ("C6", "moved"),

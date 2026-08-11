@@ -1,12 +1,12 @@
 """Testes do `pyramid validate`.
 
-O valor deste comando não está em calcular nada — está em rotular. Os dois
+O valor deste comando está em rotular. Ele não calcula nada. Os dois
 rótulos que mantêm a documentação honesta são justamente os que **nunca
 aparecem numa rodada saudável**:
 
-* `OBSOLETA` — divergência declarada que voltou a bater. Sem isto,
+* `OBSOLETA`: divergência declarada que voltou a bater. Sem isto,
   `docs/discrepancias.md` continuaria afirmando um desvio já corrigido.
-* chave órfã — declaração apontando para um check que não existe mais. Sem
+* chave órfã: declaração apontando para um check que não existe mais. Sem
   isto, o yaml acumula perdão para nada.
 
 Um bug em qualquer um dos dois é silencioso por construção: o comando segue
@@ -35,13 +35,13 @@ def _check(**kw):
         # gate: o que o artigo exige que bata
         (True, True, "", v.OK),
         (True, False, "", v.FALHA),
-        (True, False, "§3.1", v.CONHECIDA),  # desvio declarado e analisado
-        (True, True, "§3.1", v.OBSOLETA),  # declarado, mas voltou a bater
+        (True, False, "seção 3.1", v.CONHECIDA),  # desvio declarado e analisado
+        (True, True, "seção 3.1", v.OBSOLETA),  # declarado, mas voltou a bater
         # informativo: divergir não é falha, só ruído a olhar
         (False, True, "", v.OK),
         (False, False, "", "~"),
-        (False, False, "§3.1", v.CONHECIDA),
-        (False, True, "§3.1", v.OK),
+        (False, False, "seção 3.1", v.CONHECIDA),
+        (False, True, "seção 3.1", v.OK),
     ],
 )
 def test_status(gate, bate, ref, esperado):
@@ -50,7 +50,7 @@ def test_status(gate, bate, ref, esperado):
 
 def test_indisponivel_ganha_de_tudo():
     """Artefato ausente não pode ser lido como acerto nem como desvio conhecido."""
-    c = _check(bate=True, ref="§3.1", indisponivel=True)
+    c = _check(bate=True, ref="seção 3.1", indisponivel=True)
     assert c.status == v.INDISPONIVEL
 
 
@@ -72,7 +72,7 @@ def test_relatorio_ok_ignora_conhecida_e_til():
     rep = v.Report(
         [
             _check(key="a"),
-            _check(key="b", bate=False, ref="§7"),
+            _check(key="b", bate=False, ref="seção 7"),
             _check(key="c", gate=False, bate=False),
         ]
     )
@@ -88,8 +88,8 @@ def test_uma_falha_derruba_o_relatorio():
 
 
 def test_obsoleta_derruba_o_relatorio():
-    """Cenário: alguém conserta o §3.1 e esquece de tirar a declaração."""
-    rep = v.Report([_check(key="types.counts.A", bate=True, ref="§3.1")])
+    """Cenário: alguém conserta a seção 3.1 e esquece de tirar a declaração."""
+    rep = v.Report([_check(key="types.counts.A", bate=True, ref="seção 3.1")])
     assert not rep.ok
     assert rep.falhas[0].status == v.OBSOLETA
 
@@ -99,7 +99,7 @@ def test_obsoleta_derruba_o_relatorio():
 
 def test_chave_orfa_no_yaml_vira_falha(monkeypatch):
     """Declaração que não casa com nenhum check não protege nada."""
-    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"nao.existe": "§99"}})
+    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"nao.existe": "seção 99"}})
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="existe")]})
 
     rep = v.run()
@@ -110,7 +110,9 @@ def test_chave_orfa_no_yaml_vira_falha(monkeypatch):
 
 def test_orfa_nao_e_checada_em_rodada_parcial(monkeypatch):
     """`validate --grupo x` não vê os outros grupos: acusar órfã ali seria ruído."""
-    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"outro.grupo": "§99"}})
+    monkeypatch.setattr(
+        v, "checkpoints", lambda: {"known_divergences": {"outro.grupo": "seção 99"}}
+    )
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="existe")]})
 
     rep = v.run(["g"])
@@ -126,10 +128,10 @@ def test_grupo_desconhecido_e_erro(monkeypatch):
 
 
 def test_declaracao_do_yaml_chega_no_check(monkeypatch):
-    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"existe": "§13"}})
+    monkeypatch.setattr(v, "checkpoints", lambda: {"known_divergences": {"existe": "seção 13"}})
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="existe", bate=False)]})
     rep = v.run()
-    assert rep.checks[0].ref == "§13"
+    assert rep.checks[0].ref == "seção 13"
     assert rep.checks[0].status == v.CONHECIDA
     assert rep.ok
 
@@ -138,7 +140,7 @@ def test_declaracao_do_yaml_chega_no_check(monkeypatch):
 
 
 def _cfg_prefixo():
-    return {"known_divergences": {"tab.*": "§12"}}
+    return {"known_divergences": {"tab.*": "seção 12"}}
 
 
 def test_prefixo_cobre_todas_as_celulas_do_grupo(monkeypatch):
@@ -154,7 +156,7 @@ def test_prefixo_cobre_todas_as_celulas_do_grupo(monkeypatch):
 
 
 def test_prefixo_nao_vaza_para_chave_de_fora(monkeypatch):
-    """`tab.*` não pode pegar `tabela.x` — divergência de fora fica FALHA."""
+    """`tab.*` não pode pegar `tabela.x`. Divergência de fora fica FALHA."""
     monkeypatch.setattr(v, "checkpoints", _cfg_prefixo)
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="tabela.x", bate=False)]})
     rep = v.run()
@@ -166,10 +168,10 @@ def test_chave_exata_ganha_do_prefixo(monkeypatch):
     monkeypatch.setattr(
         v,
         "checkpoints",
-        lambda: {"known_divergences": {"tab.*": "§12", "tab.A.x": "§16"}},
+        lambda: {"known_divergences": {"tab.*": "seção 12", "tab.A.x": "seção 16"}},
     )
     monkeypatch.setattr(v, "GRUPOS", {"g": lambda cfg: [_check(key="tab.A.x", bate=False)]})
-    assert v.run().checks[0].ref == "§16"
+    assert v.run().checks[0].ref == "seção 16"
 
 
 def test_grupo_inteiro_batendo_vira_obsoleta(monkeypatch):

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Varre `commit_scope` e mede a distância entre a Fig.2 da replicação e a do artigo.
 
-Motivação (docs/discrepancias.md §21, §22): o `commit_scope=root` conta só os
+Motivação (docs/discrepancias.md seção 21, seção 22): o `commit_scope=root` conta só os
 commits registrados NO projeto raiz. Fork tem cópia do histórico da mãe em
 `project_commits`, então há duas outras leituras plausíveis do que é "commit do
-projeto" — e o homebrew, que é o painel onde mais sobra gente, é justamente um
+projeto". O homebrew, que é o painel onde mais sobra gente, é justamente um
 projeto com muito fork. A pergunta é se algum dos três escopos aproxima a
 replicação da figura publicada, e EM QUANTO.
 
@@ -15,7 +15,7 @@ O que a varredura faz, por escopo:
      4 projetos da Fig.2 e `--force` (o cache do repo não é tocado);
   3. monta o `pyramid_frame` no snapshot da figura;
   4. compara banda a banda com `esem14_fig2.bars_read_px` do
-     `checkpoints.yaml` (leitura em pixel do artigo, §20).
+     `checkpoints.yaml` (leitura em pixel do artigo, seção 20).
 
 Cada escopo roda num SUBPROCESSO próprio. Os estágios têm cache em disco e
 `settings()` é `@cache`: trocar o escopo dentro do mesmo processo já deu
@@ -25,8 +25,8 @@ volta a dar.
 DISTÂNCIA. Por painel, L1 = soma sobre as bandas de |replicação - artigo|, dos
 dois lados somados (esquerda = `non_coding`; direita = `moved + coding`, ver a
 nota de `bars_read_px` sobre por que não separamos os dois segmentos da
-direita). Bandas que só existem de um lado entram com zero do outro — banda
-sobrando é diferença de verdade (§30), não detalhe de alinhamento.
+direita). Bandas que só existem de um lado entram com zero do outro. Banda
+sobrando é diferença de verdade (seção 30), fora da conta de alinhamento.
 
 O L1 absoluto é dominado pelo homebrew (milhares de pessoas contra dezenas nos
 outros três), então o resumo também traz o L1 relativo (L1 / população lida no
@@ -79,7 +79,7 @@ def _prepara_scratch(escopo: str) -> Path:
     if achou != 1:
         raise SystemExit(
             f"esperava exatamente 1 linha `commit_scope:` em settings.yaml, achei {achou}. "
-            "Edição cega de config é como se troca um parâmetro por acidente — abortando."
+            "Edição cega de config é como se troca um parâmetro por acidente. Abortando."
         )
     alvo.write_text("".join(linhas))
     return scratch
@@ -185,7 +185,7 @@ def relatorio(res: dict, projetos: list[int], snapshot: str) -> str:
     nomes = _rotulos(projetos)
     escopos = list(res)
     ls = []
-    ls.append(f"Fig.2 @ {snapshot} — replicação x leitura em pixel do artigo (bars_read_px)")
+    ls.append(f"Fig.2 @ {snapshot}: replicação x leitura em pixel do artigo (bars_read_px)")
     ls.append(
         "L1 = soma de |replicação - artigo| banda a banda, dois lados; rel = L1 / população lida."
     )
@@ -227,7 +227,7 @@ def relatorio(res: dict, projetos: list[int], snapshot: str) -> str:
     ls.append("")
     ls.append(
         "Lembrete: o alvo tem ±1 pessoa de erro por barra. Diferença de poucos "
-        "por cento entre escopos é empate, não vitória."
+        "por cento entre escopos conta como empate."
     )
     return "\n".join(ls)
 

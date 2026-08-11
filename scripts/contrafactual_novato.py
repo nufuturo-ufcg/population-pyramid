@@ -1,4 +1,4 @@
-"""Contrafactual do §15: novato do dataset (atual) vs novato do projeto.
+"""Contrafactual da seção 15: novato do dataset (atual) vs novato do projeto.
 
 Reclassifica os 12 projetos da Tabela 2 do MSR14 (2004-2011) sob as duas
 definições e compara com o gabarito publicado. Não toca no repositório.

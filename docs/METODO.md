@@ -8,8 +8,8 @@ Do dump ao número, na ordem em que a ferramenta faz. Sem analogia (isso é o
 ## 1. A ferramenta recebe o quê, em que formato
 
 **Entrada:** o dump MySQL do GHTorrent usado no MSR'14 Mining Challenge, montado
-read-only (`DB_NAME=msr14`). É um banco relacional, não arquivo: a ferramenta lê
-por SQL, e todo SQL vive em `src/pyramid/sources/`.
+read-only (`DB_NAME=msr14`). É um banco relacional. A ferramenta lê por SQL, e
+todo SQL vive em `src/pyramid/sources/`.
 
 Tabelas usadas: `projects`, `users`, `commits`, `project_commits`,
 `pull_requests`, `pull_request_history`, `commit_comments`, `issues`,
@@ -62,7 +62,7 @@ exigem ≥ 10 devs no ano.
 ## 3. Coding, Discussion (non-coding) e Moved
 
 **Primeiro, o tipo do evento.** Divisão em vigor (`taxonomy.variant: prose`,
-IEICE'16 p.1307 prosa == ESEM'14 §3):
+IEICE'16 p.1307 prosa == ESEM'14 seção 3):
 
 | Lado | Eventos |
 |---|---|
@@ -83,32 +83,32 @@ Então, no snapshot T:
 
 | Categoria | Regra |
 |---|---|
-| **non_coding** | não tem `init_c` até T — só conversou |
-| **moved** | tem `init_c ≤ T` **e** `init_d < init_c` — discutiu antes de codar |
-| **coding** | tem `init_c ≤ T` e não discutiu antes — entrou codando |
+| **non_coding** | não tem `init_c` até T (só conversou) |
+| **moved** | tem `init_c ≤ T` **e** `init_d < init_c` (discutiu antes de codar) |
+| **coding** | tem `init_c ≤ T` e não discutiu antes (entrou codando) |
 
 Consequência de projeto: quem discute em 2011 e só commita em 2012 aparece como
 `non_coding` nas pirâmides de 2011 e vira `moved` a partir de 2012. Essa
 migração é o conteúdo da Fig.3 do ESEM'14.
 
-Para CCR, projeção e para o eixo da figura, **`moved` conta do lado coding** —
-ele é um lado próprio só na cor da barra.
+Para CCR, projeção e para o eixo da figura, **`moved` conta do lado coding**.
+Ele é um lado próprio só na cor da barra.
 
 ## 4. Como a pirâmide é montada
 
 A série de snapshots é fim de trimestre civil, de **2010-03-31 a 2013-09-30**:
 15 datas. Em cada snapshot T, cada contribuidor do projeto recebe:
 
-1. **Lado** — a categoria da seção 3 (non-coding à esquerda; coding + moved à
+1. **Lado**: a categoria da seção 3 (non-coding à esquerda; coding + moved à
    direita).
-2. **Idade** — `T − start_ref`, onde `start_ref` é `init_c` para quem já codou e
+2. **Idade**: `T − start_ref`, onde `start_ref` é `init_c` para quem já codou e
    `init_d` para quem não codou. É tenure de calendário: **gap de inatividade
    não desconta idade**, igual à idade numa pirâmide demográfica. A leitura
-   alternativa (somar só os períodos ativos) foi refutada — zera os Tipos C e D.
-3. **Banda** — faixas de 3 meses (90 dias), fechadas em cima:
+   alternativa (somar só os períodos ativos) foi refutada: zera os Tipos C e D.
+3. **Banda**: faixas de 3 meses (90 dias), fechadas em cima:
    `(0,90] → banda 0`, `(90,180] → banda 1`, ... O rótulo do eixo y de uma banda
    é `(banda+1) × 3 meses`.
-4. **Vivo ou não** — a pessoa está viva em T se o último evento dela é recente.
+4. **Vivo ou não**: a pessoa está viva em T se o último evento dela é recente.
    O artigo: "left the project when he/she did not give any contribution for
    more than three months". A ferramenta guarda `idle_days` e o consumidor
    escolhe a janela:
@@ -121,7 +121,7 @@ para a esquerda, coding+moved para a direita.
 
 Sobre períodos de atividade: os eventos de cada pessoa são quebrados em spans
 separados por mais de 3 meses de silêncio. Os spans decidem quem está vivo; não
-decidem idade. Quem sai e volta reaparece já velho — que é o "we consider them
+decidem idade. Quem sai e volta reaparece já velho, que é o "we consider them
 as experienced contributors when they come back" do artigo, de graça.
 
 ## 5. CCR e NCR
@@ -152,8 +152,8 @@ entra):
 | C | > 0 | < 0 | veteranos codando |
 | D | < 0 | < 0 | veteranos conversando |
 
-Projeto sem nenhum contribuidor vivo não é classificado (`ratio` devolve NaN) —
-é o que derruba projetos da Fig.5. Empate exato (CCR ou NCR == 0) cai no lado
+Projeto sem nenhum contribuidor vivo não é classificado (`ratio` devolve NaN).
+É o que derruba projetos da Fig.5. Empate exato (CCR ou NCR == 0) cai no lado
 baixo, e a contagem de empates vai para o manifesto em vez de sumir dentro de um
 quadrante.
 
@@ -161,7 +161,7 @@ quadrante.
 
 Tudo abaixo é derivado das mesmas pirâmides.
 
-**Projeção coorte-componente** (IEICE'16 §4), por banda, separada para
+**Projeção coorte-componente** (IEICE'16 seção 4), por banda, separada para
 non-coding / moved / coding:
 
     SR(b)             = Pop(b+1, jun/2013) / Pop(b, mar/2013)
@@ -180,14 +180,14 @@ Roda nos 34 projetos com mais de 100 contribuintes ativos em mar/2013.
 
 "Novato do ano Y" é propriedade global da pessoa: a primeira contribuição dela
 em *todo* o dataset caiu em Y. Por isso este estágio recusa rodar num
-subconjunto de projetos — mudaria o denominador em silêncio. Corte alto/baixo é
+subconjunto de projetos, porque mudaria o denominador em silêncio. Corte alto/baixo é
 a **mediana entre os projetos elegíveis daquele ano** (≥ 10 devs), recalculada
 ano a ano, e os quadrantes são attractive / floating / stagnant / terminal.
 
-**2013 é right-censored** (o dump acaba em out/2013): o ano **renderiza
-pirâmide** — forma é estoque, olha para trás — e **não recebe quadrante** —
-stickiness é fluxo e precisaria de 2014. Nada é anualizado para forçar
-classificação.
+**2013 é right-censored** (o dump acaba em out/2013). O ano **renderiza
+pirâmide**, porque forma é estoque e olha para trás. O ano **não recebe
+quadrante**, porque stickiness é fluxo e precisaria de 2014. Nada é anualizado
+para forçar classificação.
 
 **Artefatos gerados** (`uv run pyramid plot`, em `output/plots/`): as pirâmides
 por status e por tipo, a grade de transição, o scatter CCR × NCR, a sobreposição

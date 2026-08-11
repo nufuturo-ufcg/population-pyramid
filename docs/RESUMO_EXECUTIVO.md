@@ -36,7 +36,7 @@ ficam lado a lado, e o arquivo que desenha o número. As figuras estão em
 [`docs/figuras/`](figuras/). Quem quiser refazer tudo do zero acha o passo a passo no
 [`README.md`](../README.md).
 
-Os nomes de check terminam no id do projeto, não no nome, porque `symfony` aparece duas vezes na
+Os nomes de check terminam no id do projeto. O nome não serve de chave: `symfony` aparece duas vezes na
 lista dos 90. Os ids que aparecem neste documento:
 
 - **79163** é `mxcl/homebrew`
@@ -176,7 +176,7 @@ teste.
 A tabela mede o erro de previsão (ABRE, quanto a projeção erra em média) em 40 células: 5 grupos de
 projeto (A, B, C, D e o agregado) × 4 categorias de contribuidor (código, discussão, quem mudou de
 lado, todos) × 2 métodos (por faixa etária e ingênuo). A tolerância de ±2 p.p. é dura de propósito:
-o que interessa aqui não é o valor absoluto de cada célula, é a direção, que está no item 6.
+o que interessa aqui é a direção, que está no item 6. O valor absoluto de cada célula fica em segundo plano.
 
 **Explicação mais provável: a base é outra.** 34 projetos contra 36, coortes diferentes, e o ABRE
 de coorte pequena é dominado por ruído de uma pessoa. A comparação célula a célula fica pouco

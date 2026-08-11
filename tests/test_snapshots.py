@@ -2,7 +2,7 @@ import pytest
 
 from pyramid import snapshots
 
-# --- guarda de datas de config (docs/discrepancias.md §7) ---------------------
+# --- guarda de datas de config (docs/discrepancias.md seção 7) ---------------------
 
 BASE_CFG = {
     "snapshots": {
@@ -17,7 +17,7 @@ BASE_CFG = {
 
 
 def test_serie_cai_em_fim_de_mes_civil():
-    """Regressão do §8: o dia-do-mês não pode grudar em 30 após o 1o mês curto.
+    """Regressão da seção 8: o dia-do-mês não pode grudar em 30 após o 1o mês curto.
 
     Antes o gerador usava DateOffset(months=3) acumulado, que truncava o dia em
     2010-06-30 e nunca mais voltava para 31.
@@ -26,7 +26,7 @@ def test_serie_cai_em_fim_de_mes_civil():
     assert "2013-03-31" in d and "2013-03-30" not in d
     assert "2011-12-31" in d and "2011-12-30" not in d
     assert "2012-12-31" in d
-    # jun/set acabam mesmo no dia 30 — eram os que escondiam o bug
+    # jun/set acabam mesmo no dia 30: eram os que escondiam o bug
     assert "2013-06-30" in d and "2013-09-30" in d
 
 
@@ -87,7 +87,7 @@ def test_banda_zero_e_a_base_da_piramide():
     a coorte mais velha (o topo estreito). A figura do artigo é desenhada com a
     idade crescendo para cima, então quem lê os pixels dela varre na ordem
     INVERSA desta coluna. Casar as duas ordens espelha a comparação inteira e
-    foi o que aconteceu de §19 a §30 do `discrepancias.md` — ver §31.
+    foi o que aconteceu de seção 19 a seção 30 do `discrepancias.md` (ver seção 31).
 
     Se este teste cair, todo alvo lido em pixel (`checkpoints.yaml`
     `figures.esem14_fig2.bars_read_clojure`) precisa ser reindexado junto.

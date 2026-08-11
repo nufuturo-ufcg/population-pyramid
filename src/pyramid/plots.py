@@ -474,7 +474,7 @@ def _anelar(
     ) -> tuple[float, float, float, float]:
         """Retângulo que o rótulo vai ocupar, em pixels, para testar colisão."""
         linhas = texto.split("\n")
-        # Largura por caractere é estimada, não medida: medir exige renderer e
+        # Largura por caractere é estimada. Medir de verdade exige renderer e
         # o ganho não paga o acoplamento. Erra para mais, que é o lado seguro.
         w = max(len(s) for s in linhas) * fonte * 0.58 * pt
         h = len(linhas) * fonte * 1.35 * pt
@@ -513,7 +513,7 @@ def _anelar(
         px, py = ax.transData.transform((r[xcol], r[ycol]))
         # Preferência: para dentro do gráfico (ponto na metade direita recebe
         # rótulo à esquerda, e vice-versa), que é o que basta quando os pontos
-        # estão soltos. Se a vaga já estiver tomada — nuvem densa do miolo —
+        # estão soltos. Se a vaga já estiver tomada (nuvem densa do miolo),
         # tenta as outras direções e vai afastando, senão os nomes se empilham
         # e nenhum deles fica legível.
         sx = 1 if r[xcol] < meio_x else -1

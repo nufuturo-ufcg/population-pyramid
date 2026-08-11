@@ -136,7 +136,7 @@ def project(p_base: np.ndarray, p_last: np.ndarray) -> tuple[np.ndarray, int]:
     Dois casos distintos quando o denominador `p_base[b]` é zero:
 
     - `p_last[b] == 0` também (banda vazia nos dois tempos): ninguém envelhece
-      para b+1, e prever 0 é uma afirmação substantiva, não uma lacuna. No
+      para b+1, e prever 0 é uma afirmação substantiva sobre o futuro. No
       dataset são 3256 células e o alvo é de fato vazio em 98.9% delas.
     - `p_last[b] > 0` (coorte órfã): a banda apareceu povoada sem ter existido
       no tempo anterior. A taxa de sobrevivência é indefinida: 0/0 vezes algo.
@@ -368,9 +368,9 @@ def term_split(df: pd.DataFrame | None = None) -> dict:
     1 ano de período de atividade = banda 4 (bandas são de 3 meses, fechadas em
     cima: banda 0..3 cobre (0, 12m]). Curto = bandas 0-3, longo = 4+.
 
-    Aqui o teste é de duas amostras independentes (rank-sum), não pareado: os
-    dois grupos são conjuntos de coortes de tamanhos diferentes, não há par
-    natural entre uma banda curta e uma longa. As medianas relatadas, 0.4055 e
+    Aqui o teste é de duas amostras independentes (rank-sum). O pareado fica
+    de fora: os dois grupos são conjuntos de coortes de tamanhos diferentes, e
+    não há par natural entre uma banda curta e uma longa. As medianas relatadas, 0.4055 e
     0.3333, são de novo frações de inteiro pequeno, coerentes com coorte.
     """
     from scipy.stats import ranksums

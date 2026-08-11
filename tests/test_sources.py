@@ -2,8 +2,8 @@
 
 O que se trava aqui é o que quebrou em silêncio: `scope_label` só funcionava
 depois de `list_scopes` ter sido chamado na mesma instância, e sem isso devolvia
-o id como se fosse o nome (docs/discrepancias.md §14). Um teste que passe pelo
-pipeline inteiro não pega isso — o pipeline sempre chama `list_scopes` primeiro.
+o id como se fosse o nome (docs/discrepancias.md seção 14). Um teste que passe pelo
+pipeline inteiro não pega isso: o pipeline sempre chama `list_scopes` primeiro.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ ROWS = [Row(25875, "jquery/jquery"), Row(78835, "divio/django-cms"), Row(79163, 
 
 
 class FakeEngine:
-    """Conta idas ao banco — é isso que a memoização promete evitar."""
+    """Conta idas ao banco: é isso que a memoização promete evitar."""
 
     def __init__(self, rows):
         self.rows = rows

@@ -20,7 +20,7 @@ def test_retained_project_nao_conta_quem_migrou():
 
     É a diferença que separa `stickiness_scope: project` de `dataset`. Um
     projeto não fica sticky porque o dev que ele perdeu foi commitar noutro
-    lugar — mas com escopo `dataset` ficaria.
+    lugar. Com escopo `dataset` ficaria.
     """
     pairs = _pairs([(1, "a", 2011), (2, "a", 2012)])
 
@@ -34,7 +34,7 @@ def test_retained_project_conta_quem_ficou():
 
 
 def test_retained_ignora_volta_com_buraco():
-    """Sumiu em 2012 e voltou em 2013 não é retenção de 2011 — é ano SEGUINTE."""
+    """Sumiu em 2012 e voltou em 2013 cai fora da retenção de 2011: é ano SEGUINTE."""
     pairs = _pairs([(1, "a", 2011), (1, "a", 2013)])
     assert _keys(attr._retained(pairs, "project")) == set()
 
@@ -50,19 +50,19 @@ def test_retained_rejeita_escopo_desconhecido():
 def test_msr14_fig1_exemplo_dos_autores():
     """Os autores publicaram os números do próprio exemplo; a replicação os devolve.
 
-    MSR'14 §2, Fig. 1, período 2011: cinco desenvolvedores (A-E) e dois
+    MSR'14 seção 2, Fig. 1, período 2011: cinco desenvolvedores (A-E) e dois
     projetos. "There are three new developers (B, C and D), and two of them
     contribute to project 1 (B and C), while one developer (D) contributes to
     project 2. In this case, Magnet value of project 1 is 2/3 and project 2 is
     1/3." Para o sticky: projeto 1 tem A, B, C em 2011 e A, B seguem em 2012
-    (2/3); no projeto 2 só D contribui em 2011 e segue em 2012 — "Sticky value
+    (2/3); no projeto 2 só D contribui em 2011 e segue em 2012. "Sticky value
     of project 2 is not 2/1, but rather 1/1", porque E entra em 2012 e não
     conta no denominador.
 
     O exemplo trava a aritmética e a armadilha do sticky, mas sozinho ele NÃO
     separa novato global de novato por projeto: não há ninguém que seja
     veterano do dataset e estreante em um projeto. Esse eixo é o do teste
-    seguinte. Ver §15 de docs/discrepancias.md.
+    seguinte. Ver seção 15 de docs/discrepancias.md.
     """
     pairs = _pairs(
         [
@@ -87,7 +87,7 @@ def test_msr14_fig1_exemplo_dos_autores():
 
 
 def test_novato_e_do_dataset_nao_do_projeto():
-    """Veterano que troca de projeto não é novato — nem para o projeto novo.
+    """Veterano que troca de projeto continua veterano, também no projeto novo.
 
     O artigo diz "the proportion of contributors who made their first
     contribution in the time period under study who contribute to a given
@@ -95,10 +95,10 @@ def test_novato_e_do_dataset_nao_do_projeto():
     projeto só filtra quem conta. Aqui V contribui desde 2010 no projeto 1 e
     aparece no projeto 2 em 2011; N estreia no projeto 1 em 2011. O único
     novato do ano é N, então o projeto 2 tem magnetismo ZERO apesar de ter
-    ganhado um contribuidor — ele não atraiu ninguém para o ecossistema.
+    ganhado um contribuidor. Ele não atraiu ninguém para o ecossistema.
 
     Sob a leitura "novato = primeira aparição NESTE projeto", V contaria e o
-    projeto 2 daria 1/2. É a variante P do §15: rodada nos 12 projetos da
+    projeto 2 daria 1/2. É a variante P da seção 15: rodada nos 12 projetos da
     Tabela 2 do MSR'14, ela não corrige nenhuma célula e quebra três.
     """
     pairs = _pairs(
@@ -122,8 +122,8 @@ def test_novato_e_do_dataset_nao_do_projeto():
 def _table(year):
     """Corte do ano, ou skip explicando que falta rodar o estágio.
 
-    Skip só quando o artefato não existe. Se ele existe e o ano sumiu, é bug —
-    e aí `table()` levanta ValueError, que não vira skip.
+    Skip só quando o artefato não existe. Se ele existe e o ano sumiu, é bug.
+    Aí `table()` levanta ValueError, que não vira skip.
     """
     if not attr.path().exists():
         pytest.skip(f"falta {attr.path()}: rode `pyramid attractiveness`")
@@ -166,12 +166,12 @@ def test_checkpoint_jekyll_2011_diverge():
 
     O ESEM14 chama jekyll de "also a terminal project in 2011" (p.5, discussão
     da Fig.3). Aqui ele sai `floating` em 2011 e `terminal` em 2010. A causa
-    provável é a mesma do §3.1 — novato demais, e o magnetismo é contagem de
-    novato —, então este teste trava o valor **medido**, não o do artigo: o
+    provável é a mesma da seção 3.1 (novato demais, e o magnetismo é contagem de
+    novato), então este teste trava o valor **medido**, sem travar o do artigo: o
     ponto é detectar deriva enquanto a divergência estiver aberta.
 
     Se ele quebrar porque jekyll virou `terminal` em 2011, não conserte o
-    teste: o checkpoint da Fig.2 passou a bater 5/5 e o §13 fecha. `pyramid
+    teste: o checkpoint da Fig.2 passou a bater 5/5 e a seção 13 fecha. `pyramid
     validate` avisa a mesma coisa marcando a divergência como OBSOLETA.
     """
     jekyll = 79166
@@ -181,7 +181,7 @@ def test_checkpoint_jekyll_2011_diverge():
     df = _table(2011).set_index("scope_id")
     assert jekyll in df.index, "jekyll sumiu do output"
     assert df.loc[jekyll, "quadrant"] == "floating", (
-        "jekyll saiu de `floating` em 2011 — ver docs/discrepancias.md §13 "
+        "jekyll saiu de `floating` em 2011. Ver docs/discrepancias.md seção 13 "
         "antes de mexer neste teste"
     )
     assert _table(2010).set_index("scope_id").loc[jekyll, "quadrant"] == "terminal"

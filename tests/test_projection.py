@@ -1,4 +1,4 @@
-"""Projeção coorte-componente — IEICE16 §4."""
+"""Projeção coorte-componente (IEICE16 seção 4)."""
 
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ def test_abre_recusa_contagem_negativa():
 
 
 def test_abre_reproduz_as_fracoes_da_tabela_3():
-    # As medianas publicadas são frações de inteiro pequeno — é o que denuncia
-    # que a unidade de análise é a coorte, não o projeto.
+    # As medianas publicadas são frações de inteiro pequeno. É o que denuncia
+    # a unidade de análise: a coorte.
     assert abre(3, 4) == pytest.approx(0.3333, abs=1e-4)
     assert abre(3, 5) == pytest.approx(0.6667, abs=1e-4)
     assert abre(4, 7) == pytest.approx(0.7500)
@@ -75,8 +75,8 @@ def test_nascimentos_sao_a_media_das_duas_bandas_de_entrada():
 
 def test_coorte_orfa_nao_inventa_sobrevivencia_e_e_contada():
     # Banda 0 povoada em T mas vazia em T-3m: a taxa é 0/0, indefinida. A célula
-    # sai como nan ("sem resposta"), não como 0 — 0 seria uma previsão de
-    # extinção, e no dataset o alvo tem gente de verdade em 73.8% desses casos.
+    # sai como nan ("sem resposta"). O valor 0 seria uma previsão de extinção,
+    # e no dataset o alvo tem gente de verdade em 73.8% desses casos.
     proj, orfas = project(np.array([0.0, 4.0]), np.array([7.0, 4.0]))
     assert np.isnan(proj[1])
     assert orfas == 1
@@ -124,7 +124,7 @@ def test_populacao_imortal_e_projetada_sem_erro():
 
     Se a pirâmide for o acumulado histórico em vez da população ativa, ninguém
     morre: cada banda avança um degrau por trimestre e a sobrevivência é 1 por
-    construção. A projeção acerta na mosca sem ter previsto nada — foi assim que
+    construção. A projeção acerta na mosca sem ter previsto nada. Foi assim que
     o ABRE saiu 0.006 contra os 0.4 do artigo. O teste fixa a aritmética que
     produz esse acerto, para que ele só possa aparecer se o filtro `active`
     tiver caído de novo.
@@ -187,7 +187,7 @@ def test_all_types_agrega_todos_os_tipos():
 
 
 def test_wilcoxon_e_nan_quando_os_metodos_empatam():
-    # Sem diferença não há o que ranquear — o teste não pode devolver p=0.
+    # Sem diferença não há o que ranquear. O teste não pode devolver p=0.
     df = _df(
         [
             (1, "A", "all", 0, 4.0, 6.0, 6.0, 0.5, 0.5),
@@ -227,11 +227,11 @@ def test_checkpoint_abre_na_ordem_de_grandeza_do_artigo():
     """O ABRE mediano do artigo vive em [0.18, 1.0]; o nosso tem que viver lá.
 
     Este é o teste que teria pegado o bug da pirâmide acumulada. Com a população
-    imortal o ABRE saiu 0.006 — duas ordens de grandeza abaixo de qualquer
-    célula publicada — e nada no repositório reclamou. A faixa é frouxa de
+    imortal o ABRE saiu 0.006, duas ordens de grandeza abaixo de qualquer célula
+    publicada, e nada no repositório reclamou. A faixa é frouxa de
     propósito: o dataset não é o do artigo (34 projetos contra 36) e as coortes
     não são as mesmas, então a comparação célula a célula não fecha (ver
-    docs/discrepancias.md §12). O que não pode acontecer é o erro sumir.
+    docs/discrepancias.md seção 12). O que não pode acontecer é o erro sumir.
     """
     obs = _tables()["abre"].set_index("type")
     pub = _abre_publicado()["table"]
@@ -243,17 +243,17 @@ def test_checkpoint_abre_na_ordem_de_grandeza_do_artigo():
         v = obs.loc["All types", f"{cat}_cohort"]
         assert minimo / 3 <= v <= maximo * 1.5, (
             f"ABRE cohort de {cat} = {v:.4f} fora da ordem de grandeza publicada "
-            f"[{minimo}, {maximo}] — suspeite do filtro de população ativa"
+            f"[{minimo}, {maximo}]. Suspeite do filtro de população ativa"
         )
 
 
 @pytest.mark.checkpoint
 def test_checkpoint_coorte_bate_o_baseline_no_agregado():
-    """A tese do §4: projetar por coorte erra menos que repetir a última medida.
+    """A tese da seção 4: projetar por coorte erra menos que repetir a última medida.
 
     IEICE16 Tabela 4 marca All types/all como significativo (p<0.00001). É a
     única conclusão do artigo que não depende do dataset específico, então é a
-    que exigimos aqui — as células por tipo divergem e estão documentadas.
+    que exigimos aqui. As células por tipo divergem e estão documentadas.
     """
     t = _tables()
     linha = t["abre"].set_index("type").loc["All types"]
@@ -263,7 +263,7 @@ def test_checkpoint_coorte_bate_o_baseline_no_agregado():
 
 @pytest.mark.checkpoint
 def test_checkpoint_projetos_elegiveis_perto_dos_36():
-    """ "We used 36 projects that have more than 100 contributors" (IEICE16 §4).
+    """ "We used 36 projects that have more than 100 contributors" (IEICE16 seção 4).
 
     Temos 34: o corte é sobre contribuidores ativos no snapshot base, e o nosso
     dump tem dois projetos na fronteira dos 100. O teste trava a contagem para

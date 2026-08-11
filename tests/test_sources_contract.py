@@ -1,9 +1,9 @@
-"""Contrato genérico de ActivityDataSource (§8).
+"""Contrato genérico de ActivityDataSource (seção 8).
 
 Este arquivo não sabe o que é MySQL. Ele pega cada fonte registrada em
 `SOURCES`, alimenta com um fixture sintético pequeno e cobra o mesmo formato
 canônico de todas. Quando entrar a `GitHubAPISource`, o trabalho é acrescentar
-uma linha em `SOURCES` — se a fonte nova devolver `contributor_id` como string,
+uma linha em `SOURCES`. Se a fonte nova devolver `contributor_id` como string,
 ou um `event_type` fora do enum, ou data no futuro, quebra aqui e não três
 estágios adiante, na forma de uma pirâmide torta que ninguém sabe explicar.
 
@@ -81,7 +81,7 @@ def _msr14():
     ]
     src = MSR14Source(SETTINGS, _FakeEngine(rows))
     # O SQL do MySQL não roda fora do MySQL: substituímos a ida ao banco pelo
-    # fixture cru. O que está sob teste é o parser da fonte, não o servidor.
+    # fixture cru. O que está sob teste é o parser da fonte. O servidor fica fora.
     with patch("pyramid.sources.msr14.pd.read_sql", return_value=RAW.copy()):
         yield src
 

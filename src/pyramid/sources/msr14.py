@@ -97,7 +97,7 @@ _ACTIVITY_SQL = {
     # `issues` mistura issues de verdade com PRs: 80.729 das 150.362 linhas têm
     # pull_request=1. O artigo trata `issues` como abertura de discussão, então
     # NÃO filtramos pull_request=0: a abertura de um PR também gera discussão.
-    # Isso é escolha de método, não descuido; ver docs/discrepancias.md.
+    # Isso é escolha de método declarada; ver docs/discrepancias.md.
     "issues": """
         SELECT i.reporter_id AS contributor_id, i.created_at AS ts
         FROM issues i WHERE i.repo_id = :sid
@@ -247,7 +247,7 @@ class MSR14Source(ActivityDataSource):
 # commit que ele não casou com a conta do GitHub, `fake` gerado a partir do
 # autor do commit). Isso infla a população da pirâmide e REJUVENESCE a pessoa:
 # cada identidade carrega só um pedaço do histórico dela. Só existe aqui, fora
-# do pipeline: é investigação, não estágio. Ver discrepancias.md, seção 24.
+# do pipeline, como investigação avulsa. Ver discrepancias.md, seção 24.
 _USERS_SQL = "SELECT * FROM users WHERE id IN :ids"
 
 

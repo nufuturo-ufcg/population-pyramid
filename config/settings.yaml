@@ -1,5 +1,5 @@
 # Parâmetros do método. Tudo que é ambíguo nos artigos está aqui, explícito,
-# com a citação da fonte — nada de constante enterrada no código.
+# com a citação da fonte. Constante enterrada no código está proibida.
 
 projects:
   # 91 linhas têm forked_from IS NULL; a 108342 (Craftbukkit/Bukkit) é um
@@ -10,18 +10,18 @@ projects:
   exclude_ids: [108342]
   expected_count: 90
 
-  # ATENÇÃO: `symfony` resolve pra DOIS roots — 51671 symfony/symfony e
+  # ATENÇÃO: `symfony` resolve pra DOIS roots: 51671 symfony/symfony e
   # 74915 xphere-forks/symfony (fork não rotulado). Busca por nome é
   # não-determinística; checkpoints.yaml sempre usa ID.
 
 # ---------------------------------------------------------------------------
-# AMBIGUIDADE 1 — taxonomia de eventos.
+# AMBIGUIDADE 1: taxonomia de eventos.
 # O IEICE16 se contradiz na mesma página 1307:
 #   * Tabela 1  -> `issues` = non-coding, `issues_events` = "excluded in this study"
 #   * a prosa   -> `issue_events` = non-coding, `issues` nem é mencionado
 # As duas leituras dão exatamente "six development activities". O Apêndice A
 # ("based on the classification of the activities as shown in Table 1") aponta
-# pra Tabela 1. O ESEM14 §3 concorda com a PROSA.
+# pra Tabela 1. O ESEM14 seção 3 concorda com a PROSA.
 # Rodamos as duas e deixamos os Tipos A-D decidirem.
 # ---------------------------------------------------------------------------
 taxonomy:
@@ -34,24 +34,24 @@ taxonomy:
       non_coding: [commit_comments, issues, issue_comments, pull_request_comments]
       excluded: [issue_events]
     prose:
-      source: "IEICE16 p.1307 prosa == ESEM14 §3"
+      source: "IEICE16 p.1307 prosa == ESEM14 seção 3"
       coding: [commits, pull_requests]
       non_coding: [commit_comments, issue_comments, pull_request_comments, issue_events]
       excluded: [issues]
-    # NÃO é leitura do artigo — é teste de limite. O §28 mostrou que em 3 dos 4
+    # Isto é teste de limite, sem leitura do artigo. A seção 28 mostrou que em 3 dos 4
     # painéis da Fig.2 nossa primeira atividade cai MAIS TARDE que a dos
     # autores. `issues.created_at` (abertura) é a âncora mais antiga que o dump
     # oferece e é a única que `prose` deixa de fora. `union` liga tudo ao mesmo
     # tempo: se nem assim a idade recuar o bastante, a hipótese "faltava um tipo
-    # de evento" morre. Ver docs/discrepancias.md §29.
+    # de evento" morre. Ver docs/discrepancias.md seção 29.
     union:
-      source: "teste de limite (§29) — não é leitura do artigo"
+      source: "teste de limite (seção 29), sem leitura do artigo"
       coding: [commits, pull_requests]
       non_coding: [commit_comments, issues, issue_comments, pull_request_comments, issue_events]
       excluded: []
 
 # ---------------------------------------------------------------------------
-# AMBIGUIDADE 2 — escopo de commits (o "primeiro suspeito" do §7.1 do spec).
+# AMBIGUIDADE 2: escopo de commits (o "primeiro suspeito" da seção 7.1 do spec).
 # Medido em dez/2011 para homebrew, entre contribuidores ATIVOS (que é o que a
 # pirâmide mostra): root=1446, family_project_commits=1479, family_project_id=1480.
 # Diferença de ~2%. Em contagem cumulativa daria 45%, mas cumulativo não é usado
@@ -60,13 +60,13 @@ taxonomy:
 commit_scope: root   # root | family_project_commits | family_project_id
 
 # ---------------------------------------------------------------------------
-# AMBIGUIDADE 6 — identidade. O GHTorrent abre uma linha em `users` por
+# AMBIGUIDADE 6: identidade. O GHTorrent abre uma linha em `users` por
 # identidade que consegue resolver, e a MESMA pessoa costuma ter uma conta
 # "cheia" mais satelites de 1-5 eventos (e-mail de commit que ele nao casou com
 # a conta do GitHub). Sem fundir, a piramide conta a pessoa N vezes E a
 # rejuvenesce: cada satelite tem primeiro-evento proprio. Medido: clojure tem 6
 # grupos por nome completo (9 ids a menos), blueprint-css 1 (o dono),
-# paperclip 18, homebrew 291. Ver discrepancias.md §26.
+# paperclip 18, homebrew 291. Ver discrepancias.md seção 26.
 #   none        -> um user.id = uma pessoa (comportamento ate s25)
 #   email       -> funde por users.email (seguro; so 3 pares nos 4 projetos)
 #   email_name  -> email + users.name com >=2 tokens fora da lista de nomes
@@ -83,9 +83,9 @@ periods:
   band_months: 3
 
   # Largura da banda EM DIAS, para cortar a idade. Não é `band_months` × 365.25/12
-  # (= 91.3125) — é 90, mês de 30 dias. Isso foi medido, não escolhido: erro L1
+  # (= 91.3125). É 90, mês de 30 dias. Isso foi medido, com erro L1
   # do frame contra os pixels da Fig.2 do ESEM14, nos quatro projetos, varrendo
-  # a largura da banda e a janela da pirâmide (ver `discrepancias.md` §21):
+  # a largura da banda e a janela da pirâmide (ver `discrepancias.md` seção 21):
   #
   #     banda 90.0000d  janela 365.25d  ->  L1 = 437   blueprint-css = 0 (exato)
   #     banda 91.3125d  janela 365.25d  ->  L1 = 481   blueprint-css = 2
@@ -93,20 +93,20 @@ periods:
   # 90 ganha em TODA janela testada (360, 364, 365, 365.25, 366, 370), e no
   # blueprint-css zera: as seis bandas do artigo batem uma a uma, incluindo o
   # buraco na banda 3 e o topo na 15. Com 91.3125 esse contribuidor cai na
-  # banda 3 e o buraco some — é o "quadrado sem espaço vazio" que o desenho
+  # banda 3 e o buraco some. É o "quadrado sem espaço vazio" que o desenho
   # denunciava. Mesma coisa no paperclip: com 90 o topo vai para a banda 15 e o
   # eixo mostra "4 years", como no artigo.
   #
   # O incômodo é real e fica registrado: a janela de 12 meses da pirâmide segue
   # valendo 365.25 dias (com 360 o blueprint-css DESencaixa). Ou seja, o artigo
-  # não usa um mês só. Não unificar por gosto de simetria — o dado manda.
+  # não usa um mês só. Não unificar por gosto de simetria: o dado manda.
   band_days: 90
 
   # "we define newcomers as contributors who have less than three months of
   #  activity periods" (p.1308)
   newcomer_max_months: 3
 
-  # AMBIGUIDADE 3 — o que é a "idade" do contribuidor.
+  # AMBIGUIDADE 3: o que é a "idade" do contribuidor.
   #
   #  accumulated_active  soma dos períodos de atividade (leitura literal de
   #                      "less than three months of ACTIVITY PERIODS", p.1308)
@@ -121,12 +121,12 @@ periods:
   # leitura não produz nenhum. Some com quase todo mundo experiente porque
   # ninguém acumula 3 meses de atividade contínua. Fica `calendar_tenure`,
   # que é também o que o método demográfico emprestado exige. Ver
-  # docs/discrepancias.md §3.
+  # docs/discrepancias.md seção 3.
   age_basis: calendar_tenure   # calendar_tenure | accumulated_active
 
 snapshots:
   # Série trimestral cobrindo o dataset. Fim da cobertura é 2013-10-06, mas
-  # issue_comments vai até 2013-10-07 — o corte em 2013-09-30 fica antes dos dois.
+  # issue_comments vai até 2013-10-07. O corte em 2013-09-30 fica antes dos dois.
   start: "2010-03-31"
   end: "2013-09-30"
   freq_months: 3
@@ -134,7 +134,7 @@ snapshots:
   # ATENÇÃO: estas datas têm de existir na série gerada por start/freq_months.
   # A série é ancorada em fim de trimestre CIVIL (QuarterEnd), então dez cai em
   # -12-31 e mar em -03-31. Até 2026-08 usava DateOffset(months=3) acumulado, que
-  # grudava tudo no dia 30 a partir do primeiro mês curto — ver §8 de
+  # grudava tudo no dia 30 a partir do primeiro mês curto. Ver seção 8 de
   # docs/discrepancias.md. snapshots.py valida e falha alto se não casar.
   projection_base: ["2013-03-31", "2013-06-30"]
   projection_target: "2013-09-30"
@@ -142,7 +142,7 @@ snapshots:
 metrics:
   # CCR = (coding-non)/coding se coding>=non, senão (coding-non)/non   [p.1308]
   # NCR = (new-exp)/new       se new>=exp,      senão (new-exp)/exp    [p.1308]
-  # Corte é ZERO, não mediana. `coding` inclui os `moved`.
+  # Corte é ZERO. A mediana foi testada e refutada. `coding` inclui os `moved`.
   threshold: 0.0
   coding_includes_moved: true
 
@@ -153,12 +153,12 @@ metrics:
   #   D: mais experientes + mais non-coding-> CCR < 0, NCR < 0
   # Empate exato (CCR ou NCR == 0) o artigo não cobre. Regra fixa no código:
   # alto = (valor > 0), então zero cai do lado baixo. Não é configurável de
-  # propósito — ver docstring de metrics._type_of e docs/discrepancias.md.
+  # propósito. Ver docstring de metrics._type_of e docs/discrepancias.md.
 
 projection:
   # "the 36 projects that have more than 100 contributors" (p.1311). O artigo
   # NÃO diz se é cumulativo ou ativo, nem sobre qual snapshot. Grid completo
-  # medido em docs/discrepancias.md §7: nenhuma combinação dá 36.
+  # medido em docs/discrepancias.md seção 7: nenhuma combinação dá 36.
   # Melhor variante = base mar/2013, todos os contribuidores ativos -> 35.
   # O 36º candidato tem 96 ativos (corte cai entre 102 e 96), então é ruído de
   # fronteira, não erro de método. Aceito: ABRE/Wilcoxon não dependem do n exato.
@@ -169,21 +169,21 @@ projection:
   #   MER  = |x - x̂| / x̂
   #   ABRE = |x̂ - x| / x   se (x̂ - x >= 0)
   #        = |x̂ - x| / x̂  se (x̂ - x <  0)
-  # Nos dois ramos o denominador é o MENOR entre x e x̂ — daí `min`. O §5 das
+  # Nos dois ramos o denominador é o MENOR entre x e x̂, daí `min`. A seção 5 das
   # instruções e o plano-replicação.docx concordam com isto; conferido no PDF.
   abre_denominator: min
 
 attractiveness:
-  # ESEM14 §3.1, base Yamashita et al. MSR'14. Só commits e pull requests.
+  # ESEM14 seção 3.1, base Yamashita et al. MSR'14. Só commits e pull requests.
   events: [commits, pull_requests]
   cutoff: median          # recalculada ano a ano
   # "mais de 10 desenvolvedores ativos" -> comparação ESTRITA (devs > 10).
   min_active_devs: 10
 
-  # AMBIGUIDADE 4 — "os contribuidores do projeto naquele ano que também
+  # AMBIGUIDADE 4: "os contribuidores do projeto naquele ano que também
   # contribuíram no ano seguinte": no MESMO projeto ou em qualquer lugar?
   #
-  #  project  volta ao mesmo projeto. É o que o Yamashita mede — "sticky" é o
+  #  project  volta ao mesmo projeto. É o que o Yamashita mede: "sticky" é o
   #           projeto segurar o dev; um projeto não fica sticky porque o dev
   #           foi embora e passou a commitar em outro lugar.
   #  dataset  volta a qualquer projeto dos 90. Só serve para medir o tamanho
@@ -191,28 +191,28 @@ attractiveness:
   stickiness_scope: project   # project | dataset
 
 plots:
-  # AMBIGUIDADE 5 — que população a PIRÂMIDE desenha.
+  # AMBIGUIDADE 5: que população a PIRÂMIDE desenha.
   #
   #  stock   todo mundo que já contribuiu até o snapshot, posicionado pela
   #          idade acumulada. Quem entrou em 2007 e parou em 2010 continua
   #          na figura de 2011, na banda de idade que alcançou.
-  #  active  só quem tem contribuição nos últimos `inactivity_months` — a
+  #  active  só quem tem contribuição nos últimos `inactivity_months`, a
   #          mesma população que `metrics` usa para CCR/NCR.
   #
-  # `stock` FOI DESCARTADO — ver docs/discrepancias.md §18 (superada) e §19.
+  # `stock` FOI DESCARTADO. Ver docs/discrepancias.md seção 18 (superada) e seção 19.
   # O texto do ESEM14 é explícito: contribuidores "end when they leave the
   # development communities", e a legenda da Fig.1 conta DOIS contribuidores em
-  # t1 de três desenhados — o developer 2, cujo período já acabou, não entra.
+  # t1 de três desenhados. O developer 2, cujo período já acabou, fica fora.
   # Quem entrou em 2007 e parou em 2010 não está na figura de 2011.
   # Empiricamente, o estoque enche as bandas 9, 10 e 11 do blueprint-css, que
-  # na Fig.2 estão vazias (teste do buraco, §19) — e esse teste não depende de
+  # na Fig.2 estão vazias (teste do buraco, seção 19). Esse teste não depende de
   # escala, ao contrário do argumento de barra que motivou a escolha anterior.
   #
   # Isto NÃO contamina CCR/NCR: `metrics` filtra `active` por conta própria
   # (metrics.py:111) e segue batendo 48/55.
   pyramid_population: active   # stock | active
 
-  # JANELA da população da pirâmide, em meses (§19 — FECHADA).
+  # JANELA da população da pirâmide, em meses (seção 19, FECHADA).
   #
   # Não é mais um chute: as barras da Fig.2 do ESEM14 foram MEDIDAS em pixel
   # (eixo calibrado pelas linhas de grade: 750/500/250 no homebrew, 100/50 no
@@ -229,10 +229,10 @@ plots:
   # Totais em 12m: 3882/524/49/13 contra 3946/535/47/13 medidos (a medição lê
   # ~2% a mais, é a borda preta da barra). A 3 meses o blueprint-css desaba
   # para UM contribuidor; a ∞ (estoque) reaparecem as bandas 16-17 que a figura
-  # não tem. Ver docs/discrepancias.md §19.
+  # não tem. Ver docs/discrepancias.md seção 19.
   #
   # Leitura substantiva: com snapshot em fim de ano, "janela de 12 meses" é
-  # "quem contribuiu durante o ano do snapshot" — a pirâmide anual conta a
+  # "quem contribuiu durante o ano do snapshot". A pirâmide anual conta a
   # população do ANO, não a do trimestre. O `inactivity_months: 3` do
   # MSR14/IEICE16 continua valendo onde o artigo o crava: quebra de períodos
   # em `classify` e população de CCR/NCR em `metrics`.

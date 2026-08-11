@@ -101,7 +101,7 @@ def main():
         lo, ln, eo, en = pontua(per)
         print(f"{nome:<40} {lo:>6}/{ln:<3} {eo:>6}/{en:<3}")
 
-    # D: novato local (§15) — precisa de caminho proprio
+    # D: novato local (seção 15). Precisa de caminho proprio
     per = annual(p_cod, fy_cod)  # placeholder p/ estrutura
     d = p_cod.drop_duplicates().copy()
     d["_nov"] = d.groupby(["scope_id", "contributor_id"]).year.transform("min") == d["year"]

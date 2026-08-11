@@ -460,7 +460,7 @@ da pirâmide e por que o artigo também não classifica 2013.
 ## 10. "symfony": dois projetos raiz com o mesmo nome (resolvido, sem mudança)
 
 **Status:** investigado, nenhuma alteração no pipeline. A hipótese que motivou a
-checagem estava errada no mecanismo, mas a checagem valeu — confirmou por uma
+checagem estava errada no mecanismo, mas a checagem valeu: confirmou por uma
 fonte independente que o projeto certo já estava em uso.
 
 ### Hipótese testada
@@ -553,7 +553,7 @@ projeto de 2013 no quadrante terminal. O log emite um `WARNING` explícito para
 
 **2012 é classificável, mas com stickiness levemente subestimada.** Devs ativos
 em 2012 que só voltariam entre 7/out e 31/dez/2013 não aparecem. Isso é
-mensurável nos anos completos — basta contar, nas retenções observadas, quantas
+mensurável nos anos completos. Basta contar, nas retenções observadas, quantas
 tiveram a primeira reaparição depois de 6/out:
 
 | ano Y | retenções observadas | primeira volta só após 6/out de Y+1 | % |
@@ -706,7 +706,7 @@ antigo tratava igual, e não são a mesma coisa:
   alvo de fato vazio em 98.9% delas. Continua prevendo 0.
 - **coorte órfã** (`p_base[b] == 0` mas `p_last[b] > 0`): a banda apareceu
   povoada sem ter existido no trimestre anterior. A sobrevivência é indefinida.
-  195 células — e o alvo tem gente de verdade em **73.8%** delas.
+  195 células, e o alvo tem gente de verdade em **73.8%** delas.
 
 O ponto: `SR = 0` é uma previsão de extinção. Cravar 0
 onde não há denominador afirma "esta coorte vai desaparecer" em 195 lugares
@@ -774,7 +774,7 @@ passar por esta comparação. Tolerância de 2% relativa (`tolerance_rel` em
 | C / all / baseline | 0.6667 | 0.6607 |
 | All types / moved / baseline | 0.5000 | 0.5000 |
 
-Quatro das sete são o valor 0.5000 — mediana de coortes que caem em razões de
+Quatro das sete são o valor 0.5000, mediana de coortes que caem em razões de
 inteiros pequenos. Casar em 0.5000 é fraco como evidência: é o valor mais
 provável de sair por acaso nesse regime. As duas células de C/non_coding e a
 de C/all são as únicas coincidências não triviais, e a seção 12.2 já as
@@ -1039,7 +1039,7 @@ A Tabela 2 do MSR'14 virou instrumento permanente de validação (seção 11.1):
 projetos × 8 anos, 55 células com quadrante publicado, mais as células `-`
 (sem atividade) e `*` (devs ≤ 10) que testam a elegibilidade. A replicação bate
 **48/55**, e a estrutura `-`/`*` bate **integralmente**. Esta seção fecha as 7
-restantes — cada uma com causa nomeada e medida, nenhuma com correção de
+restantes, cada uma com causa nomeada e medida, nenhuma com correção de
 conveniência.
 
 ### Antes: as duas ambiguidades do limiar, decididas pela própria tabela
@@ -1060,7 +1060,7 @@ bastante para decidir as duas empiricamente.
 | regra de empate | acertos |
 |---|---|
 | **`>` estrito: "higher than the median" (adotada)** | **48/55** |
-| `>=` — empate conta como alto | 46/55 |
+| `>=` (empate conta como alto) | 46/55 |
 
 A margem de (a) sobre as alternativas é grande demais para ser sorte, e as duas
 escolhas já estavam no código antes deste teste: a tabela apenas confirmou o
@@ -1289,7 +1289,7 @@ o invariante `count(active=True) == soma das barras desenhadas`.
 sumir em silêncio não somem:
 
 - `pivot_table(..., aggfunc="size")` (`plots.py:99`) tem `dropna=True` por
-  default e descartaria categoria ausente — mas o `.reindex(columns=CATEGORIES,
+  default e descartaria categoria ausente, mas o `.reindex(columns=CATEGORIES,
   fill_value=0)` logo abaixo repõe as três colunas, e não há `NaN` em `band`
   nem em `category` para linha nenhuma ser descartada na entrada.
 - `aggfunc="size"` conta **linhas** em vez de valores únicos, o que seria
@@ -1349,7 +1349,7 @@ desenha. **A Fig.2 é um retrato de estoque**: todo mundo que já contribuiu at�
 snapshot, posicionado pela idade acumulada que alcançou. Quem entrou em 2007 e
 parou em 2010 continua na figura de dez/2011.
 
-Isto não foi deduzido do PDF em abstrato — foram duas leituras independentes da
+Isto saiu de duas leituras independentes da
 Fig.2, cada uma capaz de derrubar a hipótese sozinha, e as duas apontando para o
 mesmo lado.
 
@@ -1370,7 +1370,7 @@ figura mostra, e a pirâmide vira um pico solitário na base. Sob estoque tem
 **734**, que encosta num eixo de 750. A banda 0 é idêntica nos dois regimes, e
 isso não é coincidência: quem entrou nos últimos 3 meses é ativo por definição
 (o evento de entrada está dentro da janela de `inactivity_months`). Ou seja, o
-filtro só começa a morder a partir da banda 1 — exatamente onde a discrepância
+filtro só começa a morder a partir da banda 1, exatamente onde a discrepância
 aparecia.
 
 ### Leitura 2: blueprint-css tem corpo de pirâmide na figura
@@ -1499,43 +1499,43 @@ Duas observações que mudam a discussão da seção 18:
    750), acerta o total do clojure (49 vs ~58) e a estrutura do blueprint-css,
    mas estoura a banda 3 do clojure (10 vs 7) e passa o tick do paperclip (114
    vs 100). Estoque é o pior contra o clojure (erro 45). Comparar *ticks* mede
-   uma barra por painel; a comparação banda a banda contra os pixels (§20) é o
+   uma barra por painel; a comparação banda a banda contra os pixels (seção 20) é o
    critério que decide, e lá 12 meses ganha nos quatro.
 
 Ordem de aderência à Fig.2 medida no único painel com vetor completo lido
 (clojure): **janela 12m (18) > `active` 3m (37) > estoque (45)**.
 
 O estado versionado é o do meio: `pyramid_population: active` (a reversão do
-§18) **com `pyramid_window_months: 12`**. Vale registrar o que isso quer dizer,
+seção 18) **com `pyramid_window_months: 12`**. Vale registrar o que isso quer dizer,
 porque a nomenclatura engana: "ativo" na pirâmide não é o mesmo "ativo" das
 métricas. `metrics` usa `inactivity_months: 3` (que o MSR14 crava) para CCR/NCR;
-a pirâmide usa 12 meses (que a medição da figura escolhe, §20). Com snapshot em
+a pirâmide usa 12 meses (que a medição da figura escolhe, seção 20). Com snapshot em
 fim de ano, "janela de 12 meses" lê-se como *quem contribuiu durante o ano do
-snapshot* — a pirâmide anual conta a população do ano, não a do trimestre. A
+snapshot*. A pirâmide anual conta a população do ano. A
 linha `active` 3m da tabela acima é só a referência de quanto se perderia
 casando as duas janelas: o blueprint-css desaba para uma pessoa.
 
-A queixa que motivou a reversão do §18 fica parcialmente resolvida: a barra
+A queixa que motivou a reversão da seção 18 fica parcialmente resolvida: a barra
 máxima do clojure cai de 16 (estoque) para 10, e a banda 3 continua sendo o
-resíduo aberto — 10 contra 7, sete deles de evento único (19.1). Não há regra de
+resíduo aberto: 10 contra 7, sete deles de evento único (19.1). Não há regra de
 população que conserte a banda 3 sem estragar a banda 0, que hoje bate exata.
 
 ### 19.4 Resíduo que não é população
 
 As bandas 2 e 3 do clojure divergem em qualquer regime (nossas 4 e 10, artigo 6
-e 7) — e como bandas 0-3 são invariantes ao regime (19.3, obs. 1), isso **não é
-questão de população, é de idade/banda**. A soma das duas bate exatamente
+e 7). Como bandas 0-3 são invariantes ao regime (19.3, obs. 1), isso **é
+questão de idade/banda**. População foi descartada como causa. A soma das duas bate exatamente
 (14 = 14), o que é compatível tanto com um deslocamento de fronteira quanto com
 erro de leitura em pixel de duas barras vizinhas. Varreduras que não mexeram
 nisso, todas com o vetor do artigo como alvo:
 
-* `band_days` ∈ {90, 91, 91.3125, 92}: erro 19, 17, 17, 15 — jitter, não sinal.
+* `band_days` ∈ {90, 91, 91.3125, 92}: erro 19, 17, 17, 15. É jitter.
 * Banda por trimestre civil (`4*ano+trim` de diferença) em vez de dias: erro 17.
   Com deslocamento de −1 trimestre: 29 (destrói a banda 0, que hoje bate exata).
 * Origem da idade no primeiro evento de qualquer tipo em vez de `start_ref`:
   **no-op no clojure**, que não tem nenhum contribuidor `moved`.
 * Data do snapshot: varredura em toda a série trimestral × 8 janelas confirma
-  `2011-12-31` + 12m como mínimo global (19) — a data da Fig.2 não está errada.
+  `2011-12-31` + 12m como mínimo global (19). A data da Fig.2 está correta.
 
 ### 19.5 `age_basis: accumulated_active` fica refutado (AMBIGUIDADE)
 
@@ -1549,11 +1549,11 @@ idade; idade acumulada não produz isso em nenhuma variante testada
 
 ### 19.6 clojure não serve para decidir a taxonomia (AMBIGUIDADE 1)
 
-O clojure praticamente não tem discussão no dump — em todo 2011: 2.669 commits
+O clojure praticamente não tem discussão no dump. Em todo 2011: 2.669 commits
 contra 27 `issue_comments`, **zero** `issue_events` e **zero**
 `pull_request_comments` (o projeto usava JIRA/Assembla, não as issues do
 GitHub). Por isso o lado non-coding do painel do clojure é quase vazio na
-replicação (1, 0, 1, 1 nas bandas 0-3) — e é quase vazio no artigo também, o que é
+replicação (1, 0, 1, 1 nas bandas 0-3), e é quase vazio no artigo também, o que é
 uma confirmação a mais de que o dump é o mesmo.
 
 Consequência prática: tirar `issue_events` da taxonomia (variante `table1`) não
@@ -1569,12 +1569,12 @@ outros dois:
 
 Como a maior barra do homebrew sem `issue_events` (579) fica bem abaixo do eixo
 de 750 do artigo e com `issue_events` encosta (733), a Fig.2 continua apoiando
-a leitura `prose`. Registrado como mais um voto, não como decisão fechada —
-a decisão da AMBIGUIDADE 1 continua com os Tipos A-D.
+a leitura `prose`. Registrado como mais um voto. A decisão da AMBIGUIDADE 1
+continua com os Tipos A-D.
 
 ## 20. Como a Fig.2 do ESEM14 foi medida em pixel (método e limites)
 
-As seções §19 e §21 decidem coisas contra "o que a figura mostra". Isso só vale
+As seções seção 19 e seção 21 decidem coisas contra "o que a figura mostra". Isso só vale
 se a leitura da figura for reprodutível, então fica aqui o procedimento inteiro,
 com os comandos.
 
@@ -1599,7 +1599,7 @@ Sobre o PNG resultante (200 dpi), por painel:
 
 O vetor do clojure lido assim está congelado em
 `config/checkpoints.yaml: esem14_fig2.bars_read_clojure`, e é o alvo das
-varreduras do §19.
+varreduras da seção 19.
 
 ### 20.2 Limite conhecido: a borda da barra
 
@@ -1614,7 +1614,7 @@ Por isso o teste que mais pesa nas decisões não é o de tamanho, é o **teste 
 buraco**: banda vazia na figura tem de estar vazia na replicação. Buraco não tem
 borda para inflar, não depende de calibração de escala e não perdoa: o
 blueprint-css tem a banda 3 vazia entre barras cheias, e é isso que derruba
-tanto o estoque (§19.3) quanto `band_days: 91.3125` (§21).
+tanto o estoque (seção 19.3) quanto `band_days: 91.3125` (seção 21).
 
 ### 20.3 Varredura da janela (L1 banda a banda, contra os pixels)
 
@@ -1628,30 +1628,30 @@ inatividade da pirâmide (`plots.pyramid_window_months`), em `2011-12-31`:
 | clojure | 26 | 18 | 14 | **10** | 25 | 34 | 49 |
 | blueprint-css | 12 | 5 | 1 | 2 | 3 | 4 | 23 |
 
-12 meses é o mínimo nos quatro painéis (no blueprint-css, 9m ganha por 1 pessoa
-— dentro do ruído de uma barra unitária, e 9m perde feio nos outros três). É
-esta tabela, e não o argumento de barra do §18, que fixa
+12 meses é o mínimo nos quatro painéis (no blueprint-css, 9m ganha por 1 pessoa,
+dentro do ruído de uma barra unitária, e 9m perde feio nos outros três). É
+esta tabela que fixa
 `pyramid_window_months: 12`.
 
-## 21. `band_days: 90`, e não 365.25/12 — a banda usa mês comercial
+## 21. `band_days: 90`: a banda usa mês comercial
 
 `periods.band_months: 3` é literal no artigo ("three months groups", p.1306),
 mas "três meses" em dias não é óbvio: 3 × 365.25/12 = 91,3125 dias contra 90 de
-mês comercial. A diferença parece decorativa — 1,3 dia por banda — mas ela
+mês comercial. A diferença parece decorativa (1,3 dia por banda), mas ela
 desloca quem está na fronteira, e a Fig.2 tem gente na fronteira.
 
-Varrendo as duas larguras contra os pixels (§20), com a janela em 365,25 dias:
+Varrendo as duas larguras contra os pixels (seção 20), com a janela em 365,25 dias:
 
 | largura da banda | L1 total (4 painéis) | blueprint-css |
 |---|---|---|
-| **90,0000 d** | **437** | **0 — exato, banda a banda** |
+| **90,0000 d** | **437** | **0 (exato, banda a banda)** |
 | 91,3125 d | 481 | 2 |
 
 90 ganha em todas as janelas testadas (360, 364, 365, 365,25, 366, 370 dias).
 No blueprint-css o resultado é categórico: com 90 as seis bandas do artigo batem
 uma a uma, **incluindo o buraco na banda 3 e o topo na banda 15**; com 91,3125 o
 contribuidor do topo cai uma banda, o buraco some e a replicação desenha três
-quadrados grudados — que foi exatamente o sintoma reportado na inspeção visual
+quadrados grudados, que foi exatamente o sintoma reportado na inspeção visual
 ("o quarto quadrado está logo acima dos três, sem o espaço vazio"). No paperclip
 o mesmo 90 põe o topo na banda 15, que é o que faz o rótulo do eixo bater em
 "4 years" como no artigo.
@@ -1663,7 +1663,7 @@ simetria quebra a replicação. `band_days` é chave própria em
 `config/settings.yaml` justamente para isso ficar explícito em vez de escondido
 numa constante.
 
-## 22. Parâmetros de plot por projeto? Não — o resíduo é do homebrew, não do painel
+## 22. Parâmetros de plot por projeto? Não. O resíduo é do homebrew
 
 Hipótese levantada na inspeção visual: os autores podem ter desenhado cada
 painel da Fig.2 com parâmetros próprios (largura de banda, janela, definição de
@@ -1671,7 +1671,7 @@ população), o que explicaria os quatro painéis baterem com qualidade diferent
 
 Teste: com **um único jogo de parâmetros** (`band_days: 90`, janela de 365,25
 dias, população = ativo no snapshot, taxonomia `prose`) comparar banda a banda,
-lado a lado, contra os pixels medidos em §20. Snapshot 2011-12-31.
+lado a lado, contra os pixels medidos em seção 20. Snapshot 2011-12-31.
 
 | painel | bandas | esquerda (non_coding) | direita (moved+coding) |
 |---|---|---|---|
@@ -1696,33 +1696,33 @@ O que sobra é específico do homebrew, e tem assinatura, não é ruído de esca
 
 O artigo põe **mais gente do lado non_coding nas bandas velhas** e **menos do
 lado coding nas bandas novas**. Como o lado é decidido por `init_c` (data do
-primeiro evento de coding), e não por CCR, o suspeito não é a taxonomia — é o
+primeiro evento de coding), e não por CCR, o suspeito passa a ser o
 **escopo de commit** (`commit_scope`, AMBIGUIDADE 2), que só morde no homebrew
 porque é o único dos quatro com volume de commits fora do root. Antecipar um
 `init_c` joga a pessoa do lado esquerdo para o direito e, por ser data de
 *primeiro* evento, também muda a banda. Direção compatível com o sinal medido.
 
 Próximo passo registrado (não executado): rodar `commit_scope:
-family_project_commits` só para medir o L1 do homebrew contra §20 — e conferir
+family_project_commits` só para medir o L1 do homebrew contra seção 20, e conferir
 o efeito colateral nos Tipos A-D antes de tocar no default.
 
 ## 23. clojure, bandas 20/21: 3 pessoas trocadas de banda, sem parâmetro que conserte
 
-Sintoma visual: no nosso painel a barra da banda 21 (idade 270–360 d) encosta no
+Sintoma visual: no nosso painel a barra da banda 21 (idade 270-360 d) encosta no
 tick 10 do eixo, que é o limite lido do artigo. No artigo essa barra tem ~6 e a
-vizinha (banda 20, 360–450 d) tem 7. ~~**O total das duas bate: 14 no artigo, 14
-na replicação.** Não é sobrecontagem — é deslocamento de ~3 pessoas entre bandas
-adjacentes.~~
+vizinha (banda 20, 360-450 d) tem 7. ~~**O total das duas bate: 14 no artigo, 14
+na replicação.** É deslocamento de ~3 pessoas entre bandas adjacentes.
+Sobrecontagem fica descartada.~~
 
-> **ERRO, corrigido em §25.** O total *não* bate: 14 no artigo contra **15** na
+> **ERRO, corrigido em seção 25.** O total *não* bate: 14 no artigo contra **15** na
 > replicação, e o desvio na banda 21 é de 4 pessoas, não 3. A conta acima somou a
-> replicação errado e por isso a §23 concluiu "deslocamento puro" cedo demais.
-> A leitura correta e o que ela abre está em §25.
+> replicação errado e por isso a seção 23 concluiu "deslocamento puro" cedo demais.
+> A leitura correta e o que ela abre está em seção 25.
 
-### Teste 1 — geometria (largura da banda × deslocamento de idade)
+### Teste 1: geometria (largura da banda × deslocamento de idade)
 
 Varredura de `band_days` ∈ {86, 88, 89, 90, 91, 91.3125, 92} × offset de idade
-∈ {0, 5, 10, 15, 20} d, L1 contra os pixels de §20:
+∈ {0, 5, 10, 15, 20} d, L1 contra os pixels de seção 20:
 
 | band_days | offset | L1 total | homebrew | paperclip | clojure | blueprint |
 |---|---|---|---|---|---|---|
@@ -1732,14 +1732,14 @@ Varredura de `band_days` ∈ {86, 88, 89, 90, 91, 91.3125, 92} × offset de idad
 | 89 | 10 | 527,1 | 429,9 | 83,5 | **6,7** | 7,0 |
 
 `(90, 0)` é o mínimo global e o único ponto que zera o blueprint-css. O melhor
-resultado para o clojure isolado — `(89, 10)`, L1 6,7 — quebra o blueprint (7,0)
+resultado para o clojure isolado, `(89, 10)` com L1 6,7, quebra o blueprint (7,0)
 e piora o homebrew em 67 e o paperclip em 46. **Não existe geometria que arrume
-o clojure sem destruir os outros três.** §21 fica confirmado por um segundo
+o clojure sem destruir os outros três.** seção 21 fica confirmado por um segundo
 caminho.
 
-### Teste 2 — regra de população
+### Teste 2: regra de população
 
-Hipótese de §19 (o contribuidor de evento único infla a base). Testada de frente,
+Hipótese de seção 19 (o contribuidor de evento único infla a base). Testada de frente,
 sempre com `band_days: 90`:
 
 | regra | L1 total | homebrew | paperclip | clojure | blueprint | N clojure |
@@ -1752,14 +1752,14 @@ sempre com `band_days: 90`:
 
 **Hipótese descartada, e com folga.** Tirar o contribuidor de evento único
 triplica o erro e piora o clojure também (17,1 contra 10,7). O evento único não
-é ruído a filtrar: ele é parte da população que o artigo desenha. §19 fica
-corrigido nesse ponto — o mecanismo lá descrito existe, mas não é o que separa a
+é ruído a filtrar: ele é parte da população que o artigo desenha. seção 19 fica
+corrigido nesse ponto: o mecanismo lá descrito existe, mas não é o que separa a
 replicação do artigo.
 
 ### O que sobra
 
 As 11 pessoas da banda 21 têm idades 271, 283, 291, 301, 307, 308, 310, 317, 347,
-350 e 356 dias — nove delas num aperto de 271–317 d, uma leva real de estreantes
+350 e 356 dias. Nove delas ficam num aperto de 271-317 d, uma leva real de estreantes
 do começo de 2011. Para casar com o artigo, três teriam de ser ~10 dias mais
 velhas. Nenhuma convenção de calendário testada produz isso sem mover o resto.
 
@@ -1776,49 +1776,49 @@ figura, porque duas das três não têm número nenhum para bater.
 
 | figura | natureza | como é checada | status |
 |---|---|---|---|
-| Fig. 6 | qualitativa — "Examples… (Note that scales are different.)" | os 6 projetos têm de cair nos Tipos A/B/C certos | ok (`msr14.tab2.concordancia` 48/55 = 87 %) |
-| Fig. 7 | qualitativa — "CCR and NCR are close to 0" | homebrew (A) e rails (D) nos quadrantes certos | ok |
-| Fig. 8 | **quantitativa** — medido × predito | §12, coorte-componente | parcial |
+| Fig. 6 | qualitativa: "Examples… (Note that scales are different.)" | os 6 projetos têm de cair nos Tipos A/B/C certos | ok (`msr14.tab2.concordancia` 48/55 = 87 %) |
+| Fig. 7 | qualitativa: "CCR and NCR are close to 0" | homebrew (A) e rails (D) nos quadrantes certos | ok |
+| Fig. 8 | **quantitativa**: medido × predito | seção 12, coorte-componente | parcial |
 
 Fig. 6 e 7 são galerias de exemplo com escala por painel; a própria legenda avisa
 disso. Não existe eixo comum nem valor impresso, então "bater" ali significa só
-que o projeto está no tipo certo — e isso está travado no `validate`.
+que o projeto está no tipo certo, e isso está travado no `validate`.
 
 A Fig. 8 é a única com conteúdo numérico, e é onde a divergência mora:
 
 * **direção** (coorte erra menos que baseline): 15 de 21 casos ok;
-* **valor absoluto do ABRE**: 7 de 40 ok, 33 divergentes (§12.1).
+* **valor absoluto do ABRE**: 7 de 40 ok, 33 divergentes (seção 12.1).
 
-Ou seja, o resultado *qualitativo* do IEICE16 — a projeção por coorte é melhor
-que a ingênua — reproduz; os números absolutos da Tabela 3/4 não. Isso é
-consistente com §12.1 e não foi contornado: está registrado como divergência
+Ou seja, o resultado *qualitativo* do IEICE16 (a projeção por coorte é melhor
+que a ingênua) reproduz; os números absolutos da Tabela 3/4 não. Isso é
+consistente com seção 12.1 e não foi contornado: está registrado como divergência
 conhecida, não como acerto.
 
 Sobre "o problema pode estar no artigo": é uma possibilidade real e já
-materializada em outros pontos (§10 `symfony`, §13 `jekyll`, §16 as 7 células
-residuais). O que este repositório não faz é *assumir* isso — cada divergência
+materializada em outros pontos (seção 10 `symfony`, seção 13 `jekyll`, seção 16 as 7 células
+residuais). O que este repositório não faz é *assumir* isso: cada divergência
 sai com o comando que a produziu, para que a hipótese "erro do artigo" seja
 verificável em vez de conveniente.
 
 ## 25. clojure, banda a banda: onde exatamente a replicação difere do artigo
 
-§23 fechou cedo demais e com uma soma errada. Refeita a conta banda a banda,
+seção 23 fechou cedo demais e com uma soma errada. Refeita a conta banda a banda,
 alinhando o índice do artigo (banda 1 = topo, 24 bandas) ao nosso (banda 0 =
 base), com `pyramid_frame` de 2011-12-31:
 
 | nossa banda | idade (d) | artigo (coding) | replicação (coding) | |
 |---|---|---|---|---|
-| 0 | 0–90 | 8 | 8 | ok |
-| 1 | 90–180 | 5 | 5 | ok |
-| 2 | 180–270 | 3 | 4 | +1 |
-| **3** | **270–360** | **6** | **10** | **+4** |
-| **4** | **360–450** | **7** | **4** | **−3** |
-| 5 | 450–540 | 3 | 2 | −1 |
-| 6 | 540–630 | 1 | 1 | ok |
-| 7 | 630–720 | 3 | 4 | +1 |
-| 8–10 | 720–990 | 1, 2, 5 | 1, 2, 5 | ok |
-| 11–22 | — | 0 | 0 | ok |
-| 23 | 2070–2160 | 1 | 1 | ok |
+| 0 | 0-90 | 8 | 8 | ok |
+| 1 | 90-180 | 5 | 5 | ok |
+| 2 | 180-270 | 3 | 4 | +1 |
+| **3** | **270-360** | **6** | **10** | **+4** |
+| **4** | **360-450** | **7** | **4** | **−3** |
+| 5 | 450-540 | 3 | 2 | −1 |
+| 6 | 540-630 | 1 | 1 | ok |
+| 7 | 630-720 | 3 | 4 | +1 |
+| 8-10 | 720-990 | 1, 2, 5 | 1, 2, 5 | ok |
+| 11-22 | (vazio) | 0 | 0 | ok |
+| 23 | 2070-2160 | 1 | 1 | ok |
 | **total** | | **45** | **47** | **+2** |
 
 Sete das doze bandas povoadas batem exatamente. O erro está concentrado num par:
@@ -1827,17 +1827,17 @@ e é isso que se vê no painel.
 
 ### O que foi descartado agora
 
-**Largura de banda (varredura ampla).** §23 varreu só 86–92 d, ancorado em "3
+**Largura de banda (varredura ampla).** seção 23 varreu só 86-92 d, ancorado em "3
 meses ≈ 90 d". Refiz de 60 a 120 d em passos de 0,25. Resultado: o próprio
-artigo trava o parâmetro — o painel do clojure tem **24 bandas** e o
+artigo trava o parâmetro: o painel do clojure tem **24 bandas** e o
 contribuidor mais velho tem 2107 d, o que força `w ∈ [87,8; 91,6]`. Dentro dessa
 faixa o melhor é `w = 89` (L1 = 8 contra 10 do atual) e a banda 3 continua com 9.
-**Nenhuma largura legítima leva a banda 3 de 10 para 6** — a restrição não é
-escolha minha, é a contagem de bandas do desenho.
+**Nenhuma largura legítima leva a banda 3 de 10 para 6**. A restrição vem da
+contagem de bandas do desenho, fora do meu alcance.
 
-**Deslocamento de idade (varredura ampla).** §23 varreu offset de 0 a 20 d.
+**Deslocamento de idade (varredura ampla).** seção 23 varreu offset de 0 a 20 d.
 Refiz de −120 a +180. O melhor par é `(w = 89, offset = +10 d)`, L1 = 6, e nele a
-banda 3 cai para 8 — abaixo do tick, que é o efeito visual pedido. Mas §23 já
+banda 3 cai para 8, abaixo do tick, que é o efeito visual pedido. Mas seção 23 já
 mediu esse ponto nos outros três painéis: ele **quebra o blueprint-css** (único
 painel hoje exato, L1 0,2 → 7,0) e piora o homebrew em 67. Continua valendo:
 não existe geometria que conserte o clojure sem estragar os outros.
@@ -1847,10 +1847,10 @@ fossem uma leva sintética criada na migração do clojure para o GitHub. Falsa:
 primeiros eventos deles se espalham de 2010-10-11 a 2011-04-03, um por dia, sem
 nenhum pico de importação. As idades são reais.
 
-### O que fica aberto — e é a hipótese mais forte que sobrou
+### O que fica aberto (a hipótese mais forte que sobrou)
 
 Dos 11 da banda 3, **6 têm exatamente um evento na vida do projeto** (57490,
-64659, 64666, 64676, 64685, 66395 — cinco commits e um pull request). No dump do
+64659, 64666, 64676, 64685, 66395: cinco commits e um pull request). No dump do
 MSR14 a tabela `users` tem a coluna **`fake`**: o GHTorrent cria uma linha
 sintética para autor de commit identificado só por e-mail, sem conta no GitHub.
 O pipeline hoje **não olha essa coluna** (`grep -rn "fake" src/pyramid/sources/`
@@ -1858,20 +1858,20 @@ não devolve nada).
 
 Isso interessa porque:
 
-* é um filtro **documentado do dataset**, não um parâmetro ajustável — não cai
-  na armadilha de §21/§23 de tunar geometria até a figura ceder;
+* é um filtro **documentado do dataset**, não um parâmetro ajustável, e por isso
+  não cai na armadilha de seção 21/seção 23 de tunar geometria até a figura ceder;
 * incide exatamente onde sobra gente (a banda 3), e não onde já bate;
 * explicaria o excesso de +2 no total e parte do +4 da banda 3.
 
 Não dá para concluir agora: o container do MySQL está parado e o teste exige uma
 query nova em `src/pyramid/sources/msr14.py` (SQL não se escreve fora de lá).
-**Atenção ao risco:** tirar os 6 levaria a banda 3 a 4, contra 6 do artigo — pode
+**Atenção ao risco:** tirar os 6 levaria a banda 3 a 4, contra 6 do artigo. Pode
 passar do ponto. Só o teste real, nos quatro projetos ao mesmo tempo, decide.
 
 ### Estado honesto
 
 A barra do clojure continua encostando no 10 porque a replicação **tem mesmo** 10
-pessoas com 270–360 dias de idade em 2011-12-31, e nenhuma convenção de eixo,
+pessoas com 270-360 dias de idade em 2011-12-31, e nenhuma convenção de eixo,
 largura ou origem de idade testada até aqui muda isso sem quebrar painel que já
 está certo. Não vou baixar o tick nem filtrar gente até a barra caber: isso
 esconderia a divergência em vez de explicá-la. Fica aberto, com o próximo teste
@@ -1881,7 +1881,7 @@ já nomeado (`users.fake`).
 
 ### O sintoma
 
-`pyramid validate` no HEAD acusa três FALHA, todas no §12.5/§12.2:
+`pyramid validate` no HEAD acusa três FALHA, todas na seção 12.5/seção 12.2:
 
 | trava | esperado | obtido |
 |---|---|---|
@@ -1913,8 +1913,8 @@ vem do estágio 3. O único commit posterior que mexe em `snapshots.py` é:
 
 `ee3ba45` trocou o corte da banda de `band_months` (3 × 365.25/12 = 91.3125 d)
 para `band_days: 90`. O commit justifica a troca contra os pixels da Fig.2 do
-ESEM14 (§21) e mede o efeito **na figura** — não roda a projeção nem confere as
-travas do §12.5.
+ESEM14 (seção 21) e mede o efeito **na figura**. Não roda a projeção nem confere as
+travas da seção 12.5.
 
 ### O teste que fecha o caso
 
@@ -1928,7 +1928,7 @@ Resultado: **as quatro travas voltam exatas** (7/40, 14/20, cohort 0.4208,
 p 0.0073) e o relatório inteiro fecha em `0 FALHA` (167 checks, conhecida=65,
 ok=102). Voltando a 90, reaparecem as três FALHA. Causa isolada, sem ambiguidade.
 
-### O que isso custa — e por que não re-travei sozinho
+### O que isso custa, e por que não re-travei sozinho
 
 A banda não é neutra entre os dois artigos. Comparando os dois relatórios, **16
 checks mudam de status, todos do estágio 6** (nenhum check de figura muda):
@@ -1939,22 +1939,22 @@ checks mudam de status, todos do estágio 6** (nenhum check de figura muda):
   `wilcoxon.C.non_coding`, `wilcoxon.C.all`, `wilcoxon.D.moved`,
   `wilcoxon.D.coding`, `wilcoxon.D.all`, e as 3 travas.
 * **90 melhora 4**: `direcao.B.all`, `direcao.C.moved`, `All.moved`, e
-  `abre.C.all.cohort` (0.3475 → 0.2857, contra 0.2875 do artigo — quase exato).
+  `abre.C.all.cohort` (0.3475 → 0.2857, contra 0.2875 do artigo, quase exato).
 
 Repare que os `abre.*` são **valores do artigo**, não travas nossas: 91.3125
-ganha em dois deles e perde em um. Então não é "a trava velha defende a si
-mesma" — a banda de 91.3125 concorda mais com a Tabela 3 do IEICE16, enquanto a
-de 90 concorda mais com a Fig.2 do ESEM14 (§21, onde o blueprint-css zera).
+ganha em dois deles e perde em um. A hipótese "a trava velha defende a si
+mesma" cai por aí. A banda de 91.3125 concorda mais com a Tabela 3 do IEICE16, enquanto a
+de 90 concorda mais com a Fig.2 do ESEM14 (seção 21, onde o blueprint-css zera).
 
 É uma ambiguidade real entre dois artigos dos mesmos autores, e as duas saídas
 são defensáveis; nenhuma delas é "arredondar pra ficar perto". Fica **aberto**
 para decisão, com as opções nomeadas:
 
-1. **Manter 90 e re-travar** o §12.5/§12.2 nos valores novos, registrando aqui
+1. **Manter 90 e re-travar** a seção 12.5/seção 12.2 nos valores novos, registrando aqui
    que a escolha comprou a Fig.2 ao preço de 12 checks da Tabela 3. A trava
    volta a ser trava, mas o histórico de que já batemos 0.4208 tem de ficar.
 2. **Voltar para 91.3125** e assumir o erro L1 da Fig.2 (blueprint-css sai do
-   exato) — desfaz §21.
+   exato). Desfaz seção 21.
 3. **Duas bandas** (90 na figura, 91.3125 na projeção). Tecnicamente reproduz
    tudo, mas é exatamente o que a checagem em `snapshots.band_days()` foi
    escrita para impedir, e não tem defesa no texto de nenhum dos dois artigos.
@@ -1966,9 +1966,9 @@ para decisão, com as opções nomeadas:
 `ee3ba45` mediu o efeito da mudança na figura que motivou a mudança, e só nela.
 O estágio 6 consome o mesmo parquet e ficou fora do teste. Regra que passa a
 valer: **mudou `snapshots.py` ou o bloco `periods:`, roda `validate` inteiro
-antes de commitar** — a banda é insumo de tudo que vem depois dela.
+antes de commitar**. A banda é insumo de tudo que vem depois dela.
 
-### Decisão (2026-08-07): opção 1 — manter 90 e re-travar
+### Decisão (2026-08-07): opção 1, manter 90 e re-travar
 
 Escolhida a opção 1. As três travas foram atualizadas em `config/checkpoints.yaml`,
 com os valores anteriores preservados em comentário `# antes:` na mesma linha:
@@ -1981,7 +1981,7 @@ com os valores anteriores preservados em comentário `# antes:` na mesma linha:
 | `projection_direcao_pares` | 14/20 | 14/20 (inalterado) |
 | `projection_agregado.baseline` | 0.5000 | 0.5000 (inalterado) |
 
-O desempate **não** foi por proximidade numérica — nesse quesito as duas bandas
+O desempate **não** foi por proximidade numérica. Nesse quesito as duas bandas
 empatam na prática (L1 da Tabela 3: 5,1054 para 90 contra 4,9574 para 91,3125,
 3% de diferença em 40 células, dentro do ruído). Foi pela hierarquia de critérios
 da linha 168 da spec: os projetos nomeados da Fig.2 devem bater **exatamente**,
@@ -1989,22 +1989,22 @@ enquanto a Tabela 3 célula a célula **não é critério de aceite**. Com 90 o
 blueprint-css bate banda a banda; com 91,3125 não.
 
 **O custo, dito sem maquiagem:** o Wilcoxon célula a célula cai de 11/20 para
-7/20 pares concordando com o artigo. O predicado agregado — que é o critério —
+7/20 pares concordando com o artigo. O predicado agregado, que é o critério,
 passa nas duas bandas (cohort 0,3894 < baseline 0,5000, p=0,0124 < 0,05). Se
 algum dia o critério de aceite mudar para célula a célula, **esta decisão se
 inverte**, e é para isso que a linha do "antes" fica no `checkpoints.yaml`.
 
-A errata correspondente está em `INSTRUCOES_CLAUDE_CODE.MD` §9.5, onde o corpo
+A errata correspondente está em `INSTRUCOES_CLAUDE_CODE.MD` seção 9.5, onde o corpo
 do texto citava 0.4208 / 0.0073 / 7-de-40.
 
-## §28 — Fig.2 do ESEM14, diagnóstico painel a painel (banda a banda)
+## 28. Fig.2 do ESEM14, diagnóstico painel a painel (banda a banda)
 
 Leitura do usuário sobre a figura gerada, confrontada com os números. Bandas
 contadas da base (0 = mais jovem) para cima, banda de 90 dias, corte 2011-12-31.
 Coluna "artigo" = leitura em pixel de `/tmp/fig2_medido.json` (±1 pessoa; para o
 clojure vale a leitura mais confiável de `bars_read_clojure` no `checkpoints.yaml`).
 
-### homebrew — a massa está certa, a idade não
+### homebrew: a massa está certa, a idade não
 
 | banda | artigo esq | nosso non_coding |
 |---|---|---|
@@ -2021,25 +2021,25 @@ clojure vale a leitura mais confiável de `bars_read_clojure` no `checkpoints.ya
 
 As quatro bandas da base batem dentro de 3%. Da banda 4 para cima somos ~32%
 mais finos (200 contra 294 pessoas). **Mas a população total do painel é
-praticamente igual — 3882 nossos contra 3810 do artigo, +1,9%.** Massa conservada
+praticamente igual: 3882 nossos contra 3810 do artigo, +1,9%.** Massa conservada
 com distribuição deslocada para baixo significa uma coisa só: para ~95 pessoas
 nossa data de primeira atividade é mais tarde que a dos autores, e elas caem em
 bandas jovens demais. A banda 7 (a "terceira de cima para baixo" apontada pelo
-usuário) é o pior caso, 33 contra 65, e no artigo ela é um *bump* — quebra a
+usuário) é o pior caso, 33 contra 65, e no artigo ela é um *bump* que quebra a
 monotonia das vizinhas (45 → 65 → 33), o que não sai de um processo de entrada
 que só decai. Sugere um bloco de gente com âncora de idade diferente da nossa.
 
-### paperclip — some uma pessoa no topo, do lado da discussão
+### paperclip: some uma pessoa no topo, do lado da discussão
 
-Bandas 0–3 são exatas (103/103, 114/116, 90/91, 40/40). O topo (banda 15) tem
+Bandas 0-3 são exatas (103/103, 114/116, 90/91, 40/40). O topo (banda 15) tem
 1 pessoa em coding nos dois. A banda 14 tem 1 pessoa em `non_coding` no artigo e
-**0 na nossa** — é o "cara faltando no penúltimo quarter do ano 4 em discussão".
+**0 na nossa**, o "cara faltando no penúltimo quarter do ano 4 em discussão".
 Uma pessoa cuja atividade mais antiga, para os autores, é de discussão e é ~3
 meses anterior à que temos. Mesmo sinal do homebrew, em escala de 1 pessoa.
-As dissonâncias dos anos 2 e 3 são as bandas 4–10, onde erramos por ±1 pessoa
-em quase todas — dentro do erro da leitura em pixel, mas na mesma direção.
+As dissonâncias dos anos 2 e 3 são as bandas 4-10, onde erramos por ±1 pessoa
+em quase todas, dentro do erro da leitura em pixel, mas na mesma direção.
 
-### clojure — o 10 é um empilhamento, não um excesso de gente
+### clojure: o 10 é um empilhamento, não um excesso de gente
 
 Bandas 2, 3, 4: artigo 6/7/7 (total 20), nós 4/10/4 (total 18). O total quase
 bate; o que difere é o *espalhamento*. Nosso pico de 10 na banda 3 é o que faz o
@@ -2049,7 +2049,7 @@ aparece é o filtro de inatividade, e é ele que concentra 10 na banda 3 e deixa
 só 4 na banda 4. Ou seja: aqui o suspeito **não** é a âncora de idade, é a
 janela de inatividade interagindo com a borda da banda.
 
-### blueprint-css — bate 100%
+### blueprint-css: bate 100%
 
 Confirmado pelo usuário. É o único painel sem gente em `non_coding` no meio da
 pirâmide, o que é consistente com a hipótese acima: sem eventos de discussão,
@@ -2059,16 +2059,16 @@ não há âncora de idade para errar.
 
 Três dos quatro painéis erram na mesma direção: **nossa primeira atividade é
 mais tarde que a dos autores**, e o erro aparece onde há discussão. O candidato
-com nome é a `AMBIGUIDADE 1` (§35): `issue_events` está fora do nosso
+com nome é a `AMBIGUIDADE 1` (seção 35): `issue_events` está fora do nosso
 `EVENT_COLUMNS`. Se os autores contaram abertura de issue como atividade, todo
 mundo que começou comentando/abrindo issue antes de commitar entra mais cedo na
-pirâmide — exatamente o padrão observado. **Não testado ainda**: exige SQL novo
+pirâmide, exatamente o padrão observado. **Não testado ainda**: exige SQL novo
 em `src/pyramid/sources/` para trazer `issue_events`. É o próximo experimento.
 
-## 31. O eixo estava virado: §19–§30 compararam a Fig.2 de cabeça para baixo
+## 31. O eixo estava virado: seções 19 a 30 compararam a Fig.2 de cabeça para baixo
 
 **Erro meu, no medidor, não no pipeline.** A comparação banda a banda contra os
-pixels da Fig.2 — que sustenta tudo o que foi escrito de §19 a §30 — estava
+pixels da Fig.2, que sustenta tudo o que foi escrito de seção 19 a seção 30, estava
 espelhada no eixo vertical.
 
 Causa exata. Em `/tmp/measure_fig2.py` a lista `YT` guarda os centros das barras
@@ -2100,7 +2100,7 @@ painéis batem dentro de 2%.
 Sintoma que deveria ter denunciado o erro antes: a distribuição "do artigo"
 saía invertida (topo largo, base estreita), o que não é uma pirâmide. E o
 usuário, lendo a figura a olho, afirmou desde cedo que o primeiro ano dos quatro
-painéis batia e que o blueprint-css batia inteiro — as duas coisas verdadeiras e
+painéis batia e que o blueprint-css batia inteiro, as duas coisas verdadeiras e
 as duas contraditas pelos meus números. **A leitura visual estava certa e a
 numérica errada durante toda a investigação.**
 
@@ -2115,25 +2115,25 @@ decisão muda**:
 | janela | 6 / 9 / **12** / 15 / 18 / 24 m | 1542 / 782 / **411** / 728 / 971 / 1316 |
 | `band_days` | **90** / 91.3125 | **411** / 444 |
 
-Ou seja: §18 (population = `active`), §19 (janela de 12 meses) e §21
+Ou seja: seção 18 (population = `active`), seção 19 (janela de 12 meses) e seção 21
 (`band_days: 90`, onde o blueprint-css zera) continuam de pé, agora por margem
-menor e por motivo confiável. A errata da Tabela 3 (§27) não é afetada — ela
+menor e por motivo confiável. A errata da Tabela 3 (seção 27) não é afetada: ela
 depende de `band_days`, cuja escolha se mantém.
 
 ### 31.3 O que fica invalidado
 
-Índices de banda e magnitudes de resíduo relatados em **§19, §22, §23, §25, §28
-e §29** estão espelhados e superestimados. Concretamente:
+Índices de banda e magnitudes de resíduo relatados em **seção 19, seção 22, seção 23, seção 25, seção 28
+e seção 29** estão espelhados e superestimados. Concretamente:
 
-- §23 ("clojure, bandas 20/21: 3 pessoas trocadas") — as bandas são as 3/4
+- seção 23 ("clojure, bandas 20/21: 3 pessoas trocadas"): as bandas são as 3/4
   contadas de baixo; o resíduo do clojure inteiro é de 11 células.
-- §28 e §29 (tabelas painel a painel) — a coluna "artigo" precisa ser lida na
+- seção 28 e seção 29 (tabelas painel a painel): a coluna "artigo" precisa ser lida na
   ordem inversa.
-- §19 ("sobrecontagem … o mecanismo é o contribuidor de evento único"): a
+- seção 19 ("sobrecontagem … o mecanismo é o contribuidor de evento único"): a
   sobrecontagem existe, mas vale ~14% no lado *coding* das bandas jovens do
   homebrew, não o fator que estava registrado.
-- A conclusão de §30 sobre `issue_events`/`union` (§28, §29) foi tirada contra o
-  alvo errado e precisa ser refeita — ver §31.4.
+- A conclusão de seção 30 sobre `issue_events`/`union` (seção 28, seção 29) foi tirada contra o
+  alvo errado e precisa ser refeita. Ver seção 31.4.
 
 Não foram reescritas: ficam como registro do que se acreditou e quando, que é o
 propósito deste log.
@@ -2145,10 +2145,10 @@ das bandas jovens** temos sistematicamente ~14% de gente a mais que o artigo.
 
 | banda (artigo) | artigo, coding | replicação, coding |
 |---|---|---|
-| 10 (base, 0–90d) | 320 | 368 |
-| 9 (90–180d) | 393 | 451 |
-| 8 (180–270d) | 294 | 336 |
-| 7 (270–360d) | 332 | 380 |
+| 10 (base, 0-90d) | 320 | 368 |
+| 9 (90-180d) | 393 | 451 |
+| 8 (180-270d) | 294 | 336 |
+| 7 (270-360d) | 332 | 380 |
 
 O lado da discussão bate quase exato nas mesmas bandas (581→565, 740→733,
 365→357, 219→216). Então não é a régua de idade nem a janela: é **quem conta
@@ -2162,12 +2162,12 @@ O ESEM14 se contradiz consigo mesmo na mesma página (p.1307). A coluna
 "Separation" da Tabela 1 agrupa as 16 atividades em três blocos e coloca
 `issues` como *non-coding* e `issues events` como *excluded*. A prosa da mesma
 página lista o non-coding como "commit comments, issue comments, pull request
-comments, **issue events**" — e nem cita `issues`. As duas leituras dão
+comments, **issue events**", e nem cita `issues`. As duas leituras dão
 exatamente "six development activities", então nenhuma é descartável no papel.
 
-Em paralelo, o ESEM14 §3 diz "we analyze the GitHub-wide events depending on
+Em paralelo, o ESEM14 seção 3 diz "we analyze the GitHub-wide events depending on
 the current status of OSS projects (...) we are also interested in other
-contributors who **send issues** and comments" — o que puxa a favor da Tabela 1.
+contributors who **send issues** and comments", o que puxa a favor da Tabela 1.
 E `pull requests` aparece do lado *coding* na Tabela 1, apesar de abrir um PR
 não ser um commit; só `pull request comments` cai na discussão.
 
@@ -2176,7 +2176,7 @@ não ser um commit; só `pull request comments` cai na discussão.
 Extraí o superconjunto de tipos de evento (variante `union`, 7 tipos) para os
 4 projetos da Fig.2 e varri as três leituras × o lado do `pull_requests`,
 medindo L1 banda-a-banda contra os pixels do artigo (alvo já com o eixo
-corrigido do §31). Nenhum outro parâmetro mudou: `gap=91.3d`, janela de 12
+corrigido da seção 31). Nenhum outro parâmetro mudou: `gap=91.3d`, janela de 12
 meses, `population=active`, `band_days=90`, snapshot `2011-12-31`.
 
 Comando: `uv run python /tmp/sweep_tax.py` (o script monta `profile()` +
@@ -2197,11 +2197,11 @@ Comando: `uv run python /tmp/sweep_tax.py` (o script monta `profile()` +
 1. **`pull_requests` é `coding`, e isso não é opinião.** Mover o PR para a
    discussão piora L1 em *todas* as três leituras (411→1165, 647→1016,
    432→1192). O argumento decisivo é o blueprint-css: ele bate 100% com o
-   artigo (L1=0) e **só** com `PR=coding` — qualquer outro arranjo o quebra
+   artigo (L1=0) e **só** com `PR=coding`. Qualquer outro arranjo o quebra
    (L1=14). Um painel que fecha exato serve de âncora; ele trava a fronteira.
 2. **A prosa vence a Tabela 1.** Contar `issues` como atividade (variante
    `table1`) piora L1 de 411 para 647. A hipótese era que `issues` traria gente
-   para o lado da discussão do homebrew — traz, mas na banda errada. `union`
+   para o lado da discussão do homebrew. Traz, mas na banda errada. `union`
    (contar os dois) também piora (432). Mantida `taxonomy.variant: prose`.
 3. `AMBIGUIDADE 3` sai de "aberta" para **fechada por evidência**: as duas
    leituras eram defensáveis no texto, mas só uma reproduz a figura.
@@ -2216,7 +2216,7 @@ resíduo tem forma:
 | discussão (esquerda) | 2200 | 2071 | **−129** |
 | código (direita) | 1611 | 1811 | **+200** |
 
-O excesso de `coding` está concentrado nas **4 bandas mais novas** (0–360 dias:
+O excesso de `coding` está concentrado nas **4 bandas mais novas** (0-360 dias:
 +48, +58, +42, +48 = 196 dos 200). A falta de `non_coding` está no **miolo**
 (bandas 3, 5 e 6: −32, −19, −30). Como os dois desvios vivem em faixas de idade
 diferentes, **não é uma troca de lado**: se fosse relabel, o excesso de um lado
@@ -2227,17 +2227,17 @@ categoria nem para a população. Hoje quem tem commit conta idade a partir do
 primeiro evento de *código* (`init_c`); quem só discute conta a partir do
 primeiro evento de discussão (`init_d`). Se o artigo ancorasse todo mundo no
 primeiro evento de qualquer tipo, os coders ficariam mais velhos e sairiam das
-bandas jovens — que é exatamente a direção do resíduo. Não testado ainda;
+bandas jovens, que é exatamente a direção do resíduo. Não testado ainda;
 próximo experimento.
 
 ## 33. O resíduo do homebrew não é idade: é categoria. Três hipóteses refutadas
 
-O §32 fechou a fronteira de categoria e deixou `L1=411`, dos quais **363 são só o
+A seção 32 fechou a fronteira de categoria e deixou `L1=411`, dos quais **363 são só o
 homebrew**. Lá a assinatura era `-129` na discussão e `+200` no código, com 196 do
-excesso concentrado nas 4 bandas mais novas. Concluí no §32 que isso "aponta para a
+excesso concentrado nas 4 bandas mais novas. Concluí na seção 32 que isso "aponta para a
 âncora de idade". **Estava errado, e a medida mostrou o erro.**
 
-### 33.1 A âncora de idade não pode consertar isso — por construção
+### 33.1 A âncora de idade não pode consertar isso, por construção
 
 Hoje `start_ref` é `init_c` para quem tem código e `init_d` para quem só discute.
 Testei a alternativa óbvia: `start_ref = min(init_c, init_d)` para todo mundo
@@ -2250,7 +2250,7 @@ Testei a alternativa óbvia: `start_ref = min(init_c, init_d)` para todo mundo
 
 Piora, e quebra o blueprint-css. Mas o dado que importa não é o L1: é que o saldo do
 homebrew ficou **idêntico** nas duas rodadas (`disc=-129`, `cod=+200`). Isso não é
-coincidência — é aritmética. A âncora move gente **entre bandas**, nunca **entre
+coincidência: é aritmética. A âncora move gente **entre bandas**, nunca **entre
 lados**. Nenhum ajuste de idade, janela ou banda pode consertar o homebrew.
 O problema é *quem* é contado como codificador, não *que idade* ele tem.
 
@@ -2258,7 +2258,7 @@ Registrado para não voltar a varrer o espaço de parâmetros de idade atrás di
 
 ### 33.2 A conta fechada
 
-Com o eixo corrigido do §31, o homebrew em 31/12/2011 dá:
+Com o eixo corrigido da seção 31, o homebrew em 31/12/2011 dá:
 
 | | nosso | artigo | saldo |
 |---|---|---|---|
@@ -2268,7 +2268,7 @@ Com o eixo corrigido do §31, o homebrew em 31/12/2011 dá:
 
 Ou seja: **129 pessoas que chamamos de codificador o artigo chama de discussão**, e
 sobram **71 pessoas que o artigo não tem de jeito nenhum**. Os dois números são
-exatos, não aproximados — é o alvo de qualquer hipótese futura.
+exatos, não aproximados. São o alvo de qualquer hipótese futura.
 
 Candidatos naturais: 674 contribuidores vivos estão do lado do código **só** por
 terem aberto pull request, sem nenhum commit (601 deles nas 4 bandas mais novas,
@@ -2292,7 +2292,7 @@ Não é o caso:
 49 linhas em 13.171 e a mesma contagem de autores distintos. A query de
 `src/pyramid/sources/msr14.py` fica como está.
 
-**(b) Só PR mergeado conta como código.** Hipótese razoável — um PR recusado não
+**(b) Só PR mergeado conta como código.** Hipótese razoável: um PR recusado não
 virou código no projeto. Dos 674, **661 nunca tiveram um único PR mergeado**.
 Aplicar a regra tiraria 661 do lado do código (alvo: 129), levando o homebrew de
 `+200` para `−461`. Refutada com folga.
@@ -2308,23 +2308,23 @@ Sem hipótese testável no momento. O resíduo do homebrew fica declarado e quan
 em `docs/figuras/esem14_fig2.md`; os outros três painéis seguem com
 `L1 = 38 / 11 / 0`.
 
-## 34. Mais três hipóteses para o resíduo do homebrew — todas refutadas
+## 34. Mais três hipóteses para o resíduo do homebrew, todas refutadas
 
-Continuação do §33. O alvo continua sendo `-129` na discussão, `+200` no código,
+Continuação da seção 33. O alvo continua sendo `-129` na discussão, `+200` no código,
 `+71` de população. Nenhuma regra única testada recorta isso.
 
 | hipótese | L1 total | homebrew | por que cai |
 |---|---|---|---|
-| `PR=código` (config ativa) | **411** | 363 | — |
+| `PR=código` (config ativa) | **411** | 363 | (referência) |
 | `'moved'` no lado da discussão | 806 | 712 | são 481, precisa de 129 |
 | `PR=EXCLUÍDO` (nem código nem discussão) | 1115 | 1038 | tira 475 do código, precisa de 200 |
-| `PR=discussão` (§32) | 1165 | 1081 | tira 474 |
+| `PR=discussão` (seção 32) | 1165 | 1081 | tira 474 |
 
-**34.1 `PR` excluído.** O §32 testou o pull request como código e como discussão,
+**34.1 `PR` excluído.** A seção 32 testou o pull request como código e como discussão,
 nunca como *fora da conta*. Valia testar porque é a única regra que mexe nos dois
 saldos ao mesmo tempo: quem tem PR + conversa migra para a discussão, e quem só tem
 PR some da pirâmide. A população de fato cai de 3882 para 3835 (alvo 3811), mas o
-lado do código desaba 475. Os 674 do §33 quase todos têm outra atividade, então
+lado do código desaba 475. Os 674 da seção 33 quase todos têm outra atividade, então
 migram em vez de sumir.
 
 **34.2 `moved` na discussão.** Quem discutiu antes de codificar hoje conta no lado do
@@ -2344,19 +2344,19 @@ código no homebrew (484 com outra atividade, 105 sem). A identidade `200 = 129 
 Sobra a possibilidade de o artigo ter usado **um dump anterior do GHTorrent**. O
 GHTorrent recompleta o passado a cada coleta, então um dump de 2014 conhece mais
 atividade de 2011 do que um dump de 2013 conhecia. Isso explicaria de uma vez a
-população maior e o excesso concentrado nas faixas mais novas — gente que só aparece
+população maior e o excesso concentrado nas faixas mais novas, gente que só aparece
 no recorte mais recente. Não dá para verificar sem o dump antigo, que não temos, e
 por isso **não entra como conclusão**: fica como observação.
 
 ### 34.5 Encerramento
 
-Seis hipóteses testadas e refutadas entre §33 e §34, com o painel do blueprint-css
+Seis hipóteses testadas e refutadas entre seção 33 e seção 34, com o painel do blueprint-css
 (`L1=0`) servindo de trava em todas. O resíduo do homebrew fica **declarado, medido e
 sem hipótese em aberto**. Os quatro painéis encerram em `363 / 38 / 11 / 0`.
 
-## §35 — Definição de novato e os parâmetros da Tabela 2 (MSR14)
+## 35. Definição de novato e os parâmetros da Tabela 2 (MSR14)
 
-A grade da Tabela 2 do MSR14 tem **12 projetos × 8 anos (2004–2011) = 96 células**:
+A grade da Tabela 2 do MSR14 tem **12 projetos × 8 anos (2004-2011) = 96 células**:
 55 com letra (quadrante) e 41 estruturais (`-` projeto não existia / `*` não
 elegível). A configuração atual acerta **48/55 letras e 41/41 estruturais**. Tudo
 abaixo sai de:
@@ -2364,17 +2364,17 @@ abaixo sai de:
 ```
 uv run python scripts/sweep_msr14_tab2.py [--min-devs N] [--tie baixo|alto]
                                           [--sticky project|dataset] [--errors]
-uv run python scripts/sweep_msr14_tab2.py --novato     # varre as definições A–D
+uv run python scripts/sweep_msr14_tab2.py --novato     # varre as definições A a D
 ```
 
-### 35.1 Quatro definições de novato — nenhuma melhora
+### 35.1 Quatro definições de novato, nenhuma melhora
 
 | variante | novato é… | letras | estrutura |
 |---|---|---|---|
 | **A (atual)** | 1º evento de **código**, estreia no dataset | **48/55** | 41/41 |
 | B | 1º evento de **qualquer tipo** | 48/55 | 41/41 |
 | C | novato *e* atividade = qualquer evento | 43/55 | 41/41 |
-| D | novato **local**: estreia *neste* projeto (§15) | 45/55 | 41/41 |
+| D | novato **local**: estreia *neste* projeto (seção 15) | 45/55 | 41/41 |
 
 A e B empatam, e não por acaso: no dataset inteiro elas divergem em **9 das 254**
 células com quadrante, e **nenhuma das 9 cai dentro da grade** (são projetos fora
@@ -2384,8 +2384,8 @@ A razão é estrutural e vale registrar porque enterra uma família inteira de
 hipóteses: **magnetismo e stickiness são razões comparadas à mediana da mesma
 população**. Redefinir novato globalmente mexe no numerador de todo mundo na mesma
 direção, a mediana anda junto, e o lado do eixo em que o projeto cai não muda. Só
-redefinições que mexem nos projetos de forma **desigual** — como C e D, que trocam a
-base por projeto — chegam a mover a grade, e movem para pior.
+redefinições que mexem nos projetos de forma **desigual**, como C e D, que trocam a
+base por projeto, chegam a mover a grade, e movem para pior.
 
 `mojombo/jekyll 2011` (artigo `terminal`, obtido `floating`) sobrevive a A, B, C e D:
 não é questão de definição de novato.
@@ -2404,11 +2404,11 @@ Tirar `jekyll/2011` da grade por limiar exigiria ≥25, que custa 32 letras. Ref
 
 Com `n` ímpar de elegíveis, o projeto do meio **é** a mediana e empata. Isso ocorre em
 **8 células com letra** da grade. O artigo coloca **6 delas no lado baixo** e 2 no alto
-— e as 2 exceções são a mesma linha, `xbmc/xbmc` (2007 e 2009). Inverter a regra
+As 2 exceções são a mesma linha, `xbmc/xbmc` (2007 e 2009). Inverter a regra
 globalmente (`--tie alto`) troca 6 acertos por 2: **48 → 46**. A convenção atual
 (empate → lado baixo) fica confirmada por contagem. Que as duas exceções sejam o
 mesmo projeto aponta para o valor do `xbmc` estar marginalmente acima da mediana nos
-dados do artigo, não para uma regra diferente — ver §35.5.
+dados do artigo, não para uma regra diferente. Ver seção 35.5.
 
 ### 35.4 `stickiness_scope`
 
@@ -2423,18 +2423,18 @@ xbmc/xbmc 2009            artigo attractive / obtido stagnant     (empate exato)
 django/django 2011        artigo attractive / obtido stagnant
 jquery/jquery 2010        artigo floating   / obtido attractive
 chriseppstein/compass 2010 artigo floating  / obtido terminal
-scala/scala 2010          artigo floating   / obtido —
+scala/scala 2010          artigo floating   / obtido (lacuna)
 mojombo/jekyll 2011       artigo terminal   / obtido floating
 ```
 
-Duas são empates exatos (§35.3): cara ou coroa, não regra. Uma é **lacuna de dados** —
+Duas são empates exatos (seção 35.3): cara ou coroa, não regra. Uma é **lacuna de dados**:
 `scala/scala` tem **zero eventos de código em 2010** no nosso dump (10 devs em 2007,
 25 em 2009, nada em 2010, 20 em 2011), então não há limiar nem parâmetro que
 produza letra ali. As quatro restantes exigem correções **contraditórias** no mesmo
 eixo: `django` e `jquery` precisam de magnetismo puxado em direções opostas. Não
 existe correção sistemática única.
 
-O padrão é o mesmo do §34.4: buracos e diferenças de cobertura compatíveis com **outro
+O padrão é o mesmo da seção 34.4: buracos e diferenças de cobertura compatíveis com **outro
 vintage do dump do GHTorrent**, que recompleta o passado a cada coleta. Segue como
 observação, não como conclusão.
 
@@ -2446,16 +2446,16 @@ baixo, escopo por projeto) passam a ser **escolhas medidas em vez de herdadas**.
 resíduo de 7 células fica declarado, com 3 explicadas (2 empates + 1 lacuna) e 4 sem
 correção sistemática possível.
 
-## §36 — `commit_scope`: as três leituras de "commit do projeto", medidas nos 4 painéis
+## 36. `commit_scope`: as três leituras de "commit do projeto", medidas nos 4 painéis
 
-O §21/§22 deixaram em aberto a suspeita mais razoável sobre o resíduo do homebrew:
+A seção 21/seção 22 deixaram em aberto a suspeita mais razoável sobre o resíduo do homebrew:
 `commit_scope=root` conta só os commits registrados **no** projeto raiz, e o homebrew
 é justamente o painel com mais fork. Como o fork carrega uma cópia do histórico da
 mãe em `project_commits`, há três leituras plausíveis:
 
-- **`root`** (config atual) — commits cujo `project_id` é o do projeto;
-- **`family_project_commits`** — união via `project_commits` sobre a família (raiz + forks);
-- **`family_project_id`** — união via `commits.project_id` sobre a família.
+- **`root`** (config atual): commits cujo `project_id` é o do projeto;
+- **`family_project_commits`**: união via `project_commits` sobre a família (raiz + forks);
+- **`family_project_id`**: união via `commits.project_id` sobre a família.
 
 Comando (banco de pé, `docker start msr14`; roda em `output/` de scratch, não toca o
 cache do repo):
@@ -2465,7 +2465,7 @@ uv run python scripts/sweep_commit_scope.py --json /tmp/sweep_scope.json
 ```
 
 Distância: por painel, `L1 = Σ_bandas |replicação − artigo|`, dois lados somados, contra
-`esem14_fig2.bars_read_px` (leitura em pixel, §20) no snapshot `2011-12-31`.
+`esem14_fig2.bars_read_px` (leitura em pixel, seção 20) no snapshot `2011-12-31`.
 
 | painel | `root` | `family_project_commits` | `family_project_id` |
 |---|---|---|---|
@@ -2478,23 +2478,23 @@ Distância: por painel, `L1 = Σ_bandas |replicação − artigo|`, dois lados s
 População (replicação/artigo): homebrew `3882 / 3986 / 3987` contra 3810; paperclip
 `524 / 536 / 536` contra 519; clojure `49` nos três contra 46; blueprint-css
 `13 / 14 / 14` contra 13. Contagem de bandas idêntica nos três escopos, em todos os
-painéis (10/16/24/16) — o escopo **não** mexe na banda a mais do §30.
+painéis (10/16/24/16). O escopo **não** mexe na banda a mais da seção 30.
 
 ### 36.1 Por que cai
 
 O sinal está errado. O resíduo do homebrew é **excesso** de gente (+71 em `root`), e
 os escopos de família só somam: +104 e +105 pessoas, das quais quase tudo cai no lado
 do código (`L1_coding` 233 → 328 / 316). Trazer o histórico do fork faz exatamente o
-que se esperaria — promove a discussão a código e cria contribuidor onde não havia —
-e isso é o oposto do que o alvo pede. Não existe ajuste de escopo que subtraia.
+que se esperaria: promove a discussão a código e cria contribuidor onde não havia.
+Isso é o oposto do que o alvo pede. Não existe ajuste de escopo que subtraia.
 
-O `blueprint-css` volta a servir de trava, como no §33–§34: é o painel que a replicação
+O `blueprint-css` volta a servir de trava, como nas seções 33 e 34: é o painel que a replicação
 acerta (`L1=0.19`, dentro do ±1 pessoa/barra da leitura em pixel), e os dois escopos
 de família o quebram, inventando 1 pessoa no lado do código. Uma regra que estraga o
 painel exato para piorar os outros três não é candidata.
 
 O `clojure` é insensível aos três escopos (`L1=10.66` idêntico, até a casa decimal):
-o resíduo dele é forma dentro das bandas 20/21 (§23, §25), não cobertura de commit.
+o resíduo dele é forma dentro das bandas 20/21 (seção 23, seção 25), não cobertura de commit.
 
 ### 36.2 `family_project_commits` x `family_project_id`
 
@@ -2506,11 +2506,11 @@ aponte para ela. Diferença real entre as duas tabelas, irrelevante para a decis
 ### 36.3 Decisão
 
 `commit_scope` fica em **`root`** em `config/settings.yaml`, agora como escolha
-**medida** e não herdada — é o melhor dos três em todos os quatro painéis, e o único
+**medida** e não herdada. É o melhor dos três em todos os quatro painéis, e o único
 que preserva a trava do blueprint-css. Oitava hipótese testada para o resíduo do
-homebrew (§33, §34, §36), oitava refutada. Os painéis seguem em `363 / 38 / 11 / 0`.
+homebrew (seção 33, seção 34, seção 36), oitava refutada. Os painéis seguem em `363 / 38 / 11 / 0`.
 
-## §37 — O extract não era determinístico: 1 parquet em 90 mudava de md5 entre importações do dump
+## 37. O extract não era determinístico: 1 parquet em 90 mudava de md5 entre importações do dump
 
 ### 37.1 Como apareceu
 
@@ -2521,8 +2521,8 @@ comparando os 362 artefatos contra a execução anterior por md5:
 361/362 parquets md5-idênticos; difere: output/extract/79163.parquet
 ```
 
-Os JSON de manifesto e os PDF diferem por timestamp/metadata de data embutidos —
-esperado e irrelevante. O parquet, não: é dado.
+Os JSON de manifesto e os PDF diferem por timestamp/metadata de data embutidos,
+o que é esperado e irrelevante. O parquet, não: é dado.
 
 ### 37.2 O que era
 
@@ -2538,7 +2538,7 @@ b.sort_values(list(b.columns)).reset_index(drop=True)))"
 # (250243, 4) (250243, 4) False True
 ```
 
-Mesmas 250 243 linhas, mesmo conteúdo, 3 066 linhas em posição diferente — todas no
+Mesmas 250 243 linhas, mesmo conteúdo, 3 066 linhas em posição diferente, todas no
 bloco `pull_request_comments`. Causa: as queries de `sources/msr14.py` não têm
 `ORDER BY`, então o InnoDB devolve as linhas na ordem física da tabela, que depende de
 como o dump foi importado. Dois bancos com os mesmos dados podem devolver ordens
@@ -2556,7 +2556,7 @@ jamais dependeu disso.
 ### 37.4 Correção
 
 Ordem canônica por `(scope_id, contributor_id, timestamp, event_type)` com
-`kind="mergesort"` (estável) antes de escrever o parquet, em `extract.py` — não em SQL,
+`kind="mergesort"` (estável) antes de escrever o parquet, em `extract.py`, fora do SQL,
 para respeitar a regra de que SQL só existe em `src/pyramid/sources/`, e para valer para
 qualquer fonte futura, não só a MSR14.
 
@@ -2576,17 +2576,17 @@ projetos por `COUNT(*)` → `make clean && make run-all` → `make validate`.
 90 projetos raiz confirmados no banco recém-importado
 run-all: 8 estágios, 0 falhas (extract 90/90, classify 90/90, snapshots 90/90,
          metrics 90/90, attractiveness, projection, plots 8 figuras + tabelas)
-validate: 167 checks (87 gate, 80 informativos) — ok=97, conhecida=70, falha=0
+validate: 167 checks (87 gate, 80 informativos): ok=97, conhecida=70, falha=0
 ```
 
 `output/validation_report.md` do run do zero é **idêntico linha a linha** ao da execução
 de referência, com uma única diferença: a linha de timestamp de geração do próprio
-relatório. Com a correção de §37.4, os 362 artefatos passaram a bater por md5 (fora
+relatório. Com a correção de seção 37.4, os 362 artefatos passaram a bater por md5 (fora
 JSON de manifesto e metadata de PDF, que carregam data de geração).
 
 ---
 
-## §38 — Onde mora o resíduo dos Tipos A-D: 4 projetos grandes, A↔C
+## 38. Onde mora o resíduo dos Tipos A-D: 4 projetos grandes, A↔C
 
 ### 38.1 O resíduo não é difuso
 
@@ -2601,10 +2601,10 @@ parece ruído espalhado. Decompondo pelo corte de elegibilidade do próprio arti
 | não elegíveis | 18/21/10/2 (n=51) | 19/21/9/1 (n=50) | 3 |
 
 O L1 total (9) é *menor* que o do subconjunto elegível (10) porque os erros se
-cancelam entre os dois grupos — o agregado escondia o problema. Lido direito: os
+cancelam entre os dois grupos, e o agregado escondia o problema. Lido direito: os
 projetos pequenos batem quase de graça e **4 projetos grandes que classificamos
 como A o artigo classifica como C**. B e D estão certos (as 2 unidades de B são
-os 2 projetos que faltam na elegibilidade, §34).
+os 2 projetos que faltam na elegibilidade, seção 34).
 
 ### 38.2 Não é empate na fronteira
 
@@ -2623,7 +2623,7 @@ dos novatos como experientes. Isso é diferença de definição, não de precis�
 ### 38.3 Janela de morte por silêncio: REFUTADA (e confirma os 3 meses)
 
 Hipótese: o artigo mediria a Fig.5 com janela de vivo maior que 3 meses (há
-precedente — a Fig.2 do ESEM14 só encaixa com 12 meses, §19), o que engordaria o
+precedente: a Fig.2 do ESEM14 só encaixa com 12 meses, seção 19), o que engordaria o
 lado experiente e justamente nos projetos grandes. Varredura com todo o resto
 fixo (`/tmp/sweep_janela.py`, multiplicando `periods.inactivity_months`):
 
@@ -2639,13 +2639,13 @@ ARTIGO | 23/42/18/3  86   0 |  4/21/9/2 36   0
 
 Refutada com folga: qualquer janela acima de 3 meses colapsa tudo em C+D e
 destrói os 65 projetos novato-dominantes (A+B) que o artigo tem. **Isso é prova
-positiva de que a Fig.5 usa a janela de 3 meses** — a janela de 12 meses da Fig.2
+positiva de que a Fig.5 usa a janela de 3 meses**. A janela de 12 meses da Fig.2
 do ESEM14 é local daquela figura e não se propaga.
 
 ### 38.4 Elegibilidade por população viva: REFUTADA
 
 Hipótese: ">100 contributors" seria sobre a população viva no snapshot, não sobre
-o histórico — isso derrubaria justamente 4 dos nossos A (50, 54, 67 e 100 vivos).
+o histórico. Isso derrubaria justamente 4 dos nossos A (50, 54, 67 e 100 vivos).
 Medido: 30 projetos, 5/17/6/2, L1=8. Melhora pouco, erra o n (30 vs 36) e não
 fecha A. Fica o critério histórico.
 
@@ -2653,8 +2653,8 @@ fecha A. Fica o critério histórico.
 
 Aberto e localizado: **4 projetos grandes, eixo A↔C, sob uma definição de
 "newcomer" mais generosa que a nossa no artigo**. Já refutados como causa:
-`age_basis` (§3, §19.5), largura de banda (§21), janela de vivo (38.3),
-elegibilidade (38.4), desempate no zero (§35.3). O que sobra são leituras que o
+`age_basis` (seção 3, seção 19.5), largura de banda (seção 21), janela de vivo (38.3),
+elegibilidade (38.4), desempate no zero (seção 35.3). O que sobra são leituras que o
 artigo não fixa em lugar nenhum do texto, e nenhuma delas é testável contra os
 dados publicados: a Fig.5 dá só o espalhamento, não a lista de projetos por tipo.
 Sem essa lista, mais varredura vira ajuste de curva. **Encerrado como ambiguidade
@@ -2663,7 +2663,7 @@ declarada, não como bug.**
 ### 38.6 Correção de rota nas docstrings
 
 `classify.py` e `snapshots.py` documentavam a idade como "SOMA dos períodos de
-atividade" — que é exatamente a leitura **refutada** em §3 (`accumulated_active`,
+atividade", que é exatamente a leitura **refutada** em seção 3 (`accumulated_active`,
 L1=62, C e D vazios), enquanto o pipeline roda `calendar_tenure`. Docstring
 descrevendo o contrário do código é o pior tipo de dívida num repo cujo produto é
 reprodutibilidade. Corrigidas para descrever a regra em vigor e apontar a

@@ -1,7 +1,7 @@
 # Como a ferramenta funciona
 
-Visão de alto nível. Não tem fórmula, não tem nome de biblioteca. É o que o
-programa pensa, não como ele calcula.
+Visão de alto nível. Sem fórmula e sem nome de biblioteca. Descreve o que o
+programa pensa. Como ele calcula está em [`METODO.md`](METODO.md).
 
 ## O problema
 

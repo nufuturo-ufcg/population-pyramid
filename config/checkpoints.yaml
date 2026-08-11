@@ -6,15 +6,15 @@
 meta:
   esem14: "Onoue, Hata, Matsumoto. ESEM 2014, pp.1-4. docs/papers/ESEM14.pdf"
   ieice16: "Onoue, Hata, Monden, Matsumoto. IEICE Trans. Inf. & Syst. E99.D(5):1305-1315, 2016."
-  erratum: "IEICE E99.D(7):1974, 2016 — editorial: adiciona URL da fonte na legenda da Fig.1. Nenhum valor numérico afetado."
+  erratum: "IEICE E99.D(7):1974, 2016. Editorial: adiciona URL da fonte na legenda da Fig.1. Nenhum valor numérico afetado."
   msr14: >-
     Yamashita, McIntosh, Kamei, Ubayashi. "Magnet or Sticky? Measuring Project
     Characteristics from the Perspective of Developer Attraction and Retention."
-    MSR 2014, pp.54-63. docs/papers/MSR14.pdf — fonte primária de magnetismo e
-    stickiness (§3.1 do ESEM14 só cita as métricas, não as define).
+    MSR 2014, pp.54-63. docs/papers/MSR14.pdf, fonte primária de magnetismo e
+    stickiness (seção 3.1 do ESEM14 só cita as métricas, não as define).
 
 # ---------------------------------------------------------------------------
-# IEICE16 Fig.5 — dispersão CCR × NCR, snapshot set/2013
+# IEICE16 Fig.5: dispersão CCR × NCR, snapshot set/2013
 # "Twenty-three projects are classified as Type A, 42 as Type B, 18 as Type C,
 #  and three as Type D." + "four projects did not have any contributors"
 # ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ types:
     78852: D    # rails/rails
 
 # ---------------------------------------------------------------------------
-# IEICE16 Tabela 3 — ABRE mediano, cohort vs. baseline (menor = melhor)
+# IEICE16 Tabela 3: ABRE mediano, cohort vs. baseline (menor = melhor)
 # ---------------------------------------------------------------------------
 projection_abre:
   base_snapshots: ["2013-03-31", "2013-06-30"]
@@ -57,7 +57,7 @@ projection_abre:
   # [cohort, baseline] em cada par
 
 # ---------------------------------------------------------------------------
-# IEICE16 Tabela 4 — Wilcoxon pareado, cohort vs. baseline, 95%
+# IEICE16 Tabela 4: Wilcoxon pareado, cohort vs. baseline, 95%
 # significant: negrito no PDF = cohort estatisticamente melhor
 # ---------------------------------------------------------------------------
 projection_wilcoxon:
@@ -70,7 +70,7 @@ projection_wilcoxon:
     All: {non_coding: [0.00000, true], moved: [0.00000, true], coding: [0.00116, true], all: [0.00000, true]}
   # [p_valor, significativo]
 
-# Curto vs. longo prazo — limiar 1 ano de atividade
+# Curto vs. longo prazo: limiar 1 ano de atividade
 projection_term:
   short_term_abre_median: 0.4055
   long_term_abre_median: 0.3333
@@ -78,7 +78,7 @@ projection_term:
   significant: true
 
 # ---------------------------------------------------------------------------
-# ESEM14 — atratividade (magnetismo × stickiness)
+# ESEM14: atratividade (magnetismo × stickiness)
 # ---------------------------------------------------------------------------
 attractiveness:
   # Fig.2, snapshot dez/2011
@@ -92,11 +92,11 @@ attractiveness:
   # Os quatro painéis são renderizados por inteiro, 2013 incluído: a pirâmide é
   # um retrato de estoque (só olha para trás), então a censura em out/2013 não
   # afeta a forma. O que a censura mata é a métrica anual de stickiness, que
-  # olha para Y+1 — por isso 2013 não recebe quadrante. O próprio ESEM14 faz
+  # olha para Y+1, por isso 2013 não recebe quadrante. O próprio ESEM14 faz
   # essa distinção no parágrafo do jekyll: crava "terminal" só para 2011 e usa
   # "balanced shape" (forma) + "we think this project had a possibility to
   # become attractive or fluctuating" (condicional) para 2013. Ver
-  # docs/discrepancias.md §11.1.
+  # docs/discrepancias.md seção 11.1.
   shape_only_years: [2013]        # renderiza pirâmide, não atribui quadrante
   transitions:
     79163: "vira atrativa a partir de jun/2011 e cresce em altura"
@@ -112,12 +112,13 @@ attractiveness:
         sai de terminal para forma balanceada em 2013; o artigo não classifica
         2013, apenas sugere "possibility to become attractive or fluctuating".
         ATENÇÃO: este 2011 é o único rótulo do artigo que a replicação NÃO
-        reproduz — aqui jekyll é terminal em 2010 e floating em 2011. A
-        divergência é real (não é janela: a ancoragem em junho foi testada e
-        piora), está declarada em known_divergences e analisada no §13.
+        reproduz: aqui jekyll é terminal em 2010 e floating em 2011. A
+        divergência é real. A hipótese de janela caiu: a ancoragem em junho foi
+        testada e piora. Está declarada em known_divergences e analisada na
+        seção 13.
 
 # ---------------------------------------------------------------------------
-# MSR14 Tabela 2 — "quadrant transition history of the 12 selected projects"
+# MSR14 Tabela 2: "quadrant transition history of the 12 selected projects"
 # (três projetos de cada quadrante, os de história mais longa), 2004-2011.
 #
 # Esta é a única fonte publicada que dá o quadrante de projetos nomeados em
@@ -126,7 +127,7 @@ attractiveness:
 # quadrante de verdade e 41 são estrutura (o projeto existir e passar/não
 # passar no filtro de tamanho).
 #
-# Legenda do artigo, verbatim (MSR14, §"Manual analysis"):
+# Legenda do artigo, verbatim (MSR14, seção "Manual analysis"):
 #   "-" means that the project was not yet under development
 #   "*" means that the project started, yet, lacked a large enough contributing
 #       team to satisfy our filtering criteria
@@ -156,7 +157,7 @@ msr14_tab2:
     "joshuaclayton/blueprint-css": "- - - * * T * T"
 
 # ---------------------------------------------------------------------------
-# Travas da replicação — NÃO são valores do artigo.
+# Travas da replicação. NÃO são valores do artigo.
 # São números que esta replicação produz hoje e que docs/discrepancias.md já
 # analisou. Ficam aqui para que uma mudança de método apareça como divergência
 # em vez de passar despercebida. Mexer em um destes exige atualizar o documento
@@ -165,34 +166,34 @@ msr14_tab2:
 # ---------------------------------------------------------------------------
 # RE-TRAVADO em ee3ba45 (banda de 3 meses passou de 365,25/12 = 91,3125 dias
 # para 90 dias de mês comercial). Os valores anteriores, válidos até 315e42d,
-# estão preservados na coluna "antes" — a errata completa, com o porquê da
-# mudança de banda e o custo dela, está em docs/discrepancias.md §27 e em
-# INSTRUCOES_CLAUDE_CODE.MD §9.5. Não apague a coluna "antes": é ela que
+# estão preservados na coluna "antes". A errata completa, com o porquê da
+# mudança de banda e o custo dela, está em docs/discrepancias.md seção 27 e em
+# INSTRUCOES_CLAUDE_CODE.MD seção 9.5. Não apague a coluna "antes": é ela que
 # permite auditar que a trava mudou por decisão registrada, e não para deixar
 # o `validate` verde.
 replica_locks:
-  projection_celulas_2pct: 6      # antes: 7 — de 40 células da Tabela 3; §12.5
-  projection_direcao_pares: 14    # inalterado — de 20 pares (empate não conta); §12.5
-  projection_agregado:            # o predicado do §4 que se sustenta; §12.2
+  projection_celulas_2pct: 6      # antes: 7; de 40 células da Tabela 3; seção 12.5
+  projection_direcao_pares: 14    # inalterado; de 20 pares (empate não conta); seção 12.5
+  projection_agregado:            # o predicado da seção 4 que se sustenta; seção 12.2
     cohort: 0.3894               # antes: 0.4208
     baseline: 0.5000             # inalterado
     p: 0.0124                    # antes: 0.0073
 
 # ---------------------------------------------------------------------------
 # Composição dos painéis das figuras: quem aparece em qual painel, e em que
-# data. É dado do artigo, não escolha da replicação — por isso mora aqui e não
-# dentro do plots.py, onde viraria constante mágica sem procedência.
+# data. É dado do artigo. Por isso mora aqui, fora do plots.py, onde viraria
+# constante mágica sem procedência.
 # ---------------------------------------------------------------------------
 figures:
   # "Fig. 5  CCR and NCR of 90 OSS projects in GitHub." Os anéis são os oito
   # projetos que o próprio artigo nomeia adiante (Fig.6 e Fig.7); anelá-los
   # aqui mostra, na mesma imagem, que a divergência de contagem por quadrante
-  # não toca em nenhum projeto nomeado. `highlight` é puro desenho — não entra
-  # em mediana, quadrante nem contagem — e o `--highlight` da CLI sobrescreve.
+  # não toca em nenhum projeto nomeado. `highlight` é puro desenho. Não entra
+  # em mediana, quadrante nem contagem, e o `--highlight` da CLI sobrescreve.
   ieice16_fig5:
     highlight: [25875, 78835, 49675, 91020, 63250, 22980, 79163, 78852]
   # "Fig. 6  Examples of software population pyramids of each type.
-  #  (Note that scales are different.)" — a legenda avisa que a escala é por
+  #  (Note that scales are different.)": a legenda avisa que a escala é por
   # painel, então a replicação também deixa cada painel se auto-escalar. Impor
   # régua comum aqui seria "melhorar" a figura para além do original.
   # Tipo D não aparece na Fig.6 (só 3 projetos no dataset inteiro); os dois
@@ -220,7 +221,7 @@ figures:
   # "Fig. 2  Distribution of magnet and sticky values" (MSR14). Régua e anéis
   # saem da figura publicada, não do dado: os limites são os do artigo e os
   # dois anelados são os dois projetos que ele nomeia no próprio gráfico.
-  # `highlight` é puro desenho — não entra em mediana, quadrante ou contagem —
+  # `highlight` é puro desenho. Não entra em mediana, quadrante ou contagem,
   # e o `--highlight` da CLI sobrescreve para inspeção de outro projeto.
   msr14_fig2:
     xlim: [-0.05, 0.92]
@@ -229,7 +230,7 @@ figures:
     yticks: [0.00, 0.05, 0.10, 0.15, 0.20]
     highlight: [79163, 69158]   # mxcl/homebrew, django/django
   # "Fig. 2  Software population pyramids and the current status." Os projetos
-  # e o status esperado de cada um já estão em `attractiveness` — a figura só
+  # e o status esperado de cada um já estão em `attractiveness`. A figura só
   # aponta para lá para não haver duas listas para manter em sincronia.
   esem14_fig2:
     scales: independent
@@ -238,8 +239,8 @@ figures:
     # espelha para a esquerda e acrescenta o 0). Ficam fixos de propósito:
     # escala automática esconde exatamente o que queremos ver, que é a barra
     # da replicação passando (ou não) do último tick do artigo. Barra que
-    # ultrapassa continua desenhada inteira — o transbordo é o achado, não um
-    # erro de plotagem. Só a Fig.2 usa isto; as demais seguem auto-escala.
+    # ultrapassa continua desenhada inteira. O transbordo é o achado. Erro de
+    # plotagem foi descartado. Só a Fig.2 usa isto; as demais seguem auto-escala.
     x_ticks:
       79163: [250, 500, 750]   # homebrew
       104307: [50, 100]        # paperclip
@@ -249,13 +250,13 @@ figures:
     # 0 = BASE da pirâmide = (0,90]d = recém-chegados. A figura do artigo é
     # desenhada com a idade crescendo para CIMA, então quem lê os pixels de uma
     # imagem varre na ordem inversa desta lista. Casar as duas ordens erradas
-    # espelha a comparação inteira e foi exatamente o que aconteceu de §19 a
-    # §30 — ver `discrepancias.md` §31. Confira sempre contra a banda 0, que é
+    # espelha a comparação inteira e foi exatamente o que aconteceu de seção 19 a
+    # seção 30. Ver `discrepancias.md` seção 31. Confira sempre contra a banda 0, que é
     # a maior barra do painel.
     #
-    # PENDENTE: esta leitura discorda de `bars_read_px` (a leitura de §20, que
-    # cobre os 4 painéis) nas bandas 2-4 do clojure — 6/7/7 aqui contra 3/6/7
-    # lá — e na banda 2 do `non_coding` (1 aqui, 0 lá). São duas leituras em
+    # PENDENTE: esta leitura discorda de `bars_read_px` (a leitura de seção 20, que
+    # cobre os 4 painéis) nas bandas 2-4 do clojure (6/7/7 aqui contra 3/6/7
+    # lá) e na banda 2 do `non_coding` (1 aqui, 0 lá). São duas leituras em
     # pixel do mesmo painel de 24 bandas em 225px (9,4px por banda). Nenhuma
     # das duas é dado publicado.
     #
@@ -263,22 +264,22 @@ figures:
     # (base) para cima, uma entrada por banda de 3 meses. NÃO é dado publicado:
     # o ESEM14 não traz tabela numérica da Fig.2. É leitura visual, com erro de
     # ±1 pessoa por barra, e serve só como alvo de comparação nas varreduras do
-    # §19 de `discrepancias.md` — nenhum check de `validate` depende disto.
+    # seção 19 de `discrepancias.md`. Nenhum check de `validate` depende disto.
     bars_read_clojure:
       coding:     [8, 5, 6, 7, 7, 3, 3, 3, 2, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
       non_coding: [1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    # Leitura em pixel dos QUATRO painéis da Fig.2 (§20 e §22 do
+    # Leitura em pixel dos QUATRO painéis da Fig.2 (seção 20 e seção 22 do
     # `discrepancias.md`), medida na imagem do artigo e convertida de px para
     # pessoas pela régua de cada painel (`x_ticks` acima). Vivia em
-    # `/tmp/fig2_medido.json`, que não sobrevive a um reboot e deixava §20.3,
-    # §22 e §28 sem como serem refeitos; agora é dado versionado do repo.
+    # `/tmp/fig2_medido.json`, que não sobrevive a um reboot e deixava seção 20.3,
+    # seção 22 e seção 28 sem como serem refeitos; agora é dado versionado do repo.
     #
     # Mesma orientação do `bars_read_clojure`: índice 0 = BASE = (0,90]d.
     # (A medição original era topo-para-baixo; foi invertida aqui de uma vez,
-    # justamente para não haver duas convenções no mesmo arquivo — §31.)
+    # justamente para não haver duas convenções no mesmo arquivo, seção 31.)
     #
     # Valores fracionários de propósito: são pixels convertidos, não pessoas
-    # contadas. Arredondar aqui embutiria erro antes da comparação — quem
+    # contadas. Arredondar aqui embutiria erro antes da comparação. Quem
     # compara arredonda no fim. A tolerância é ±1 pessoa por barra (±2 nas
     # barras longas do homebrew, onde 1px vale ~2,4 pessoas).
     #
@@ -286,7 +287,7 @@ figures:
     # em que aparecem na barra (claro encostado no eixo, escuro na ponta). NÃO
     # afirmamos qual é `moved` e qual é `coding`: a legenda da figura não foi
     # decidida com confiança e chutar o mapeamento inventaria um dado. Por isso
-    # §22/§28 comparam sempre a SOMA dos dois contra `moved + coding` da
+    # seção 22/seção 28 comparam sempre a SOMA dos dois contra `moved + coding` da
     # replicação, que é uma quantidade bem definida dos dois lados.
     bars_read_px:
       79163:   # homebrew
@@ -314,46 +315,46 @@ known_divergences:
   # chave do check -> seção de docs/discrepancias.md que a analisa.
   # Declarar aqui não perdoa nada: o `validate` continua imprimindo a linha,
   # só muda o rótulo de FALHA para "conhecida". E se a linha voltar a bater,
-  # vira OBSOLETA e o comando falha — para o documento não continuar afirmando
+  # vira OBSOLETA e o comando falha, para o documento não continuar afirmando
   # uma divergência que já não existe.
 
-  # Tipos A-D: sobra em A, falta em C. Mesmo viés (novato demais) do §13.
-  types.counts.A: "§3.1"
-  types.counts.B: "§3.1"
-  types.counts.C: "§3.1"
-  types.counts.D: "§3.1"
-  types.total_classified: "§3.1"
-  types.unclassified: "§3.1"
+  # Tipos A-D: sobra em A, falta em C. Mesmo viés (novato demais) da seção 13.
+  types.counts.A: "seção 3.1"
+  types.counts.B: "seção 3.1"
+  types.counts.C: "seção 3.1"
+  types.counts.D: "seção 3.1"
+  types.total_classified: "seção 3.1"
+  types.unclassified: "seção 3.1"
 
   # jekyll, 5º projeto rotulado da Fig.2: terminal no artigo, floating aqui.
-  attractiveness.2011.79166: "§13"
+  attractiveness.2011.79166: "seção 13"
 
   # 36 projetos no artigo, 34 aqui: leitura literal de ">100" + ruído de borda.
-  projection.n_projects: "§7"
+  projection.n_projects: "seção 7"
 
   # ABRE curto vs. longo prazo inverte, e a inversão não é significativa.
-  projection.term.direcao: "§12.3(c)"
-  projection.term.significancia: "§12.3(c)"
+  projection.term.direcao: "seção 12.3(c)"
+  projection.term.significancia: "seção 12.3(c)"
 
 
   # Tabela 2 do MSR'14: 48/55 (87%). As 7 restantes, todas com causa nomeada.
-  # 4 empates/quase-empates na linha da mediana (margem <= 5,1%) — o desempate
+  # 4 empates/quase-empates na linha da mediana (margem <= 5,1%). O desempate
   # do artigo é irrecuperável: 6 empates exatos, 4 pedem ">" e 2 pedem ">=".
-  "msr14.tab2.2007.xbmc/xbmc": "§16"
-  "msr14.tab2.2009.xbmc/xbmc": "§16"
-  "msr14.tab2.2010.jquery/jquery": "§16"
-  "msr14.tab2.2010.chriseppstein/compass": "§16"
-  # jekyll/2011 — mesma célula do §13, vista pelo outro instrumento.
-  "msr14.tab2.2011.mojombo/jekyll": "§16"
+  "msr14.tab2.2007.xbmc/xbmc": "seção 16"
+  "msr14.tab2.2009.xbmc/xbmc": "seção 16"
+  "msr14.tab2.2010.jquery/jquery": "seção 16"
+  "msr14.tab2.2010.chriseppstein/compass": "seção 16"
+  # jekyll/2011, mesma célula da seção 13, vista pelo outro instrumento.
+  "msr14.tab2.2011.mojombo/jekyll": "seção 16"
   # Censura à esquerda por projeto: cobertura do dump antes da migração p/ GitHub.
-  "msr14.tab2.2010.scala/scala": "§16"
-  "msr14.tab2.2011.django/django": "§16"
+  "msr14.tab2.2010.scala/scala": "seção 16"
+  "msr14.tab2.2011.django/django": "seção 16"
 
   # Tabela 3 e 4 célula a célula (40 medianas + 20 p-valores). Informativas por
-  # política do §12.5: com 34 projetos e Tipo D = 3, casar uma mediana de coorte
-  # é acaso, não replicação. O `.*` declara o grupo — enquanto uma célula
+  # política da seção 12.5: com 34 projetos e Tipo D = 3, casar uma mediana de
+  # coorte é acaso. O `.*` declara o grupo: enquanto uma célula
   # divergir, a seção continua descrevendo algo real; se todas baterem, o
   # validate acusa OBSOLETA e a política tem que ser reescrita.
-  "projection.abre.*": "§12.1"
-  "projection.wilcoxon.*": "§12.1"
-  "projection.direcao.*": "§12.3"
+  "projection.abre.*": "seção 12.1"
+  "projection.wilcoxon.*": "seção 12.1"
+  "projection.direcao.*": "seção 12.3"

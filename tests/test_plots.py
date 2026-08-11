@@ -1,12 +1,12 @@
-"""Guardas da população da pirâmide (docs/discrepancias.md §18 e §19).
+"""Guardas da população da pirâmide (docs/discrepancias.md seção 18 e seção 19).
 
 A Fig.2 do ESEM14 desenha quem **está na comunidade** no snapshot: o artigo diz
 que o contribuidor termina quando deixa o projeto, e a legenda da Fig.1 conta
 dois de três developers por isso. O `stock` (todo mundo que já passou) foi
-tentado e descartado — enche as bandas 9-11 do blueprint-css, vazias no artigo.
-A LARGURA da janela é 12 meses, fixada pela medição em pixel da figura (§20:
-L1 mínimo nos quatro painéis) e não pelo `inactivity_months: 3` das métricas —
-são duas janelas diferentes de propósito. Estes testes prendem a população e o
+tentado e descartado: enche as bandas 9-11 do blueprint-css, vazias no artigo.
+A LARGURA da janela é 12 meses, fixada pela medição em pixel da figura (seção 20:
+L1 mínimo nos quatro painéis). O `inactivity_months: 3` das métricas fica de
+fora: são duas janelas diferentes de propósito. Estes testes prendem a população e o
 fato de a janela vir do settings; o valor 12 é prendido em `test_settings`.
 """
 
@@ -40,7 +40,7 @@ def _df() -> pd.DataFrame:
     definição, então o filtro só morde da banda 1 para cima.
 
     Quem decide não é mais a coluna `active` (essa é a janela de 3 meses do
-    `classify`) e sim `idle_days` contra a janela de `plots` — §19. Os inativos
+    `classify`) e sim `idle_days` contra a janela de `plots` (seção 19). Os inativos
     aqui estão a 400 dias, bem além dos ~365 da janela; os ativos a 10.
     """
     linhas = [
@@ -79,7 +79,7 @@ def test_banda_zero_identica_nos_dois_regimes(monkeypatch):
     """Quem entrou nos últimos `band_months` é ativo por construção.
 
     Se algum dia a banda 0 divergir entre os regimes, a definição de `active`
-    mudou e o §18 precisa ser reaberto — não é ruído de plotagem.
+    mudou e a seção 18 precisa ser reaberta. Ruído de plotagem não produz isso.
     """
     saidas = {}
     for pop in ("stock", "active"):
@@ -95,9 +95,9 @@ def test_populacao_invalida_falha_alto(monkeypatch):
 
 
 def test_default_do_settings_e_active():
-    """O default versionado é o que reproduz o artigo — trocar exige justificar.
+    """O default versionado é o que reproduz o artigo. Trocar exige justificar.
 
-    `stock` foi tentado e descartado (discrepancias.md §18 superada / §19): o
+    `stock` foi tentado e descartado (discrepancias.md seção 18 superada / seção 19): o
     ESEM14 tira da pirâmide quem já saiu, e o estoque enche as bandas 9-11 do
     blueprint-css, vazias na Fig.2.
     """
@@ -106,11 +106,11 @@ def test_default_do_settings_e_active():
 
 
 def test_janela_e_banda_versionadas_sao_as_medidas_na_figura():
-    """12 meses e 90 dias saíram de medição em pixel, não de convenção (§20/§21).
+    """12 meses e 90 dias saíram de medição em pixel, não de convenção (seção 20/seção 21).
 
     São dois valores que a simetria pede para mudar e a figura proíbe: a janela
     da pirâmide (12m) não é a das métricas (`inactivity_months: 3`), e a banda
-    (90d) não é `band_months` × 365.25/12 (= 91.3125). Mexer aqui refaz a §20.
+    (90d) não é `band_months` × 365.25/12 (= 91.3125). Mexer aqui refaz a seção 20.
     """
     cfg = yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
     assert cfg["plots"]["pyramid_window_months"] == 12
