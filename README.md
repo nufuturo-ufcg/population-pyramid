@@ -9,11 +9,11 @@ Replicação das pirâmides de contribuidores de Onoue et al. sobre o dataset MS
 - **IEICE16**: versão estendida, com Tipos A-D, projeção cohort-component,
   ABRE/MRE/MER + Wilcoxon.
 
-PDFs de referência em `docs/papers/`.
+PDFs de referência em `docs/replicacao/papers/`.
 
 ## Nunca viu isso antes
 
-`docs/COMO_FUNCIONA.md`: o que a ferramenta faz e por quê, sem código e sem
+`docs/ferramenta/COMO_FUNCIONA.md`: o que a ferramenta faz e por quê, sem código e sem
 fórmula. Comece por aí.
 
 ## Antes de mexer
@@ -22,9 +22,9 @@ Leitura obrigatória, nesta ordem:
 
 1. `INSTRUCOES_CLAUDE_CODE.MD`: spec de implementação. É a fonte da verdade e
    vence sobre qualquer outra doc em caso de conflito.
-2. `docs/discrepancias.md`: log vivo das ambiguidades investigadas. Toda entrada
+2. `docs/replicacao/discrepancias.md`: log vivo das ambiguidades investigadas. Toda entrada
    cita o comando/query exato usado, além do número obtido.
-3. `docs/RESUMO_EXECUTIVO.md`: estado atual do projeto, incluindo o que bate
+3. `docs/replicacao/RESUMO_EXECUTIVO.md`: estado atual do projeto, incluindo o que bate
    com os artigos, o que não bate, e por quê.
 
 ## Dados
@@ -87,7 +87,7 @@ recusa.
 - **2013 é right-censored** (o dump acaba em out/2013): **renderiza pirâmide e
   fica sem quadrante**. Forma é estoque, olha para trás e escapa da censura.
   Stickiness é fluxo e exige Y+1, que o dump não tem. O ESEM14 faz o mesmo com
-  o mesmo corte. Ver docs/discrepancias.md, seção 11.1. Não anualizar 9 meses
+  o mesmo corte. Ver docs/replicacao/discrepancias.md, seção 11.1. Não anualizar 9 meses
   para forçar classificação.
 - Reprodutibilidade exata é o critério de aceite. Número que não bate se resolve
   como bug ou como ambiguidade declarada. Arredondar para ficar perto está

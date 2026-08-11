@@ -1,7 +1,7 @@
 # Como a ferramenta funciona
 
 Visão de alto nível. Sem fórmula e sem nome de biblioteca. Descreve o que o
-programa pensa. Como ele calcula está em [`METODO.md`](METODO.md).
+programa pensa. Como ele calcula está em [`../replicacao/METODO.md`](../replicacao/METODO.md).
 
 ## O problema
 
@@ -124,8 +124,8 @@ que falhar.
 
 Esta é a parte que mais importa e a que menos aparece.
 
-O objetivo aqui não é fazer figuras bonitas: é chegar **no mesmo número que os
-artigos**. Então cada valor que os artigos publicam foi transcrito num arquivo
+O objetivo aqui é chegar **no mesmo número que os artigos**. Figura bonita não
+conta. Então cada valor que os artigos publicam foi transcrito num arquivo
 de gabarito, e o programa se compara a ele toda vez que roda. Hoje são 167
 pontos de comparação.
 
@@ -152,7 +152,8 @@ nome e endereço, e qualquer alteração nele quebra a checagem.
 
 | Quero saber... | Vou em |
 |---|---|
-| como está o projeto hoje, em uma página | `docs/RESUMO_EXECUTIVO.md` |
-| o que cada figura mostra e onde ela diverge do artigo | `docs/figuras/` |
-| o detalhe técnico de qualquer divergência, com os comandos usados | `docs/discrepancias.md` |
+| como está o projeto hoje, em uma página | `docs/replicacao/RESUMO_EXECUTIVO.md` |
+| o que cada figura mostra e onde ela diverge do artigo | `docs/replicacao/figuras/` |
+| o detalhe técnico de qualquer divergência, com os comandos usados | `docs/replicacao/discrepancias.md` |
+| de onde vêm os dados e como plugar outra fonte | `docs/ferramenta/FONTES.md` |
 | a especificação que manda em tudo | `INSTRUCOES_CLAUDE_CODE.MD` |

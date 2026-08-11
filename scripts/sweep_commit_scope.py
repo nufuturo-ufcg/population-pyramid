@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Varre `commit_scope` e mede a distância entre a Fig.2 da replicação e a do artigo.
 
-Motivação (docs/discrepancias.md seção 21, seção 22): o `commit_scope=root` conta só os
+Motivação (docs/replicacao/discrepancias.md seção 21, seção 22): o `commit_scope=root` conta só os
 commits registrados NO projeto raiz. Fork tem cópia do histórico da mãe em
 `project_commits`, então há duas outras leituras plausíveis do que é "commit do
 projeto". O homebrew, que é o painel onde mais sobra gente, é justamente um

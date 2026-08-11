@@ -60,4 +60,4 @@ deslocamento**: são projetos de fronteira que cruzaram a linha. A soma continua
 O projeto a mais sem classificação segue a mesma lógica: fica sem tipo quem não
 tem gente suficiente para medir, e um projeto ficou logo abaixo desse limite.
 
-Detalhamento: `docs/discrepancias.md`, seção 3.1.
+Detalhamento: `docs/replicacao/discrepancias.md`, seção 3.1.

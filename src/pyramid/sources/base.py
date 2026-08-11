@@ -28,7 +28,7 @@ EVENT_COLUMNS = ["scope_id", "contributor_id", "event_type", "timestamp"]
 # conta abertura de issue como não-coding, enquanto a variante `prose` a exclui.
 # Os nomes ficam no plural, como no dump, para não invalidar os parquets já
 # extraídos. O contrato exige que o conjunto seja fechado. A grafia fica livre
-# (docs/discrepancias.md, seção 17).
+# (docs/replicacao/discrepancias.md, seção 17).
 EVENT_TYPES = frozenset(
     [
         "commits",

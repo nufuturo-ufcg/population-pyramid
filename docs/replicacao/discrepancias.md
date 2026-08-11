@@ -967,7 +967,7 @@ os novatos do ano no dataset) e o numerador é a interseção com o projeto.
 
 ```
 grep -n "first_year\|newcomers_here\|newcomers_total" -B 2 -A 6 src/pyramid/attractiveness.py
-sed -n '78,93p' /tmp/msr14.txt      # pdftotext -layout docs/papers/MSR14.pdf
+sed -n '78,93p' /tmp/msr14.txt      # pdftotext -layout docs/replicacao/papers/MSR14.pdf
 ```
 
 ### O denominador é sobre a população certa
@@ -1582,7 +1582,7 @@ com os comandos.
 
 ```sh
 # Fig.2 está na página 3 do PDF.
-pdftoppm -r 200 -f 3 -l 3 -png docs/papers/ESEM14.pdf /tmp/fig2
+pdftoppm -r 200 -f 3 -l 3 -png docs/replicacao/papers/ESEM14.pdf /tmp/fig2
 ```
 
 Sobre o PNG resultante (200 dpi), por painel:
@@ -2305,7 +2305,7 @@ do código, quando precisamos tirar 200. Continua valendo por outros motivos, ma
 é candidato aqui.
 
 Sem hipótese testável no momento. O resíduo do homebrew fica declarado e quantificado
-em `docs/figuras/esem14_fig2.md`; os outros três painéis seguem com
+em `docs/replicacao/figuras/esem14_fig2.md`; os outros três painéis seguem com
 `L1 = 38 / 11 / 0`.
 
 ## 34. Mais três hipóteses para o resíduo do homebrew, todas refutadas

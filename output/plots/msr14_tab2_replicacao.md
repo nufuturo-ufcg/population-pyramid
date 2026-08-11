@@ -26,7 +26,7 @@ artigo entre parênteses.
 Células com quadrante iguais às do artigo: **38/43**. Células de
 estrutura (`-` e `*`): **41/41**. As divergentes estão em
 negrito, com o valor do artigo ao lado, e cada uma tem causa no
-`docs/RESUMO_EXECUTIVO.md`, seção 3.
+`docs/replicacao/RESUMO_EXECUTIVO.md`, seção 3.
 
 O total aqui é menor que os 55 da seção 3 porque a coluna de 2011 virou a
 primeira coluna, como no artigo, e não se repete.

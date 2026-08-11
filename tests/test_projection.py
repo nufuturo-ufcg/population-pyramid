@@ -231,7 +231,7 @@ def test_checkpoint_abre_na_ordem_de_grandeza_do_artigo():
     publicada, e nada no repositório reclamou. A faixa é frouxa de
     propósito: o dataset não é o do artigo (34 projetos contra 36) e as coortes
     não são as mesmas, então a comparação célula a célula não fecha (ver
-    docs/discrepancias.md seção 12). O que não pode acontecer é o erro sumir.
+    docs/replicacao/discrepancias.md seção 12). O que não pode acontecer é o erro sumir.
     """
     obs = _tables()["abre"].set_index("type")
     pub = _abre_publicado()["table"]

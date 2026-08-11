@@ -5,7 +5,7 @@ rótulos que mantêm a documentação honesta são justamente os que **nunca
 aparecem numa rodada saudável**:
 
 * `OBSOLETA`: divergência declarada que voltou a bater. Sem isto,
-  `docs/discrepancias.md` continuaria afirmando um desvio já corrigido.
+  `docs/replicacao/discrepancias.md` continuaria afirmando um desvio já corrigido.
 * chave órfã: declaração apontando para um check que não existe mais. Sem
   isto, o yaml acumula perdão para nada.
 

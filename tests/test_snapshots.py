@@ -2,7 +2,7 @@ import pytest
 
 from pyramid import snapshots
 
-# --- guarda de datas de config (docs/discrepancias.md seção 7) ---------------------
+# --- guarda de datas de config (docs/replicacao/discrepancias.md seção 7) ---------------------
 
 BASE_CFG = {
     "snapshots": {

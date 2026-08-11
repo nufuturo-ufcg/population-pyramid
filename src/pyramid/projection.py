@@ -30,7 +30,7 @@ Baseline: "the baseline method, which assumes that the number of contributors
 of September and June 2013 are the same": previsão = a contagem de jun/2013.
 
 Erro: ABRE (Miyazaki et al. [19]), com denominador = min(real, previsto) nos
-dois ramos. Ver `abre` e docs/discrepancias.md, seção 5.
+dois ramos. Ver `abre` e docs/replicacao/discrepancias.md, seção 5.
 
 Três populações projetadas separadamente ("Populations are projected for
 non-coding, moved, and coding contributors, separately") + a coluna `all`.
@@ -68,7 +68,7 @@ STAGE = "projection"
 # 0.3333, 0.5000, 0.6667, 0.7500, 1.0000: frações de inteiros pequenos, que só
 # saem de contagens de banda individual (2→3 dá 0.5; 3→4 dá 0.3333). Agregar por
 # projeto (100+ contribuidores) dá ABRE de 0.02, vinte vezes menor. Ver
-# docs/discrepancias.md, seção 12.
+# docs/replicacao/discrepancias.md, seção 12.
 #
 # `all` é a população total da coorte (as três categorias somadas naquela banda),
 # leitura direta de "projection of all contributors".
@@ -170,7 +170,7 @@ def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
     "the 36 projects that have more than 100 contributors" (p.1311).
 
     O artigo não diz sobre qual snapshot nem se conta ativos ou acumulados.
-    Variante escolhida em docs/discrepancias.md, seções 7 e 9.2: ativos no
+    Variante escolhida em docs/replicacao/discrepancias.md, seções 7 e 9.2: ativos no
     primeiro snapshot base. O resultado é 34; a diferença para os 36 do artigo
     é ruído de fronteira.
 
@@ -185,7 +185,7 @@ def eligible_scopes(snaps: pd.DataFrame, base: pd.Timestamp) -> list[int]:
     if basis not in ("active", "cumulative"):
         raise ValueError(
             f"projection.min_contributors_basis={basis!r}: só 'active' ou "
-            "'cumulative'. Ver docs/discrepancias.md, seção 7."
+            "'cumulative'. Ver docs/replicacao/discrepancias.md, seção 7."
         )
 
     at = snaps[snaps["snapshot"] == base]

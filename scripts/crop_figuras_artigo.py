@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Recorta as figuras/tabelas dos PDFs originais para comparação lado a lado.
 
-Saída: docs/figuras/artigo/*.png, os recortes citados no RESUMO_EXECUTIVO.md.
+Saída: docs/replicacao/figuras/artigo/*.png, os recortes citados no RESUMO_EXECUTIVO.md.
 Determinístico: pdftoppm a 150 dpi + caixa fixa em pixels. Se o PDF mudar, o
-recorte muda; as caixas abaixo valem para os PDFs em docs/papers/.
+recorte muda; as caixas abaixo valem para os PDFs em docs/replicacao/papers/.
 
 Requer: poppler (pdftoppm) e Pillow.
 """
@@ -68,7 +68,7 @@ def main() -> int:
                 cache[chave] = rendered[0]
             with Image.open(cache[chave]) as im:
                 im.crop(box).save(OUT / nome)
-            print(f"{pdf} p.{page} {box} -> docs/figuras/artigo/{nome}")
+            print(f"{pdf} p.{page} {box} -> docs/replicacao/figuras/artigo/{nome}")
     return 0
 
 

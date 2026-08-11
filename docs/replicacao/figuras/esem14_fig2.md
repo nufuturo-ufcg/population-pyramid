@@ -89,7 +89,7 @@ erro da figura: o programa que lia a imagem do artigo numerava as barras de cima
 para baixo e o nosso programa numera de baixo para cima, então a comparação casava
 o topo do artigo com a base da nossa. A figura em si nunca mudou.
 
-Detalhamento com números: `docs/discrepancias.md`, seções 20, 21 e 31.
+Detalhamento com números: `docs/replicacao/discrepancias.md`, seções 20, 21 e 31.
 
 ## O que já foi descartado (para não refazer)
 
@@ -159,4 +159,4 @@ no momento. Os outros três painéis estão em erro 38 (paperclip), 11 (clojure)
 **0** (blueprint-css, idêntico ao artigo).
 
 O detalhamento técnico, com as tabelas de cada rodada, está em
-`docs/discrepancias.md`, seção 33.
+`docs/replicacao/discrepancias.md`, seção 33.

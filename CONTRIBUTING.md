@@ -100,7 +100,7 @@ toque em qualquer estágio, e cole a linha de diferença do
 1. Rode o pipeline antes e depois. Guarde os dois `validation_report.md`.
 2. Se o número mudou, decida entre bug e ambiguidade do artigo.
 3. Bug vira correção com teste que falha sem ela.
-4. Ambiguidade vira entrada em `docs/discrepancias.md`, com o comando ou a
+4. Ambiguidade vira entrada em `docs/replicacao/discrepancias.md`, com o comando ou a
    query exata que produziu o número, além do valor obtido.
 5. Se o valor esperado mudou de vez, atualize `config/checkpoints.yaml` no
    mesmo commit da correção, nunca antes.
@@ -141,7 +141,7 @@ bandas. Tabela 2 do IEICE16 voltou a bater.
 | `src/pyramid/sources/` | único lugar onde pode haver SQL |
 | `src/pyramid/` | estágios do pipeline, um módulo por estágio |
 | `config/` | `settings.yaml` (parâmetros) e `checkpoints.yaml` (valores esperados) |
-| `docs/discrepancias.md` | log de ambiguidade investigada |
+| `docs/replicacao/discrepancias.md` | log de ambiguidade investigada |
 | `output/` | saída do pipeline, fora do versionamento |
 | `scripts/` | investigação pontual e hooks de git |
 
@@ -151,5 +151,5 @@ bandas. Tabela 2 do IEICE16 voltou a bater.
 - Nunca usar `information_schema.table_rows` para sanity check. Use `COUNT(*)`.
 - Nunca escrever SQL fora de `src/pyramid/sources/`.
 - Escopo sempre por `project.id`. O nome `symfony` aparece duas vezes nos 90.
-- 2013 renderiza pirâmide e fica sem quadrante. Ver `docs/discrepancias.md`,
+- 2013 renderiza pirâmide e fica sem quadrante. Ver `docs/replicacao/discrepancias.md`,
   seção 11.1.

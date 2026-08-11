@@ -1,7 +1,7 @@
 """Pontua hipóteses de novato/atividade contra a grade inteira da Tabela 2 do
 MSR14: 12 projetos x 8 anos, 96 células. Os 5 projetos nomeados no texto do
 artigo cobrem pouco da grade e deixam hipótese errada passar. Ver
-docs/discrepancias.md, seção 35.
+docs/replicacao/discrepancias.md, seção 35.
 
 Não escreve nada no repo.
 """

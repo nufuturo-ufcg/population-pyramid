@@ -2,7 +2,7 @@
 
 O que se trava aqui é o que quebrou em silêncio: `scope_label` só funcionava
 depois de `list_scopes` ter sido chamado na mesma instância, e sem isso devolvia
-o id como se fosse o nome (docs/discrepancias.md seção 14). Um teste que passe pelo
+o id como se fosse o nome (docs/replicacao/discrepancias.md seção 14). Um teste que passe pelo
 pipeline inteiro não pega isso: o pipeline sempre chama `list_scopes` primeiro.
 """
 

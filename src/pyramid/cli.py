@@ -275,7 +275,7 @@ def validate(
 
     Sai com código 1 se houver divergência não declarada em `known_divergences:`,
     ou divergência declarada que voltou a bater, porque nesse caso é
-    docs/discrepancias.md que está mentindo.
+    docs/replicacao/discrepancias.md que está mentindo.
     """
     from . import validate as v
 
@@ -317,7 +317,7 @@ def validate(
     if rep.falhas:
         typer.echo(
             "\nDivergência não declarada (!) ou obsoleta (?). Analise, corrija ou "
-            "declare em `known_divergences:` apontando a seção de docs/discrepancias.md."
+            "declare em `known_divergences:` apontando a seção de docs/replicacao/discrepancias.md."
         )
         raise typer.Exit(1)
     typer.echo("\nO repositório está no estado que a documentação descreve.")

@@ -4,13 +4,13 @@
 # e `symfony` sozinho resolve pra 51671 e 74915).
 
 meta:
-  esem14: "Onoue, Hata, Matsumoto. ESEM 2014, pp.1-4. docs/papers/ESEM14.pdf"
+  esem14: "Onoue, Hata, Matsumoto. ESEM 2014, pp.1-4. docs/replicacao/papers/ESEM14.pdf"
   ieice16: "Onoue, Hata, Monden, Matsumoto. IEICE Trans. Inf. & Syst. E99.D(5):1305-1315, 2016."
   erratum: "IEICE E99.D(7):1974, 2016. Editorial: adiciona URL da fonte na legenda da Fig.1. Nenhum valor numérico afetado."
   msr14: >-
     Yamashita, McIntosh, Kamei, Ubayashi. "Magnet or Sticky? Measuring Project
     Characteristics from the Perspective of Developer Attraction and Retention."
-    MSR 2014, pp.54-63. docs/papers/MSR14.pdf, fonte primária de magnetismo e
+    MSR 2014, pp.54-63. docs/replicacao/papers/MSR14.pdf, fonte primária de magnetismo e
     stickiness (seção 3.1 do ESEM14 só cita as métricas, não as define).
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ attractiveness:
   # essa distinção no parágrafo do jekyll: crava "terminal" só para 2011 e usa
   # "balanced shape" (forma) + "we think this project had a possibility to
   # become attractive or fluctuating" (condicional) para 2013. Ver
-  # docs/discrepancias.md seção 11.1.
+  # docs/replicacao/discrepancias.md seção 11.1.
   shape_only_years: [2013]        # renderiza pirâmide, não atribui quadrante
   transitions:
     79163: "vira atrativa a partir de jun/2011 e cresce em altura"
@@ -158,7 +158,7 @@ msr14_tab2:
 
 # ---------------------------------------------------------------------------
 # Travas da replicação. NÃO são valores do artigo.
-# São números que esta replicação produz hoje e que docs/discrepancias.md já
+# São números que esta replicação produz hoje e que docs/replicacao/discrepancias.md já
 # analisou. Ficam aqui para que uma mudança de método apareça como divergência
 # em vez de passar despercebida. Mexer em um destes exige atualizar o documento
 # na mesma mudança: `pyramid validate` marca como OBSOLETA a divergência
@@ -167,7 +167,7 @@ msr14_tab2:
 # RE-TRAVADO em ee3ba45 (banda de 3 meses passou de 365,25/12 = 91,3125 dias
 # para 90 dias de mês comercial). Os valores anteriores, válidos até 315e42d,
 # estão preservados na coluna "antes". A errata completa, com o porquê da
-# mudança de banda e o custo dela, está em docs/discrepancias.md seção 27 e em
+# mudança de banda e o custo dela, está em docs/replicacao/discrepancias.md seção 27 e em
 # INSTRUCOES_CLAUDE_CODE.MD seção 9.5. Não apague a coluna "antes": é ela que
 # permite auditar que a trava mudou por decisão registrada, e não para deixar
 # o `validate` verde.
@@ -308,11 +308,11 @@ figures:
         right_dark:  [0.97, 3.98, 3.98, 0, 0.97, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.97]
 
 # ---------------------------------------------------------------------------
-# Divergências conhecidas: chave do check -> seção de docs/discrepancias.md.
+# Divergências conhecidas: chave do check -> seção de docs/replicacao/discrepancias.md.
 # Só o que está aqui pode divergir sem quebrar o `pyramid validate`.
 # ---------------------------------------------------------------------------
 known_divergences:
-  # chave do check -> seção de docs/discrepancias.md que a analisa.
+  # chave do check -> seção de docs/replicacao/discrepancias.md que a analisa.
   # Declarar aqui não perdoa nada: o `validate` continua imprimindo a linha,
   # só muda o rótulo de FALHA para "conhecida". E se a linha voltar a bater,
   # vira OBSOLETA e o comando falha, para o documento não continuar afirmando

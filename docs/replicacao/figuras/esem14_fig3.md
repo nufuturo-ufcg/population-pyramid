@@ -48,4 +48,4 @@ O próprio artigo faz a mesma coisa: descreve a forma de 2013 sem dar quadrante.
 Não anualizamos os nove meses para forçar uma classificação: isso inventaria
 número.
 
-Detalhamento: `docs/discrepancias.md`, seções 11.1 e 13.
+Detalhamento: `docs/replicacao/discrepancias.md`, seções 11.1 e 13.

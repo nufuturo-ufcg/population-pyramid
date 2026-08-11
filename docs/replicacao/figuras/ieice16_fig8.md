@@ -56,4 +56,4 @@ o pipeline avisa se eles mudarem, mesmo sem bater com o artigo.
 artigo não especifica. Não forçamos parâmetro para fazê-lo bater: inverter um
 resultado por escolha de parâmetro seria fabricar concordância.
 
-Detalhamento: `docs/discrepancias.md`, seções 12.1 a 12.5.
+Detalhamento: `docs/replicacao/discrepancias.md`, seções 12.1 a 12.5.

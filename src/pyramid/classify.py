@@ -18,7 +18,7 @@ months of activity periods" (IEICE16 p.1308), escolhidas em
   accumulated_active  (REFUTADA) idade = soma dos spans. Produz 41/42/0/0 nos
                       Tipos A-D de set/2013 contra 23/42/18/3 do artigo: sem
                       atividade contínua ninguém chega a 3 meses e C+D ficam
-                      VAZIOS. Ver docs/discrepancias.md, seções 3 e 19.5.
+                      VAZIOS. Ver docs/replicacao/discrepancias.md, seções 3 e 19.5.
 
 O que os spans decidem de fato é quem está VIVO no snapshot ("we consider that a
 contributor left a project when he/she did not give any contribution for more

@@ -62,7 +62,7 @@ def test_msr14_fig1_exemplo_dos_autores():
     O exemplo trava a aritmética e a armadilha do sticky, mas sozinho ele NÃO
     separa novato global de novato por projeto: não há ninguém que seja
     veterano do dataset e estreante em um projeto. Esse eixo é o do teste
-    seguinte. Ver seção 15 de docs/discrepancias.md.
+    seguinte. Ver seção 15 de docs/replicacao/discrepancias.md.
     """
     pairs = _pairs(
         [
@@ -137,7 +137,7 @@ def test_checkpoint_quadrantes_dez_2011():
     Um por quadrante, então não há como acertar por sorte: qualquer troca de
     corte (mediana), de escopo de retenção ou do filtro de devs ativos derruba
     pelo menos um. Se este teste quebrar, a mudança precisa ir para
-    docs/discrepancias.md antes de ser aceita.
+    docs/replicacao/discrepancias.md antes de ser aceita.
     """
     esperado = checkpoints()["attractiveness"]["2011-12-31"]
     df = _table(2011)
@@ -181,7 +181,7 @@ def test_checkpoint_jekyll_2011_diverge():
     df = _table(2011).set_index("scope_id")
     assert jekyll in df.index, "jekyll sumiu do output"
     assert df.loc[jekyll, "quadrant"] == "floating", (
-        "jekyll saiu de `floating` em 2011. Ver docs/discrepancias.md seção 13 "
+        "jekyll saiu de `floating` em 2011. Ver docs/replicacao/discrepancias.md seção 13 "
         "antes de mexer neste teste"
     )
     assert _table(2010).set_index("scope_id").loc[jekyll, "quadrant"] == "terminal"

@@ -30,11 +30,11 @@ Onde o número bate, ele aparece só como linha de placar, sem discussão.
 ## Como ler e como conferir
 
 Cada item termina em **Conferir**, que dá o nome do check dentro de
-[`output/validation_report.md`](../output/validation_report.md), onde o valor do artigo e o nosso
+[`output/validation_report.md`](../../output/validation_report.md), onde o valor do artigo e o nosso
 ficam lado a lado, e o arquivo que desenha o número. As figuras estão em
-[`output/plots/`](../output/plots/), a leitura em prosa de cada uma em
-[`docs/figuras/`](figuras/). Quem quiser refazer tudo do zero acha o passo a passo no
-[`README.md`](../README.md).
+[`output/plots/`](../../output/plots/), a leitura em prosa de cada uma em
+[`docs/replicacao/figuras/`](figuras/). Quem quiser refazer tudo do zero acha o passo a passo no
+[`README.md`](../../README.md).
 
 Os nomes de check terminam no id do projeto. O nome não serve de chave: `symfony` aparece duas vezes na
 lista dos 90. Os ids que aparecem neste documento:
@@ -66,8 +66,8 @@ saldo cai todo no mesmo eixo: sobra A, falta C.
 
 | artigo | replicação |
 |---|---|
-| ![](figuras/artigo/ieice16_fig5_artigo.png) | ![](../output/plots/ieice16_fig5_2013-09-30.png) |
-| ![](figuras/artigo/ieice16_fig6_artigo.png) | ![](../output/plots/ieice16_fig6_tipos_2013-09-30.png) |
+| ![](figuras/artigo/ieice16_fig5_artigo.png) | ![](../../output/plots/ieice16_fig5_2013-09-30.png) |
+| ![](figuras/artigo/ieice16_fig6_artigo.png) | ![](../../output/plots/ieice16_fig6_tipos_2013-09-30.png) |
 
 **Explicação mais provável: o artigo usa uma definição de "newcomer" mais generosa que a nossa.**
 O desvio se concentra em 4 projetos grandes que damos como A e o artigo dá como C. Os projetos
@@ -84,11 +84,11 @@ O que já testamos e não explica:
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): as quatro linhas com a contagem de
+- No [`validation_report.md`](../../output/validation_report.md): as quatro linhas com a contagem de
   cada tipo, a linha com o total de projetos classificados e a linha com os não classificados
   (`types.counts.A-D`, `types.total_classified`, `types.unclassified`).
-- A figura: [`output/plots/ieice16_fig5_2013-09-30.png`](../output/plots/ieice16_fig5_2013-09-30.png).
-- A leitura em prosa: [`docs/figuras/ieice16_fig5.md`](figuras/ieice16_fig5.md).
+- A figura: [`output/plots/ieice16_fig5_2013-09-30.png`](../../output/plots/ieice16_fig5_2013-09-30.png).
+- A leitura em prosa: [`docs/replicacao/figuras/ieice16_fig5.md`](figuras/ieice16_fig5.md).
 
 ## 2. `mojombo/jekyll` em 2011: artigo `terminal`, replicação `floating`
 
@@ -96,7 +96,7 @@ Os outros 4 projetos nomeados na Fig.2 do ESEM'14 batem, 4 de 5.
 
 | artigo | replicação |
 |---|---|
-| ![](figuras/artigo/msr14_fig2_artigo.png) | ![](../output/plots/msr14_fig2_2011.png) |
+| ![](figuras/artigo/msr14_fig2_artigo.png) | ![](../../output/plots/msr14_fig2_2011.png) |
 
 **Explicação mais provável: o mesmo viés do item 1.** Magnetismo é a contagem de novatos sobre o
 total, então classificar novato demais empurra o jekyll para cima da mediana e de `terminal` para
@@ -111,10 +111,10 @@ O que já testamos e não explica:
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): a linha do quadrante do jekyll em
+- No [`validation_report.md`](../../output/validation_report.md): a linha do quadrante do jekyll em
   2011, que é a que erra, e as quatro linhas que batem, dos outros projetos da mesma figura
   (homebrew, paperclip, clojure e blueprint-css).
-- A figura: [`output/plots/msr14_fig2_2011.png`](../output/plots/msr14_fig2_2011.png).
+- A figura: [`output/plots/msr14_fig2_2011.png`](../../output/plots/msr14_fig2_2011.png).
 
 ## 3. Tabela 2 do MSR'14, 48 de 55 células (87%)
 
@@ -148,15 +148,15 @@ O que já testamos e não explica:
 - Varredura de `min_active_devs` e de `stickiness_scope`: o ótimo continua na configuração atual.
 
 A mesma grade, na versão da replicação, está em
-[`output/plots/msr14_tab2_replicacao.md`](../output/plots/msr14_tab2_replicacao.md), no formato do
+[`output/plots/msr14_tab2_replicacao.md`](../../output/plots/msr14_tab2_replicacao.md), no formato do
 artigo: quadrante de 2011 na primeira coluna, um projeto por linha, um ano por coluna, e as sete
 células que discordam em negrito com o valor do artigo ao lado.
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): a linha com a concordância geral da
+- No [`validation_report.md`](../../output/validation_report.md): a linha com a concordância geral da
   tabela e uma linha por célula, nomeada por ano e projeto (`msr14.tab2.<ano>.<id do projeto>`).
-- A grade lado a lado: [`output/plots/msr14_tab2_replicacao.md`](../output/plots/msr14_tab2_replicacao.md).
+- A grade lado a lado: [`output/plots/msr14_tab2_replicacao.md`](../../output/plots/msr14_tab2_replicacao.md).
 - Os dados por trás: `output/attractiveness/attractiveness.parquet`.
 
 ## 4. Projeção: 34 projetos elegíveis, o artigo diz 36
@@ -167,7 +167,7 @@ teste.
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): a linha com o número de projetos
+- No [`validation_report.md`](../../output/validation_report.md): a linha com o número de projetos
   elegíveis para a projeção (`projection.n_projects`).
 - Os dados por trás: `output/projection/projection.parquet`.
 
@@ -184,10 +184,10 @@ conclusiva nos dois sentidos, inclusive nas células que casaram.
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): as 40 linhas de erro de previsão,
+- No [`validation_report.md`](../../output/validation_report.md): as 40 linhas de erro de previsão,
   uma por célula, e a trava que registra quantas caíram dentro de ±2 p.p.
-- A tabela: [`output/plots/ieice16_tab3_abre.csv`](../output/plots/ieice16_tab3_abre.csv) e a
-  leitura em prosa em [`output/plots/ieice16_tab3_tab4.md`](../output/plots/ieice16_tab3_tab4.md).
+- A tabela: [`output/plots/ieice16_tab3_abre.csv`](../../output/plots/ieice16_tab3_abre.csv) e a
+  leitura em prosa em [`output/plots/ieice16_tab3_tab4.md`](../../output/plots/ieice16_tab3_tab4.md).
 
 ## 6. Direção da comparação: 14 de 20 pares batem
 
@@ -202,9 +202,9 @@ as mais ralas.
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): as 20 linhas de direção, uma por
+- No [`validation_report.md`](../../output/validation_report.md): as 20 linhas de direção, uma por
   par, e a trava que registra quantos pares batem.
-- A tabela: [`output/plots/ieice16_tab3_abre.csv`](../output/plots/ieice16_tab3_abre.csv).
+- A tabela: [`output/plots/ieice16_tab3_abre.csv`](../../output/plots/ieice16_tab3_abre.csv).
 
 ## 7. Significância estatística: o artigo acha 16, nós achamos 5
 
@@ -219,8 +219,8 @@ da previsão por faixa se dilui quando o recorte é isolado.
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): as 20 linhas do teste, uma por par.
-- A tabela: [`output/plots/ieice16_tab4_wilcoxon.csv`](../output/plots/ieice16_tab4_wilcoxon.csv).
+- No [`validation_report.md`](../../output/validation_report.md): as 20 linhas do teste, uma por par.
+- A tabela: [`output/plots/ieice16_tab4_wilcoxon.csv`](../../output/plots/ieice16_tab4_wilcoxon.csv).
 
 ## 8. Curto contra longo prazo: ordem trocada
 
@@ -231,7 +231,7 @@ da previsão por faixa se dilui quando o recorte é isolado.
 
 | artigo | replicação |
 |---|---|
-| ![](figuras/artigo/ieice16_fig8_artigo.png) | ![](../output/plots/ieice16_fig8_projecao_2013-09-30.png) |
+| ![](figuras/artigo/ieice16_fig8_artigo.png) | ![](../../output/plots/ieice16_fig8_projecao_2013-09-30.png) |
 
 **Explicação mais provável: cauda longa rala.** Com janela de 2010 a 2013 e 34 projetos, as bandas
 acima de 4 anos têm poucos contribuintes por coorte (n = 135/200) e o resultado fica dominado por
@@ -239,9 +239,9 @@ ruído.
 
 **Onde conferir:**
 
-- No [`validation_report.md`](../output/validation_report.md): a linha da direção entre curto e
+- No [`validation_report.md`](../../output/validation_report.md): a linha da direção entre curto e
   longo prazo e a linha da significância desse par.
-- A figura: [`output/plots/ieice16_fig8_projecao_2013-09-30.png`](../output/plots/ieice16_fig8_projecao_2013-09-30.png).
+- A figura: [`output/plots/ieice16_fig8_projecao_2013-09-30.png`](../../output/plots/ieice16_fig8_projecao_2013-09-30.png).
 
 ## 9. Fig.2 do ESEM'14 (dez/2011), banda a banda: L1 = 411 pessoas
 
@@ -254,7 +254,7 @@ ruído.
 
 | artigo | replicação |
 |---|---|
-| ![](figuras/artigo/esem14_fig2_artigo.png) | ![](../output/plots/esem14_fig2_status_2011-12-31.png) |
+| ![](figuras/artigo/esem14_fig2_artigo.png) | ![](../../output/plots/esem14_fig2_status_2011-12-31.png) |
 
 O resíduo é praticamente todo do homebrew, com assinatura exata: **+200 no lado do código, -129 no
 da discussão, +71 de população total**.
@@ -277,8 +277,8 @@ O que já testamos e não explica:
 **Onde conferir:**
 
 - A figura, contra a Fig.2 do artigo:
-  [`output/plots/esem14_fig2_status_2011-12-31.png`](../output/plots/esem14_fig2_status_2011-12-31.png).
-- A tabela banda a banda: [`docs/figuras/esem14_fig2.md`](figuras/esem14_fig2.md).
+  [`output/plots/esem14_fig2_status_2011-12-31.png`](../../output/plots/esem14_fig2_status_2011-12-31.png).
+- A tabela banda a banda: [`docs/replicacao/figuras/esem14_fig2.md`](figuras/esem14_fig2.md).
 
 ---
 

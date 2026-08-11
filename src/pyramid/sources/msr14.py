@@ -97,7 +97,7 @@ _ACTIVITY_SQL = {
     # `issues` mistura issues de verdade com PRs: 80.729 das 150.362 linhas têm
     # pull_request=1. O artigo trata `issues` como abertura de discussão, então
     # NÃO filtramos pull_request=0: a abertura de um PR também gera discussão.
-    # Isso é escolha de método declarada; ver docs/discrepancias.md.
+    # Isso é escolha de método declarada; ver docs/replicacao/discrepancias.md.
     "issues": """
         SELECT i.reporter_id AS contributor_id, i.created_at AS ts
         FROM issues i WHERE i.repo_id = :sid

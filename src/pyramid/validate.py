@@ -5,7 +5,7 @@ da replicação), o valor esperado, o obtido e o veredito.
 
 A regra que dá sentido ao comando: **divergência precisa estar declarada**. O
 bloco `known_divergences:` do yaml mapeia a chave do check para a seção de
-`docs/discrepancias.md` que a explica. Daí saem os dois vereditos que importam:
+`docs/replicacao/discrepancias.md` que a explica. Daí saem os dois vereditos que importam:
 
 * divergência não declarada é **FALHA**: apareceu algo que ninguém analisou;
 * divergência declarada que voltou a bater é **OBSOLETA**: o documento
@@ -23,7 +23,7 @@ documentação descreve.
 
 Sobre o que é *gate* e o que é *informativo*: as 40 células da Tabela 3 e os 20
 p-valores da Tabela 4 entram como informativos por decisão documentada, a
-política que `docs/discrepancias.md`, seção 12.5, já fixou depois da
+política que `docs/replicacao/discrepancias.md`, seção 12.5, já fixou depois da
 comparação célula a célula. Casar uma mediana de coorte em 0.5000 com um
 dataset diferente é o resultado mais provável por acaso naquele regime; tomar
 isso como evidência de replicação seria um erro de interpretação.
@@ -147,7 +147,7 @@ class Report:
             + f". {veredito}",
             "",
             "Legenda: `ok` bate · `conhecida` diverge e está analisada em "
-            "`docs/discrepancias.md` · `~` informativo que diverge · `FALHA` "
+            "`docs/replicacao/discrepancias.md` · `~` informativo que diverge · `FALHA` "
             "diverge sem explicação · `OBSOLETA` declarada como divergente mas "
             "voltou a bater · `n/d` artefato não gerado.",
             "",

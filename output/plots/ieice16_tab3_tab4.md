@@ -33,7 +33,7 @@ Cada célula traz `replicação (artigo)`; `≠` marca quem está fora da toler�
 | ABRE mediano, longo prazo | 0.4816 (n=200) | 0.3333 |
 | p-valor | 0.1768 | 0.046 |
 
-A inversão de curto/longo prazo está analisada em `docs/discrepancias.md`, seção 12.3.
+A inversão de curto/longo prazo está analisada em `docs/replicacao/discrepancias.md`, seção 12.3.
 
 ## Resumo
 

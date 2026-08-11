@@ -10,7 +10,7 @@ Consequência prática: `plots` não abre o MySQL. Os rótulos vêm do cache que
 `extract` gravou no manifesto (`extract.labels()`), então as figuras se regeram
 com o banco desligado.
 
-Sobre 2013 na Fig.3, ver docs/discrepancias.md, seção 11.1. A pirâmide é um
+Sobre 2013 na Fig.3, ver docs/replicacao/discrepancias.md, seção 11.1. A pirâmide é um
 estoque (olha para trás), então os quatro painéis são renderizados completos,
 2013 incluído. O que não existe em 2013 é a métrica anual de stickiness, que
 precisa de Y+1 e o dump acaba em out/2013. O painel leva a marca
@@ -672,7 +672,7 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
 
     contagem = cut["type"].value_counts().to_dict()
     # O artigo lado a lado, no próprio gráfico. Esta replicação não fecha o GATE
-    # exato da seção 9 (docs/discrepancias.md, seção 1: sobra em A, falta em
+    # exato da seção 9 (docs/replicacao/discrepancias.md, seção 1: sobra em A, falta em
     # C), e uma Fig.5 publicada só com os meus números seria lida como
     # reprodução exata.
     alvo = checkpoints()["types"]["counts"]
@@ -713,7 +713,7 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
     ax.set_title(
         f"IEICE16 Fig.5: NCR (x) × CCR (y) em {t.date()}\n"
         f"{len(cut)} projetos classificados (artigo: {checkpoints()['types']['total_classified']})"
-        ", ver docs/discrepancias.md, seção 1",
+        ", ver docs/replicacao/discrepancias.md, seção 1",
         fontsize=9,
     )
     stem = f"ieice16_fig5_{t.date()}"
@@ -1085,7 +1085,8 @@ def figure_abre_table() -> Path:
         f"(n={termo['long_n']}) | {ck_t['long_term_abre_median']} |",
         f"| p-valor | {termo['wilcoxon_p']:.4f} | {ck_t['wilcoxon_p']} |",
         "",
-        "A inversão de curto/longo prazo está analisada em `docs/discrepancias.md`, seção 12.3.",
+        "A inversão de curto/longo prazo está analisada em "
+        "`docs/replicacao/discrepancias.md`, seção 12.3.",
         "",
         "## Resumo",
         "",
@@ -1195,7 +1196,7 @@ def figure_quadrant_table() -> Path:
         f"Células com quadrante iguais às do artigo: **{batem}/{total}**. Células de",
         f"estrutura (`-` e `*`): **{batem_e}/{total_e}**. As divergentes estão em",
         "negrito, com o valor do artigo ao lado, e cada uma tem causa no",
-        "`docs/RESUMO_EXECUTIVO.md`, seção 3.",
+        "`docs/replicacao/RESUMO_EXECUTIVO.md`, seção 3.",
         "",
         "O total aqui é menor que os 55 da seção 3 porque a coluna de 2011 virou a",
         "primeira coluna, como no artigo, e não se repete.",

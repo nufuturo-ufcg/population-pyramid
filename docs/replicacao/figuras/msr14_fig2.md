@@ -58,4 +58,4 @@ o mesmo problema.
 Nos dois casos, a checagem foi feita contra a fonte externa (o próprio GitHub) e
 confirmou que o dado está faltando na origem.
 
-Detalhamento: `docs/discrepancias.md`, seções 16 e 17.
+Detalhamento: `docs/replicacao/discrepancias.md`, seções 16 e 17.

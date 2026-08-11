@@ -1,4 +1,4 @@
-"""Guardas da população da pirâmide (docs/discrepancias.md seção 18 e seção 19).
+"""Guardas da população da pirâmide (docs/replicacao/discrepancias.md seção 18 e seção 19).
 
 A Fig.2 do ESEM14 desenha quem **está na comunidade** no snapshot: o artigo diz
 que o contribuidor termina quando deixa o projeto, e a legenda da Fig.1 conta

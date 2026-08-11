@@ -5,7 +5,7 @@ Para cada (projeto, snapshot T, contribuidor):
             pois depende do progresso do contribuidor até aquele instante
   age_days  tempo desde a origem até T (`periods.age_basis: calendar_tenure`;
             gaps de inatividade NÃO descontam. A leitura alternativa, que soma
-            os spans, foi refutada, ver docs/discrepancias.md, seção 3)
+            os spans, foi refutada, ver docs/replicacao/discrepancias.md, seção 3)
   band      faixa de 3 meses, fechada em cima (0 = (0,3m], 1 = (3,6m], ...)
   active    contribuiu nos últimos 3 meses antes de T
 
@@ -67,7 +67,7 @@ def snapshot_dates(cfg: dict | None = None) -> list[pd.Timestamp]:
     se recupera: de 2010-03-31 saía 2010-06-30, depois 2010-12-30, 2011-12-30,
     2013-03-30, e todo o resto da série ficava grudado no dia 30. Jun/set
     pareciam corretos só por coincidência (esses meses acabam mesmo no dia 30),
-    o que escondia o bug. Ver docs/discrepancias.md, seção 8.
+    o que escondia o bug. Ver docs/replicacao/discrepancias.md, seção 8.
 
     `freq_months` continua respeitado, mas só em múltiplos de trimestre, que é o
     que o método usa (IEICE16 seção 4.1: March, June, September). Qualquer outro
@@ -95,7 +95,7 @@ def require_date_match(
     está vazio" fica descartada, porque a série é gerada inteira antes do
     filtro: uma data ausente denuncia um problema de configuração.
     Foi exatamente esse silêncio que deixou o bug do QuarterEnd passar
-    despercebido até 2026-08 (docs/discrepancias.md, seção 8).
+    despercebido até 2026-08 (docs/replicacao/discrepancias.md, seção 8).
     """
     if not result.empty:
         return result
@@ -132,7 +132,7 @@ def check_dates(cfg: dict | None = None) -> None:
             + ", ".join(str(t.date()) for t in near)
             + ". A série é ancorada em fim de trimestre CIVIL (QuarterEnd), "
             "então dez/mar caem no dia 31 e jun/set no dia 30 "
-            "(ver docs/discrepancias.md, seção 8)."
+            "(ver docs/replicacao/discrepancias.md, seção 8)."
         )
 
 

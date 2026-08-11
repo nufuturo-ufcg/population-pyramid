@@ -43,7 +43,7 @@ taxonomy:
     # autores. `issues.created_at` (abertura) é a âncora mais antiga que o dump
     # oferece e é a única que `prose` deixa de fora. `union` liga tudo ao mesmo
     # tempo: se nem assim a idade recuar o bastante, a hipótese "faltava um tipo
-    # de evento" morre. Ver docs/discrepancias.md seção 29.
+    # de evento" morre. Ver docs/replicacao/discrepancias.md seção 29.
     union:
       source: "teste de limite (seção 29), sem leitura do artigo"
       coding: [commits, pull_requests]
@@ -121,7 +121,7 @@ periods:
   # leitura não produz nenhum. Some com quase todo mundo experiente porque
   # ninguém acumula 3 meses de atividade contínua. Fica `calendar_tenure`,
   # que é também o que o método demográfico emprestado exige. Ver
-  # docs/discrepancias.md seção 3.
+  # docs/replicacao/discrepancias.md seção 3.
   age_basis: calendar_tenure   # calendar_tenure | accumulated_active
 
 snapshots:
@@ -135,7 +135,7 @@ snapshots:
   # A série é ancorada em fim de trimestre CIVIL (QuarterEnd), então dez cai em
   # -12-31 e mar em -03-31. Até 2026-08 usava DateOffset(months=3) acumulado, que
   # grudava tudo no dia 30 a partir do primeiro mês curto. Ver seção 8 de
-  # docs/discrepancias.md. snapshots.py valida e falha alto se não casar.
+  # docs/replicacao/discrepancias.md. snapshots.py valida e falha alto se não casar.
   projection_base: ["2013-03-31", "2013-06-30"]
   projection_target: "2013-09-30"
 
@@ -153,12 +153,12 @@ metrics:
   #   D: mais experientes + mais non-coding-> CCR < 0, NCR < 0
   # Empate exato (CCR ou NCR == 0) o artigo não cobre. Regra fixa no código:
   # alto = (valor > 0), então zero cai do lado baixo. Não é configurável de
-  # propósito. Ver docstring de metrics._type_of e docs/discrepancias.md.
+  # propósito. Ver docstring de metrics._type_of e docs/replicacao/discrepancias.md.
 
 projection:
   # "the 36 projects that have more than 100 contributors" (p.1311). O artigo
   # NÃO diz se é cumulativo ou ativo, nem sobre qual snapshot. Grid completo
-  # medido em docs/discrepancias.md seção 7: nenhuma combinação dá 36.
+  # medido em docs/replicacao/discrepancias.md seção 7: nenhuma combinação dá 36.
   # Melhor variante = base mar/2013, todos os contribuidores ativos -> 35.
   # O 36º candidato tem 96 ativos (corte cai entre 102 e 96), então é ruído de
   # fronteira, não erro de método. Aceito: ABRE/Wilcoxon não dependem do n exato.
@@ -199,7 +199,7 @@ plots:
   #  active  só quem tem contribuição nos últimos `inactivity_months`, a
   #          mesma população que `metrics` usa para CCR/NCR.
   #
-  # `stock` FOI DESCARTADO. Ver docs/discrepancias.md seção 18 (superada) e seção 19.
+  # `stock` FOI DESCARTADO. Ver docs/replicacao/discrepancias.md seção 18 (superada) e seção 19.
   # O texto do ESEM14 é explícito: contribuidores "end when they leave the
   # development communities", e a legenda da Fig.1 conta DOIS contribuidores em
   # t1 de três desenhados. O developer 2, cujo período já acabou, fica fora.
@@ -229,7 +229,7 @@ plots:
   # Totais em 12m: 3882/524/49/13 contra 3946/535/47/13 medidos (a medição lê
   # ~2% a mais, é a borda preta da barra). A 3 meses o blueprint-css desaba
   # para UM contribuidor; a ∞ (estoque) reaparecem as bandas 16-17 que a figura
-  # não tem. Ver docs/discrepancias.md seção 19.
+  # não tem. Ver docs/replicacao/discrepancias.md seção 19.
   #
   # Leitura substantiva: com snapshot em fim de ano, "janela de 12 meses" é
   # "quem contribuiu durante o ano do snapshot". A pirâmide anual conta a
