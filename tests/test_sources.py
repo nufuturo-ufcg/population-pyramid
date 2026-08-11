@@ -13,7 +13,12 @@ from contextlib import contextmanager
 
 import pytest
 
-from pyramid.sources.msr14 import MSR14Source
+from pyramid import sources
+
+# O adaptador mora em `adapters/msr14/source.py` e entra pelo loader, do mesmo
+# jeito que o pipeline carrega. Importar o arquivo por caminho fixo aqui faria
+# o teste passar com um loader quebrado.
+MSR14Source = sources.load("msr14")
 
 Row = namedtuple("Row", "id label")
 

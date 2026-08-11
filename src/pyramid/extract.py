@@ -8,20 +8,25 @@ from pathlib import Path
 import pandas as pd
 
 from . import logging_config as runlog
-from .config import settings, stage_dir
-from .sources.msr14 import MSR14Source
+from . import sources
+from .config import analysis_unit, settings, stage_dir
+from .sources.base import ActivityDataSource
 
 log = logging.getLogger(__name__)
 STAGE = "extract"
 
+# Contagem que o próprio extract escreve na entrada do manifesto. O que sobra
+# na entrada veio do `scope_meta()` do adaptador.
+_CONTAGEM = ("events", "contributors", "first", "last")
 
-def source() -> MSR14Source:
-    """Fonte de dados configurada.
+
+def source() -> ActivityDataSource:
+    """Fonte de dados configurada, do adaptador em `input.adapter`.
 
     A fonte abre a própria conexão. O motor de cálculo trabalha sobre
-    DataFrame e desconhece banco.
+    DataFrame e desconhece origem.
     """
-    return MSR14Source(settings())
+    return sources.load()(settings())
 
 
 def events_path(scope_id: int) -> Path:
@@ -29,25 +34,45 @@ def events_path(scope_id: int) -> Path:
     return stage_dir(STAGE) / f"{scope_id}.parquet"
 
 
-def labels() -> dict[int, str]:
-    """`{scope_id: "owner/name"}` a partir do manifesto do extract.
+def serializa_meta(meta: dict) -> dict:
+    """`scope_meta` em tipos que o JSON do manifesto aguenta.
 
-    Os rótulos são os mesmos que `MSR14Source.list_scopes()` gravou: este é um
-    cache em disco, não uma segunda fonte de verdade. Existe para que os
-    estágios de leitura (plots) rodem sem o MySQL de pé. Se o manifesto não
-    tiver o projeto, cai no banco.
+    `created_at` vira string ISO. O resto passa como está, inclusive chave que
+    só aquele adaptador tem.
+    """
+    saida = dict(meta)
+    nascimento = saida.get("created_at")
+    if nascimento is not None:
+        saida["created_at"] = str(nascimento)
+    return saida
+
+
+def scope_meta() -> dict[int, dict]:
+    """`{scope_id: scope_meta}` a partir do manifesto do extract.
+
+    O manifesto é cache em disco do que o adaptador já respondeu. Existe para
+    que os estágios de leitura (plots, agregação por outro eixo) rodem sem o
+    banco de pé. Manifesto vazio cai no adaptador, pelo contrato público.
     """
     man = runlog.load(STAGE)
-    out = {int(k): v["label"] for k, v in man.get("ok", {}).items() if v.get("label")}
+    out = {
+        int(k): {c: valor for c, valor in v.items() if c not in _CONTAGEM}
+        for k, v in man.get("ok", {}).items()
+        if v.get("label")
+    }
     if not out:
         src = source()
-        src.list_scopes()
-        return dict(src._labels)
+        return {sid: serializa_meta(src.scope_meta(sid)) for sid in src.list_scopes()}
     return out
 
 
+def labels() -> dict[int, str]:
+    """`{scope_id: "owner/name"}`, do mesmo cache que `scope_meta()`."""
+    return {sid: meta["label"] for sid, meta in scope_meta().items() if meta.get("label")}
+
+
 def label_of(scope_id: int) -> str:
-    """Nome `owner/name` do projeto. Devolve o próprio id quando não houver nome."""
+    """Rótulo legível do escopo. Devolve o próprio id quando o adaptador não dá nome."""
     return labels().get(int(scope_id), str(scope_id))
 
 
@@ -59,22 +84,22 @@ def load_events(scope_id: int) -> pd.DataFrame:
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
     """Executa o estágio extract nos projetos pedidos.
 
-    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    `scopes=None` roda todos os escopos que o adaptador expõe. `force` recalcula o que já
     está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
     padrão anota a falha no manifesto e segue para o próximo. Devolve o
     manifesto.
     """
+    analysis_unit()  # unidade sem agregador para aqui, antes de tocar no banco
     src = source()
     man = runlog.load(STAGE)
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
 
-    man["taxonomy_variant"] = src.variant
-    man["commit_scope"] = src.commit_scope
+    man.update(src.provenance())
 
     targets = scopes if scopes is not None else src.list_scopes()
     if scopes is not None:
-        src.list_scopes()  # popula rótulos e roda o sanity check dos 90
+        src.list_scopes()  # popula rótulos e roda o sanity check do adaptador
 
     for sid in targets:
         key = str(sid)
@@ -93,7 +118,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             ).reset_index(drop=True)
             df.to_parquet(events_path(sid), index=False)
             man["ok"][key] = {
-                "label": src.scope_label(sid),
+                **serializa_meta(src.scope_meta(sid)),
                 "events": len(df),
                 "contributors": int(df["contributor_id"].nunique()),
                 "first": str(df["timestamp"].min()),

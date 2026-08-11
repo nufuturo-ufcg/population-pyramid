@@ -1,24 +1,34 @@
-"""Fonte MSR14 (GHTorrent, MySQL 5.5 dump rodando em MariaDB 10.11).
+"""Adaptador MSR14 (GHTorrent, MySQL 5.5 dump rodando em MariaDB 10.11).
 
-Cada atividade vira um SELECT com a mesma forma (scope, contribuidor, timestamp)
-e tudo é unido por UNION ALL. Os pontos delicados estão comentados no lugar:
-são exatamente as pegadinhas do schema que fazem a contagem sair errada em
-silêncio se ignoradas.
+Traduz o dump para o formato canônico de eventos que o motor consome. Cada
+atividade vira um SELECT com a mesma forma (scope, contribuidor, timestamp) e
+tudo é unido por UNION ALL. Os pontos delicados estão comentados no lugar: são
+exatamente as pegadinhas do schema que fazem a contagem sair errada em silêncio
+se ignoradas.
+
+Só este arquivo sabe que a origem é MySQL. Quem carrega é
+`pyramid.sources.load("msr14")`. Como preparar o dataset está no README ao lado.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Mapping
 from functools import cache
+from typing import Any
 
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import Engine, bindparam, create_engine, text
 
 from pyramid.config import ROOT
-
-from .base import EVENT_COLUMNS, ActivityDataSource, validate_canonical_schema
+from pyramid.sources.base import (
+    EVENT_COLUMNS,
+    ActivityDataSource,
+    validate_canonical_schema,
+    validate_scope_meta,
+)
 
 log = logging.getLogger(__name__)
 
@@ -126,7 +136,7 @@ _ACTIVITY_SQL = {
 class MSR14Source(ActivityDataSource):
     """Escopo = projeto raiz."""
 
-    def __init__(self, settings: dict, engine_: Engine | None = None) -> None:
+    def __init__(self, settings: Mapping[str, Any], engine_: Engine | None = None) -> None:
         """Configura a fonte a partir de `settings.yaml`.
 
         Args:
@@ -134,8 +144,8 @@ class MSR14Source(ActivityDataSource):
             engine_: engine já pronto. Serve para o teste injetar um fake e
                 para reaproveitar conexão. Sem ele, abre o engine do dump.
         """
+        super().__init__(settings)
         self.engine = engine_ if engine_ is not None else engine()
-        self.settings = settings
         p = settings["projects"]
         self.exclude_ids = list(p.get("exclude_ids") or [])
         self.expected = p.get("expected_count")
@@ -149,6 +159,7 @@ class MSR14Source(ActivityDataSource):
         self.non_coding = list(spec["non_coding"])
         self.activities = self.coding + self.non_coding
         self._labels: dict[int, str] = {}
+        self._meta: dict[int, dict[str, Any]] = {}
 
     # -- escopos ---------------------------------------------------------------
     def _load_labels(self) -> dict[int, str]:
@@ -199,6 +210,63 @@ class MSR14Source(ActivityDataSource):
         virando string, e nesse caso o escopo realmente não é raiz.
         """
         return self._load_labels().get(scope_id, str(scope_id))
+
+    def provenance(self) -> dict[str, Any]:
+        """As três escolhas desta fonte que mudam o parquet de saída.
+
+        `taxonomy_variant` decide quais atividades contam como coding.
+        `commit_scope` decide se o commit do fork conta para o projeto-mãe.
+        `identity_merge` decide se dois logins viram o mesmo contribuidor.
+        """
+        return {
+            "taxonomy_variant": self.variant,
+            "commit_scope": self.commit_scope,
+            "identity_merge": self.identity_merge,
+        }
+
+    def _load_meta(self) -> dict[int, dict[str, Any]]:
+        """Atributos de todos os escopos raiz, numa consulta só. Memoizado.
+
+        `projects.language` é a linguagem que o GHTorrent registrou para o
+        repositório, uma por projeto. Vem crua: normalizar nome de linguagem é
+        decisão de quem for agregar por ela, não da fonte.
+        """
+        if self._meta:
+            return self._meta
+
+        excl = " AND p.id NOT IN :excl" if self.exclude_ids else ""
+        sql = text(
+            f"""
+            SELECT p.id, CONCAT(u.login, '/', p.name) AS label,
+                   p.language, p.created_at
+            FROM projects p JOIN users u ON u.id = p.owner_id
+            WHERE p.forked_from IS NULL{excl}
+            ORDER BY p.id
+            """
+        )
+        if self.exclude_ids:
+            sql = sql.bindparams(**{"excl": tuple(self.exclude_ids)})
+
+        with self.engine.connect() as cx:
+            rows = cx.execute(sql).fetchall()
+
+        self._meta = {
+            int(r.id): {
+                "label": r.label,
+                "language": r.language or None,
+                "created_at": pd.Timestamp(r.created_at) if r.created_at else None,
+            }
+            for r in rows
+        }
+        return self._meta
+
+    def scope_meta(self, scope_id: int) -> dict[str, Any]:
+        """Atributos do projeto: rótulo, linguagem e data de criação."""
+        meta = self._load_meta().get(
+            int(scope_id),
+            {"label": self.scope_label(scope_id), "language": None, "created_at": None},
+        )
+        return validate_scope_meta(dict(meta), scope_id=scope_id)
 
     # -- eventos ---------------------------------------------------------------
     def _build_query(self) -> str:
@@ -398,3 +466,7 @@ def _fundir_identidades(df: pd.DataFrame, modo: str, scope_id: int) -> pd.DataFr
         extra={"scope_id": scope_id, "stage": "extract"},
     )
     return df
+
+
+# O loader (`pyramid.sources.load`) procura este nome. Um adaptador, uma classe.
+SOURCE = MSR14Source

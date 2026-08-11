@@ -1,11 +1,28 @@
 # Parâmetros do método. Tudo que é ambíguo nos artigos está aqui, explícito,
 # com a citação da fonte. Constante enterrada no código está proibida.
 
+# ---------------------------------------------------------------------------
+# ENTRADA. De onde vêm os eventos e o que a saída conta como uma população.
+# ---------------------------------------------------------------------------
+input:
+  # Pasta em adapters/. O adaptador traduz a origem para o formato canônico de
+  # eventos (adapters/<nome>/source.py, contrato em src/pyramid/sources/base.py).
+  adapter: msr14
+
+analysis:
+  # Unidade de análise da pirâmide: uma pirâmide por quê.
+  #   project  -> uma população por projeto (é o que os dois artigos fazem)
+  # `language` entra quando o motor agregar escopos por `scope_meta.language`.
+  # O contrato de entrada já exige esse atributo; o que falta é o agregador.
+  unit: project
+
+# As três chaves abaixo descrevem o recorte de projetos DO ADAPTADOR MSR14.
+# Trocar de adaptador troca o significado delas junto.
 projects:
   # 91 linhas têm forked_from IS NULL; a 108342 (Craftbukkit/Bukkit) é um
-  # namespace fantasma com zero atividade e language NULL. Excluída por ID
-  # explícito: `language IS NOT NULL` também a excluiria, mas por coincidência
-  # dos dados, não por semântica.
+  # namespace fantasma com zero atividade e language NULL. A exclusão é por ID
+  # explícito. `language IS NOT NULL` derrubaria a mesma linha por coincidência
+  # dos dados, sem dizer nada sobre o critério.
   root_filter: "forked_from IS NULL"
   exclude_ids: [108342]
   expected_count: 90

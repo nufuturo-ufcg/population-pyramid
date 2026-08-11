@@ -1,8 +1,8 @@
 """Carga de config/*.yaml. Nenhum parâmetro de método fica no código.
 
-Credencial de banco NÃO mora aqui: é detalhe de uma fonte específica e vive em
-sources/msr14.py (seção 8 da spec: o motor de cálculo não conhece a origem
-dos dados).
+Credencial de banco NÃO mora aqui: é detalhe de um adaptador específico e vive
+em `adapters/<nome>/source.py` (seção 8 da spec: o motor de cálculo não conhece
+a origem dos dados).
 """
 
 from __future__ import annotations
@@ -40,6 +40,25 @@ _estado = _Estado()
 def settings() -> dict:
     """Parâmetros de método, lidos uma vez por processo de `config/settings.yaml`."""
     return yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
+
+
+UNITS_IMPLEMENTADAS = ("project",)
+
+
+def analysis_unit() -> str:
+    """Unidade de análise da saída, de `analysis.unit`.
+
+    Valor sem agregador implementado falha aqui. `language` já está previsto no
+    contrato de entrada (`scope_meta`) e ainda não tem agregador: aceitar o
+    valor entregaria uma pirâmide por projeto com o nome de outra coisa.
+    """
+    unit = str(settings().get("analysis", {}).get("unit", "project"))
+    if unit not in UNITS_IMPLEMENTADAS:
+        raise ValueError(
+            f"analysis.unit={unit!r} sem agregador. "
+            f"Implementadas: {', '.join(UNITS_IMPLEMENTADAS)}."
+        )
+    return unit
 
 
 @cache

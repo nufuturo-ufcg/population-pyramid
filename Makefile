@@ -2,6 +2,10 @@
 .DEFAULT_GOAL := help
 
 UV := uv run
+# Cada adaptador traz o próprio preparo de dados em adapters/<nome>/.
+# Sobrescreva na linha de comando: make check ADAPTER=outro
+ADAPTER ?= msr14
+PREPARE := adapters/$(ADAPTER)/prepare_dataset.sh
 
 help:
 	@echo "make setup [DATASET_DIR=/caminho/absoluto]  cria .env, instala deps e hooks"
@@ -20,7 +24,7 @@ ifdef DATASET_DIR
 	@python3 -c 'import re,sys,pathlib; d=sys.argv[1]; assert d.startswith("/"), "DATASET_DIR precisa ser absoluto"; p=pathlib.Path(".env"); p.write_text(re.sub(r"^DATASET_DIR=.*$$", lambda m: "DATASET_DIR="+d, p.read_text(), flags=re.M)); print("DATASET_DIR ->", d)' "$(DATASET_DIR)"
 endif
 	uv sync
-	@chmod +x scripts/prepare_dataset.sh
+	@chmod +x $(PREPARE)
 	@$(MAKE) --no-print-directory hooks
 	@echo "pronto. edite .env se precisar, depois: make check"
 
@@ -28,7 +32,8 @@ hooks:
 	$(UV) prek install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
 
 check:
-	@./scripts/prepare_dataset.sh
+	@test -x $(PREPARE) || chmod +x $(PREPARE)
+	@./$(PREPARE)
 
 extract:        ; $(UV) pyramid extract --project all
 classify:       ; $(UV) pyramid classify

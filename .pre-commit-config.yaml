@@ -40,8 +40,8 @@ repos:
         types: [python]
         pass_filenames: false
 
-      - id: sql-so-em-sources
-        name: SQL só em src/pyramid/sources/
+      - id: sql-so-em-adaptadores
+        name: SQL só em adapters/ e src/pyramid/sources/
         entry: uv run python scripts/hooks/sql_so_em_sources.py
         language: system
         types: [python]

@@ -20,8 +20,18 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from pyramid.sources.base import EVENT_COLUMNS, EVENT_TYPES, ActivityDataSource
-from pyramid.sources.msr14 import MSR14Source
+from pyramid import sources
+from pyramid.sources.base import (
+    EVENT_COLUMNS,
+    EVENT_TYPES,
+    SCOPE_META_KEYS,
+    ActivityDataSource,
+)
+
+# Cada adaptador entra pelo loader, pelo nome da pasta em `adapters/`. O loader
+# registra o módulo como `pyramid.sources.<nome>`, então o `patch` abaixo
+# continua alcançando o `pd.read_sql` de dentro do adaptador.
+MSR14Source = sources.load("msr14")
 
 SCOPES = [25875, 79163]
 
@@ -50,7 +60,7 @@ SETTINGS = {
 }
 
 
-_LabelRow = namedtuple("_LabelRow", "id label")
+_ScopeRow = namedtuple("_ScopeRow", "id label language created_at")
 
 
 class _FakeEngine:
@@ -76,8 +86,10 @@ class _FakeEngine:
 @contextmanager
 def _msr14():
     rows = [
-        _LabelRow(25875, "jquery/jquery"),
-        _LabelRow(79163, "mxcl/homebrew"),
+        # O segundo escopo vem com language NULL de propósito: atributo que a
+        # origem não tem vira None e continua sendo uma chave presente.
+        _ScopeRow(25875, "jquery/jquery", "JavaScript", "2010-04-01 12:00:00"),
+        _ScopeRow(79163, "mxcl/homebrew", None, None),
     ]
     src = MSR14Source(SETTINGS, _FakeEngine(rows))
     # O SQL do MySQL não roda fora do MySQL: substituímos a ida ao banco pelo
@@ -152,3 +164,41 @@ def test_scope_label_sempre_string_nao_vazia(source):
     for sid in source.list_scopes():
         rotulo = source.scope_label(sid)
         assert isinstance(rotulo, str) and rotulo.strip()
+
+
+# -- atributos do escopo: o eixo alternativo de agregação --------------------
+# Sem estes, trocar a pirâmide de projeto para linguagem exigiria reextrair
+# tudo. A extração grava o que scope_meta devolve, e o agregador escolhe depois.
+
+
+def test_scope_meta_traz_todas_as_chaves(source):
+    for sid in source.list_scopes():
+        assert set(SCOPE_META_KEYS) <= set(source.scope_meta(sid))
+
+
+def test_scope_meta_tipos_canonicos(source):
+    for sid in source.list_scopes():
+        meta = source.scope_meta(sid)
+        assert isinstance(meta["label"], str) and meta["label"].strip()
+        assert meta["language"] is None or isinstance(meta["language"], str)
+        assert meta["created_at"] is None or isinstance(meta["created_at"], pd.Timestamp)
+
+
+def test_scope_meta_valor_ausente_e_none_e_nao_chave_faltando(source):
+    # Escopo sem linguagem registrada na origem. A chave continua lá.
+    metas = [source.scope_meta(sid) for sid in source.list_scopes()]
+    assert any(m["language"] is None for m in metas)
+    assert all("language" in m for m in metas)
+
+
+def test_scope_meta_label_bate_com_scope_label(source):
+    for sid in source.list_scopes():
+        assert source.scope_meta(sid)["label"] == source.scope_label(sid)
+
+
+def test_scope_meta_de_id_desconhecido_nao_quebra(source):
+    # Rótulo e atributos são cosméticos para o cálculo: id fora da lista devolve
+    # o contrato preenchido com o que dá, sem exceção.
+    meta = source.scope_meta(999999)
+    assert set(SCOPE_META_KEYS) <= set(meta)
+    assert meta["label"] == "999999"

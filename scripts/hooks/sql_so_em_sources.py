@@ -1,7 +1,7 @@
-"""Hook: SQL só existe dentro de `src/pyramid/sources/`.
+"""Hook: SQL só existe dentro de `adapters/` e de `src/pyramid/sources/`.
 
 A regra vem da separação entre origem e motor de cálculo (seção 8 da spec).
-Todo `SELECT` mora numa fonte; o resto do pipeline recebe DataFrame já no
+Todo `SELECT` mora num adaptador; o resto do pipeline recebe DataFrame já no
 formato canônico de eventos. Quebrar isso amarra o cálculo ao MySQL do MSR'14 e
 inviabiliza a segunda fonte de dados.
 
@@ -17,7 +17,9 @@ import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
-PERMITIDO = Path("src/pyramid/sources")
+# `adapters/` guarda um adaptador por dataset; `src/pyramid/sources/` guarda o
+# contrato e o loader. Os dois podem conter SQL.
+PERMITIDO = (Path("adapters"), Path("src/pyramid/sources"))
 # O próprio hook carrega os padrões que procura. Auditar a si mesmo daria
 # violação em toda rodada.
 ISENTO = Path("scripts/hooks")
@@ -61,14 +63,15 @@ def _violacoes(caminho: Path) -> list[str]:
             f"{caminho}:{linha}: information_schema.table_rows é estimativa do otimizador. "
             f"Use COUNT(*)."
         )
-    if _sob(caminho, PERMITIDO):
+    if any(_sob(caminho, pasta) for pasta in PERMITIDO):
         return achados
+    onde = " nem ".join(f"{p}/" for p in PERMITIDO)
     for m in SQL.finditer(texto):
         linha = texto.count("\n", 0, m.start()) + 1
         comando = m.group(1).split()[0].upper()
         achados.append(
-            f"{caminho}:{linha}: {comando} fora de {PERMITIDO}/. "
-            f"SQL vive numa fonte; o motor de cálculo recebe DataFrame."
+            f"{caminho}:{linha}: {comando} fora de {onde}. "
+            f"SQL vive num adaptador; o motor de cálculo recebe DataFrame."
         )
     return achados
 

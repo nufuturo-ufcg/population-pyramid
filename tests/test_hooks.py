@@ -1,7 +1,8 @@
 """Testes dos hooks do repositório.
 
 Os hooks são a única barreira automática contra duas regras que já custaram
-caro: SQL fora de `src/pyramid/sources/` e commit assinado por assistente.
+caro: SQL fora de `adapters/` e de `src/pyramid/sources/`, e commit assinado
+por assistente.
 Hook sem teste é hook que ninguém percebe quando para de pegar.
 """
 
@@ -52,11 +53,33 @@ def test_sql_fora_de_sources_e_barrado(tmp_path: Path, corpo: str) -> None:
     assert sql_hook.main([str(alvo)]) == 1
 
 
-def test_sql_dentro_de_sources_passa() -> None:
+def test_sql_dentro_de_adapters_passa() -> None:
     """A fonte real do MSR14 é cheia de SELECT e tem que passar."""
-    fonte = RAIZ / "src" / "pyramid" / "sources" / "msr14.py"
+    fonte = RAIZ / "adapters" / "msr14" / "source.py"
     assert fonte.exists()
     assert sql_hook.main([str(fonte)]) == 0
+
+
+def test_sql_dentro_do_registro_de_fontes_passa() -> None:
+    """`src/pyramid/sources/` guarda contrato e loader, e também pode ter SQL."""
+    pasta = RAIZ / "src" / "pyramid" / "sources"
+    assert (pasta / "base.py").exists()
+    alvo = pasta / "_exemplo_do_teste.py"
+    alvo.write_text('q = "SELECT id FROM projects"', encoding="utf-8")
+    try:
+        assert sql_hook.main([str(alvo)]) == 0
+    finally:
+        alvo.unlink()
+
+
+def test_adaptador_novo_em_qualquer_pasta_de_adapters_passa() -> None:
+    """A permissão vale para `adapters/` inteiro, não só para o msr14."""
+    alvo = RAIZ / "adapters" / "_exemplo_do_teste.py"
+    alvo.write_text('q = "SELECT id FROM projects"', encoding="utf-8")
+    try:
+        assert sql_hook.main([str(alvo)]) == 0
+    finally:
+        alvo.unlink()
 
 
 def test_palavra_select_em_prosa_nao_e_sql(tmp_path: Path) -> None:
@@ -99,8 +122,8 @@ def test_este_arquivo_de_teste_e_isento() -> None:
 
 def test_caminho_absoluto_e_relativo_dao_o_mesmo_veredito() -> None:
     """O prek passa caminho relativo, `git commit` à mão passa absoluto."""
-    fonte = RAIZ / "src" / "pyramid" / "sources" / "msr14.py"
-    assert sql_hook.main([str(fonte)]) == sql_hook.main(["src/pyramid/sources/msr14.py"]) == 0
+    fonte = RAIZ / "adapters" / "msr14" / "source.py"
+    assert sql_hook.main([str(fonte)]) == sql_hook.main(["adapters/msr14/source.py"]) == 0
 
 
 # --- mensagem de commit -------------------------------------------------------

@@ -1,3 +1,8 @@
+# Compose do adaptador MSR14. Caminho relativo aqui é relativo A ESTA PASTA,
+# por isso os `../..`. O nome do projeto fica fixo para que o volume do banco
+# seja sempre `pyramid_db-data`, independente da pasta de onde o comando roda.
+name: pyramid
+
 services:
   # Só sobe nos modos `local` e `download` (profile `withdb`).
   # No modo `existing_db` o app conecta direto no banco que já está de pé.
@@ -27,15 +32,16 @@ services:
       start_period: 120s
 
   app:
-    build: .
+    build:
+      context: ../..
     container_name: pyramid-app
-    env_file: [.env]
+    env_file: [../../.env]
     environment:
       DB_HOST: "${DB_HOST:-127.0.0.1}"
       DB_PORT: "${DB_PORT:-3306}"
     volumes:
-      - ./output:/app/output
-      - ./logs:/app/logs
+      - ../../output:/app/output
+      - ../../logs:/app/logs
     depends_on:
       db:
         condition: service_healthy

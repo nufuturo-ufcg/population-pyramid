@@ -55,7 +55,7 @@ valendo para ele.
 |---|---|---|
 | `ruff-check`, `ruff-format` | pre-commit | lint e formatação fora do padrão |
 | `mypy` | pre-commit | `src/` sem anotação de tipo ou com tipo errado |
-| `sql-so-em-sources` | pre-commit | `SELECT`/`FROM`/`JOIN` fora de `src/pyramid/sources/` |
+| `sql-so-em-adaptadores` | pre-commit | `SELECT`/`FROM`/`JOIN` fora de `adapters/` e `src/pyramid/sources/` |
 | `check-added-large-files` | pre-commit | arquivo acima de 2 MB |
 | `sem-assinatura-de-assistente` | commit-msg | coautoria de assistente, assunto acima de 72 caracteres, corpo colado no assunto |
 | `pytest` | pre-push | suíte quebrada |

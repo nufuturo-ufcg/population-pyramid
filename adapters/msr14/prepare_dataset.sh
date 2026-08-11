@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Prepara o dataset MSR'14 para o adaptador `adapters/msr14`.
 # Valida/prepara a fonte de dados ANTES de `docker compose up`.
 # Existe porque o Compose, se o bind-mount não existir, cria um DIRETÓRIO vazio
 # no lugar em vez de dar erro. Aí o MariaDB sobe limpo, sem importar nada, e
@@ -10,7 +11,12 @@ die() { echo "${RED}erro:${RST} $*" >&2; exit 1; }
 ok()  { echo "${GRN}ok:${RST} $*"; }
 warn(){ echo "${YLW}aviso:${RST} $*" >&2; }
 
-cd "$(dirname "$0")/.."
+# O compose deste adaptador mora aqui; o .env mora na raiz do repositório.
+AQUI="$(cd "$(dirname "$0")" && pwd)"
+cd "$AQUI/../.."
+COMPOSE=(docker compose -f "$AQUI/docker-compose.yml")
+COMPOSE_TXT="docker compose -f adapters/msr14/docker-compose.yml"
+
 [[ -f .env ]] || die "sem .env. Rode: make setup DATASET_DIR=/caminho/absoluto"
 set -a; source .env; set +a
 
@@ -34,19 +40,19 @@ compose_up_db() {
   [[ "${DB_PORT:-}" == "3307" ]] || die "no modo ${DATASET_SOURCE} o compose publica a 3307; ajuste DB_PORT=3307 no .env (recebi '${DB_PORT:-vazio}')"
 
   if [[ "$(docker inspect -f '{{.State.Running}}' pyramid-db 2>/dev/null || echo false)" == "true" ]]; then
-    ok "container pyramid-db ja esta de pe, reaproveitando (para reimportar do zero: docker rm -f pyramid-db && docker volume rm pyramid-replication_db-data)"
+    ok "container pyramid-db ja esta de pe, reaproveitando (para reimportar do zero: docker rm -f pyramid-db && docker volume rm pyramid_db-data)"
   else
     ok "subindo o banco (compose, profile withdb). O PRIMEIRO boot importa 423 MB e demora."
-    docker compose --profile withdb up -d db || die "compose falhou ao subir o db"
+    "${COMPOSE[@]}" --profile withdb up -d db || die "compose falhou ao subir o db"
   fi
 
   local t=0 limit="${DB_IMPORT_TIMEOUT:-3600}" st
   while :; do
     st=$(docker inspect -f '{{.State.Health.Status}}' pyramid-db 2>/dev/null || echo missing)
     [[ "$st" == "healthy" ]] && break
-    [[ "$st" == "missing" ]] && die "container pyramid-db nao existe/morreu. Veja: docker compose --profile withdb logs db"
+    [[ "$st" == "missing" ]] && die "container pyramid-db nao existe/morreu. Veja: ${COMPOSE_TXT} --profile withdb logs db"
     if (( t >= limit )); then
-      die "banco nao ficou pronto em ${limit}s (status=$st). Veja: docker compose --profile withdb logs db"
+      die "banco nao ficou pronto em ${limit}s (status=$st). Veja: ${COMPOSE_TXT} --profile withdb logs db"
     fi
     if (( t % 60 == 0 )); then echo "  ... importando o dump, ${t}s decorridos (status=$st)"; fi
     sleep 10; t=$(( t + 10 ))
