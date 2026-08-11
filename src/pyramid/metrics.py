@@ -81,7 +81,7 @@ def _type_of(ccr: float, ncr: float) -> str | None:
     zero. A leitura menos arbitrária é a literal: zero não é positivo, logo cai
     do lado baixo. Não é configurável de propósito: deixar isso como knob
     convidava a girar o parâmetro até o checkpoint bater, que é exatamente o
-    que a seção 0 do spec proíbe.
+    que `CONTRIBUTING.md` proíbe em "Mudança que mexe em número".
 
     Em set/2013 isso afeta 2 projetos, ambos com CCR exatamente 0 por terem
     coding == non_coding (MiniProfiler 19/19 -> B, ccv 2/2 -> D). Não muda o

@@ -195,6 +195,25 @@ projeção × real, e as tabelas ABRE / quadrantes em CSV e Markdown. O
 `validate` compara cada número desses com os valores publicados e escreve
 `output/validation_report.md`.
 
+## 7. O que conta como "bate"
+
+Projeto nomeado individualmente nos artigos (os 8 da Fig.5, os 4-5 da Fig.2)
+precisa bater **exatamente** ou ficar registrado como aberto em
+`discrepancias.md`. "Aproximadamente" não vale nesse caso.
+
+Tabelas 3 e 4 do IEICE16: a tolerância de ±2% vale para o predicado agregado
+(`All types/all`, cohort contra baseline, e o sinal do Wilcoxon). Célula a
+célula, por tipo × categoria, fica fora do critério de aceite. A investigação
+mostrou que nem o método correto reproduz essas células: 7 de 40 caem dentro de
+2%, e a maioria delas no valor trivial 0.5000. Reportar célula a célula como
+"batendo" exageraria o que a evidência sustenta. Ver `discrepancias.md`, seções
+12 e 27.
+
+Essa hierarquia é o que decide empate técnico. Quando a banda de 90 dias e a de
+91,3125 dias disputaram, a de 90 ganhou por reproduzir a Fig.2 banda a banda,
+mesmo custando concordância célula a célula na Tabela 3. Ver
+`discrepancias.md`, seção 27.
+
 ## Ordem de execução
 
     extract → classify → snapshots → metrics → attractiveness → projection

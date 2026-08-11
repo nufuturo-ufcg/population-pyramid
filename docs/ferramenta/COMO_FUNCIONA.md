@@ -165,4 +165,5 @@ repositório continua mostrando só o resultado publicado.
 | o que cada figura mostra e onde ela diverge do artigo | `docs/replicacao/figuras/` |
 | o detalhe técnico de qualquer divergência, com os comandos usados | `docs/replicacao/discrepancias.md` |
 | de onde vêm os dados e como plugar outra fonte | `docs/ferramenta/FONTES.md` |
-| a especificação que manda em tudo | `INSTRUCOES_CLAUDE_CODE.MD` |
+| o método replicado, estágio por estágio | `docs/replicacao/METODO.md` |
+| as regras de quem mexe no código | `CONTRIBUTING.md` |

@@ -1,16 +1,18 @@
 # Como contribuir
 
-A ferramenta é aceita quando reproduz, sobre o dump MSR14, os números
+A ferramenta gera pirâmides demográficas de população de software a partir de um
+contrato de entrada padronizado. O motor de cálculo não conhece dataset. Origem
+de dado vive em `adapters/`, e mudança lá não pode alcançar o cálculo.
+
+O caso de aceite é o dump MSR14: sobre ele a ferramenta reproduz os números
 publicados por Onoue et al. O critério é reprodutibilidade exata. Toda mudança
 que mexe em número precisa dizer qual número mudou e por quê.
 
-O motor de cálculo não conhece dataset. Origem de dado vive em `adapters/`, e
-mudança lá não pode alcançar o cálculo.
-
-Leia o README antes. Para mexer em entrada de dado, leia
-`docs/ferramenta/FONTES.md`, que define o contrato de adaptador. Para mexer em
-qualquer estágio do pipeline, leia `INSTRUCOES_CLAUDE_CODE.MD`: é a fonte da
-verdade e vence sobre qualquer outra doc em caso de conflito.
+Leia o README antes, e `docs/README.md` para achar o resto da documentação. Para
+mexer em entrada de dado, leia `docs/ferramenta/FONTES.md`, que define o contrato
+de adaptador. Para mexer em estágio do pipeline, leia "Contrato de estágio" aqui
+embaixo e `docs/replicacao/discrepancias.md`, que registra as decisões de método
+já medidas e fechadas.
 
 ## Ambiente
 
@@ -131,6 +133,32 @@ Um adaptador entra sem que nenhum arquivo de `src/pyramid/` mude. Se você
 precisou mexer no motor, o contrato está faltando alguma coisa: conserte o
 contrato e o teste dele, e só depois o adaptador.
 
+## Contrato de estágio
+
+Todo estágio do pipeline entrega as mesmas garantias. Estágio novo, ou estágio
+mexido, mantém as cinco:
+
+1. Log estruturado em JSON lines, um arquivo por execução em
+   `logs/run_<timestamp>.log`, nível por `--log-level`. Quem configura é
+   `pyramid.logging_config.setup`.
+2. Manifesto de unidade de trabalho (um projeto, ou um par projeto e snapshot)
+   em `output/<estágio>/_manifest.json`, gravado conforme cada unidade conclui.
+   A API é `logging_config.load`, `save` e `summarize`.
+3. Unidade já registrada como ok no manifesto é pulada. `--force` reprocessa
+   tudo.
+4. Erro numa unidade loga traceback completo com o contexto (projeto,
+   contribuidor, snapshot), marca falha no manifesto e segue para a próxima.
+   `--fail-fast` é o que aborta o run.
+5. Ao terminar, o estágio imprime quantas unidades passaram, quantas falharam e
+   onde, suficiente para saber de onde retomar sem reabrir o banco.
+
+Artefato nenhum grava id cru, nem `repr` de objeto Python, onde se espera nome ou
+rótulo estável. `scope_label` caiu nisso e devolvia `25875` no lugar de
+`jquery/jquery` em tudo que rodava fora do pipeline (`docs/replicacao/discrepancias.md`,
+seção 14). É o modo de falha ruim: sem exceção, sem log, só um rótulo plausível.
+O manifesto do extract virou o cache desses rótulos e `tests/test_extract_manifest.py`
+trava o formato.
+
 ## Mudança que mexe em número
 
 1. Rode o pipeline antes e depois. Guarde os dois `validation_report.md`.
@@ -142,6 +170,22 @@ contrato e o teste dele, e só depois o adaptador.
    mesmo commit da correção, nunca antes.
 
 Arredondar para ficar perto está proibido.
+
+## Os dois documentos vivos
+
+`docs/replicacao/discrepancias.md` cresce por acréscimo. Entrada nova entra no
+fim, com o comando ou a query exata que produziu o número. Entrada antiga que se
+provou errada ganha correção anotada em cima, com a data. Nunca apague o
+caminho até a resposta: metade das seções de lá existe para impedir que uma
+hipótese já refutada volte.
+
+Número relatado de memória, sem evidência anexada, conta como não verificado.
+Já aconteceu nesta base de reportar valor errado de cabeça e só pegar depois,
+na remedição.
+
+`docs/replicacao/RESUMO_EXECUTIVO.md` é retrato do estado atual, no máximo uma
+página. Reescreva por completo ao fim da sessão. Nada de acrescentar por cima do
+anterior, porque o histórico já mora no `discrepancias.md`.
 
 ## Escrita
 

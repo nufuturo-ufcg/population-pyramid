@@ -25,14 +25,15 @@ Essa replicação é o teste de aceite da implementação e está documentada em
 ## Nunca viu isso antes
 
 `docs/ferramenta/COMO_FUNCIONA.md`: o que a ferramenta faz e por quê, sem código
-e sem fórmula. Comece por aí.
+e sem fórmula. Comece por aí. `docs/README.md` mapeia todos os documentos e diz
+quando cada um muda.
 
 ## Antes de mexer
 
 Leitura obrigatória, nesta ordem:
 
-1. `INSTRUCOES_CLAUDE_CODE.MD`: spec de implementação. É a fonte da verdade e
-   vence sobre qualquer outra doc em caso de conflito.
+1. `CONTRIBUTING.md`: as regras de trabalho no repo. Vence sobre qualquer
+   outra doc em caso de conflito.
 2. `docs/ferramenta/FONTES.md`: contrato de entrada e como escrever um
    adaptador novo.
 3. `docs/replicacao/discrepancias.md`: log vivo das ambiguidades investigadas.
@@ -95,9 +96,11 @@ comandos, com as flags de cada um. Os dois são a referência completa.
 
 Estágios individuais, na ordem: `extract` → `classify` → `snapshots` →
 `metrics` → `attractiveness` → `projection` → `plots`, depois `validate`.
-Cada estágio é retomável e grava checkpoint; ver seção 7.3 da spec.
+Cada estágio é retomável e grava checkpoint; ver `CONTRIBUTING.md`, seção
+"Contrato de estágio".
 
-Figuras e tabelas exigidas (seção 6 da spec) saem em `output/plots/`, com
+Figuras e tabelas exigidas (`docs/replicacao/METODO.md`, seção 6) saem em
+`output/plots/`, com
 `_manifest.json` declarando o que foi gerado com sucesso.
 
 Rodar o mesmo estágio duas vezes gera os mesmos bytes. PNG, PDF, CSV e

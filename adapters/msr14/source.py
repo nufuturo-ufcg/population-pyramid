@@ -7,7 +7,20 @@ exatamente as pegadinhas do schema que fazem a contagem sair errada em silêncio
 se ignoradas.
 
 Só este arquivo sabe que a origem é MySQL. Quem carrega é
-`pyramid.sources.load("msr14")`. Como preparar o dataset está no README ao lado.
+`pyramid.sources.load("msr14")`. Como preparar o dataset está no README da raiz.
+
+Duas armadilhas do schema que nenhuma query daqui pisa hoje, e que quem
+escrever SQL nova neste arquivo precisa saber:
+
+- `issues.issue_id`, `issue_comments.comment_id`, `issue_events.event_id` e
+  `pull_request_comments.comment_id` são `mediumtext`, não inteiros. São a
+  numeração do GitHub, diferente do `id` interno (`int`, chave primária). Junção
+  feita por essas colunas compara string com número e o MySQL aceita calado.
+  Junte sempre pelo `id`.
+- `pull_requests.merged = 1` dá 33.910 e `pull_request_history.action='merged'`
+  dá 34.125 PRs distintos. Nenhuma métrica daqui usa "merge", então a divergência
+  fica sem arbitragem. Métrica que precise de merge escolhe uma das duas e
+  registra a escolha em `docs/replicacao/discrepancias.md`.
 """
 
 from __future__ import annotations
@@ -38,7 +51,8 @@ def engine() -> Engine:
     """Engine do dump, com pool pequeno porque o pipeline é sequencial.
 
     Mora aqui porque MySQL é detalhe DESTA fonte: nenhum estágio do motor de
-    cálculo pode importar driver de banco (seção 8 da spec).
+    cálculo pode importar driver de banco. Ver `CONTRIBUTING.md`, seção
+    "Adaptador novo".
     """
     load_dotenv(ROOT / ".env")
     u = os.getenv("DB_USER", "root")
@@ -162,6 +176,19 @@ class MSR14Source(ActivityDataSource):
         self._meta: dict[int, dict[str, Any]] = {}
 
     # -- escopos ---------------------------------------------------------------
+    # Três pegadinhas moram nesta query:
+    #
+    # 1. `forked_from IS NULL` sozinho devolve 91 projetos. O excedente é o id
+    #    108342 (`Craftbukkit/Bukkit`), namespace fantasma com `language` NULL e
+    #    zero atividade. Ele sai por `exclude_ids` no `config/settings.yaml`,
+    #    parâmetro declarado, em vez de ficar chumbado aqui.
+    # 2. Trocar isso por "projeto que tem pelo menos 1 pull request" devolve 88
+    #    e derruba dois projetos legítimos sem PR nenhum: `xphere-forks/symfony`
+    #    e `vinc/vinc.cc`. O filtro parece mais limpo e está errado.
+    # 3. O rótulo é `CONCAT(login, '/', name)` porque `projects.name` repete
+    #    dentro dos 90: `symfony` aparece como `symfony/symfony` (id 51671) e
+    #    como `xphere-forks/symfony` (id 74915), os dois raiz. Agrupar por
+    #    `name` funde os dois. Ver `docs/replicacao/discrepancias.md`, seção 10.
     def _load_labels(self) -> dict[int, str]:
         """Id -> "owner/name" dos escopos raiz. Memoizado por instância."""
         if self._labels:

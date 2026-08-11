@@ -1,8 +1,8 @@
 """Carga de config/*.yaml. Nenhum parâmetro de método fica no código.
 
 Credencial de banco NÃO mora aqui: é detalhe de um adaptador específico e vive
-em `adapters/<nome>/source.py` (seção 8 da spec: o motor de cálculo não conhece
-a origem dos dados).
+em `adapters/<nome>/source.py`, porque o motor de cálculo não conhece a origem
+dos dados.
 """
 
 from __future__ import annotations

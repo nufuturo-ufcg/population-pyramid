@@ -68,7 +68,7 @@ taxonomy:
       excluded: []
 
 # ---------------------------------------------------------------------------
-# AMBIGUIDADE 2: escopo de commits (o "primeiro suspeito" da seção 7.1 do spec).
+# AMBIGUIDADE 2: escopo de commits. Ver docs/replicacao/discrepancias.md, seção 2.
 # Medido em dez/2011 para homebrew, entre contribuidores ATIVOS (que é o que a
 # pirâmide mostra): root=1446, family_project_commits=1479, family_project_id=1480.
 # Diferença de ~2%. Em contagem cumulativa daria 45%, mas cumulativo não é usado

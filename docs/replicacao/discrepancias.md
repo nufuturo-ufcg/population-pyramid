@@ -1,8 +1,8 @@
 # Discrepâncias vs. os artigos originais
 
 Registro do que foi investigado quando um checkpoint não bateu, qual leitura foi
-escolhida e por quê. Exigido pela seção 9 do spec ("documentar qual foi investigado e
-o resultado, não só 'não bateu'").
+escolhida e por quê. Documenta o que foi investigado e o resultado, nunca só
+"não bateu". A regra está em `CONTRIBUTING.md`, seção "Os dois documentos vivos".
 
 Checkpoint de referência: **IEICE16 Fig. 5**, snapshot set/2013.
 `A=23, B=42, C=18, D=3`, 86 projetos classificados de 90
@@ -54,7 +54,7 @@ Escolhida: `prose`. Ganha por pouco no L1, mas ganha por muito no argumento:
 disfarçados), então contá-la infla a discussão com o que já foi contado como
 coding. O ESEM14 seção 3 concorda com a prosa.
 
-### Escopo de commits (ambiguidade 2: o "primeiro suspeito" da seção 7.1 do spec)
+### Escopo de commits (ambiguidade 2)
 
 | Escopo | A | B | C | D | classif. | erro |
 |---|---|---|---|---|---|---|
@@ -107,7 +107,7 @@ dump:
    recente, com backfill dos mesmos projetos.
 3. **Empates.** Resolvido, ver seção 6.
 
-## 3.1 Investigação dirigida dos Tipos A-D (seção 9.1 do spec)
+## 3.1 Investigação dirigida dos Tipos A-D
 
 Quatro testes. Nenhum derrubou o erro 11, mas o (a) e o (b) juntos mudam o que a
 discrepância significa.
@@ -225,7 +225,8 @@ deixava esses projetos em `unclassified` e expunha um knob `metrics.tie_side`
 para alternar o comportamento.
 
 **O knob foi removido.** Deixar a convenção de desempate configurável convidava
-a girá-la até o checkpoint bater, que é exatamente o que a seção 0 do spec proíbe. A
+a girá-la até o checkpoint bater, que é exatamente o que `CONTRIBUTING.md`
+proíbe em "Mudança que mexe em número". A
 regra agora é fixa em `metrics._type_of` e é a leitura literal: alto = `valor >
 0`, logo zero cai do lado baixo.
 
@@ -1984,7 +1985,7 @@ com os valores anteriores preservados em comentário `# antes:` na mesma linha:
 O desempate **não** foi por proximidade numérica. Nesse quesito as duas bandas
 empatam na prática (L1 da Tabela 3: 5,1054 para 90 contra 4,9574 para 91,3125,
 3% de diferença em 40 células, dentro do ruído). Foi pela hierarquia de critérios
-da linha 168 da spec: os projetos nomeados da Fig.2 devem bater **exatamente**,
+de `docs/replicacao/METODO.md`, seção 7: os projetos nomeados da Fig.2 devem bater **exatamente**,
 enquanto a Tabela 3 célula a célula **não é critério de aceite**. Com 90 o
 blueprint-css bate banda a banda; com 91,3125 não.
 
@@ -1994,8 +1995,9 @@ passa nas duas bandas (cohort 0,3894 < baseline 0,5000, p=0,0124 < 0,05). Se
 algum dia o critério de aceite mudar para célula a célula, **esta decisão se
 inverte**, e é para isso que a linha do "antes" fica no `checkpoints.yaml`.
 
-A errata correspondente está em `INSTRUCOES_CLAUDE_CODE.MD` seção 9.5, onde o corpo
-do texto citava 0.4208 / 0.0073 / 7-de-40.
+Os valores anteriores à troca de banda, válidos até `315e42d`, eram cohort
+0.4208, p = 0.0073 e 7 de 40 células dentro de 2%, a ~5% do artigo. A leitura
+completa do resultado da projeção está na seção 12.5.
 
 ## 28. Fig.2 do ESEM14, diagnóstico painel a painel (banda a banda)
 

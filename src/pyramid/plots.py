@@ -577,7 +577,8 @@ def figure_fig2(year: int | None = None, highlight: list[int] | None = None) -> 
     """MSR14 Fig.2: stickiness (x) × magnetismo (y), com as medianas como eixos.
 
     É a figura que *origina* os quadrantes que a ESEM14 Fig.2 depois desenha
-    como pirâmides. Não está na lista da seção 6 da spec: fica porque é a única
+    como pirâmides. Fica fora da lista de artefatos de `docs/replicacao/METODO.md`,
+    seção 6, e é mantida por ser a única
     vista do critério de classificação em si.
 
     Ordem dos eixos, ticks e limites vêm da figura publicada: Sticky na

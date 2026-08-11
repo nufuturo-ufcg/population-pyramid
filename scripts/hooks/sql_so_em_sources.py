@@ -1,6 +1,6 @@
 """Hook: SQL só existe dentro de `adapters/` e de `src/pyramid/sources/`.
 
-A regra vem da separação entre origem e motor de cálculo (seção 8 da spec).
+A regra vem da separação entre origem e motor de cálculo, em `CONTRIBUTING.md`.
 Todo `SELECT` mora num adaptador; o resto do pipeline recebe DataFrame já no
 formato canônico de eventos. Quebrar isso amarra o cálculo ao MySQL do MSR'14 e
 inviabiliza a segunda fonte de dados.
