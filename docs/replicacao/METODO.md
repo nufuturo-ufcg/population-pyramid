@@ -5,218 +5,263 @@ Do dump ao número, na ordem em que a ferramenta faz. Sem analogia (isso é o
 `RESUMO_EXECUTIVO.md`). Cada decisão ambígua citada aqui tem parâmetro em
 `config/settings.yaml` e discussão em `discrepancias.md`.
 
-## 1. A ferramenta recebe o quê, em que formato
+## 1. A base de dados
 
-**Entrada:** o dump MySQL do GHTorrent usado no MSR'14 Mining Challenge, montado
-read-only (`DB_NAME=msr14`). É um banco relacional. A ferramenta lê por SQL, e
-todo SQL vive em `src/pyramid/sources/`.
+O dump é do GHTorrent, usado no MSR14 Mining Challenge. GHTorrent espelha o
+GitHub em tabelas relacionais, uma por tipo de evento ou entidade.
 
-Tabelas usadas: `projects`, `users`, `commits`, `project_commits`,
-`pull_requests`, `pull_request_history`, `commit_comments`, `issues`,
-`issue_comments`, `pull_request_comments`, `issue_events`.
+Tabelas usadas:
 
-**Primeira coisa que o pipeline faz:** achatar tudo isso em uma tabela só, com
-quatro colunas, uma linha por ato de contribuição:
+- `projects`, `users`
+- `commits`, `project_commits`
+- `pull_requests`, `pull_request_history`
+- `commit_comments`, `issues`, `issue_comments`, `pull_request_comments`, `issue_events`
+
+Os dois artigos citam a mesma base:
+
+- MSR14 (Yamashita et al.): "we analyze the GitHub dataset provided by Gousios ... 90 OSS projects."
+- ESEM14: "Similar to the previous study, we analyze the GitHub dataset provided by Gousios."
+
+Escala, depois do filtro da seção 2:
+
+- 90 projetos
+- 1.743.265 eventos
+- ~80,5 mil pares (projeto, contribuidor)
+- primeiro evento em 2003-02-13, último em 2013-10-07
+
+## 2. O parser
+
+Lê o dump e devolve uma tabela única, uma linha por contribuição:
 
     scope_id | contributor_id | event_type | timestamp
 
-`event_type` é um enum fechado de sete valores (`commits`, `pull_requests`,
-`commit_comments`, `issues`, `issue_comments`, `pull_request_comments`,
-`issue_events`). Depois desse ponto ninguém mais sabe que existiu um MySQL: os
-estágios seguintes só veem "quem fez algo, de que tipo, quando, em que projeto".
+`event_type` é um enum fechado de sete valores, um por tabela de origem:
 
-Escala real: **90 projetos, 1.743.265 eventos, ~80,5 mil pares
-(projeto, contribuidor)**, do primeiro evento em 2003-02-13 ao último em
-2013-10-07.
+- `commits`
+- `pull_requests`
+- `commit_comments`
+- `issues`
+- `issue_comments`
+- `pull_request_comments`
+- `issue_events`
 
-Descarte no caminho: linha sem contribuidor (`commits.author_id` e
-`issues.reporter_id` são NULL quando o GHTorrent não resolveu o usuário) e linha
-com data inválida (`0000-00-00`). Nada além disso.
+Descarte no caminho:
 
-Saída de cada estágio: um `.parquet` por projeto em `output/<estágio>/`, mais um
-`_manifest.json` com o que rodou. Estágio já feito não roda de novo sem
-`--force`.
+- linha sem contribuidor (`commits.author_id` e `issues.reporter_id` nulos, quando o GHTorrent não resolveu o usuário)
+- linha com data inválida (`0000-00-00`)
 
-## 2. Quais repositórios entram
+Nada além disso.
 
-Todos os 90, sempre por `project.id`.
+## 3. Os projetos que entram
 
-- **Filtro:** `forked_from IS NULL` (só raiz, nada de fork). Isso dá 91 linhas;
-  a 108342 (`Craftbukkit/Bukkit`) é namespace fantasma com zero atividade e é
-  excluída por id explícito. Restam **90**, e esse número é conferido a cada
-  execução.
-- **Nunca por nome:** `symfony` resolve para dois ids (51671 `symfony/symfony` e
-  74915 `xphere-forks/symfony`).
-- **Escopo de um evento:** o que pertence ao repositório raiz
-  (`commits.project_id`, `issues.repo_id`, `pull_requests.base_repo_id`).
-  Contar também a família de forks foi testado e muda ~2% da população ativa
-  (`commit_scope: root` é o que está em vigor).
-- **Identidade:** uma linha de `users` = uma pessoa. Sem fusão de contas
-  (`identity_merge: none`); a fusão existe como diagnóstico fora do pipeline.
+O dump tem 91 repositórios raiz (fork não conta, só o projeto original). Um
+deles aparece na lista mas não tem nenhuma atividade registrada, e foi
+removido à mão. Sobram 90.
 
-Recortes menores aparecem depois, e cada um é declarado onde é usado: Tipos A-D
-exigem ao menos um contribuidor vivo no snapshot; a projeção exige > 100
-contribuintes ativos na base (34 projetos); os quadrantes de atratividade
-exigem ≥ 10 devs no ano.
+Cada projeto é identificado por um número, não pelo nome: há dois
+repositórios diferentes chamados `symfony` no dump.
 
-## 3. Coding, Discussion (non-coding) e Moved
+Cada projeto conta só a atividade dele, não a dos forks feitos a partir dele.
 
-**Primeiro, o tipo do evento.** Divisão em vigor (`taxonomy.variant: prose`,
-IEICE'16 p.1307 prosa == ESEM'14 seção 3):
+Não há duplicadas: cada pessoa entra uma vez.
 
-| Lado | Eventos |
-|---|---|
-| coding | `commits`, `pull_requests` |
-| non-coding (discussion) | `commit_comments`, `issue_comments`, `pull_request_comments`, `issue_events` |
-| fora | `issues` |
+## 4. Coding, discussion e moved
 
-A leitura alternativa (`table1`: `issues` dentro, `issue_events` fora) está
-implementada e é rodável; o artigo se contradiz na mesma página.
+Cada contribuição cai num de dois grupos:
 
-**Depois, a categoria da pessoa.** Ela não é fixa: é recalculada em cada
-snapshot T, a partir de duas datas por (projeto, pessoa):
+- código: commit, pull request
+- conversa: comentário em commit, em pull request, em issue, ou evento de issue
 
-- `init_c` = primeiro evento de coding
-- `init_d` = primeiro evento de non-coding
+Quem só tem contribuição de conversa fica do lado esquerdo da pirâmide. Quem
+tem contribuição de código fica do lado direito.
 
-Então, no snapshot T:
+Existe um terceiro caso: quem começou conversando e só depois passou a
+codar. Essa pessoa fica do lado direito também, mas marcada numa cor
+diferente, pra mostrar que ela veio da conversa. Não é uma coluna à parte no
+meio da pirâmide.
 
-| Categoria | Regra |
-|---|---|
-| **non_coding** | não tem `init_c` até T (só conversou) |
-| **moved** | tem `init_c ≤ T` **e** `init_d < init_c` (discutiu antes de codar) |
-| **coding** | tem `init_c ≤ T` e não discutiu antes (entrou codando) |
+Em cada data de corte, o programa olha duas coisas de cada pessoa: quando ela
+codou pela primeira vez, e quando ela conversou pela primeira vez (se ela
+nunca codou, essa segunda data não existe). A partir disso:
 
-Consequência de projeto: quem discute em 2011 e só commita em 2012 aparece como
-`non_coding` nas pirâmides de 2011 e vira `moved` a partir de 2012. Essa
-migração é o conteúdo da Fig.3 do ESEM'14.
+- ainda não codou até a data de corte: fica do lado da conversa
+- codou, e conversou antes de codar: fica do lado do código, marcada como veio da conversa
+- codou, e nunca conversou antes: fica do lado do código, sem marca
 
-Para CCR, projeção e para o eixo da figura, **`moved` conta do lado coding**.
-Ele é um lado próprio só na cor da barra.
+Quem conversa em 2011 e só começa a codar em 2012 fica do lado da conversa na
+foto de 2011 e muda de lado na foto de 2012.
 
-## 4. Como a pirâmide é montada
+## 5. A montagem da pirâmide
 
-A série de snapshots é fim de trimestre civil, de **2010-03-31 a 2013-09-30**:
-15 datas. Em cada snapshot T, cada contribuidor do projeto recebe:
+O programa monta um recorte do projeto a cada 3 meses, do fim de março de
+2010 ao fim de setembro de 2013. São 15 recortes, na mesma janela de anos das
+figuras dos artigos (dezembro de 2011, e junho de 2010 a junho de 2013), com
+mais pontos no meio.
 
-1. **Lado**: a categoria da seção 3 (non-coding à esquerda; coding + moved à
-   direita).
-2. **Idade**: `T − start_ref`, onde `start_ref` é `init_c` para quem já codou e
-   `init_d` para quem não codou. É tenure de calendário: **gap de inatividade
-   não desconta idade**, igual à idade numa pirâmide demográfica. A leitura
-   alternativa (somar só os períodos ativos) foi refutada: zera os Tipos C e D.
-3. **Banda**: faixas de 3 meses (90 dias), fechadas em cima:
-   `(0,90] → banda 0`, `(90,180] → banda 1`, ... O rótulo do eixo y de uma banda
-   é `(banda+1) × 3 meses`.
-4. **Vivo ou não**: a pessoa está viva em T se o último evento dela é recente.
-   O artigo: "left the project when he/she did not give any contribution for
-   more than three months". A ferramenta guarda `idle_days` e o consumidor
-   escolhe a janela:
-   - **CCR/NCR, Tipos e projeção usam 3 meses** (o texto do artigo);
-   - **as pirâmides desenhadas usam 12 meses** (`plots.pyramid_window_months`),
-     largura que veio da medição em pixel da Fig.2 do ESEM'14.
+Em cada recorte, cada pessoa recebe três coisas:
 
-Desenhar é então só contar: para cada banda, quantos de cada categoria, non-coding
-para a esquerda, coding+moved para a direita.
+**Lado.** Código ou conversa, como na seção 4.
 
-Sobre períodos de atividade: os eventos de cada pessoa são quebrados em spans
-separados por mais de 3 meses de silêncio. Os spans decidem quem está vivo; não
-decidem idade. Quem sai e volta reaparece já velho, que é o "we consider them
-as experienced contributors when they come back" do artigo, de graça.
+**Altura.** O tempo desde a primeira contribuição que colocou a pessoa
+naquele lado, contado em blocos de 3 meses. 0 a 3 meses é a barra mais baixa,
+3 a 6 meses a próxima, e assim por diante.
 
-## 5. CCR e NCR
+**Viva ou não.**
 
-Sobre a **população viva** do projeto no snapshot (janela de 3 meses), quatro
-contagens:
+- O IEICE16 define o critério: "we consider that a contributor left a
+  project when he/she did not give any contribution on that project for more
+  than three months". Sem contribuição por mais de 3 meses conta como fora
+  do projeto, e é esse critério que o programa usa nas contas de
+  crescimento, tipos e projeção.
+- A pirâmide desenhada usa uma janela maior, 12 meses, porque essa foi a
+  largura que bateu com a figura publicada quando medimos pixel por pixel.
 
-    coding      = categoria ∈ {coding, moved}
-    non         = categoria == non_coding
-    new         = banda 0            (até 3 meses de casa)
-    experienced = banda ≥ 1
+Quem some por mais de 3 meses e volta ao projeto depois reaparece com a
+idade completa, contada desde a primeira aparição, não desde a volta. O
+IEICE16 descreve esse efeito: "very few contributors might come back to the
+project after three-month (or more) interval. They disappear from the
+pyramids while they are inactive temporarily. In that case, we consider them
+as experienced contributors when they come back to the project."
 
-E as duas razões, como publicadas (IEICE'16 p.1308-1309):
+Todas essas contas rodam nos 90 projetos do dump. A projeção
+coorte-componente é uma exceção: roda só nos projetos com mais de 100
+contribuintes ativos no recorte de março de 2013, 34 no total. O artigo não
+justifica o corte de 100, só declara: "we project a future population size
+for the 36 projects that have more than 100 contributors."
 
-    CCR = (coding − non) / max(coding, non)
-    NCR = (new − experienced) / max(new, experienced)
+## 6. CCR, NCR e os quatro tipos
 
-O denominador é sempre o maior lado, então ambos ficam em **[−1, 1]**. CCR > 0 =
-mais gente codando que conversando; NCR > 0 = mais novato que veterano.
+Sobre as pessoas vivas do projeto no recorte, o programa calcula duas
+proporções definidas no IEICE16.
 
-**Tipos A-D** são os quadrantes desse plano, com corte em zero (a mediana não
-entra):
+**CCR, a proporção entre quem coda e quem só conversa.**
 
-| Tipo | CCR | NCR | Leitura |
+O IEICE16 chama essa conta de Coding Contributors Ratio. Coding é quem está
+do lado código (coding + moved, seção 4). Non é quem está do lado conversa.
+
+    CCR = (coding − non) / o maior dos dois
+
+O resultado vai de −1 a 1. Acima de zero, tem mais gente codando. Abaixo de
+zero, mais gente só conversando.
+
+**NCR, a proporção entre quem chegou agora e quem já tem tempo de casa.**
+
+O IEICE16 define quem é quem: "we define newcomers as contributors who have
+less than three months of activity periods, and we define experienced
+contributors as those with longer activity periods."
+
+    NCR = (novato − veterano) / o maior dos dois
+
+Mesma escala de −1 a 1. Acima de zero, mais novato que veterano. Abaixo de
+zero, o contrário.
+
+**Os quatro tipos.** Cruzando CCR e NCR, cada projeto cai num quadrante. O
+IEICE16 descreve os quatro:
+
+| Tipo | CCR | NCR | O que o IEICE16 diz |
 |---|---|---|---|
-| A | > 0 | > 0 | novatos entrando e codando |
-| B | < 0 | > 0 | novatos entrando, mas conversando |
-| C | > 0 | < 0 | veteranos codando |
-| D | < 0 | < 0 | veteranos conversando |
+| A | > 0 | > 0 | "more newcomers than experienced contributors, and more coding contributors than non-coding ones" |
+| B | < 0 | > 0 | "more newcomers than experienced contributors, and more non-coding contributors than coding ones" |
+| C | > 0 | < 0 | "more experienced contributors than newcomers, and more coding contributors than non-coding ones" |
+| D | < 0 | < 0 | "more experienced contributors than newcomers, and more non-coding contributors than coding ones" |
 
-Projeto sem nenhum contribuidor vivo não é classificado (`ratio` devolve NaN).
-É o que derruba projetos da Fig.5. Empate exato (CCR ou NCR == 0) cai no lado
-baixo, e a contagem de empates vai para o manifesto em vez de sumir dentro de um
-quadrante.
+Projeto sem ninguém vivo no recorte não entra em nenhum tipo. Empate exato em
+CCR ou NCR, valor igual a zero, cai no lado de baixo do corte.
 
-## 6. O que mais sai daí
+## 7. O que mais sai da pirâmide
 
-Tudo abaixo é derivado das mesmas pirâmides.
+Duas contas adicionais usam os mesmos recortes trimestrais: uma projeta o
+futuro, outra compara com o método anterior aos artigos do Onoue et al.
 
-**Projeção coorte-componente** (IEICE'16 seção 4), por banda, separada para
-non-coding / moved / coding:
+### Projeção coorte-componente
 
-    SR(b)             = Pop(b+1, jun/2013) / Pop(b, mar/2013)
-    Pop(b+1, set/13)  = SR(b) × Pop(b, jun/2013)
-    Pop(banda 0)      = média das duas contagens mais recentes   (o "nascimento")
+Cada pessoa está numa faixa de idade (seção 5): há quanto tempo ela
+contribui, em blocos de 3 meses.
 
-Migração entre projetos é zero, por decisão explícita do artigo. Baseline =
-"set/2013 é igual a jun/2013". Erro = **ABRE** com denominador `min(real, previsto)`.
-Roda nos 34 projetos com mais de 100 contribuintes ativos em mar/2013.
+Pra prever quantas pessoas vão estar numa faixa daqui a 3 meses, o programa
+olha o que aconteceu com essa mesma faixa da última vez. Um exemplo com
+números inventados:
 
-**Magnetismo × stickiness** (MSR'14, adotado pelo ESEM'14), anual, só com
-`commits` e `pull_requests`:
+1. A faixa "3 a 6 meses" no recorte de março de 2013 tem 40 pessoas.
+2. Três meses depois, no recorte de junho, a faixa seguinte, "6 a 9 meses",
+   tem 30 pessoas. Boa parte dessas 30 são as mesmas 40 de março, que
+   continuaram ativas e envelheceram uma faixa. As outras saíram do projeto
+   pelo caminho.
+3. 30 dividido por 40 dá 0,75: de cada 10 pessoas que estavam numa faixa, 7
+   ou 8 seguem vivas na faixa seguinte, 3 meses depois. Essa razão é a taxa
+   de sobrevivência daquela faixa.
+4. Pra prever setembro, o programa aplica essa mesma taxa na faixa "6 a 9
+   meses" de junho: 30 pessoas × 0,75 ≈ 22 pessoas esperadas na faixa "9 a
+   12 meses" em setembro.
 
-    magnetismo(P,Y) = novatos do ano Y que contribuíram em P / novatos do ano Y (dataset inteiro)
-    stickiness(P,Y) = devs de P em Y que voltam em Y+1        / devs de P em Y
+O programa repete essa conta faixa por faixa, sempre usando a taxa observada
+entre os dois recortes mais recentes.
 
-"Novato do ano Y" é propriedade global da pessoa: a primeira contribuição dela
-em *todo* o dataset caiu em Y. Por isso este estágio recusa rodar num
-subconjunto de projetos, porque mudaria o denominador em silêncio. Corte alto/baixo é
-a **mediana entre os projetos elegíveis daquele ano** (≥ 10 devs), recalculada
-ano a ano, e os quadrantes são attractive / floating / stagnant / terminal.
+A faixa mais nova, 0 a 3 meses, não tem faixa anterior pra calcular taxa de
+sobrevivência: ninguém "envelhece" pra dentro dela, as pessoas só chegam.
+Pra ela, o IEICE16 usa uma conta mais simples: a média entre quantas pessoas
+estavam nessa faixa no recorte atual e no recorte anterior.
 
-**2013 é right-censored** (o dump acaba em out/2013). O ano **renderiza
-pirâmide**, porque forma é estoque e olha para trás. O ano **não recebe
-quadrante**, porque stickiness é fluxo e precisaria de 2014. Nada é anualizado
-para forçar classificação.
+O programa também não conta gente que sai de um projeto e some pra dentro de
+outro como se fosse chegada nova: "we do not consider that contributors move
+to other projects in our study, so we do not calculate net migration." Cada
+projeto é projetado sozinho.
 
-**Artefatos gerados** (`uv run pyramid plot`, em `output/plots/`): as pirâmides
-por status e por tipo, a grade de transição, o scatter CCR × NCR, a sobreposição
-projeção × real, e as tabelas ABRE / quadrantes em CSV e Markdown. O
-`validate` compara cada número desses com os valores publicados e escreve
-`output/validation_report.md`.
+Roda separado por lado (non-coding, moved, coding), só nos 34 projetos
+definidos na seção 5.
 
-## 7. O que conta como "bate"
+### Contra um método mais simples
 
-Projeto nomeado individualmente nos artigos (os 8 da Fig.5, os 4-5 da Fig.2)
-precisa bater **exatamente** ou ficar registrado como aberto em
-`discrepancias.md`. "Aproximadamente" não vale nesse caso.
+O IEICE16 compara a projeção coorte-componente com um método ingênuo: "the
+baseline method, which assumes that the number of contributors of September
+and June 2013 are the same."
 
-Tabelas 3 e 4 do IEICE16: a tolerância de ±2% vale para o predicado agregado
-(`All types/all`, cohort contra baseline, e o sinal do Wilcoxon). Célula a
-célula, por tipo × categoria, fica fora do critério de aceite. A investigação
-mostrou que nem o método correto reproduz essas células: 7 de 40 caem dentro de
-2%, e a maioria delas no valor trivial 0.5000. Reportar célula a célula como
-"batendo" exageraria o que a evidência sustenta. Ver `discrepancias.md`, seções
-12 e 27.
+O erro usa "ABRE (Absolute Balanced Relative Error)", que divide sempre pelo
+menor dos dois valores, pra não favorecer quem chuta baixo.
 
-Essa hierarquia é o que decide empate técnico. Quando a banda de 90 dias e a de
-91,3125 dias disputaram, a de 90 ganhou por reproduzir a Fig.2 banda a banda,
-mesmo custando concordância célula a célula na Tabela 3. Ver
-`discrepancias.md`, seção 27.
+O teste de Wilcoxon diz quais tipos e lados têm diferença estatisticamente
+significativa entre os dois métodos.
 
-## Ordem de execução
+### Magnetismo e stickiness
 
-    extract → classify → snapshots → metrics → attractiveness → projection
+Vêm do MSR14 (Yamashita et al.), o trabalho anterior aos artigos do Onoue et
+al. Contam só commits e pull requests, um ano por vez.
 
-`uv run pyramid run-all` roda os seis; `uv run pyramid plot` desenha; `uv run
-pyramid validate --report output/validation_report.md` confere contra os artigos.
+- Magnetismo: "we calculate the magnetism of a project as the proportion of
+  contributors who made their first contribution in the time period under
+  study who contribute to a given project."
+- Novato do ano é quem fez a primeira contribuição daquele ano em qualquer
+  projeto do dataset, não só nesse. Por isso essa conta não roda num
+  subconjunto de projetos: mudaria quem conta como novato.
+- Stickiness: "we calculate the stickiness of a project as the proportion of
+  the contributors in the time period under study who have also made
+  contributions in the following time period."
+
+Os quatro quadrantes, definidos pelo MSR14:
+
+| Quadrante | Magnetismo | Stickiness |
+|---|---|---|
+| Attractive | alto | alto |
+| Fluctuating | alto | baixo |
+| Stagnant | baixo | alto |
+| Terminal | baixo | baixo |
+
+O corte é a mediana entre os projetos elegíveis daquele ano, recalculada ano
+a ano. Só entram projetos com mais de 10 desenvolvedores no ano.
+
+### 2013 fica sem quadrante
+
+- O dump termina em outubro de 2013, sem ano seguinte completo.
+- A pirâmide de 2013 sai: usa só os dados até aquele recorte.
+- O quadrante de 2013 não sai: stickiness pede o ano seguinte, que o dump
+  não tem.
+
+### O que sai no fim
+
+- As pirâmides por status e por tipo.
+- O gráfico de transição entre faixas.
+- O comparativo CCR × NCR.
+- A projeção sobreposta ao valor real.
+- As tabelas de erro e de quadrante.
+
+Cada número é comparado com o publicado nos artigos.

@@ -578,7 +578,7 @@ def figure_fig2(year: int | None = None, highlight: list[int] | None = None) -> 
 
     É a figura que *origina* os quadrantes que a ESEM14 Fig.2 depois desenha
     como pirâmides. Fica fora da lista de artefatos de `docs/replicacao/METODO.md`,
-    seção 6, e é mantida por ser a única
+    seção 7, e é mantida por ser a única
     vista do critério de classificação em si.
 
     Ordem dos eixos, ticks e limites vêm da figura publicada: Sticky na
@@ -1001,7 +1001,7 @@ def figure_projection_overlay() -> Path:
 
 # ---------------------------------------------------------------------------
 # IEICE16 Tabelas 3 e 4: não são gráfico, mas são resultado obrigatório da
-# seção 6
+# seção 7
 # ---------------------------------------------------------------------------
 def figure_abre_table() -> Path:
     """Tabelas 3 e 4 lado a lado com o artigo, em CSV e markdown."""

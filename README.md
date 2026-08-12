@@ -99,7 +99,7 @@ Estágios individuais, na ordem: `extract` → `classify` → `snapshots` →
 Cada estágio é retomável e grava checkpoint; ver `CONTRIBUTING.md`, seção
 "Contrato de estágio".
 
-Figuras e tabelas exigidas (`docs/replicacao/METODO.md`, seção 6) saem em
+Figuras e tabelas exigidas (`docs/replicacao/METODO.md`, seção 7) saem em
 `output/plots/`, com
 `_manifest.json` declarando o que foi gerado com sucesso.
 
