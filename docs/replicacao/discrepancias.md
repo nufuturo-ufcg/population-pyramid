@@ -1984,9 +1984,9 @@ com os valores anteriores preservados em comentário `# antes:` na mesma linha:
 
 O desempate **não** foi por proximidade numérica. Nesse quesito as duas bandas
 empatam na prática (L1 da Tabela 3: 5,1054 para 90 contra 4,9574 para 91,3125,
-3% de diferença em 40 células, dentro do ruído). Foi pela hierarquia de critérios
-de `docs/replicacao/METODO.md`, seção 7: os projetos nomeados da Fig.2 devem bater **exatamente**,
-enquanto a Tabela 3 célula a célula **não é critério de aceite**. Com 90 o
+3% de diferença em 40 células, dentro do ruído). Foi pela hierarquia de critérios: os projetos nomeados da Fig.2 devem bater
+**exatamente**, enquanto a Tabela 3 célula a célula **não é critério de
+aceite**. Com 90 o
 blueprint-css bate banda a banda; com 91,3125 não.
 
 **O custo, dito sem maquiagem:** o Wilcoxon célula a célula cai de 11/20 para

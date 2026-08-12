@@ -50,7 +50,7 @@ Muda quando um número muda.
 | arquivo | o que é |
 |---|---|
 | [`RESUMO_EXECUTIVO.md`](replicacao/RESUMO_EXECUTIVO.md) | estado do projeto em uma página: o que bate, o que diverge, o placar. |
-| [`METODO.md`](replicacao/METODO.md) | do dump ao número, estágio por estágio, com o parâmetro de cada decisão. A seção 7 define o que conta como "bate". |
+| [`METODO.md`](replicacao/METODO.md) | do dump ao número, estágio por estágio, com o parâmetro de cada decisão. |
 | [`discrepancias.md`](replicacao/discrepancias.md) | log vivo de ambiguidade investigada. Cada entrada cita o comando exato e o número obtido. Cresce por acréscimo e nunca é podado. |
 | [`figuras/`](replicacao/figuras/README.md) | uma leitura por figura replicada: o que mostra, o que bate, o que diverge. |
 | `papers/` | PDFs de referência (ESEM14, MSR14, IEICE16 e o erratum). |
