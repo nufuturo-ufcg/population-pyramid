@@ -2670,3 +2670,32 @@ L1=62, C e D vazios), enquanto o pipeline roda `calendar_tenure`. Docstring
 descrevendo o contrário do código é o pior tipo de dívida num repo cujo produto é
 reprodutibilidade. Corrigidas para descrever a regra em vigor e apontar a
 alternativa refutada.
+
+## 43. Estágio de leitura abria o banco, e o CI escondia isso
+
+`plots` documenta desde o início que figura se regera com o MySQL desligado,
+porque o rótulo de projeto vem do manifesto do `extract`. Os outros estágios de
+leitura não cumpriam a mesma regra:
+
+* `metrics.load_all()` e `snapshots.load_all()` pediam a lista de projetos ao
+  adaptador, com `source().list_scopes()`, para depois filtrar por
+  `path(s).exists()`. A lista que interessa está no disco;
+* `metrics.table()` e `attractiveness.table()` pediam o rótulo ao adaptador,
+  com `scope_label`, tendo `extract.label_of` ao lado;
+* `validate` contava os 90 projetos com `len(source().list_scopes())`.
+
+Efeito: `pyramid types`, `pyramid magnetism` e `pyramid validate` exigiam banco de
+pé para ler parquet, e quatro testes de checkpoint de `test_attractiveness.py`
+quebravam com o banco desligado, em vez de rodar.
+
+O CI escondia o problema porque lá `output/attractiveness/` não existe (não é
+versionado): os testes pulavam antes de chegar na conexão. O sintoma só apareceu
+quando um teste novo tocou um artefato que o CI TEM (`output/plots/`) e foi ao
+banco pelo caminho de `metrics.load_all()`.
+
+Correção: leitura lê disco e manifesto, escrita continua perguntando o escopo ao
+adaptador, que é quem tem autoridade sobre quais são os 90 projetos.
+`tests/test_config.py` trava a regra trocando `source` por uma função que explode.
+
+Nenhum número se move: `pyramid validate --report` com `DB_PORT=1` produz o mesmo
+relatório, 167 checks, `conhecida=70`, `ok=97`.

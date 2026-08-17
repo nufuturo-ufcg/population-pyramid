@@ -302,6 +302,18 @@ def load(scope_id: int) -> pd.DataFrame:
     return pd.read_parquet(path(scope_id))
 
 
+def _ids_gravados() -> list[int]:
+    """Ids que este estágio já gravou, lidos do disco.
+
+    Leitura não pergunta o escopo ao banco. `load_all` empilha o que existe, e o
+    que existe está no disco: perguntar a lista ao MySQL só para depois filtrar
+    por `path(s).exists()` amarrava `pyramid types`, `pyramid validate` e os
+    testes de checkpoint a um banco de pé. Arquivo que não é `<id>.parquet` fica
+    de fora (o manifesto e as tabelas do estágio começam com `_`).
+    """
+    return sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+
+
 def load_all(
     scopes: list[int] | None = None, dates: list[pd.Timestamp] | None = None
 ) -> pd.DataFrame:
@@ -311,7 +323,7 @@ def load_all(
     × 90 projetos × 16 trimestres e a projeção só precisa de 3 datas; filtrar
     depois do empilhamento carregaria tudo à toa.
     """
-    ids = scopes if scopes is not None else source().list_scopes()
+    ids = scopes if scopes is not None else _ids_gravados()
     want = None if dates is None else {pd.Timestamp(d) for d in dates}
     frames = []
     for s in ids:

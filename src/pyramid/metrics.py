@@ -55,7 +55,7 @@ import pandas as pd
 from . import logging_config as runlog
 from . import snapshots
 from .config import stage_dir
-from .extract import source
+from .extract import label_of, source
 
 log = logging.getLogger(__name__)
 STAGE = "metrics"
@@ -150,9 +150,21 @@ def load(scope_id: int) -> pd.DataFrame:
     return pd.read_parquet(path(scope_id))
 
 
+def _ids_gravados() -> list[int]:
+    """Ids que este estágio já gravou, lidos do disco.
+
+    Leitura não pergunta o escopo ao banco. `load_all` empilha o que existe, e o
+    que existe está no disco: perguntar a lista ao MySQL só para depois filtrar
+    por `path(s).exists()` amarrava `pyramid types`, `pyramid validate` e os
+    testes de checkpoint a um banco de pé. Arquivo que não é `<id>.parquet` fica
+    de fora (o manifesto e as tabelas do estágio começam com `_`).
+    """
+    return sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+
+
 def load_all(scopes: list[int] | None = None) -> pd.DataFrame:
     """Empilha as métricas dos projetos pedidos, pulando o que ainda não rodou."""
-    ids = scopes if scopes is not None else source().list_scopes()
+    ids = scopes if scopes is not None else _ids_gravados()
     frames = [load(s) for s in ids if path(s).exists()]
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -163,11 +175,12 @@ def table(snapshot: str | pd.Timestamp, scopes: list[int] | None = None) -> pd.D
     if df.empty:
         return df
     t = pd.Timestamp(snapshot)
-    src = source()
     cut = snapshots.require_date_match(
         df[df["snapshot"] == t], t, "snapshot", "metrics.table"
     ).copy()
-    cut["project"] = [src.scope_label(s) for s in cut["scope_id"]]
+    # Rótulo vem do cache que o `extract` gravou no manifesto, não do banco: é a
+    # mesma regra que `plots` já seguia.
+    cut["project"] = [label_of(s) for s in cut["scope_id"]]
     return cut.sort_values(["type", "project"], na_position="last").reset_index(drop=True)
 
 
