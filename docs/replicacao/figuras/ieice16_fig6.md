@@ -37,3 +37,12 @@ separado, a Figura 7.
 Também não impusemos uma escala comum aos painéis. Fazer isso deixaria a figura
 mais fácil de ler, mas seria *melhorar* o original em vez de replicá-lo. O
 critério aqui é reprodução. Não é estética.
+
+## Janela da população
+
+A pirâmide desenha quem contribuiu nos últimos **três meses**, que é a regra
+que o próprio IEICE16 escreve na p.1306 e a mesma que produz o CCR e o NCR do
+projeto. Com isso o painel mostra a população que gerou o rótulo de tipo ao
+lado, e nenhum painel estoura a régua impressa no artigo. Para redesenhar com
+outra janela: `pyramid plot --figure all --window-months 12`. Ver
+`docs/replicacao/discrepancias.md`, seção 40.

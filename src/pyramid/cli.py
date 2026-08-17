@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from . import logging_config as runlog
-from .config import set_window, start_run
+from .config import set_pyramid_window, set_window, start_run
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -237,6 +237,12 @@ def plot(
         "(nome ou id, separados por vírgula); default vem de "
         "checkpoints.figures",
     ),
+    window_months: float = typer.Option(
+        None,
+        "--window-months",
+        help="janela da população da pirâmide, em meses, para TODAS as figuras "
+        "desta execução; default vem de plots.pyramid_window_months, por artigo",
+    ),
     listar: bool = typer.Option(False, "--list", help="lista as figuras e sai"),
     run: bool = typer.Option(False, "--run", help=RUN_HELP),
     rotulo: str = typer.Option(None, "--rotulo", help=ROTULO_HELP),
@@ -248,6 +254,10 @@ def plot(
         _plot_list()
         return
 
+    try:
+        set_pyramid_window(window_months)
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
     _abrir_run(run=run, rotulo=rotulo)
 
     if figure == plots.SINGLE:

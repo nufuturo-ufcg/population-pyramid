@@ -229,28 +229,43 @@ plots:
   # (metrics.py:111) e segue batendo 48/55.
   pyramid_population: active   # stock | active
 
-  # JANELA da população da pirâmide, em meses (seção 19, FECHADA).
+  # JANELA da população da pirâmide, EM MESES, POR ARTIGO (seção 19, seção 40).
   #
-  # Não é mais um chute: as barras da Fig.2 do ESEM14 foram MEDIDAS em pixel
-  # (eixo calibrado pelas linhas de grade: 750/500/250 no homebrew, 100/50 no
-  # paperclip, 10/5 no clojure, 5 no blueprint-css) e comparadas banda a banda
-  # com a replicação em 2011-12-31, varrendo a janela em 3/6/9/12/18/24/∞ meses.
-  # 12 meses minimiza o erro L1 nos QUATRO painéis ao mesmo tempo:
+  # Cada artigo tem a sua regra, e a chave é por artigo para as duas conviverem
+  # sem uma contaminar a outra. `pyramid plot --window-months N` sobrescreve as
+  # duas numa execução, que é como se varre outro valor sem editar este arquivo.
   #
-  #   janela |  3m   6m   9m  12m  18m  24m   ∞
-  #   homebrew  2560 1369  747  328  594  799  855
-  #   paperclip  355  203   69   33  181  268  364
-  #   clojure     26   18   14   10   25   34   49
-  #   blueprint   12    5    1    2    3    4   23
+  # ieice16: 3 meses, literal na p.1306 ("we consider that a contributor left a
+  #   project when he/she did not give any contribution on that project for more
+  #   than three months"). É a mesma regra que `periods.inactivity_months` dá às
+  #   métricas, então a pirâmide da Fig.6 passa a desenhar a MESMA população que
+  #   produziu o CCR/NCR daquele projeto.
   #
-  # Totais em 12m: 3882/524/49/13 contra 3946/535/47/13 medidos (a medição lê
-  # ~2% a mais, é a borda preta da barra). A 3 meses o blueprint-css desaba
-  # para UM contribuidor; a ∞ (estoque) reaparecem as bandas 16-17 que a figura
-  # não tem. Ver docs/replicacao/discrepancias.md seção 19.
+  # esem14: 12 meses. O ESEM14 não escreve regra nenhuma de saída, e o valor saiu
+  #   de MEDIÇÃO em pixel das barras da Fig.2, banda a banda, nos quatro painéis
+  #   (eixo calibrado pelas linhas de grade: 750/500/250 no homebrew, 100/50 no
+  #   paperclip, 10/5 no clojure, 5 no blueprint-css):
   #
-  # Leitura substantiva: com snapshot em fim de ano, "janela de 12 meses" é
-  # "quem contribuiu durante o ano do snapshot". A pirâmide anual conta a
-  # população do ANO, não a do trimestre. O `inactivity_months: 3` do
-  # MSR14/IEICE16 continua valendo onde o artigo o crava: quebra de períodos
-  # em `classify` e população de CCR/NCR em `metrics`.
-  pyramid_window_months: 12
+  #     janela |  3m   6m   9m  12m  18m  24m   ∞
+  #     homebrew  2560 1369  747  328  594  799  855
+  #     paperclip  355  203   69   33  181  268  364
+  #     clojure     26   18   14   10   25   34   49
+  #     blueprint   12    5    1    2    3    4   23
+  #
+  #   12 meses minimiza o erro L1 nos quatro painéis ao mesmo tempo. Totais em
+  #   12m: 3882/524/49/13 contra 3946/535/47/13 medidos (a medição lê ~2% a mais,
+  #   é a borda preta da barra). A 3 meses o blueprint-css desaba para UM
+  #   contribuidor; a ∞ (estoque) reaparecem as bandas 16-17 que a figura não tem.
+  #   Ver docs/replicacao/discrepancias.md seção 19 e seção 31.
+  #
+  #   Leitura substantiva: com snapshot em fim de ano, "janela de 12 meses" é
+  #   "quem contribuiu durante o ano do snapshot". A pirâmide anual do ESEM14
+  #   conta a população do ANO.
+  #
+  # default: 3 meses, para pirâmide fora de artigo (`--figure pyramid-single`).
+  #   Fora de figura publicada vale a regra que os artigos escrevem, que é também
+  #   a que as métricas usam.
+  pyramid_window_months:
+    esem14: 12
+    ieice16: 3
+    default: 3

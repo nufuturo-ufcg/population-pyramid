@@ -32,3 +32,12 @@ Vale notar que estes dois projetos, por estarem no centro do gráfico, são
 exatamente o tipo de caso sensível a variação mínima de contagem. Que os dois
 tenham caído no tipo certo é um sinal a favor do método, mas é apenas um sinal.
 Com dois casos, não dá para tirar conclusão estatística.
+
+## Janela da população
+
+A pirâmide desenha quem contribuiu nos últimos **três meses**, que é a regra
+que o próprio IEICE16 escreve na p.1306 e a mesma que produz o CCR e o NCR do
+projeto. Com isso o painel mostra a população que gerou o rótulo de tipo ao
+lado, e nenhum painel estoura a régua impressa no artigo. Para redesenhar com
+outra janela: `pyramid plot --figure all --window-months 12`. Ver
+`docs/replicacao/discrepancias.md`, seção 40.
