@@ -68,6 +68,7 @@ saldo cai todo no mesmo eixo: sobra A, falta C.
 |---|---|
 | ![](figuras/artigo/ieice16_fig5_artigo.png) | ![](../../output/plots/ieice16_fig5_2013-09-30.png) |
 | ![](figuras/artigo/ieice16_fig6_artigo.png) | ![](../../output/plots/ieice16_fig6_tipos_2013-09-30.png) |
+| ![](figuras/artigo/ieice16_fig7_artigo.png) | ![](../../output/plots/ieice16_fig7_centrados_2013-09-30.png) |
 
 **Explicação mais provável: o artigo usa uma definição de "newcomer" mais generosa que a nossa.**
 O desvio se concentra em 4 projetos grandes que damos como A e o artigo dá como C. Os projetos
