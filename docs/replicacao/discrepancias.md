@@ -2922,3 +2922,42 @@ possível com o que está publicado: os autores podem ter descrito o dataset (Fi
 e Fig.3, seção 2.3) com uma contagem de commit e rodado o método (Fig.5 em diante)
 com outra. Este repositório não faz isso: escopo é um parâmetro só, para o método
 inteiro, e um escopo por artefato seria irreproduzível na prática.
+
+## 42. MRE, MER e MAE: a conclusão do artigo depende da métrica
+
+O IEICE16 define três métricas de erro na p.1311, citando Miyazaki et al. [19], e
+publica só a mediana do ABRE, na Tabela 3. As outras duas viviam neste repositório
+como comentário no `settings.yaml`, sem nunca terem sido calculadas. Agora o
+estágio `projection` grava as quatro por célula, e `pyramid plot --figure
+error-metrics` desenha:
+
+```sh
+pyramid projection --force && pyramid plot --figure error-metrics
+```
+
+Agregado (`All types`, categoria `all`, 335 pares):
+
+| métrica | agregação | coorte | baseline | quem ganha |
+|---|---|---|---|---|
+| ABRE | mediana | 0,3894 | 0,5000 | coorte |
+| MRE | mediana | 0,3333 | 0,4000 | coorte |
+| MER | mediana | 0,3333 | 0,3750 | coorte |
+| **MAE** | média | **7,93** | **7,38** | **baseline** |
+
+A conclusão do artigo ("the cohort method is better than the baseline") se
+sustenta nas três métricas RELATIVAS, em todos os tipos. Ela **inverte no erro
+absoluto** nos tipos A, B, D e no agregado.
+
+O mecanismo não é sutil: erro relativo divide pelo tamanho da coorte, e coorte
+pequena é a maioria das células (a cauda da pirâmide), então a mediana relativa
+descreve o comportamento nas coortes pequenas. O MAE é dominado pelas bandas
+grandes, que é onde a projeção por coorte erra em número de pessoas. As duas
+coisas são verdade ao mesmo tempo.
+
+Isto não é divergência com o artigo: o artigo escolheu o ABRE e reportou o ABRE, e
+o ABRE reproduz a direção que ele afirma (seção 12.2). Fica registrado porque a
+escolha de métrica não é neutra, e quem for usar a projeção para decidir alguma
+coisa precisa saber qual das duas leituras responde à pergunta dele.
+
+Nenhuma trava nova: só o ABRE tem contraparte publicada, e as outras três saem do
+mesmo parquet, já travado em `replica_locks`.

@@ -1175,6 +1175,63 @@ def figure_projection_overlay() -> Path:
     return _save(fig, f"ieice16_fig8_projecao_{alvo.date()}", rect=(0, 0.07, 1, 0.95))
 
 
+def figure_error_metrics() -> Path:
+    """IEICE16 seção 5: ABRE, MRE, MER e MAE, coorte contra baseline.
+
+    O artigo define as três métricas de erro (p.1311, citando Miyazaki et al.) e
+    publica só a mediana do ABRE, na Tabela 3. As outras existiam neste repositório
+    apenas como comentário no `settings.yaml`. Desenhá-las lado a lado responde
+    quanto da conclusão do artigo depende da métrica escolhida.
+
+    Um painel por métrica, tipo no eixo x, população `all`. As relativas vão por
+    mediana, como a Tabela 3; o MAE vai por média, que é o que o "M" quer dizer, e
+    fica em contribuidores em vez de proporção. O CSV irmão traz as quatro
+    métricas em todas as categorias.
+    """
+    tabela = projection.tables()["erros"]
+    if tabela.empty:
+        raise ValueError("métricas de erro: sem projeção; rode `pyramid projection` antes.")
+
+    metricas = ["ABRE", "MRE", "MER", "MAE"]
+    tipos = ["A", "B", "C", "D", "All types"]
+    fig, axes = plt.subplots(1, len(metricas), figsize=(3.1 * len(metricas), 3.4))
+    x = range(len(tipos))
+    for ax, metrica in zip(axes, metricas, strict=True):
+        _theme(ax)
+        cut = tabela[(tabela["metric"] == metrica) & (tabela["category"] == "all")]
+        cut = cut.set_index("type").reindex(tipos)
+        largura = 0.38
+        ax.bar(
+            [i - largura / 2 for i in x],
+            cut["cohort"],
+            largura,
+            color="#4D4D4D",
+            edgecolor="#4D4D4D",
+            label="coorte",
+        )
+        ax.bar(
+            [i + largura / 2 for i in x],
+            cut["baseline"],
+            largura,
+            color="#FFFFFF",
+            hatch="///",
+            edgecolor="#4D4D4D",
+            label="baseline",
+        )
+        como = str(cut["aggregation"].iloc[0])
+        unidade = "contribuidores" if metrica == "MAE" else "proporção"
+        ax.set_title(f"{metrica} ({como})", fontsize=9)
+        ax.set_ylabel(unidade, fontsize=8)
+        ax.set_xticks(list(x))
+        ax.set_xticklabels([t.replace("All types", "todos") for t in tipos], fontsize=7.5)
+
+    axes[0].legend(fontsize=7.5, frameon=False)
+    fig.suptitle("IEICE16 seção 5: erro da projeção por métrica  (menor é melhor)", fontsize=10)
+    stem = "ieice16_metricas_de_erro"
+    _dump(tabela, stem)
+    return _save(fig, stem, rect=(0, 0, 1, 0.94))
+
+
 # ---------------------------------------------------------------------------
 # IEICE16 Tabelas 3 e 4: não são gráfico, mas são resultado obrigatório da
 # seção 7
@@ -1400,6 +1457,7 @@ FIGURES = {
     "pyramid-grid-centered": figure_grid_centered,
     "pyramid-projection-overlay": figure_projection_overlay,
     "abre-table": figure_abre_table,
+    "error-metrics": figure_error_metrics,
     "quadrant-table": figure_quadrant_table,
     "magnet-sticky": figure_fig2,
 }

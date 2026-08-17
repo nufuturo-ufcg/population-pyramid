@@ -19,3 +19,4 @@ aponta a seção correspondente quando existe.
 | IEICE16 Fig. 6 | [ieice16_fig6.md](ieice16_fig6.md) | todos os projetos nomeados caem no tipo certo |
 | IEICE16 Fig. 7 | [ieice16_fig7.md](ieice16_fig7.md) | os dois projetos do painel batem |
 | IEICE16 Fig. 8 | [ieice16_fig8.md](ieice16_fig8.md) | a projeção roda, mas o acerto contra o artigo é baixo |
+| IEICE16 seção 5 | [ieice16_metricas_de_erro.md](ieice16_metricas_de_erro.md) | coorte ganha nas três métricas relativas e perde no MAE |
