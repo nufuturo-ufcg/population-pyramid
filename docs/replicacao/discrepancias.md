@@ -2961,3 +2961,100 @@ coisa precisa saber qual das duas leituras responde à pergunta dele.
 
 Nenhuma trava nova: só o ABRE tem contraparte publicada, e as outras três saem do
 mesmo parquet, já travado em `replica_locks`.
+
+## 44. MSR14 Fig.3: 23 das 25 células batem, e as 2 que não são a linha do stagnant
+
+A Fig.3 do MSR14 era a última figura publicada dos três artigos sem replicação
+neste repositório. Ela é um diagrama de estados com 20 setas rotuladas, e nenhuma
+tabela: os valores tiveram de ser decodificados antes de qualquer comparação.
+
+### 44.1 Como os 25 valores do artigo foram lidos
+
+```sh
+pdftotext -bbox -f 4 -l 4 docs/replicacao/papers/MSR14.pdf -
+```
+
+Isso dá a caixa de cada rótulo. Os nós ficam em (135, 212) stagnant, (196, 212)
+attractive, (135, 273) terminal, (196, 273) floating, (100, 242) e (232, 242) para
+os dois `*`. Cada par de nós tem duas setas paralelas, uma por sentido, e cada
+rótulo cai de um lado da reta que liga os nós. O lado diz o sentido: tomando o
+produto vetorial entre (rótulo menos nó de origem) e (direção do nó de origem até
+o nó de destino), sinal positivo é seta SAINDO daquele nó.
+
+A regra não foi assumida, foi calibrada contra três frases do próprio artigo:
+
+* "the likelihood of transitioning from the attractive quadrant to the fluctuating
+  one is 22%" fixa o par vertical da direita;
+* "23% of terminal quadrant projects eventually decay into a state where they have
+  ten or fewer contributors" fixa a diagonal terminal para `*`;
+* "only four percentage points differentiate the two directions" no par
+  terminal/fluctuating fixa 18 e 14, e não o contrário.
+
+Corroboração independente: com essa leitura as cinco linhas somam 98, 96, 103, 105
+e 101, que é o arredondamento a 1 % de cinco células. Qualquer troca de sentido que
+eu testei põe uma linha em 90 e outra em 117. Os 25 valores ficaram versionados em
+`config/checkpoints.yaml: figures.msr14_fig3.matrix`, e `validate` passa a conferir
+célula a célula, com tolerância de 10 pontos percentuais.
+
+Tolerância em PONTOS, não relativa: numa célula de 5 % uma diferença relativa de
+20 % é meio ponto, ruído de arredondamento; numa de 50 % são dez pontos.
+
+### 44.2 O que reproduz
+
+```sh
+pyramid plot --figure quadrant-transitions
+```
+
+| linha | replicação | artigo |
+|---|---|---|
+| attractive | 53 / 26 / 5 / 16 / 0 | 50 / 22 / 6 / 20 / 0 |
+| floating | 15 / 54 / 12 / 19 / 0 | 14 / 59 / 9 / 14 / 0 |
+| stagnant | **19** / 22 / **44** / 15 / 0 | **37** / 22 / **27** / 17 / 0 |
+| terminal | 4 / 26 / 9 / 39 / 22 | 14 / 18 / 5 / 45 / 23 |
+| `*` | 10 / 9 / 22 / 17 / 42 | 9 / 8 / 26 / 18 / 40 |
+
+Ordem das colunas: attractive, floating, stagnant, terminal, `*`.
+
+23 das 25 células dentro de 10 pontos. Reproduzem também as leituras qualitativas
+que o artigo faz da figura:
+
+* **"terminal quadrant projects are the only ones that drop into the filtered away
+  state"**: só `terminal` tem seta para o `*`, 22 % contra 23 %. As outras três
+  dão 0 %, igual ao diagrama;
+* auto-transição é o destino mais provável nos quatro quadrantes, e na mesma
+  ordem de força;
+* as duas exceções que o artigo nomeia (transição do quadrante mais baixo para o
+  mais alto sendo mais provável que a volta) caem nas mesmas duas duplas,
+  stagnant/attractive e terminal/floating;
+* floating se espalha parecido pelas outras três categorias.
+
+### 44.3 A divergência: o estagnado que não vira atrativo
+
+| transição | artigo | replicação | diferença |
+|---|---|---|---|
+| stagnant → attractive | 37 % | 19 % | -18 pontos |
+| stagnant → stagnant | 27 % | 44 % | +17 pontos |
+
+É uma divergência só, vista de dois lados: as duas células somam 64 % no artigo e
+63 % aqui. A população é a mesma e vai para outro lado. Mesmo sentido do que a
+seção 13 achou no jekyll e a seção 38 nos Tipos A-D: a replicação promove menos
+projeto a atrativo, porque o magnetismo usa o denominador de novatos do dataset
+inteiro e quem está na fronteira da mediana cai do lado de baixo. Declarada em
+`known_divergences`.
+
+### 44.4 A frase dos dois terços não fecha com o diagrama do próprio artigo
+
+O texto diz: "we check how many of the projects that enter the filtered state (*)
+were in the terminal state just before. We find that two-thirds of filtered state
+projects originate from the terminal state."
+
+Se dois terços vêm de terminal, um terço vem de outro estado, e um terço não
+arredonda para 0 %. O diagrama publicado dá 0 % em stagnant, attractive e
+fluctuating para `*`, ou seja, 100 %. As duas afirmações do artigo não podem valer
+ao mesmo tempo sob a leitura de transição.
+
+Medido aqui, contando todo mundo que entra em `*` entre 2004 e 2011: 47 vêm de
+"ainda não existia", 33 são `*` que continua `*`, e 5 vêm de terminal. Sob a
+leitura de transição entre estados do diagrama, terminal é 100 % (5 de 5), como no
+diagrama. Sob a leitura "toda entrada em `*`", terminal é 6 %. Nenhuma das duas dá
+dois terços, e a frase fica sem contraparte verificável.
