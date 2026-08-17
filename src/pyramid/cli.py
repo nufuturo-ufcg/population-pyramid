@@ -50,7 +50,7 @@ ROTULO_HELP = "sufixo do nome da pasta da execução; implica --run"
 JANELA_HELP = "data AAAA-MM-DD; corta a série de snapshots de settings.yaml"
 
 # Figuras que aceitam anel. As outras ignorariam o pedido em silêncio.
-ANELAVEIS = ("magnet-sticky", "type-scatter", "activity-scatter")
+ANELAVEIS = ("magnet-sticky", "type-scatter", "activity-scatter", "period-scatter")
 
 
 def _module(stage: str) -> ModuleType:

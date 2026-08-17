@@ -185,6 +185,17 @@ replica_locks:
 # constante mágica sem procedência.
 # ---------------------------------------------------------------------------
 figures:
+  # "Fig. 2  Distribution of development periods and the number of contributors."
+  # Régua lida do recorte em docs/replicacao/figuras/artigo/ieice16_fig2_artigo.png:
+  # 0 a 5.000 dias em x, 0 a 12.000 contribuidores em y. Esta figura é o controle
+  # da replicação: mede data e gente, não evento, e é onde se vê que o dump e a
+  # janela de tempo são os mesmos do artigo (seção 39.2 do discrepancias.md).
+  ieice16_fig2:
+    xlim: [-150, 5150]
+    ylim: [-400, 12400]
+    xticks: [0, 1000, 2000, 3000, 4000, 5000]
+    yticks: [0, 2000, 4000, 6000, 8000, 10000, 12000]
+    highlight: [79163, 78852]   # mxcl/homebrew, rails/rails
   # "Fig. 3  Distribution of the number of coding contributors and the number of
   #  non-coding contributors." A legenda diz CONTRIBUIDOR e os rótulos dos eixos
   # da figura publicada dizem ATIVIDADE. A régua abaixo é a dela, lida do recorte
