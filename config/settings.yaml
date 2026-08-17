@@ -68,11 +68,21 @@ taxonomy:
       excluded: []
 
 # ---------------------------------------------------------------------------
-# AMBIGUIDADE 2: escopo de commits. Ver docs/replicacao/discrepancias.md, seção 2.
-# Medido em dez/2011 para homebrew, entre contribuidores ATIVOS (que é o que a
-# pirâmide mostra): root=1446, family_project_commits=1479, family_project_id=1480.
-# Diferença de ~2%. Em contagem cumulativa daria 45%, mas cumulativo não é usado
-# em lugar nenhum do método. Risco baixo; começamos pelo mais simples.
+# AMBIGUIDADE 2: escopo de commits. Ver discrepancias.md, seção 2, seção 36 e seção 41.
+#
+# `commits.project_id` é onde o commit foi REGISTRADO. Contribuidor externo commita
+# no fork dele e abre pull request, então o commit chega ao projeto por
+# `project_commits`. As três leituras foram rodadas de ponta a ponta (seção 41):
+#
+#   leitura                  Fig.3 homebrew  Fig.3 rails  Tipos A-D  L1  validate
+#   root (EM VIGOR)                 -36,7 %      -23,5 %  26/40/15/4   9  0 falhas
+#   family_project_commits           +3,5 %       +2,4 %  28/39/14/4  13  3 falhas
+#   family_project_id                +5,8 %       +3,7 %  29/38/15/3  13  5 falhas
+#
+# As duas medidas publicadas discordam: a contagem de evento da Fig.3 escolhe
+# família, a distribuição de tipos da Fig.5 escolhe root. Fica `root` porque a
+# Fig.5 é o checkpoint de referência da replicação. A divergência da Fig.3 está
+# declarada na seção 39, não contornada.
 # ---------------------------------------------------------------------------
 commit_scope: root   # root | family_project_commits | family_project_id
 
