@@ -39,8 +39,8 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from . import attractiveness as attr
+from . import classify, metrics, projection, snapshots
 from . import logging_config as runlog
-from . import metrics, projection, snapshots
 from .config import artifact_dir, checkpoints, settings
 from .extract import labels
 
@@ -430,14 +430,22 @@ def _scatter(  # noqa: PLR0913, PLR0917
     ax: Axes,
     x: pd.Series,
     y: pd.Series,
-    vx: float,
-    vy: float,
+    vx: float | None,
+    vy: float | None,
     xlabel: str,
     ylabel: str,
 ) -> None:
+    """Dispersão com régua vermelha opcional no corte de cada eixo.
+
+    `vx`/`vy` em `None` não desenham linha: as dispersões da seção 2.3 do IEICE16
+    (Fig.2 e Fig.3) descrevem o dataset e não têm corte nenhum a marcar, ao
+    contrário da Fig.5 (zero) e da Fig.2 do MSR14 (medianas).
+    """
     _theme(ax)
-    ax.axvline(vx, color="#B03A2E", linewidth=0.9, linestyle="--", zorder=1)
-    ax.axhline(vy, color="#B03A2E", linewidth=0.9, linestyle="--", zorder=1)
+    if vx is not None:
+        ax.axvline(vx, color="#B03A2E", linewidth=0.9, linestyle="--", zorder=1)
+    if vy is not None:
+        ax.axhline(vy, color="#B03A2E", linewidth=0.9, linestyle="--", zorder=1)
     ax.scatter(x, y, s=18, color="#333333", zorder=3)
     ax.set_xlabel(xlabel, fontsize=8)
     ax.set_ylabel(ylabel, fontsize=8)
@@ -722,6 +730,65 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
     dados.insert(1, "project", dados["scope_id"].map(lambda s: labels().get(int(s), str(s))))
     dados["highlighted"] = dados["scope_id"].isin(anelados)
     _dump(dados.sort_values(["type", "scope_id"]), stem)
+    return _save(fig, stem)
+
+
+# ---------------------------------------------------------------------------
+# IEICE16 seção 2.3: as duas dispersões que descrevem o dataset
+# ---------------------------------------------------------------------------
+def figure_ieice16_fig3(highlight: list[int] | None = None) -> Path:
+    """IEICE16 Fig.3: atividades de código (x) × atividades de não-código (y).
+
+    A legenda publicada diz "the number of coding contributors and the number of
+    non-coding contributors", e os rótulos dos eixos da figura dizem "The number
+    of coding activities" e "The number of non-coding activities". A escala
+    desempata: o eixo y vai a 250.000 e o x a 60.000, enquanto o projeto mais
+    populoso do dump tem cerca de 10 mil contribuidores, que é o que a Fig.2 do
+    mesmo artigo mostra. Desenhamos ATIVIDADE, o que os eixos afirmam. O CSV
+    irmão traz também a contagem de contribuidores dos dois lados, para a
+    leitura da legenda ser conferível sem refazer a figura. Ver
+    docs/replicacao/discrepancias.md, seção 39.
+    """
+    cfg = _fig_cfg("ieice16_fig3")
+    if not classify.overview_path().exists():
+        raise ValueError("Fig.3: sem overview do classify; rode `pyramid classify` antes.")
+    df = classify.load_overview()
+
+    fig, ax = plt.subplots(figsize=(5.0, 4.4))
+    _scatter(
+        ax,
+        df["coding_activities"],
+        df["non_coding_activities"],
+        None,
+        None,
+        "atividades de código",
+        "atividades de não-código",
+    )
+    # Régua da figura publicada. Ponto que passar do último tick continua
+    # desenhado: o transbordo é achado, como na Fig.2 do ESEM14.
+    ax.set_xlim(*cfg["xlim"])
+    ax.set_ylim(*cfg["ylim"])
+    ax.set_xticks(cfg["xticks"])
+    ax.set_yticks(cfg["yticks"])
+    # Sem isto o matplotlib troca 250000 por um "1e5" no canto do eixo, e a
+    # comparação com a régua impressa do artigo deixa de ser direta.
+    ax.ticklabel_format(style="plain")
+
+    anelados = _anelados(cfg, df["scope_id"], highlight, "Fig.3", "no dataset")
+    _anelar(
+        ax,
+        df[df["scope_id"].isin(anelados)],
+        "coding_activities",
+        "non_coding_activities",
+        lambda r: _repo(r["scope_id"]),
+    )
+
+    ax.set_title(f"IEICE16 Fig.3: atividades de código × não-código  (n={len(df)})", fontsize=9)
+    stem = "ieice16_fig3"
+    dados = df.copy()
+    dados.insert(1, "project", dados["scope_id"].map(lambda s: labels().get(int(s), str(s))))
+    dados["highlighted"] = dados["scope_id"].isin(anelados)
+    _dump(dados, stem)
     return _save(fig, stem)
 
 
@@ -1215,6 +1282,7 @@ def figure_quadrant_table() -> Path:
 
 
 FIGURES = {
+    "activity-scatter": figure_ieice16_fig3,
     "pyramid-grid-status": figure_grid_status,
     "pyramid-transition": figure_fig3,
     "type-scatter": figure_fig5,
