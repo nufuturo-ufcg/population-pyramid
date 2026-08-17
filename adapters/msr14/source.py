@@ -88,11 +88,21 @@ _COMMIT_SCOPE_SQL = {
         SELECT c.author_id AS contributor_id, c.created_at AS ts
         FROM commits c WHERE c.project_id = :sid
     """,
+    # O DISTINCT do commit_id não é enfeite. `project_commits` tem uma linha por
+    # (projeto, commit), e o commit que existe na raiz e num fork aparece uma vez
+    # por projeto da família: sem ele o mesmo commit vira dois eventos. Medido nos
+    # 90 raízes: 592.205 linhas para 547.917 commits distintos, +8,1 %, em 85 dos
+    # 90 projetos, chegando a +24,2 % no symfony/symfony. O DISTINCT tem de ficar
+    # no id, nunca no par (autor, data): dois commits diferentes do mesmo autor no
+    # mesmo segundo são dois eventos, e colapsá-los apagaria atividade real.
     "family_project_commits": """
         SELECT c.author_id AS contributor_id, c.created_at AS ts
-        FROM project_commits pc
-        JOIN projects p ON p.id = pc.project_id AND COALESCE(p.forked_from, p.id) = :sid
-        JOIN commits c ON c.id = pc.commit_id
+        FROM (
+            SELECT DISTINCT pc.commit_id
+            FROM project_commits pc
+            JOIN projects p ON p.id = pc.project_id AND COALESCE(p.forked_from, p.id) = :sid
+        ) f
+        JOIN commits c ON c.id = f.commit_id
     """,
     "family_project_id": """
         SELECT c.author_id AS contributor_id, c.created_at AS ts
