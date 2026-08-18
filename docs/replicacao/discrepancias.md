@@ -3058,3 +3058,131 @@ Medido aqui, contando todo mundo que entra em `*` entre 2004 e 2011: 47 vêm de
 leitura de transição entre estados do diagrama, terminal é 100 % (5 de 5), como no
 diagrama. Sob a leitura "toda entrada em `*`", terminal é 6 %. Nenhuma das duas dá
 dois terços, e a frase fica sem contraparte verificável.
+
+## 45. As afirmações numéricas que só existem na prosa dos artigos
+
+As figuras e as tabelas dos três artigos estão replicadas e travadas no
+`validate`. Sobrava um resto: número que o autor escreve no meio do texto e nunca
+põe em figura. Esta seção mede esse resto de uma vez, para ninguém precisar
+refazer a varredura, e diz de cada item se ele virou check ou não.
+
+**Nenhum destes seis itens virou check novo, e isso é decisão, não esquecimento.**
+O critério está no fim da seção.
+
+### 45.1 Tabela 1 do MSR14: o dump inteiro
+
+> "# Users 499,485 | # Projects 108,718 | # Commits 555,325" (MSR14 p.2)
+
+```sh
+docker exec -i msr14 mysql -uroot -p"$DB_PASSWORD" -N -B msr14 -e "
+SELECT 'users', COUNT(*) FROM users
+UNION ALL SELECT 'projects', COUNT(*) FROM projects
+UNION ALL SELECT 'commits', COUNT(*) FROM commits"
+```
+
+| | artigo | dump |
+|---|---|---|
+| users | 499.485 | 499.485 |
+| projects | 108.718 | 108.718 |
+| commits | 555.325 | 555.325 |
+
+**Bate exato, 3 de 3.** É a confirmação de que este dump é o dos autores.
+
+### 45.2 "70% dos projetos começaram depois de 2009"
+
+> "70% of the studied projects only began development after 2009" (MSR14 p.4)
+
+Primeiro evento de cada projeto, do `classify`:
+
+```python
+prim = {sid: classify.load(sid)["span_start"].min() for sid in classify.load_overview()["scope_id"]}
+(pd.Series(prim) >= pd.Timestamp("2009-01-01")).mean()
+```
+
+**70,0% dos 90 projetos. Bate exato.**
+
+### 45.3 Os dois extremos da Fig.2 do MSR14
+
+O MSR14 inspeciona à mão os dois projetos extremos, e o ESEM14 repete a
+afirmação: "although the homebrew project has the largest magnet value in the
+dataset, its sticky value is not so high" (ESEM14 seção 4).
+
+Em 2011, entre os elegíveis: maior magnetismo **mxcl/homebrew, 0,2148** (o
+segundo é rails, com 0,1021) e maior stickiness **django/django, 0,84**.
+
+**Os dois batem**, e são exatamente os dois projetos que a `msr14_fig2` anela.
+
+### 45.4 Composição por tipo da amostra da projeção
+
+> "we project a future population size for the 36 projects that have more than
+> 100 contributors. There are four projects categorized as Type A, 21 projects as
+> Type B, nine projects as Type C, and two projects as Type D." (IEICE16 p.1311)
+
+| tipo | artigo | replicação |
+|---|---|---|
+| A | 4 | 8 |
+| B | 21 | 19 |
+| C | 9 | 5 |
+| D | 2 | 2 |
+| total | 36 | 34 |
+
+**Diverge, e no mesmo eixo de sempre: sobra A, falta C.** É a terceira vista do
+mesmo viés, depois dos Tipos A-D da seção 38 e da linha do stagnant na seção 44,
+agora numa subpopulação diferente (os 34 projetos grandes). O total de 34 contra
+36 já estava analisado na seção 7.
+
+### 45.5 Os seis projetos perto da origem
+
+> "if we distinguish the projects that plotted around the origin belonging to the
+> top 10% and others, six project such as homebrew, rails, bitcoin, diaspora,
+> openFrameworks and redis meet that definition." (IEICE16 p.1310)
+
+Distância euclidiana até (0,0) no plano CCR × NCR, em set/2013, 10% menores de 85
+classificados, ou seja 8 projetos: **diaspora, rails, symfony, html5-boilerplate,
+ThinkUp, bitcoin, libuv, hiphop-php**.
+
+**Reproduz 3 dos 6 citados** (rails, bitcoin, diaspora). Faltam homebrew,
+openFrameworks e redis. O artigo escreve "six project such as", que é lista de
+exemplo e não a lista fechada, então o que dá para afirmar é a interseção.
+
+### 45.6 As afirmações de forma do RQ1 do ESEM14
+
+Esta é a resposta do ESEM14 à pergunta de pesquisa dele, generalizada para além
+dos quatro painéis da Fig.2: "the fluctuating projects found to have left-sided
+pyramids", "the stagnant projects have right-sided pyramids", "other attractive
+projects have similar balanced shape", "the shapes of the terminal projects'
+software population pyramids are collapsed".
+
+Medida em 2011-12-31, com a janela do ESEM14 (12 meses), sobre os 75 projetos
+elegíveis daquele ano. "Lado coding" é `(coding + moved) / total`:
+
+| quadrante | n | mediana do lado coding | à esquerda | à direita | mediana de gente |
+|---|---|---|---|---|---|
+| attractive | 15 | 57 % | 40 % | 60 % | 275 |
+| floating | 22 | 38 % | **73 %** | 27 % | 254 |
+| stagnant | 22 | 56 % | 36 % | **64 %** | 56 |
+| terminal | 16 | 32 % | 56 % | 44 % | 88 |
+
+**Três das quatro se sustentam.** Floating é de esquerda em 73 % dos casos,
+stagnant é de direita em 64 %, e attractive fica perto do meio (57 %).
+
+**A do terminal não se sustenta como volume:** a mediana de gente do terminal é 88
+e a do stagnant é 56, então o terminal não é o quadrante mais colapsado. Ressalva
+que a medida exige: "colapsada" no artigo é adjetivo de forma, e volume é a
+operacionalização escolhida AQUI. O artigo não define o termo, então isto refuta
+uma leitura possível da frase, não a frase.
+
+### 45.7 Por que nada disto virou check novo
+
+O `validate` já tem 192 checks sobre os mesmos estágios, e `make check` já barra
+banco errado contando os 90 projetos raiz. Item que só corrobora prosa (45.2,
+45.3, 45.5) entraria como check verde que alguém teria de manter, sem mudar
+decisão nenhuma. Os que divergem (45.4, 45.6) são vistas novas de divergências já
+declaradas e analisadas, e virar check faria o relatório crescer sem informação
+nova.
+
+O que ficou registrado como ideia, sem execução: as contagens de `users` e
+`commits` da 45.1 caberiam em duas linhas no `sanity check` de
+`adapters/msr14/prepare_dataset.sh`, ao lado do "90 projetos raiz". O check de
+hoje não pega import parcial da tabela `commits`, e essas duas linhas pegariam.
+Não foi feito aqui para esta entrada continuar sendo só documentação.
