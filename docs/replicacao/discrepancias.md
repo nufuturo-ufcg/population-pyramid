@@ -2670,3 +2670,147 @@ L1=62, C e D vazios), enquanto o pipeline roda `calendar_tenure`. Docstring
 descrevendo o contrário do código é o pior tipo de dívida num repo cujo produto é
 reprodutibilidade. Corrigidas para descrever a regra em vigor e apontar a
 alternativa refutada.
+
+## 39. IEICE16 Fig.2 e Fig.3: as datas batem, a contagem de commit não
+
+A Fig.3 do IEICE16 nunca tinha sido replicada, e é o **primeiro artefato desta
+replicação que conta EVENTO** em vez de contar contribuidor ou data. Ela expõe uma
+divergência que nenhuma pirâmide conseguia ver.
+
+Duas leituras do artigo entram aqui. A primeira é a legenda contra os eixos:
+
+* **legenda:** "Distribution of the number of coding contributors and the number
+  of non-coding contributors";
+* **rótulos dos eixos, na imagem:** "The number of coding activities" (x) e
+  "The number of non-coding activities" (y).
+
+A régua desempata. O eixo x vai a 60.000 e o y a 250.000, e o projeto mais
+populoso dos 90 tem 11.224 contribuidores, o que a Fig.2 do próprio artigo
+confirma (eixo até 12.000). A figura conta ATIVIDADE.
+
+### 39.1 Como as duas figuras foram medidas
+
+```sh
+pdftoppm -r 150 -f 4 -l 4 -png docs/replicacao/papers/IEICE16.pdf /tmp/i16p4
+```
+
+Sobre o PNG de 150 dpi, recorte da Fig.2 em `(95, 555)-(620, 870)` e da Fig.3 em
+`(95, 875)-(620, 1195)`, as mesmas caixas que `scripts/crop_figuras_artigo.py`
+grava. Cada eixo foi calibrado pelo CENTRO DOS RÓTULOS impressos, e o marcador de
+cada projeto nomeado foi localizado como uma mancha isolada de 4 a 6 px:
+
+| figura | eixo | zero | último rótulo | 1 px vale |
+|---|---|---|---|---|
+| Fig.2 | período (dias) | coluna 104,5 | 5.000 na coluna 457 | 14 dias |
+| Fig.2 | contribuidores | linha 206,0 | 12.000 na linha 21,5 | 65 pessoas |
+| Fig.3 | atividade de código | coluna 110,5 | 60.000 na coluna 453 | 175 eventos |
+| Fig.3 | atividade de não-código | linha 214,0 | 250.000 na linha 31,0 | 1.366 eventos |
+
+Marcadores: Fig.2 homebrew em `(39,5, 212,0)` e rails em `(80,0, 331,5)`; Fig.3
+homebrew em `(49,5, 435,0)` e rails em `(81,0, 408,0)`.
+
+### 39.2 A Fig.2 bate, e é isso que localiza o problema
+
+```sh
+pyramid classify --project-all --force
+```
+
+| projeto | grandeza | artigo | replicação | diferença |
+|---|---|---|---|---|
+| homebrew | período de desenvolvimento | 1.525 d | 1.528 d | +0,2 % (3 dias, 1 px) |
+| rails | período de desenvolvimento | 3.220 d | 3.238 d | +0,6 % (18 dias, 1 px) |
+| homebrew | contribuidores | 10.829 | 11.224 | +3,7 % |
+| rails | contribuidores | 8.195 | 8.671 | +5,8 % |
+
+O período casa dentro de um pixel nos dois projetos. Isso fecha três coisas de uma
+vez: é o mesmo dump, é a mesma janela de tempo, e "período de desenvolvimento" é
+mesmo do primeiro ao último evento do projeto (leitura do Apêndice A), sem recorte
+por snapshot.
+
+Os contribuidores saem 4 % a 6 % ACIMA, e o sinal é o esperado da duplicação de
+identidade da seção 26 (`identity_merge: none`, o homebrew tem 291 grupos por nome).
+
+**Não falta dado.** Falta evento por pessoa, e só de um lado.
+
+### 39.3 O déficit é do lado de código, e o mecanismo é o escopo de commit
+
+Componentes medidos direto no banco:
+
+```sh
+docker exec -i msr14 mysql -uroot -p"$DB_PASSWORD" -N -B msr14 -e "
+SELECT 'commits_root',        COUNT(*) FROM commits WHERE project_id=79163
+UNION ALL SELECT 'pc_do_projeto',  COUNT(*) FROM project_commits WHERE project_id=79163
+UNION ALL SELECT 'pc_familia_distinct', COUNT(DISTINCT pc.commit_id) FROM project_commits pc
+   JOIN projects p ON p.id=pc.project_id AND COALESCE(p.forked_from,p.id)=79163
+UNION ALL SELECT 'pc_familia_como_esta', COUNT(*) FROM project_commits pc
+   JOIN projects p ON p.id=pc.project_id AND COALESCE(p.forked_from,p.id)=79163
+   JOIN commits c ON c.id=pc.commit_id
+UNION ALL SELECT 'commits_familia_project_id', COUNT(*) FROM commits c
+   JOIN projects p ON p.id=c.project_id AND COALESCE(p.forked_from,p.id)=79163
+UNION ALL SELECT 'pr_abertos',  COUNT(*) FROM pull_requests pr
+   JOIN pull_request_history h ON h.pull_request_id=pr.id AND h.action='opened'
+   WHERE pr.base_repo_id=79163
+UNION ALL SELECT 'pr_history_inteiro', COUNT(*) FROM pull_requests pr
+   JOIN pull_request_history h ON h.pull_request_id=pr.id WHERE pr.base_repo_id=79163"
+```
+
+| componente | homebrew | rails |
+|---|---|---|
+| `commits.project_id` = raiz (o que roda hoje) | 22.820 | 32.071 |
+| `project_commits` do projeto | 26.257 | 36.802 |
+| `project_commits` da família, DISTINCT | 45.678 | 45.551 |
+| `project_commits` da família, como o adaptador escreve | 47.694 | 51.743 |
+| `commits.project_id` na família | 46.945 | 46.207 |
+| pull requests abertos | 13.171 | 7.820 |
+| `pull_request_history` inteiro | 26.236 | 20.061 |
+
+Somando cada leitura de commit com os pull requests abertos, contra o eixo x lido
+(homebrew 56.847, rails 52.117):
+
+| leitura de "commit do projeto" | homebrew | rails |
+|---|---|---|
+| raiz + PR abertos (**em vigor**) | 35.991 (**-36,7 %**) | 39.891 (**-23,5 %**) |
+| `project_commits` do projeto + PR abertos | 39.428 (-30,6 %) | 44.622 (-14,4 %) |
+| família DISTINCT + PR abertos | 58.849 (**+3,5 %**) | 53.371 (**+2,4 %**) |
+| família por `project_id` + PR abertos | 60.116 (+5,8 %) | 54.027 (+3,7 %) |
+| raiz + `pull_request_history` inteiro | 49.056 (-13,7 %) | 52.132 (+0,03 %) |
+
+`commits.project_id` é onde o commit foi REGISTRADO. No GitHub o contribuidor
+externo commita no fork dele e abre pull request, então o commit fica com
+`project_id` do fork e chega ao projeto por `project_commits`. Contar só a raiz
+descarta a via principal de contribuição, e descarta mais no projeto que recebe
+mais pull request: o homebrew perde 37 %, o rails 23 %.
+
+As duas leituras de família erram de +2,4 % a +5,8 %, mesmo sinal e mesma ordem de
+grandeza do excesso de contribuidores da 39.2. A leitura da raiz erra de -23 % a
+-37 %. **A hipótese "erro de escala" morre aqui: o que está errado é o escopo.**
+
+A decisão não entra nesta seção. Trocar `commit_scope` mexe em todo o pipeline
+(pirâmides, Tipos A-D, projeção) e exige o protocolo de cinco passos do
+`CONTRIBUTING.md`, com `run-all` antes e depois. Fica como entrada própria.
+
+### 39.4 Bug latente no `family_project_commits`
+
+A consulta do adaptador para `family_project_commits` não tem `DISTINCT`: um commit
+que exista na raiz e num fork é contado duas vezes. Medido: 47.694 contra 45.678
+distintos no homebrew (+4,4 %), 51.743 contra 45.551 no rails (+13,6 %). Hoje isso
+não move número nenhum, porque a variante em vigor é `root`, e é justamente por
+isso que passou. Correção é PR própria, com teste.
+
+### 39.5 O lado de não-código fica aberto
+
+Contra o eixo y lido (homebrew 224.727, rails 181.694):
+
+| variante de taxonomia | homebrew | rails |
+|---|---|---|
+| `prose` (**em vigor**): commit_comments, issue_comments, pr_comments, issue_events | 214.252 (-4,7 %) | 161.700 (-11,0 %) |
+| `union`: `prose` mais `issues` | 238.168 (+6,0 %) | 175.037 (-3,7 %) |
+| `table1`: `issues` no lugar de `issue_events` | 114.075 (-49,2 %) | 80.432 (-55,7 %) |
+
+`table1` está fora por duas ordens de grandeza de erro, o que confirma pelo lado do
+volume a decisão da seção 32, tomada por outro caminho. Entre `prose` e `union` a
+figura não decide: uma erra -5 % e -11 %, a outra +6 % e -4 %. São dois projetos
+publicados e várias combinações possíveis de tabela do GHTorrent, então escolher por
+aqui é ajustar curva a dois pontos. **Fica aberto, e volta a ser mensurável quando o
+escopo de commit estiver resolvido**, porque `commit_comments` também é atrelado a
+`commits.project_id` e sobe junto (homebrew 1.256 na raiz contra 3.108 na família).

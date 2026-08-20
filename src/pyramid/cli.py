@@ -49,6 +49,9 @@ ROTULO_HELP = "sufixo do nome da pasta da execução; implica --run"
 # data de entrada de cada contribuidor costuma ser anterior ao começo pedido.
 JANELA_HELP = "data AAAA-MM-DD; corta a série de snapshots de settings.yaml"
 
+# Figuras que aceitam anel. As outras ignorariam o pedido em silêncio.
+ANELAVEIS = ("magnet-sticky", "type-scatter", "activity-scatter")
+
 
 def _module(stage: str) -> ModuleType:
     from importlib import import_module
@@ -210,10 +213,8 @@ def _plot_kwargs(
     if figure == "magnet-sticky" and year:
         kw["year"] = year
     if highlight is not None:
-        if figure not in ("magnet-sticky", "type-scatter"):
-            raise typer.BadParameter(
-                "--highlight só vale para --figure magnet-sticky ou type-scatter"
-            )
+        if figure not in ANELAVEIS:
+            raise typer.BadParameter(f"--highlight só vale para --figure {' ou '.join(ANELAVEIS)}")
         # Mesmo `_resolve` do resto da CLI: aceita nome de projeto e aborta em
         # nome ambíguo. Anelar o escopo errado calado seria pior.
         lbl = plots.labels()
@@ -232,7 +233,7 @@ def plot(
     highlight: str = typer.Option(
         None,
         "--highlight",
-        help="só para --figure magnet-sticky ou type-scatter: projetos a anelar "
+        help=f"só para --figure {' ou '.join(ANELAVEIS)}: projetos a anelar "
         "(nome ou id, separados por vírgula); default vem de "
         "checkpoints.figures",
     ),

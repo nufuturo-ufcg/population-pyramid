@@ -5,6 +5,10 @@ Produz, por (projeto, contribuidor):
   init_d   primeiro evento de NON-CODING      (NaT se nunca discutiu)
   spans    períodos de atividade contínuos, quebrados por 3 meses de silêncio
 
+Grava também `_overview.parquet`, uma linha por projeto com contagem de
+contribuidores e de atividades por lado. É o que a seção 2.3 do IEICE16 usa para
+descrever o dataset nas Fig.2 e Fig.3, fora de qualquer snapshot.
+
 A categoria (coding / moved / non_coding) e a idade NÃO são fixas: dependem do
 snapshot, e são resolvidas no estágio 3. Aqui só destilamos a linha do tempo.
 
@@ -43,6 +47,23 @@ log = logging.getLogger(__name__)
 STAGE = "classify"
 
 DAYS_PER_MONTH = 365.25 / 12  # 30.4375
+
+OVERVIEW_COLUMNS = [
+    "scope_id",
+    "contributors",
+    "coding_contributors",
+    "non_coding_contributors",
+    "coding_activities",
+    "non_coding_activities",
+]
+
+# Chaves do manifesto que o overview exige. Entrada gravada antes delas
+# existirem é reprocessada, em vez de virar linha furada na tabela.
+RESUMO_KEYS = ("contributors", "ever_coded", "coding_activities", "non_coding_activities")
+
+
+def _tem_resumo(entrada: object) -> bool:
+    return isinstance(entrada, dict) and all(k in entrada for k in RESUMO_KEYS)
 
 
 def coding_events() -> set[str]:
@@ -101,6 +122,47 @@ def load(scope_id: int) -> pd.DataFrame:
     return pd.read_parquet(path(scope_id))
 
 
+def overview_path() -> Path:
+    """Tabela de uma linha por projeto, sem snapshot nenhum."""
+    return stage_dir(STAGE) / "_overview.parquet"
+
+
+def overview(man: dict) -> pd.DataFrame:
+    """Projeta o manifesto do estágio numa tabela por projeto.
+
+    A seção 2.3 do IEICE16 descreve o dataset com duas dispersões de um ponto
+    por projeto (Fig.2 e Fig.3), fora de qualquer snapshot. `plots` não recalcula
+    método, então quem conta contribuidor e atividade é este estágio, que já tem
+    os eventos e a taxonomia na mão.
+
+    Contribuidor de código é `init_c` preenchido, a mesma regra de `profile` e a
+    do artigo: "contributors who have at least one code-related activity in their
+    existing periods" (p.1307). Quem não codou nunca é de não-código, e por isso
+    os dois lados somam o total.
+    """
+    linhas = [
+        {
+            "scope_id": int(sid),
+            "contributors": int(e["contributors"]),
+            "coding_contributors": int(e["ever_coded"]),
+            "non_coding_contributors": int(e["contributors"]) - int(e["ever_coded"]),
+            "coding_activities": int(e["coding_activities"]),
+            "non_coding_activities": int(e["non_coding_activities"]),
+        }
+        for sid, e in man.get("ok", {}).items()
+        if _tem_resumo(e)
+    ]
+    df = pd.DataFrame(linhas, columns=OVERVIEW_COLUMNS)
+    # Ordem por id e inteiro em toda coluna: o parquet tem de sair byte a byte
+    # igual em duas execuções (seção 37).
+    return df.astype("int64").sort_values("scope_id", ignore_index=True)
+
+
+def load_overview() -> pd.DataFrame:
+    """Lê a tabela por projeto gravada pelo estágio."""
+    return pd.read_parquet(overview_path())
+
+
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
     """Executa o estágio classify nos projetos pedidos.
 
@@ -124,16 +186,20 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
 
     for sid in targets:
         key = str(sid)
-        if not force and key in man["ok"] and path(sid).exists():
+        if not force and key in man["ok"] and path(sid).exists() and _tem_resumo(man["ok"][key]):
             continue
         try:
-            df = profile(load_events(sid), coding, gap_days)
+            ev = load_events(sid)
+            df = profile(ev, coding, gap_days)
             df.to_parquet(path(sid), index=False)
             n_c = int(df.loc[df["init_c"].notna(), "contributor_id"].nunique())
             n_total = int(df["contributor_id"].nunique())
+            a_c = int(ev["event_type"].isin(coding).sum())
             man["ok"][key] = {
                 "contributors": n_total,
                 "ever_coded": n_c,
+                "coding_activities": a_c,
+                "non_coding_activities": len(ev) - a_c,
                 "spans": len(df),
                 "multi_span": int((df["span_idx"] > 0).sum()),
             }
@@ -155,5 +221,10 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
         runlog.save(STAGE, man)
 
     runlog.save(STAGE, man)
+    # Reescrito inteiro a cada execução, mesmo com projeto pulado: as linhas dos
+    # pulados vêm do manifesto, que é a memória do estágio.
+    tabela = overview(man)
+    tabela.to_parquet(overview_path(), index=False)
+    log.info("overview: %d projetos", len(tabela), extra={"stage": STAGE})
     log.info(runlog.summarize(STAGE, man))
     return man

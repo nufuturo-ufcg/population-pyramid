@@ -34,7 +34,13 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from pyramid.classify import DAYS_PER_MONTH, coding_events, profile
+from pyramid.classify import (
+    DAYS_PER_MONTH,
+    OVERVIEW_COLUMNS,
+    coding_events,
+    overview,
+    profile,
+)
 from pyramid.config import settings
 from pyramid.snapshots import band_days, pyramid_at
 
@@ -196,3 +202,68 @@ def test_figura_4b(spans, gap_days):
         1: {"coding": {"C1"}, "moved": {"C6"}},
         2: {"coding": {"C4"}, "non_coding": {"C5"}},
     }
+
+
+# ---------------------------------------------------------------------------
+# Tabela por projeto (IEICE16 seção 2.3, Fig.2 e Fig.3)
+# ---------------------------------------------------------------------------
+def _man() -> dict:
+    """Manifesto com dois projetos completos e um gravado antes do resumo."""
+    return {
+        "stage": "classify",
+        "ok": {
+            "79163": {
+                "contributors": 10,
+                "ever_coded": 4,
+                "coding_activities": 700,
+                "non_coding_activities": 900,
+                "spans": 12,
+            },
+            "12": {
+                "contributors": 3,
+                "ever_coded": 3,
+                "coding_activities": 5,
+                "non_coding_activities": 0,
+                "spans": 3,
+            },
+            "999": {"contributors": 1, "ever_coded": 1, "spans": 1},
+        },
+        "failed": {},
+    }
+
+
+def test_overview_soma_os_dois_lados_no_total():
+    """Quem nunca codou é de não-código, então os dois lados fecham o total."""
+    df = overview(_man())
+    assert (df["coding_contributors"] + df["non_coding_contributors"] == df["contributors"]).all()
+    linha = df[df["scope_id"] == 79163].iloc[0]
+    assert int(linha["coding_contributors"]) == 4
+    assert int(linha["non_coding_contributors"]) == 6
+    assert int(linha["coding_activities"]) == 700
+    assert int(linha["non_coding_activities"]) == 900
+
+
+def test_overview_ignora_entrada_sem_as_chaves_do_resumo():
+    """Manifesto de execução antiga não vira linha furada na tabela.
+
+    O projeto sem `coding_activities` fica fora, e o `run` o reprocessa por causa
+    da mesma checagem. Linha com zero inventado seria pior: entraria na figura
+    como projeto sem atividade nenhuma.
+    """
+    df = overview(_man())
+    assert 999 not in set(df["scope_id"])
+    assert len(df) == 2
+
+
+def test_overview_sai_ordenado_por_id_e_inteiro():
+    """Ordem e tipo fixos: o parquet tem de sair igual em duas execuções."""
+    df = overview(_man())
+    assert list(df["scope_id"]) == [12, 79163]
+    assert list(df.columns) == OVERVIEW_COLUMNS
+    assert all(str(t) == "int64" for t in df.dtypes)
+
+
+def test_overview_vazio_mantem_as_colunas():
+    df = overview({"ok": {}})
+    assert list(df.columns) == OVERVIEW_COLUMNS
+    assert df.empty

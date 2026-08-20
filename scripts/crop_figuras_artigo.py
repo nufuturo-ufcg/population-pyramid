@@ -27,6 +27,7 @@ CROPS = [
     ("ESEM14.pdf", 3, (85, 100, 1190, 545), "esem14_fig2_artigo.png"),
     ("MSR14.pdf", 3, (85, 95, 660, 470), "msr14_fig2_artigo.png"),
     ("MSR14.pdf", 4, (85, 95, 1210, 410), "msr14_tab2_artigo.png"),
+    ("IEICE16.pdf", 4, (95, 875, 620, 1195), "ieice16_fig3_artigo.png"),
     ("IEICE16.pdf", 5, (630, 140, 1180, 735), "ieice16_fig5_artigo.png"),
     ("IEICE16.pdf", 6, (95, 110, 1190, 1000), "ieice16_fig6_artigo.png"),
     ("IEICE16.pdf", 7, (95, 135, 1150, 430), "ieice16_fig7_artigo.png"),

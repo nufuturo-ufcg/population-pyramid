@@ -176,3 +176,41 @@ def test_pdf_da_figura_nao_carrega_relogio(tmp_path, monkeypatch):
     assert b"CreationDate" not in primeiro
     assert primeiro == segundo
     plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# Dispersões da seção 2.3 do IEICE16 (Fig.3)
+# ---------------------------------------------------------------------------
+def test_scatter_sem_corte_nao_desenha_regua():
+    """Fig.3 descreve o dataset e não tem corte nenhum a marcar.
+
+    A régua vermelha da Fig.5 é o zero que atribui o tipo, e a da Fig.2 do MSR14
+    são as medianas que definem o quadrante. Desenhar uma linha na Fig.3
+    inventaria uma divisória que o artigo não tem.
+    """
+    import matplotlib.pyplot as plt
+
+    x = pd.Series([1.0, 2.0])
+    y = pd.Series([3.0, 4.0])
+
+    _, com = plt.subplots()
+    plots._scatter(com, x, y, 0.0, 0.0, "x", "y")
+    _, sem = plt.subplots()
+    plots._scatter(sem, x, y, None, None, "x", "y")
+
+    assert len(com.lines) == 2
+    assert len(sem.lines) == 0
+    plt.close("all")
+
+
+def test_regua_da_fig3_e_a_do_artigo():
+    """Os ticks saem da figura publicada, medidos em pixel (seção 39.1).
+
+    Deixar no autolocator faria a régua acompanhar o dado, e é justamente a
+    comparação com a régua impressa que mostra o lado de código ficando baixo.
+    """
+    cfg = yaml.safe_load((CONFIG_DIR / "checkpoints.yaml").read_text())["figures"]["ieice16_fig3"]
+    assert cfg["xticks"] == [0, 10000, 20000, 30000, 40000, 50000, 60000]
+    assert cfg["yticks"] == [0, 50000, 100000, 150000, 200000, 250000]
+    # mxcl/homebrew e rails/rails, os dois que o artigo nomeia dentro do gráfico.
+    assert cfg["highlight"] == [79163, 78852]

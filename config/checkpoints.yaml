@@ -185,6 +185,19 @@ replica_locks:
 # constante mágica sem procedência.
 # ---------------------------------------------------------------------------
 figures:
+  # "Fig. 3  Distribution of the number of coding contributors and the number of
+  #  non-coding contributors." A legenda diz CONTRIBUIDOR e os rótulos dos eixos
+  # da figura publicada dizem ATIVIDADE. A régua abaixo é a dela, lida do recorte
+  # em docs/replicacao/figuras/artigo/ieice16_fig3_artigo.png: 0 a 60.000 em x,
+  # 0 a 250.000 em y. Nenhum projeto do dump tem 60 mil contribuidores, então a
+  # régua sozinha já mostra que o eixo conta atividade. Ver discrepancias.md,
+  # seção 39. Os limites deixam folga só para o anel caber.
+  ieice16_fig3:
+    xlim: [-2000, 62000]
+    ylim: [-9000, 259000]
+    xticks: [0, 10000, 20000, 30000, 40000, 50000, 60000]
+    yticks: [0, 50000, 100000, 150000, 200000, 250000]
+    highlight: [79163, 78852]   # mxcl/homebrew, rails/rails
   # "Fig. 5  CCR and NCR of 90 OSS projects in GitHub." Os anéis são os oito
   # projetos que o próprio artigo nomeia adiante (Fig.6 e Fig.7); anelá-los
   # aqui mostra, na mesma imagem, que a divergência de contagem por quadrante
