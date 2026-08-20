@@ -18,8 +18,8 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-PAPERS = ROOT / "docs" / "papers"
-OUT = ROOT / "docs" / "figuras" / "artigo"
+PAPERS = ROOT / "docs" / "replicacao" / "papers"
+OUT = ROOT / "docs" / "replicacao" / "figuras" / "artigo"
 DPI = 150
 
 # (pdf, página 1-based, caixa (esq, topo, dir, base) em px @150dpi, arquivo de saída)
@@ -29,6 +29,7 @@ CROPS = [
     ("MSR14.pdf", 4, (85, 95, 1210, 410), "msr14_tab2_artigo.png"),
     ("IEICE16.pdf", 5, (630, 140, 1180, 735), "ieice16_fig5_artigo.png"),
     ("IEICE16.pdf", 6, (95, 110, 1190, 1000), "ieice16_fig6_artigo.png"),
+    ("IEICE16.pdf", 7, (95, 135, 1150, 430), "ieice16_fig7_artigo.png"),
     ("IEICE16.pdf", 9, (95, 135, 1190, 875), "ieice16_fig8_artigo.png"),
 ]
 
