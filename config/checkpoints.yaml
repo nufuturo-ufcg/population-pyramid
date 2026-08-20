@@ -247,6 +247,31 @@ figures:
   # dois anelados são os dois projetos que ele nomeia no próprio gráfico.
   # `highlight` é puro desenho. Não entra em mediana, quadrante ou contagem,
   # e o `--highlight` da CLI sobrescreve para inspeção de outro projeto.
+  # "Fig. 3  The likelihood of quadrant transitions" (MSR14 p.4). O artigo desenha
+  # um diagrama de estados com 20 setas rotuladas, sem tabela. Os 25 valores
+  # abaixo foram decodificados do PDF pela POSIÇÃO de cada rótulo, e não a olho:
+  #
+  #   pdftotext -bbox -f 4 -l 4 docs/replicacao/papers/MSR14.pdf -
+  #
+  # Cada rótulo cai de um lado da reta que liga os dois nós, e o lado diz a
+  # direção da seta. A regra foi calibrada com três frases do próprio texto:
+  # "the likelihood of transitioning from the attractive quadrant to the
+  # fluctuating one is 22%", "23% of terminal quadrant projects eventually decay
+  # into a state where they have ten or fewer contributors" e "only four
+  # percentage points differentiate the two directions" no par terminal/floating
+  # (18 e 14). As cinco linhas somam 96 a 105, que é o arredondamento a 1% de
+  # cada célula. Ver docs/replicacao/discrepancias.md, seção 44.
+  #
+  # `floating` é o nome que este repositório usa para o "fluctuating" do artigo.
+  msr14_fig3:
+    years: [2004, 2011]        # a janela da Tabela 2; a transição vai de Y para Y+1
+    tolerance_pp: 10           # pontos percentuais por célula
+    matrix:
+      attractive:  {attractive: 50, floating: 22, stagnant:  6, terminal: 20, "*":  0}
+      floating:    {attractive: 14, floating: 59, stagnant:  9, terminal: 14, "*":  0}
+      stagnant:    {attractive: 37, floating: 22, stagnant: 27, terminal: 17, "*":  0}
+      terminal:    {attractive: 14, floating: 18, stagnant:  5, terminal: 45, "*": 23}
+      "*":         {attractive:  9, floating:  8, stagnant: 26, terminal: 18, "*": 40}
   msr14_fig2:
     xlim: [-0.05, 0.92]
     ylim: [-0.015, 0.23]
@@ -341,6 +366,12 @@ known_divergences:
   # só muda o rótulo de FALHA para "conhecida". E se a linha voltar a bater,
   # vira OBSOLETA e o comando falha, para o documento não continuar afirmando
   # uma divergência que já não existe.
+
+  # MSR14 Fig.3: 23 das 25 células batem dentro de 10 pontos. As duas que não são
+  # a mesma coisa vista de dois lados: o projeto estagnado da replicação fica
+  # estagnado, e no artigo ele vira atrativo. Ver seção 44.
+  msr14.fig3.stagnant.attractive: "seção 44"
+  msr14.fig3.stagnant.stagnant: "seção 44"
 
   # Tipos A-D: sobra em A, falta em C. Mesmo viés (novato demais) da seção 13.
   types.counts.A: "seção 3.1"

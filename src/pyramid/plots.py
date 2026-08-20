@@ -1233,6 +1233,86 @@ def figure_error_metrics() -> Path:
 
 
 # ---------------------------------------------------------------------------
+# MSR14 Fig.3: transição de quadrante
+# ---------------------------------------------------------------------------
+def figure_quadrant_transitions() -> Path:
+    """MSR14 Fig.3: matriz de transição de quadrante, replicação contra artigo.
+
+    O artigo desenha um diagrama de estados com 20 setas rotuladas. Aqui sai
+    matriz, não diagrama: o conteúdo é o mesmo, a comparação célula a célula fica
+    direta, e um diagrama de setas curvas gastaria dezenas de linhas de desenho
+    para dizer o que cinco linhas de tabela dizem. Os 25 valores publicados vivem
+    em `checkpoints.figures.msr14_fig3`, decodificados por posição de rótulo no
+    PDF (seção 44).
+
+    Cada célula traz a porcentagem da replicação e, embaixo, a do artigo. O
+    vermelho marca quem passa da tolerância declarada.
+    """
+    cfg = _fig_cfg("msr14_fig3")
+    y0, y1 = (int(a) for a in cfg["years"])
+    tol = float(cfg["tolerance_pp"])
+    estados = attr.ESTADOS
+
+    contagem = attr.transitions(range(y0, y1 + 1))
+    n = contagem.sum(axis=1)
+    pct = (100 * contagem.div(n, axis=0)).fillna(0.0)
+
+    fig, ax = plt.subplots(figsize=(6.4, 4.6))
+    _theme(ax)
+    ax.grid(False)
+    dados = pct.to_numpy()
+    ax.imshow(dados, cmap="Greys", vmin=0, vmax=100)
+
+    for i, origem in enumerate(estados):
+        for j, destino in enumerate(estados):
+            got = float(pct.loc[origem, destino])
+            esperado = float(cfg["matrix"][origem][destino])
+            fora = abs(got - esperado) > tol
+            # Texto claro em célula escura, senão o número some no fundo.
+            cor = "#B03A2E" if fora else ("#FFFFFF" if got > 55 else "#333333")
+            ax.text(
+                j,
+                i,
+                f"{got:.0f}%\n({esperado:.0f}%)",
+                ha="center",
+                va="center",
+                fontsize=8,
+                color=cor,
+                fontweight="bold" if fora else "normal",
+            )
+
+    rot = [e if e != "*" else "* (fora do corte)" for e in estados]
+    ax.set_xticks(range(len(estados)))
+    ax.set_xticklabels(rot, fontsize=8, rotation=20, ha="right")
+    ax.set_yticks(range(len(estados)))
+    ax.set_yticklabels([f"{e}  (n={int(n[e])})" for e in estados], fontsize=8)
+    ax.set_xlabel("estado em Y+1", fontsize=8)
+    ax.set_ylabel("estado em Y", fontsize=8)
+    fora_da_tol = sum(
+        abs(float(pct.loc[o, d]) - float(cfg["matrix"][o][d])) > tol
+        for o in estados
+        for d in estados
+    )
+    ax.set_title(
+        f"MSR14 Fig.3: transição de quadrante, {y0}-{y1}  "
+        f"(replicação, artigo entre parênteses)\n"
+        f"{25 - fora_da_tol} de 25 células dentro de {tol:.0f} pontos percentuais",
+        fontsize=9,
+    )
+
+    longo = pct.stack().rename("replicacao").reset_index()
+    longo.columns = ["origem", "destino", "replicacao"]
+    pares = list(zip(longo["origem"], longo["destino"], strict=True))
+    longo["artigo"] = [float(cfg["matrix"][o][d]) for o, d in pares]
+    longo["diferenca_pp"] = (longo["replicacao"] - longo["artigo"]).round(1)
+    longo["observacoes"] = [int(contagem.loc[o, d]) for o, d in pares]
+    longo["replicacao"] = longo["replicacao"].round(1)
+    stem = f"msr14_fig3_transicoes_{y0}_{y1}"
+    _dump(longo, stem)
+    return _save(fig, stem)
+
+
+# ---------------------------------------------------------------------------
 # IEICE16 Tabelas 3 e 4: não são gráfico, mas são resultado obrigatório da
 # seção 7
 # ---------------------------------------------------------------------------
@@ -1459,6 +1539,7 @@ FIGURES = {
     "abre-table": figure_abre_table,
     "error-metrics": figure_error_metrics,
     "quadrant-table": figure_quadrant_table,
+    "quadrant-transitions": figure_quadrant_transitions,
     "magnet-sticky": figure_fig2,
 }
 
