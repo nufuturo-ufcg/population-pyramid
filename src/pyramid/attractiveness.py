@@ -33,7 +33,7 @@ import pandas as pd
 
 from . import logging_config as runlog
 from .config import settings, stage_dir
-from .extract import events_path, load_events, source
+from .extract import events_path, label_of, load_events, source
 
 log = logging.getLogger(__name__)
 STAGE = "attractiveness"
@@ -250,10 +250,10 @@ def table(year: int | str | pd.Timestamp | None = None) -> pd.DataFrame:
                 f"attractiveness.table: ano {y} não existe no resultado. Anos disponíveis: {anos}."
             )
         df = got
-    src = source()
-    src.list_scopes()
     out = df.copy()
-    out["project"] = [src.scope_label(s) for s in out["scope_id"]]
+    # Rótulo do manifesto do `extract`, não do banco: `table()` é leitura, e
+    # leitura tem de funcionar com o MySQL desligado.
+    out["project"] = [label_of(s) for s in out["scope_id"]]
     return out.sort_values(["year", "quadrant", "project"], na_position="last").reset_index(
         drop=True
     )

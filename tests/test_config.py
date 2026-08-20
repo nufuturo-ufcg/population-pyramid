@@ -42,3 +42,29 @@ def test_extract_para_antes_de_abrir_a_fonte(monkeypatch):
 
     with pytest.raises(ValueError, match=r"analysis\.unit='team'"):
         extract.run()
+
+
+# ---------------------------------------------------------------------------
+# Leitura não abre banco
+# ---------------------------------------------------------------------------
+def test_estagios_de_leitura_nao_chamam_o_adaptador(monkeypatch):
+    """`load_all`, `table` e o `validate` rodam com o MySQL desligado.
+
+    O `plots` já prometia isso ("as figuras se regeram com o banco desligado") e
+    os outros estágios de leitura não cumpriam: pediam a lista de projetos e o
+    rótulo ao adaptador, que abre conexão. No CI, sem dump, quatro testes de
+    checkpoint quebravam em vez de pular. O rótulo vem do manifesto do `extract`
+    e a lista vem dos parquets no disco.
+    """
+    from pyramid import attractiveness, extract, metrics, snapshots
+
+    def explode() -> None:
+        raise AssertionError("estágio de leitura tentou abrir o banco")
+
+    monkeypatch.setattr(extract, "source", explode)
+    monkeypatch.setattr(metrics, "source", explode)
+    monkeypatch.setattr(snapshots, "source", explode)
+    monkeypatch.setattr(attractiveness, "source", explode)
+
+    metrics.load_all()
+    snapshots.load_all()

@@ -211,7 +211,7 @@ def _fmt(v: object) -> str:
 def _tipos(cfg: dict) -> list[Check]:
     """IEICE16 Fig.5: contagem por tipo e os 8 projetos nomeados."""
     from . import metrics
-    from .extract import source
+    from .extract import labels
 
     c = cfg["types"]
     snap = c["snapshot"]
@@ -244,7 +244,7 @@ def _tipos(cfg: dict) -> list[Check]:
         )
 
     classificados = int(tab["type"].notna().sum())
-    total = len(source().list_scopes())
+    total = len(labels())
     out.append(
         mk(
             key="types.total_classified",
