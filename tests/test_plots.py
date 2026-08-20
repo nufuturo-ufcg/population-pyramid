@@ -27,7 +27,7 @@ def _cfg(populacao: str) -> dict:
     return {
         "plots": {
             "pyramid_population": populacao,
-            "pyramid_window_months": JANELA_M,
+            "pyramid_window_months": {"esem14": JANELA_M, "ieice16": 3, "default": 3},
         },
         "periods": {"band_months": 3},
     }
@@ -106,14 +106,14 @@ def test_default_do_settings_e_active():
 
 
 def test_janela_e_banda_versionadas_sao_as_medidas_na_figura():
-    """12 meses e 90 dias saíram de medição em pixel, não de convenção (seção 20/seção 21).
+    """Cada artigo com a sua janela, e a banda de 90 dias (seções 20, 21 e 40).
 
-    São dois valores que a simetria pede para mudar e a figura proíbe: a janela
-    da pirâmide (12m) não é a das métricas (`inactivity_months: 3`), e a banda
-    (90d) não é `band_months` × 365.25/12 (= 91.3125). Mexer aqui refaz a seção 20.
+    O 12 do ESEM14 saiu de medição em pixel e não da regra de nenhum artigo; o 3
+    do IEICE16 é literal na p.1306. A banda (90d) não é `band_months` × 365.25/12
+    (= 91.3125). Mexer aqui refaz a seção 20.
     """
     cfg = yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
-    assert cfg["plots"]["pyramid_window_months"] == 12
+    assert cfg["plots"]["pyramid_window_months"] == {"esem14": 12, "ieice16": 3, "default": 3}
     assert cfg["periods"]["band_days"] == 90
     assert cfg["periods"]["inactivity_months"] == 3
 
@@ -222,3 +222,84 @@ def test_regua_da_fig2_e_a_do_artigo():
     assert cfg["xticks"] == [0, 1000, 2000, 3000, 4000, 5000]
     assert cfg["yticks"] == [0, 2000, 4000, 6000, 8000, 10000, 12000]
     assert cfg["highlight"] == [79163, 78852]
+
+
+# ---------------------------------------------------------------------------
+# Janela por artigo (seção 40)
+# ---------------------------------------------------------------------------
+def test_janela_sai_do_artigo_pedido(monkeypatch):
+    monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))
+    assert plots.janela_meses("esem14") == 12
+    assert plots.janela_meses("ieice16") == 3
+    assert plots.janela_meses() == 3
+
+
+def test_artigo_desconhecido_falha_alto(monkeypatch):
+    """Cair no default calado desenharia a figura com a regra de outro artigo."""
+    monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))
+    with pytest.raises(ValueError, match="não declara"):
+        plots.janela_meses("esem15")
+
+
+def test_flag_da_cli_sobrescreve_os_dois_artigos(monkeypatch):
+    """`--window-months 4` é como se varre outro valor sem editar arquivo."""
+    from pyramid import config
+
+    monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))
+    try:
+        config.set_pyramid_window(4)
+        assert plots.janela_meses("esem14") == 4
+        assert plots.janela_meses("ieice16") == 4
+    finally:
+        config.set_pyramid_window(None)
+
+
+def test_janela_nao_positiva_e_recusada():
+    from pyramid import config
+
+    with pytest.raises(ValueError, match="positiva"):
+        config.set_pyramid_window(0)
+
+
+def test_janela_maior_traz_mais_gente_para_a_banda_1(monkeypatch):
+    """A janela é o que decide, e a figura muda com ela: 3 meses corta os inativos.
+
+    Mesma pirâmide, duas janelas: com 12 meses a banda 1 tem os quatro (um ativo
+    e três parados há 400 dias), com 3 meses sobra o ativo.
+    """
+    monkeypatch.setattr(plots, "settings", lambda: _cfg("active"))
+    largo = plots.pyramid_frame(_df(), T, 24)
+    estreito = plots.pyramid_frame(_df(), T, 3)
+    assert largo[largo["band"] == 1][list(snapshots.CATEGORIES)].to_numpy().sum() == 4
+    assert estreito[estreito["band"] == 1][list(snapshots.CATEGORIES)].to_numpy().sum() == 1
+
+
+@pytest.mark.checkpoint
+def test_piramide_do_ieice16_desenha_a_populacao_que_gerou_o_tipo():
+    """Com a janela do IEICE16, a Fig.6 mostra a MESMA gente que virou CCR e NCR.
+
+    A janela de 3 meses é a regra que o artigo escreve (p.1306) e é a que o
+    `metrics` usa. Enquanto a figura usava 12 meses, o painel do projeto mostrava
+    uma população e o rótulo de tipo ao lado vinha de outra. Este teste é o que
+    trava a coerência: some se alguém mexer na janela do ieice16 sem mexer em
+    `periods.inactivity_months`.
+
+    Lê parquet e só parquet. Os ids vão explícitos porque `metrics.load_all()` sem
+    escopo pergunta a lista ao banco, e teste de checkpoint tem de rodar no CI,
+    que não tem dump nem banco de pé.
+    """
+    from pyramid import metrics
+
+    ids = [79163, 78852, 25875, 91020]  # homebrew, rails, jquery, gitlabhq
+    faltando = [s for s in ids if not (metrics.path(s).exists() and snapshots.path(s).exists())]
+    if faltando:
+        pytest.skip(f"faltam parquets de {faltando}: rode `pyramid run-all`")
+
+    t = pd.Timestamp(snapshots.classification_snapshot())
+    m = metrics.load_all(ids)
+    m = m[m["snapshot"] == t].set_index("scope_id")
+
+    for sid in ids:
+        frame = plots.pyramid_frame(snapshots.load(sid), t, plots.janela_meses("ieice16"))
+        desenhados = int(frame[list(snapshots.CATEGORIES)].to_numpy().sum())
+        assert desenhados == int(m.loc[sid, "coding"] + m.loc[sid, "non_coding"])

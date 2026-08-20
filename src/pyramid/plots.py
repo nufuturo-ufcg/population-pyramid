@@ -39,7 +39,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from . import attractiveness as attr
-from . import classify, metrics, projection, snapshots
+from . import classify, config, metrics, projection, snapshots
 from . import logging_config as runlog
 from .config import artifact_dir, checkpoints, settings
 from .extract import labels
@@ -103,17 +103,48 @@ def _repo(sid: int | str) -> str:
 # ---------------------------------------------------------------------------
 # pirâmide
 # ---------------------------------------------------------------------------
-def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
+def janela_meses(artigo: str | None = None) -> float:
+    """Janela da população da pirâmide, em meses, para o artigo pedido.
+
+    Três fontes, nesta ordem:
+
+    1. `--window-months` da CLI, que vale para a execução inteira e serve para
+       varrer valor (4 meses, 6 meses) sem editar arquivo versionado;
+    2. `plots.pyramid_window_months.<artigo>` do `settings.yaml`, porque cada
+       artigo tem a sua regra: o ESEM14 não escreve nenhuma e a medição em pixel
+       da Fig.2 dele deu 12 meses (seções 19, 20.3 e 31), enquanto o IEICE16 crava
+       três meses na p.1306 ("did not give any contribution on that project for
+       more than three months");
+    3. `plots.pyramid_window_months.default`, para pirâmide fora de artigo.
+
+    Artigo sem entrada no mapa falha alto: é erro de digitação, e cair no default
+    calado desenharia a figura com a regra de outro artigo.
+    """
+    override = config.pyramid_window_override()
+    if override is not None:
+        return override
+    cfg = settings()["plots"]["pyramid_window_months"]
+    if artigo is None:
+        return float(cfg["default"])
+    if artigo not in cfg:
+        raise ValueError(
+            f"plots.pyramid_window_months não declara {artigo!r}. Conhecidos: {sorted(cfg)}."
+        )
+    return float(cfg[artigo])
+
+
+def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp, janela: float | None = None) -> pd.DataFrame:
     """Contagem por (banda, categoria) num snapshot.
 
     População controlada por `plots.pyramid_population` (ver AMBIGUIDADE 5 no
     settings.yaml). O default é `active`: o ESEM14 tira da pirâmide quem já
     saiu da comunidade (Fig.1: em t1 só dois dos três developers contam). O
-    `stock` foi tentado e descartado nas seções 18 e 19 das discrepâncias. A
-    largura da janela vem de `plots.pyramid_window_months` (12 meses).
-    `periods.inactivity_months` (3) não entra aqui: são duas janelas
-    diferentes de propósito, fixadas pela medição em pixel da Fig.2
-    (seção 20).
+    `stock` foi tentado e descartado nas seções 18 e 19 das discrepâncias.
+
+    `janela` é a largura em MESES, e quem chama decide: cada figura passa a do
+    artigo que ela replica, via `janela_meses()`. Sem argumento vale o default do
+    `settings.yaml`. `periods.inactivity_months` não entra aqui: a janela da
+    figura e a janela das métricas são coisas diferentes de propósito (seção 20).
     """
     cut = snapshots.require_date_match(
         df[df["snapshot"] == t], t, "snapshot", "plots.pyramid_frame"
@@ -125,13 +156,14 @@ def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
             f"plots.pyramid_population inválido: {populacao!r}. Use 'stock' ou 'active'."
         )
     if populacao == "active":
-        janela = float(cfg["pyramid_window_months"]) * snapshots.DAYS_PER_MONTH
+        meses = janela_meses() if janela is None else janela
+        janela_dias = float(meses) * snapshots.DAYS_PER_MONTH
         if "idle_days" not in cut.columns:
             raise ValueError(
                 "snapshots sem a coluna `idle_days`: estágio velho. "
                 "Rode `pyramid snapshots --force`."
             )
-        cut = cut[cut["idle_days"] <= janela]
+        cut = cut[cut["idle_days"] <= janela_dias]
     if cut.empty:
         return pd.DataFrame(columns=["band", *snapshots.CATEGORIES])
 
@@ -303,7 +335,7 @@ def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None) ->
     """Pirâmide avulsa de um projeto num snapshot."""
     t = pd.Timestamp(snapshot or snapshots.classification_snapshot())
     df = snapshots.load(scope_id)
-    frame = pyramid_frame(df, t)
+    frame = pyramid_frame(df, t, janela_meses())
 
     fig, ax = plt.subplots(figsize=(4.2, 3.4))
     draw_pyramid(ax, frame)
@@ -386,7 +418,8 @@ def figure_fig3() -> Path:
     ids = [int(k) for k in ck["transitions"]]
     dates = fig3_dates()
 
-    frames = {sid: {t: pyramid_frame(snapshots.load(sid), t) for t in dates} for sid in ids}
+    janela = janela_meses("esem14")
+    frames = {sid: {t: pyramid_frame(snapshots.load(sid), t, janela) for t in dates} for sid in ids}
 
     fig, axes = plt.subplots(
         len(ids), len(dates), figsize=(3.0 * len(dates), 2.5 * len(ids)), squeeze=False
@@ -872,13 +905,19 @@ def _cell(  # noqa: PLR0913
     sid: int,
     t: pd.Timestamp,
     *,
+    janela: float,
     sub: str | None = None,
     xmax: float | None = None,
     ymax: int | None = None,
     xticks: list[float] | None = None,
 ) -> None:
-    """Um painel de grade: pirâmide + nome do projeto + nota de conferência."""
-    draw_pyramid(ax, pyramid_frame(snapshots.load(sid), t), xmax=xmax, ymax=ymax, xticks=xticks)
+    """Um painel de grade: pirâmide + nome do projeto + nota de conferência.
+
+    `janela` vem de quem chama porque é a regra do ARTIGO daquela grade, e as
+    grades de artigos diferentes convivem na mesma execução.
+    """
+    frame = pyramid_frame(snapshots.load(sid), t, janela)
+    draw_pyramid(ax, frame, xmax=xmax, ymax=ymax, xticks=xticks)
     ax.set_title(_repo(sid), fontsize=9)
     if sub:
         # Vermelho só quando há divergência; o "=" fica cinza para o olho poder
@@ -919,7 +958,14 @@ def figure_grid_status() -> Path:
         # fica de fora: uma régua comum achataria clojure contra homebrew.
         ax = axes[j // ncols][j % ncols]
         got = quad["quadrant"].get(sid) if sid in quad.index else None
-        _cell(ax, sid, t, sub=_confere(got, esperado[sid]), xticks=ticks_artigo.get(sid))
+        _cell(
+            ax,
+            sid,
+            t,
+            janela=janela_meses("esem14"),
+            sub=_confere(got, esperado[sid]),
+            xticks=ticks_artigo.get(sid),
+        )
         ax.set_xlabel("contribuidores", fontsize=8)
     for i in range(nrows):
         axes[i][0].set_ylabel("idade acumulada (anos)", fontsize=8)
@@ -963,7 +1009,7 @@ def figure_grid_types() -> Path:
                 ax.axis("off")
                 continue
             sid = ids[j]
-            _cell(ax, sid, t, sub=_confere(tipos.get(sid), tipo))
+            _cell(ax, sid, t, janela=janela_meses("ieice16"), sub=_confere(tipos.get(sid), tipo))
             if i == len(rows) - 1:
                 ax.set_xlabel("contribuidores", fontsize=8)
         axes[i][0].set_ylabel(f"Tipo {tipo}\nidade acumulada (anos)", fontsize=8)
@@ -1003,6 +1049,7 @@ def figure_grid_centered() -> Path:
             ax,
             sid,
             t,
+            janela=janela_meses("ieice16"),
             sub=(
                 f"CCR={ccr:+.3f}  NCR={ncr:+.3f}\n"
                 f"{_confere(tipos.get(sid), esperado.get(sid, '?'))}"

@@ -2814,3 +2814,67 @@ publicados e várias combinações possíveis de tabela do GHTorrent, então esc
 aqui é ajustar curva a dois pontos. **Fica aberto, e volta a ser mensurável quando o
 escopo de commit estiver resolvido**, porque `commit_comments` também é atrelado a
 `commits.project_id` e sobe junto (homebrew 1.256 na raiz contra 3.108 na família).
+
+## 40. A janela da pirâmide é por artigo, e o IEICE16 escreve a dele
+
+Até aqui `plots.pyramid_window_months` era um valor só, 12 meses, para toda
+figura. Os 12 nunca saíram de regra publicada: saíram da medição em pixel da Fig.2
+do ESEM14 (seção 19, seção 20.3, seção 31), que é um artigo que não escreve regra
+nenhuma de saída da comunidade. O IEICE16 escreve, e é outra:
+
+> "we consider that a contributor left a project when he/she did not give any
+> contribution on that project for more than three months" (p.1306)
+
+Aplicar os 12 do ESEM14 nas figuras do IEICE16 era emprestar para um artigo a
+medida feita no outro. Agora a chave é um mapa por artigo, `esem14: 12`,
+`ieice16: 3`, `default: 3`, e `pyramid plot --window-months N` sobrescreve os dois
+numa execução, para varrer qualquer outro valor sem editar arquivo versionado.
+
+### 40.1 A régua do artigo confirma os três meses
+
+Cada painel da Fig.6 do IEICE16 traz a própria régua impressa. Comparando o
+último tick de cada painel com a maior barra da replicação:
+
+| painel | régua do artigo | maior barra, janela 12m | maior barra, janela 3m |
+|---|---|---|---|
+| jquery | 30 | 47 (**transborda**) | 36 |
+| django-cms | 30 | 34 (**transborda**) | 26 |
+| Font-Awesome | 750 | 725 | 677 |
+| gitlabhq | 500 | 584 (**transborda**) | 367 |
+| cakephp | 50 | 43 | 43 |
+| CraftBukkit | 30 | 103 (**transborda**) | 29 |
+
+Com 12 meses, quatro dos seis painéis estouram a régua impressa, e o CraftBukkit
+estoura por 3,4 vezes. Com 3 meses, nenhum estoura. A forma não muda: o topo da
+pirâmide fica na mesma banda nos oito projetos nomeados, porque quem sai da janela
+é gente parada, não gente velha.
+
+```sh
+pyramid plot --figure all                    # com o mapa por artigo
+pyramid plot --figure all --window-months 12 # reproduz a saída anterior
+```
+
+### 40.2 A figura passa a desenhar a população que gerou o tipo
+
+Efeito colateral bom, e é o que trava a decisão: `periods.inactivity_months` também
+é 3, então a pirâmide da Fig.6 agora mostra exatamente os contribuidores que
+produziram o CCR e o NCR daquele projeto. Conferido em 2013-09-30:
+
+| projeto | desenhados na figura | população do `metrics` |
+|---|---|---|
+| homebrew | 1.502 | 1.502 |
+| rails | 1.143 | 1.143 |
+| jquery | 78 | 78 |
+| gitlabhq | 750 | 750 |
+
+Antes o painel mostrava uma população (12 meses) e o rótulo de tipo ao lado vinha
+de outra (3 meses). `tests/test_plots.py` trava a igualdade.
+
+### 40.3 O que se moveu
+
+Só as duas grades do IEICE16: `ieice16_fig6_tipos` e `ieice16_fig7_centrados`
+perdem cerca de dois terços da população desenhada (homebrew 4.727 para 1.502,
+rails 3.767 para 1.143). As figuras do ESEM14 saem byte a byte iguais, porque o
+mapa mantém os 12 meses medidos para elas. `pyramid validate` continua em 167
+checks, `conhecida=70`, `ok=97`, relatório idêntico: nenhum checkpoint publicado
+depende da janela da figura.

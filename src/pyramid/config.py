@@ -30,10 +30,14 @@ class _Estado:
     docs embutem e o que o validate compara.
 
     `janela = (None, None)` significa a janela de tempo de `settings.yaml`.
+
+    `janela_piramide = None` significa a janela de população de cada artigo, como
+    `plots.pyramid_window_months` declara.
     """
 
     run: Path | None = None
     janela: tuple[str | None, str | None] = (None, None)
+    janela_piramide: float | None = None
 
 
 _estado = _Estado()
@@ -82,6 +86,23 @@ def set_window(inicio: str | None = None, fim: str | None = None) -> None:
 def window_override() -> tuple[str | None, str | None]:
     """Janela pedida na CLI, `(None, None)` quando ninguém pediu nada."""
     return _estado.janela
+
+
+def set_pyramid_window(meses: float | None) -> None:
+    """Guarda a janela de população da pirâmide pedida na linha de comando.
+
+    Mesma regra do `set_window`: pedido de terminal não vira valor versionado. O
+    default publicado continua no `settings.yaml`, por artigo, e este override
+    vale para todas as figuras da execução, que é o que uma varredura precisa.
+    """
+    if meses is not None and meses <= 0:
+        raise ValueError(f"janela da pirâmide tem de ser positiva, veio {meses}.")
+    _estado.janela_piramide = meses
+
+
+def pyramid_window_override() -> float | None:
+    """Janela de população pedida na CLI, `None` quando ninguém pediu."""
+    return _estado.janela_piramide
 
 
 @cache
