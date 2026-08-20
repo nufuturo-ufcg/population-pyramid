@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pyramid.projection import abre, project, tables
+from pyramid.projection import abre, ae, mer, mre, project, tables
 
 # --------------------------------------------------------------------------- #
 # ABRE
@@ -142,6 +142,13 @@ def test_populacao_imortal_e_projetada_sem_erro():
 
 
 def _df(linhas):
+    """Frame do estágio a partir de (escopo, tipo, categoria, banda, medido, coorte,
+    baseline, abre_coorte, abre_baseline).
+
+    As colunas de MRE, MER e MAE saem das próprias funções: o teste declara só o
+    ABRE, que é o que ele exercita, e as outras acompanham o dado em vez de virar
+    número escrito à mão em dois lugares.
+    """
     cols = [
         "scope_id",
         "type",
@@ -153,7 +160,11 @@ def _df(linhas):
         "abre_cohort",
         "abre_baseline",
     ]
-    return pd.DataFrame(linhas, columns=cols)
+    df = pd.DataFrame(linhas, columns=cols)
+    for nome, f in (("mre", mre), ("mer", mer), ("ae", ae)):
+        for lado, coluna in (("cohort", "cohort_pred"), ("baseline", "baseline_pred")):
+            df[f"{nome}_{lado}"] = [f(a, p) for a, p in zip(df["actual"], df[coluna], strict=True)]
+    return df
 
 
 def test_tabelas_usam_so_pares_completos():
@@ -271,3 +282,65 @@ def test_checkpoint_projetos_elegiveis_perto_dos_36():
     """
     n = _tables()["abre"].set_index("type").loc["All types", "projects"]
     assert n == 34, f"{n} projetos elegíveis; era 34 (artigo: 36)"
+
+
+# ---------------------------------------------------------------------------
+# As outras métricas de erro do IEICE16 p.1311 (seção 42)
+# ---------------------------------------------------------------------------
+def test_mre_divide_pelo_medido_e_mer_pelo_predito():
+    """A diferença entre as duas é o denominador, e ela aparece quando erram.
+
+    Medido 4, predito 6: o MRE divide por 4 e dá 0,5; o MER divide por 6 e dá
+    0,333. O ABRE pega o menor denominador, então coincide com o MRE aqui.
+    """
+    assert mre(4, 6) == pytest.approx(0.5)
+    assert mer(4, 6) == pytest.approx(2 / 6)
+    assert abre(4, 6) == pytest.approx(0.5)
+
+
+def test_mre_e_mer_trocam_de_lado_quando_a_previsao_e_baixa():
+    """Prevendo 3 contra 4 medidos, o MER é que fica maior. O ABRE segue o maior."""
+    assert mre(4, 3) == pytest.approx(0.25)
+    assert mer(4, 3) == pytest.approx(1 / 3)
+    assert abre(4, 3) == pytest.approx(1 / 3)
+
+
+def test_metricas_relativas_nao_tem_denominador_no_zero():
+    """Zero no denominador não vira acerto nem erro máximo: vira `nan`."""
+    assert np.isnan(mre(0, 5))
+    assert np.isnan(mer(5, 0))
+    assert mre(5, 0) == pytest.approx(1.0)
+    assert mer(0, 5) == pytest.approx(1.0)
+
+
+def test_metricas_propagam_nan_da_coorte_orfa():
+    for f in (mre, mer, ae):
+        assert np.isnan(f(float("nan"), 3))
+        assert np.isnan(f(3, float("nan")))
+
+
+def test_mae_fica_em_contribuidores_e_nao_em_proporcao():
+    """O erro absoluto é contagem: prever 6 onde havia 4 erra por 2 pessoas."""
+    assert ae(4, 6) == pytest.approx(2.0)
+    assert ae(6, 4) == pytest.approx(2.0)
+    assert ae(4, 4) == pytest.approx(0.0)
+
+
+def test_metricas_relativas_recusam_contagem_negativa():
+    for f in (mre, mer):
+        with pytest.raises(ValueError, match="negativa"):
+            f(-1, 3)
+
+
+def test_tabela_de_erros_tem_as_quatro_metricas_por_tipo_e_categoria():
+    df = _df(
+        [
+            (1, "A", "all", 0, 4.0, 6.0, 5.0, 0.5, 0.25),
+            (2, "A", "all", 0, 4.0, 8.0, 6.0, 1.0, 0.5),
+        ]
+    )
+    erros = tables(df)["erros"]
+    assert set(erros["metric"]) == {"ABRE", "MRE", "MER", "MAE"}
+    # Relativa por mediana (é o que a Tabela 3 publica), absoluta por média.
+    agg = dict(zip(erros["metric"], erros["aggregation"], strict=True))
+    assert agg == {"ABRE": "mediana", "MRE": "mediana", "MER": "mediana", "MAE": "media"}

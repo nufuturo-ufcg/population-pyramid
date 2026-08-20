@@ -2922,3 +2922,267 @@ possível com o que está publicado: os autores podem ter descrito o dataset (Fi
 e Fig.3, seção 2.3) com uma contagem de commit e rodado o método (Fig.5 em diante)
 com outra. Este repositório não faz isso: escopo é um parâmetro só, para o método
 inteiro, e um escopo por artefato seria irreproduzível na prática.
+
+## 42. MRE, MER e MAE: a conclusão do artigo depende da métrica
+
+O IEICE16 define três métricas de erro na p.1311, citando Miyazaki et al. [19], e
+publica só a mediana do ABRE, na Tabela 3. As outras duas viviam neste repositório
+como comentário no `settings.yaml`, sem nunca terem sido calculadas. Agora o
+estágio `projection` grava as quatro por célula, e `pyramid plot --figure
+error-metrics` desenha:
+
+```sh
+pyramid projection --force && pyramid plot --figure error-metrics
+```
+
+Agregado (`All types`, categoria `all`, 335 pares):
+
+| métrica | agregação | coorte | baseline | quem ganha |
+|---|---|---|---|---|
+| ABRE | mediana | 0,3894 | 0,5000 | coorte |
+| MRE | mediana | 0,3333 | 0,4000 | coorte |
+| MER | mediana | 0,3333 | 0,3750 | coorte |
+| **MAE** | média | **7,93** | **7,38** | **baseline** |
+
+A conclusão do artigo ("the cohort method is better than the baseline") se
+sustenta nas três métricas RELATIVAS, em todos os tipos. Ela **inverte no erro
+absoluto** nos tipos A, B, D e no agregado.
+
+O mecanismo não é sutil: erro relativo divide pelo tamanho da coorte, e coorte
+pequena é a maioria das células (a cauda da pirâmide), então a mediana relativa
+descreve o comportamento nas coortes pequenas. O MAE é dominado pelas bandas
+grandes, que é onde a projeção por coorte erra em número de pessoas. As duas
+coisas são verdade ao mesmo tempo.
+
+Isto não é divergência com o artigo: o artigo escolheu o ABRE e reportou o ABRE, e
+o ABRE reproduz a direção que ele afirma (seção 12.2). Fica registrado porque a
+escolha de métrica não é neutra, e quem for usar a projeção para decidir alguma
+coisa precisa saber qual das duas leituras responde à pergunta dele.
+
+Nenhuma trava nova: só o ABRE tem contraparte publicada, e as outras três saem do
+mesmo parquet, já travado em `replica_locks`.
+
+## 44. MSR14 Fig.3: 23 das 25 células batem, e as 2 que não são a linha do stagnant
+
+A Fig.3 do MSR14 era a última figura publicada dos três artigos sem replicação
+neste repositório. Ela é um diagrama de estados com 20 setas rotuladas, e nenhuma
+tabela: os valores tiveram de ser decodificados antes de qualquer comparação.
+
+### 44.1 Como os 25 valores do artigo foram lidos
+
+```sh
+pdftotext -bbox -f 4 -l 4 docs/replicacao/papers/MSR14.pdf -
+```
+
+Isso dá a caixa de cada rótulo. Os nós ficam em (135, 212) stagnant, (196, 212)
+attractive, (135, 273) terminal, (196, 273) floating, (100, 242) e (232, 242) para
+os dois `*`. Cada par de nós tem duas setas paralelas, uma por sentido, e cada
+rótulo cai de um lado da reta que liga os nós. O lado diz o sentido: tomando o
+produto vetorial entre (rótulo menos nó de origem) e (direção do nó de origem até
+o nó de destino), sinal positivo é seta SAINDO daquele nó.
+
+A regra não foi assumida, foi calibrada contra três frases do próprio artigo:
+
+* "the likelihood of transitioning from the attractive quadrant to the fluctuating
+  one is 22%" fixa o par vertical da direita;
+* "23% of terminal quadrant projects eventually decay into a state where they have
+  ten or fewer contributors" fixa a diagonal terminal para `*`;
+* "only four percentage points differentiate the two directions" no par
+  terminal/fluctuating fixa 18 e 14, e não o contrário.
+
+Corroboração independente: com essa leitura as cinco linhas somam 98, 96, 103, 105
+e 101, que é o arredondamento a 1 % de cinco células. Qualquer troca de sentido que
+eu testei põe uma linha em 90 e outra em 117. Os 25 valores ficaram versionados em
+`config/checkpoints.yaml: figures.msr14_fig3.matrix`, e `validate` passa a conferir
+célula a célula, com tolerância de 10 pontos percentuais.
+
+Tolerância em PONTOS, não relativa: numa célula de 5 % uma diferença relativa de
+20 % é meio ponto, ruído de arredondamento; numa de 50 % são dez pontos.
+
+### 44.2 O que reproduz
+
+```sh
+pyramid plot --figure quadrant-transitions
+```
+
+| linha | replicação | artigo |
+|---|---|---|
+| attractive | 53 / 26 / 5 / 16 / 0 | 50 / 22 / 6 / 20 / 0 |
+| floating | 15 / 54 / 12 / 19 / 0 | 14 / 59 / 9 / 14 / 0 |
+| stagnant | **19** / 22 / **44** / 15 / 0 | **37** / 22 / **27** / 17 / 0 |
+| terminal | 4 / 26 / 9 / 39 / 22 | 14 / 18 / 5 / 45 / 23 |
+| `*` | 10 / 9 / 22 / 17 / 42 | 9 / 8 / 26 / 18 / 40 |
+
+Ordem das colunas: attractive, floating, stagnant, terminal, `*`.
+
+23 das 25 células dentro de 10 pontos. Reproduzem também as leituras qualitativas
+que o artigo faz da figura:
+
+* **"terminal quadrant projects are the only ones that drop into the filtered away
+  state"**: só `terminal` tem seta para o `*`, 22 % contra 23 %. As outras três
+  dão 0 %, igual ao diagrama;
+* auto-transição é o destino mais provável nos quatro quadrantes, e na mesma
+  ordem de força;
+* as duas exceções que o artigo nomeia (transição do quadrante mais baixo para o
+  mais alto sendo mais provável que a volta) caem nas mesmas duas duplas,
+  stagnant/attractive e terminal/floating;
+* floating se espalha parecido pelas outras três categorias.
+
+### 44.3 A divergência: o estagnado que não vira atrativo
+
+| transição | artigo | replicação | diferença |
+|---|---|---|---|
+| stagnant → attractive | 37 % | 19 % | -18 pontos |
+| stagnant → stagnant | 27 % | 44 % | +17 pontos |
+
+É uma divergência só, vista de dois lados: as duas células somam 64 % no artigo e
+63 % aqui. A população é a mesma e vai para outro lado. Mesmo sentido do que a
+seção 13 achou no jekyll e a seção 38 nos Tipos A-D: a replicação promove menos
+projeto a atrativo, porque o magnetismo usa o denominador de novatos do dataset
+inteiro e quem está na fronteira da mediana cai do lado de baixo. Declarada em
+`known_divergences`.
+
+### 44.4 A frase dos dois terços não fecha com o diagrama do próprio artigo
+
+O texto diz: "we check how many of the projects that enter the filtered state (*)
+were in the terminal state just before. We find that two-thirds of filtered state
+projects originate from the terminal state."
+
+Se dois terços vêm de terminal, um terço vem de outro estado, e um terço não
+arredonda para 0 %. O diagrama publicado dá 0 % em stagnant, attractive e
+fluctuating para `*`, ou seja, 100 %. As duas afirmações do artigo não podem valer
+ao mesmo tempo sob a leitura de transição.
+
+Medido aqui, contando todo mundo que entra em `*` entre 2004 e 2011: 47 vêm de
+"ainda não existia", 33 são `*` que continua `*`, e 5 vêm de terminal. Sob a
+leitura de transição entre estados do diagrama, terminal é 100 % (5 de 5), como no
+diagrama. Sob a leitura "toda entrada em `*`", terminal é 6 %. Nenhuma das duas dá
+dois terços, e a frase fica sem contraparte verificável.
+
+## 45. As afirmações numéricas que só existem na prosa dos artigos
+
+As figuras e as tabelas dos três artigos estão replicadas e travadas no
+`validate`. Sobrava um resto: número que o autor escreve no meio do texto e nunca
+põe em figura. Esta seção mede esse resto de uma vez, para ninguém precisar
+refazer a varredura, e diz de cada item se ele virou check ou não.
+
+**Nenhum destes seis itens virou check novo, e isso é decisão, não esquecimento.**
+O critério está no fim da seção.
+
+### 45.1 Tabela 1 do MSR14: o dump inteiro
+
+> "# Users 499,485 | # Projects 108,718 | # Commits 555,325" (MSR14 p.2)
+
+```sh
+docker exec -i msr14 mysql -uroot -p"$DB_PASSWORD" -N -B msr14 -e "
+SELECT 'users', COUNT(*) FROM users
+UNION ALL SELECT 'projects', COUNT(*) FROM projects
+UNION ALL SELECT 'commits', COUNT(*) FROM commits"
+```
+
+| | artigo | dump |
+|---|---|---|
+| users | 499.485 | 499.485 |
+| projects | 108.718 | 108.718 |
+| commits | 555.325 | 555.325 |
+
+**Bate exato, 3 de 3.** É a confirmação de que este dump é o dos autores.
+
+### 45.2 "70% dos projetos começaram depois de 2009"
+
+> "70% of the studied projects only began development after 2009" (MSR14 p.4)
+
+Primeiro evento de cada projeto, do `classify`:
+
+```python
+prim = {sid: classify.load(sid)["span_start"].min() for sid in classify.load_overview()["scope_id"]}
+(pd.Series(prim) >= pd.Timestamp("2009-01-01")).mean()
+```
+
+**70,0% dos 90 projetos. Bate exato.**
+
+### 45.3 Os dois extremos da Fig.2 do MSR14
+
+O MSR14 inspeciona à mão os dois projetos extremos, e o ESEM14 repete a
+afirmação: "although the homebrew project has the largest magnet value in the
+dataset, its sticky value is not so high" (ESEM14 seção 4).
+
+Em 2011, entre os elegíveis: maior magnetismo **mxcl/homebrew, 0,2148** (o
+segundo é rails, com 0,1021) e maior stickiness **django/django, 0,84**.
+
+**Os dois batem**, e são exatamente os dois projetos que a `msr14_fig2` anela.
+
+### 45.4 Composição por tipo da amostra da projeção
+
+> "we project a future population size for the 36 projects that have more than
+> 100 contributors. There are four projects categorized as Type A, 21 projects as
+> Type B, nine projects as Type C, and two projects as Type D." (IEICE16 p.1311)
+
+| tipo | artigo | replicação |
+|---|---|---|
+| A | 4 | 8 |
+| B | 21 | 19 |
+| C | 9 | 5 |
+| D | 2 | 2 |
+| total | 36 | 34 |
+
+**Diverge, e no mesmo eixo de sempre: sobra A, falta C.** É a terceira vista do
+mesmo viés, depois dos Tipos A-D da seção 38 e da linha do stagnant na seção 44,
+agora numa subpopulação diferente (os 34 projetos grandes). O total de 34 contra
+36 já estava analisado na seção 7.
+
+### 45.5 Os seis projetos perto da origem
+
+> "if we distinguish the projects that plotted around the origin belonging to the
+> top 10% and others, six project such as homebrew, rails, bitcoin, diaspora,
+> openFrameworks and redis meet that definition." (IEICE16 p.1310)
+
+Distância euclidiana até (0,0) no plano CCR × NCR, em set/2013, 10% menores de 85
+classificados, ou seja 8 projetos: **diaspora, rails, symfony, html5-boilerplate,
+ThinkUp, bitcoin, libuv, hiphop-php**.
+
+**Reproduz 3 dos 6 citados** (rails, bitcoin, diaspora). Faltam homebrew,
+openFrameworks e redis. O artigo escreve "six project such as", que é lista de
+exemplo e não a lista fechada, então o que dá para afirmar é a interseção.
+
+### 45.6 As afirmações de forma do RQ1 do ESEM14
+
+Esta é a resposta do ESEM14 à pergunta de pesquisa dele, generalizada para além
+dos quatro painéis da Fig.2: "the fluctuating projects found to have left-sided
+pyramids", "the stagnant projects have right-sided pyramids", "other attractive
+projects have similar balanced shape", "the shapes of the terminal projects'
+software population pyramids are collapsed".
+
+Medida em 2011-12-31, com a janela do ESEM14 (12 meses), sobre os 75 projetos
+elegíveis daquele ano. "Lado coding" é `(coding + moved) / total`:
+
+| quadrante | n | mediana do lado coding | à esquerda | à direita | mediana de gente |
+|---|---|---|---|---|---|
+| attractive | 15 | 57 % | 40 % | 60 % | 275 |
+| floating | 22 | 38 % | **73 %** | 27 % | 254 |
+| stagnant | 22 | 56 % | 36 % | **64 %** | 56 |
+| terminal | 16 | 32 % | 56 % | 44 % | 88 |
+
+**Três das quatro se sustentam.** Floating é de esquerda em 73 % dos casos,
+stagnant é de direita em 64 %, e attractive fica perto do meio (57 %).
+
+**A do terminal não se sustenta como volume:** a mediana de gente do terminal é 88
+e a do stagnant é 56, então o terminal não é o quadrante mais colapsado. Ressalva
+que a medida exige: "colapsada" no artigo é adjetivo de forma, e volume é a
+operacionalização escolhida AQUI. O artigo não define o termo, então isto refuta
+uma leitura possível da frase, não a frase.
+
+### 45.7 Por que nada disto virou check novo
+
+O `validate` já tem 192 checks sobre os mesmos estágios, e `make check` já barra
+banco errado contando os 90 projetos raiz. Item que só corrobora prosa (45.2,
+45.3, 45.5) entraria como check verde que alguém teria de manter, sem mudar
+decisão nenhuma. Os que divergem (45.4, 45.6) são vistas novas de divergências já
+declaradas e analisadas, e virar check faria o relatório crescer sem informação
+nova.
+
+O que ficou registrado como ideia, sem execução: as contagens de `users` e
+`commits` da 45.1 caberiam em duas linhas no `sanity check` de
+`adapters/msr14/prepare_dataset.sh`, ao lado do "90 projetos raiz". O check de
+hoje não pega import parcial da tabela `commits`, e essas duas linhas pegariam.
+Não foi feito aqui para esta entrada continuar sendo só documentação.

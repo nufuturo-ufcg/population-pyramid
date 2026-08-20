@@ -202,3 +202,65 @@ def test_year_of_aceita_as_tres_formas():
     assert attr.year_of("2011") == 2011
     assert attr.year_of("2011-12-31") == 2011
     assert attr.year_of(pd.Timestamp("2011-12-31")) == 2011
+
+
+# ---------------------------------------------------------------------------
+# Matriz de transição de quadrante (MSR14 Fig.3, seção 44)
+# ---------------------------------------------------------------------------
+def _historia(linhas):
+    """(projeto, ano, quadrante, elegível, devs) -> frame do estágio."""
+    return pd.DataFrame(
+        linhas, columns=["scope_id", "year", "quadrant", "eligible", "devs"]
+    ).astype({"year": int, "devs": int})
+
+
+def test_transicao_conta_o_par_de_anos_consecutivos():
+    df = _historia(
+        [
+            (1, 2004, "attractive", True, 20),
+            (1, 2005, "terminal", True, 15),
+            (1, 2006, "terminal", True, 12),
+        ]
+    )
+    m = attr.transitions(range(2004, 2007), df)
+    assert m.loc["attractive", "terminal"] == 1
+    assert m.loc["terminal", "terminal"] == 1
+    assert m.to_numpy().sum() == 2
+
+
+def test_projeto_pequeno_demais_vira_estado_asterisco():
+    """O `*` do artigo é "existe e não passa no filtro de dez desenvolvedores"."""
+    df = _historia(
+        [
+            (1, 2004, None, False, 4),
+            (1, 2005, "terminal", True, 11),
+        ]
+    )
+    m = attr.transitions(range(2004, 2006), df)
+    assert m.loc["*", "terminal"] == 1
+
+
+def test_ano_sem_projeto_nao_gera_transicao():
+    """O "-" da Tabela 2 não é estado: projeto que ainda não existia não tem seta."""
+    df = _historia(
+        [
+            (1, 2004, None, False, 0),
+            (1, 2005, "terminal", True, 11),
+            (1, 2006, "terminal", True, 11),
+        ]
+    )
+    m = attr.transitions(range(2004, 2007), df)
+    assert m.to_numpy().sum() == 1
+    assert m.loc["terminal", "terminal"] == 1
+
+
+def test_transicao_respeita_a_janela_pedida():
+    """A janela do artigo é 2004-2011; ano fora dela não entra nem como origem."""
+    df = _historia(
+        [
+            (1, 2011, "attractive", True, 20),
+            (1, 2012, "terminal", True, 15),
+        ]
+    )
+    assert attr.transitions(range(2004, 2012), df).to_numpy().sum() == 0
+    assert attr.transitions(range(2011, 2013), df).loc["attractive", "terminal"] == 1

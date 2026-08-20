@@ -259,6 +259,48 @@ def table(year: int | str | pd.Timestamp | None = None) -> pd.DataFrame:
     )
 
 
+# Estados da Fig.3 do MSR14. Os quatro quadrantes mais o `*`, que o artigo define
+# como "the years when projects did not satisfy our filtering criteria (ten or
+# more developers)": o projeto existe e é pequeno demais para ser classificado.
+# Projeto que ainda não começou não é estado nenhum, é o "-" da Tabela 2, e não
+# entra em transição.
+ESTADOS = ["attractive", "floating", "stagnant", "terminal", "*"]
+
+
+def _estado(eligible: bool, quadrant: object, devs: int) -> str | None:
+    if eligible and isinstance(quadrant, str):
+        return quadrant
+    return "*" if devs > 0 else None
+
+
+def transitions(anos: range, df: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Matriz de transição de quadrante, ano a ano: a Fig.3 do MSR14.
+
+    Uma observação por (projeto, ano -> ano+1) em que os DOIS anos têm estado. O
+    projeto que ainda não existia no ano de origem não entra: no artigo ele é o
+    "-" da Tabela 2, que não é estado e não tem seta na figura.
+
+    Devolve CONTAGEM, não porcentagem. Quem desenha decide a normalização, e a
+    contagem é o que permite ver que uma linha tem 19 observações e outra tem 78.
+    """
+    df = load() if df is None else df
+    cut = df[df["year"].isin(anos)]
+    estado = [
+        _estado(bool(e), q, int(d))
+        for e, q, d in zip(cut["eligible"], cut["quadrant"], cut["devs"], strict=True)
+    ]
+    largo = cut.assign(estado=estado).pivot(index="scope_id", columns="year", values="estado")
+
+    m = pd.DataFrame(0, index=ESTADOS, columns=ESTADOS, dtype=int)
+    for ano in anos[:-1]:
+        if ano not in largo.columns or ano + 1 not in largo.columns:
+            continue
+        for de, para in zip(largo[ano], largo[ano + 1], strict=True):
+            if isinstance(de, str) and isinstance(para, str):
+                m.loc[de, para] += 1
+    return m
+
+
 def year_of(v: int | str | pd.Timestamp) -> int:
     """Aceita 2011, "2011" ou "2011-12-31" (a chave do checkpoints.yaml)."""
     if isinstance(v, int):

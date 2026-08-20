@@ -10,9 +10,11 @@
     "pyramid-grid-centered": "ieice16_fig7_centrados_2013-09-30.png",
     "pyramid-projection-overlay": "ieice16_fig8_projecao_2013-09-30.png",
     "abre-table": "ieice16_tab3_tab4.md",
+    "error-metrics": "ieice16_metricas_de_erro.png",
     "quadrant-table": "msr14_tab2_replicacao.md",
+    "quadrant-transitions": "msr14_fig3_transicoes_2004_2011.png",
     "magnet-sticky": "msr14_fig2_2011.png"
   },
   "failed": {},
-  "updated_at": "2026-08-17T20:09:32.767617+00:00"
+  "updated_at": "2026-08-17T23:24:39.241645+00:00"
 }

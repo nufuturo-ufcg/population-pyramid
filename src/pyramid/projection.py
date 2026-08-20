@@ -82,6 +82,12 @@ COLUMNS = [
     "baseline_pred",
     "abre_cohort",
     "abre_baseline",
+    "mre_cohort",
+    "mre_baseline",
+    "mer_cohort",
+    "mer_baseline",
+    "ae_cohort",
+    "ae_baseline",
 ]
 
 
@@ -113,6 +119,49 @@ def abre(actual: float, predicted: float) -> float:
         # A mediana do artigo é sobre projetos onde os dois lados existem.
         return float("nan")
     return abs(predicted - actual) / denom
+
+
+def _relativo(actual: float, predicted: float, denom: float) -> float:
+    """Erro relativo com o denominador que a métrica escolhe.
+
+    `nan` e denominador zero propagam pelo mesmo motivo do ABRE: sem denominador
+    não existe erro relativo, e cravar 0 ou 1 inventaria acerto ou erro máximo.
+    """
+    if math.isnan(actual) or math.isnan(predicted) or math.isnan(denom):
+        return float("nan")
+    if actual < 0 or predicted < 0:
+        raise ValueError(f"erro relativo em contagem negativa: actual={actual} pred={predicted}")
+    if denom == 0:
+        return float("nan")
+    return abs(predicted - actual) / denom
+
+
+def mre(actual: float, predicted: float) -> float:
+    """Magnitude of Relative Error: |x - x̂| / x, dividindo pelo MEDIDO.
+
+    Verbatim do IEICE16 p.1311, citando Miyazaki et al. [19]. Só o ABRE entra na
+    comparação com a Tabela 3, que é a única que o artigo publica. MRE e MER ficam
+    ao lado porque o próprio artigo os define para justificar a escolha do ABRE, e
+    sem eles a justificativa não é conferível aqui.
+    """
+    return _relativo(actual, predicted, actual)
+
+
+def mer(actual: float, predicted: float) -> float:
+    """Magnitude of Error Relative to the estimate: |x - x̂| / x̂, pelo PREDITO."""
+    return _relativo(actual, predicted, predicted)
+
+
+def ae(actual: float, predicted: float) -> float:
+    """Erro absoluto, |x - x̂|, na unidade da pirâmide: contribuidores.
+
+    A média dele por (tipo, categoria) é o MAE. Fica aqui por célula porque é
+    quem agrega que decide entre média e mediana, e porque a coorte órfã tem de
+    continuar `nan` em vez de virar zero.
+    """
+    if math.isnan(actual) or math.isnan(predicted):
+        return float("nan")
+    return abs(predicted - actual)
 
 
 def _counts_by_band(df: pd.DataFrame, n_bands: int) -> np.ndarray:
@@ -292,6 +341,12 @@ def compute() -> pd.DataFrame:
                         "baseline_pred": bp,
                         "abre_cohort": abre(a, cp),
                         "abre_baseline": abre(a, bp),
+                        "mre_cohort": mre(a, cp),
+                        "mre_baseline": mre(a, bp),
+                        "mer_cohort": mer(a, cp),
+                        "mer_baseline": mer(a, bp),
+                        "ae_cohort": ae(a, cp),
+                        "ae_baseline": ae(a, bp),
                     }
                 )
 
@@ -369,7 +424,48 @@ def tables(df: pd.DataFrame | None = None) -> dict[str, pd.DataFrame]:
             )
         med.append(linha_m)
         pval.append(linha_p)
-    return {"abre": pd.DataFrame(med), "wilcoxon": pd.DataFrame(pval)}
+    return {
+        "abre": pd.DataFrame(med),
+        "wilcoxon": pd.DataFrame(pval),
+        "erros": _tabela_de_erros(completos, tipos, ordem),
+    }
+
+
+# Como cada métrica agrega. Relativa vai por MEDIANA, que é o que a Tabela 3 do
+# artigo publica e o que resiste à cauda da pirâmide (banda com duas pessoas gera
+# erro relativo enorme). O absoluto vai por MÉDIA, porque é isso que o "M" de MAE
+# quer dizer e porque em contagem a média é a que responde "quantos
+# contribuidores o método erra".
+AGREGACAO = {"abre": "mediana", "mre": "mediana", "mer": "mediana", "ae": "media"}
+
+
+def _tabela_de_erros(completos: pd.DataFrame, tipos: list[str], ordem: list[str]) -> pd.DataFrame:
+    """ABRE, MRE, MER e MAE lado a lado, em formato longo.
+
+    Formato longo (uma linha por tipo, categoria e métrica) em vez de mais
+    colunas na Tabela 3: a Tabela 3 é comparada célula a célula com o artigo, e
+    só o ABRE tem contraparte publicada. Misturar as quatro ali convidaria a
+    comparar MRE com número que o artigo nunca imprimiu.
+    """
+    linhas = []
+    for tipo in tipos:
+        sub = completos if tipo == "All types" else completos[completos["type"] == tipo]
+        for cat in ordem:
+            s = sub[sub["category"] == cat]
+            for metrica, como in AGREGACAO.items():
+                agrega = (lambda c: c.mean()) if como == "media" else (lambda c: c.median())
+                linhas.append(
+                    {
+                        "type": tipo,
+                        "category": cat,
+                        "metric": metrica.upper() if metrica != "ae" else "MAE",
+                        "aggregation": como,
+                        "cohort": agrega(s[f"{metrica}_cohort"]),
+                        "baseline": agrega(s[f"{metrica}_baseline"]),
+                        "pairs": len(s),
+                    }
+                )
+    return pd.DataFrame(linhas)
 
 
 def term_split(df: pd.DataFrame | None = None) -> dict:

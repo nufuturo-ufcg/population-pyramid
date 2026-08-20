@@ -462,6 +462,56 @@ def _msr14_tab2(cfg: dict) -> list[Check]:
     return out
 
 
+def _msr14_fig3(cfg: dict) -> list[Check]:
+    """MSR14 Fig.3: as 25 células da matriz de transição de quadrante.
+
+    O artigo publica o diagrama e nenhuma tabela; os 25 valores em
+    `figures.msr14_fig3.matrix` foram decodificados por posição de rótulo no PDF
+    (seção 44). A tolerância é em PONTOS PERCENTUAIS, e não relativa: numa célula
+    de 5 % uma diferença relativa de 20 % é meio ponto, ruído de arredondamento,
+    enquanto numa de 50 % são dez pontos.
+    """
+    from . import attractiveness as attr
+
+    c = (cfg.get("figures") or {}).get("msr14_fig3") or {}
+    if not c:
+        return []
+    mk = lambda **kw: Check(grupo="msr14/fig3", fonte=ARTIGO, **kw)  # noqa: E731
+
+    if not attr.path().exists():
+        return [
+            mk(
+                key="msr14.fig3",
+                esperado="matriz de transição",
+                obtido="rode `pyramid attractiveness`",
+                bate=False,
+                indisponivel=True,
+            )
+        ]
+
+    y0, y1 = (int(a) for a in c["years"])
+    tol = float(c["tolerance_pp"])
+    contagem = attr.transitions(range(y0, y1 + 1))
+    pct = 100 * contagem.div(contagem.sum(axis=1), axis=0)
+
+    out: list[Check] = []
+    n = contagem.sum(axis=1)
+    for origem, linha in c["matrix"].items():
+        for destino, esperado in linha.items():
+            got = float(pct.loc[origem, destino])
+            obs = f"{int(contagem.loc[origem, destino])} de {int(n[origem])} transições"
+            out.append(
+                mk(
+                    key=f"msr14.fig3.{origem}.{destino}",
+                    esperado=f"{float(esperado):.0f}%",
+                    obtido=f"{got:.0f}%",
+                    bate=abs(got - float(esperado)) <= tol,
+                    nota=obs,
+                )
+            )
+    return out
+
+
 def _projecao(cfg: dict) -> list[Check]:
     """IEICE16 seção 4: Tabelas 3 e 4, curto vs. longo prazo."""
     from . import projection as pj
@@ -668,6 +718,7 @@ GRUPOS = {
     "types": _tipos,
     "attractiveness": _atratividade,
     "msr14/tab2": _msr14_tab2,
+    "msr14/fig3": _msr14_fig3,
     "projection": _projecao,
 }
 
