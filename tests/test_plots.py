@@ -214,3 +214,11 @@ def test_regua_da_fig3_e_a_do_artigo():
     assert cfg["yticks"] == [0, 50000, 100000, 150000, 200000, 250000]
     # mxcl/homebrew e rails/rails, os dois que o artigo nomeia dentro do gráfico.
     assert cfg["highlight"] == [79163, 78852]
+
+
+def test_regua_da_fig2_e_a_do_artigo():
+    """Fig.2 do IEICE16: 5.000 dias em x, 12.000 contribuidores em y (seção 39.1)."""
+    cfg = yaml.safe_load((CONFIG_DIR / "checkpoints.yaml").read_text())["figures"]["ieice16_fig2"]
+    assert cfg["xticks"] == [0, 1000, 2000, 3000, 4000, 5000]
+    assert cfg["yticks"] == [0, 2000, 4000, 6000, 8000, 10000, 12000]
+    assert cfg["highlight"] == [79163, 78852]

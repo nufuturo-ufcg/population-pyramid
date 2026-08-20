@@ -37,6 +37,7 @@ import pytest
 from pyramid.classify import (
     DAYS_PER_MONTH,
     OVERVIEW_COLUMNS,
+    _periodo_em_dias,
     coding_events,
     overview,
     profile,
@@ -217,6 +218,7 @@ def _man() -> dict:
                 "ever_coded": 4,
                 "coding_activities": 700,
                 "non_coding_activities": 900,
+                "development_days": 1528,
                 "spans": 12,
             },
             "12": {
@@ -224,6 +226,7 @@ def _man() -> dict:
                 "ever_coded": 3,
                 "coding_activities": 5,
                 "non_coding_activities": 0,
+                "development_days": 40,
                 "spans": 3,
             },
             "999": {"contributors": 1, "ever_coded": 1, "spans": 1},
@@ -241,6 +244,7 @@ def test_overview_soma_os_dois_lados_no_total():
     assert int(linha["non_coding_contributors"]) == 6
     assert int(linha["coding_activities"]) == 700
     assert int(linha["non_coding_activities"]) == 900
+    assert int(linha["development_days"]) == 1528
 
 
 def test_overview_ignora_entrada_sem_as_chaves_do_resumo():
@@ -267,3 +271,25 @@ def test_overview_vazio_mantem_as_colunas():
     df = overview({"ok": {}})
     assert list(df.columns) == OVERVIEW_COLUMNS
     assert df.empty
+
+
+def test_periodo_vai_do_primeiro_ao_ultimo_evento_do_projeto():
+    """Apêndice A: "from the first activity to the last activity", do projeto.
+
+    Contribuidor nenhum cobre o intervalo inteiro sozinho aqui: o período sai do
+    menor `span_start` contra o maior `span_end`, atravessando gente diferente.
+    """
+    df = pd.DataFrame(
+        {
+            "contributor_id": ["C1", "C1", "C2"],
+            "span_start": pd.to_datetime(["2009-07-31", "2011-01-01", "2010-01-01"]),
+            "span_end": pd.to_datetime(["2009-09-30", "2011-03-01", "2013-10-07"]),
+            "span_idx": [0, 1, 0],
+        }
+    )
+    assert _periodo_em_dias(df) == 1529
+
+
+def test_projeto_sem_evento_tem_periodo_zero():
+    vazio = pd.DataFrame(columns=["contributor_id", "span_start", "span_end", "span_idx"])
+    assert _periodo_em_dias(vazio) == 0

@@ -55,11 +55,18 @@ OVERVIEW_COLUMNS = [
     "non_coding_contributors",
     "coding_activities",
     "non_coding_activities",
+    "development_days",
 ]
 
 # Chaves do manifesto que o overview exige. Entrada gravada antes delas
 # existirem é reprocessada, em vez de virar linha furada na tabela.
-RESUMO_KEYS = ("contributors", "ever_coded", "coding_activities", "non_coding_activities")
+RESUMO_KEYS = (
+    "contributors",
+    "ever_coded",
+    "coding_activities",
+    "non_coding_activities",
+    "development_days",
+)
 
 
 def _tem_resumo(entrada: object) -> bool:
@@ -112,6 +119,18 @@ def profile(events: pd.DataFrame, coding: set[str], gap_days: float) -> pd.DataF
     return spans.merge(firsts, on="contributor_id", how="left")
 
 
+def _periodo_em_dias(df: pd.DataFrame) -> int:
+    """Do primeiro ao último evento do projeto, em dias cheios.
+
+    Os spans já carregam o primeiro e o último evento de cada contribuidor, então
+    o período do projeto é o menor `span_start` até o maior `span_end`. Projeto
+    sem evento nenhum tem período zero, não negativo nem nulo.
+    """
+    if df.empty:
+        return 0
+    return int((df["span_end"].max() - df["span_start"].min()).days)
+
+
 def path(scope_id: int) -> Path:
     """Arquivo de perfis de um projeto."""
     return stage_dir(STAGE) / f"{scope_id}.parquet"
@@ -139,6 +158,11 @@ def overview(man: dict) -> pd.DataFrame:
     do artigo: "contributors who have at least one code-related activity in their
     existing periods" (p.1307). Quem não codou nunca é de não-código, e por isso
     os dois lados somam o total.
+
+    `development_days` é do primeiro ao último evento do projeto, a definição do
+    Apêndice A ("the contribution period from the first activity to the last
+    activity"), sem recorte por snapshot. Medida contra a Fig.2 publicada, ela
+    bate dentro de um pixel nos dois projetos nomeados (seção 39.2).
     """
     linhas = [
         {
@@ -148,6 +172,7 @@ def overview(man: dict) -> pd.DataFrame:
             "non_coding_contributors": int(e["contributors"]) - int(e["ever_coded"]),
             "coding_activities": int(e["coding_activities"]),
             "non_coding_activities": int(e["non_coding_activities"]),
+            "development_days": int(e["development_days"]),
         }
         for sid, e in man.get("ok", {}).items()
         if _tem_resumo(e)
@@ -200,6 +225,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
                 "ever_coded": n_c,
                 "coding_activities": a_c,
                 "non_coding_activities": len(ev) - a_c,
+                "development_days": _periodo_em_dias(df),
                 "spans": len(df),
                 "multi_span": int((df["span_idx"] > 0).sum()),
             }

@@ -736,6 +736,59 @@ def figure_fig5(snapshot: str | None = None, highlight: list[int] | None = None)
 # ---------------------------------------------------------------------------
 # IEICE16 seção 2.3: as duas dispersões que descrevem o dataset
 # ---------------------------------------------------------------------------
+def _overview(figura: str) -> pd.DataFrame:
+    """Tabela por projeto do `classify`, com recado de estágio faltando."""
+    if not classify.overview_path().exists():
+        raise ValueError(f"{figura}: sem overview do classify; rode `pyramid classify` antes.")
+    return classify.load_overview()
+
+
+def figure_ieice16_fig2(highlight: list[int] | None = None) -> Path:
+    """IEICE16 Fig.2: período de desenvolvimento (x) × contribuidores (y).
+
+    Período é do primeiro ao último evento do projeto, a definição do Apêndice A,
+    sem recorte por snapshot. É a figura que serve de controle para as outras:
+    ela mede data e gente, e não evento, então bater aqui diz que o dump e a
+    janela de tempo são os mesmos do artigo. Bate dentro de um pixel nos dois
+    projetos nomeados. Ver docs/replicacao/discrepancias.md, seção 39.2.
+    """
+    cfg = _fig_cfg("ieice16_fig2")
+    df = _overview("Fig.2")
+
+    fig, ax = plt.subplots(figsize=(5.0, 4.4))
+    _scatter(
+        ax,
+        df["development_days"],
+        df["contributors"],
+        None,
+        None,
+        "período de desenvolvimento (dias)",
+        "contribuidores",
+    )
+    ax.set_xlim(*cfg["xlim"])
+    ax.set_ylim(*cfg["ylim"])
+    ax.set_xticks(cfg["xticks"])
+    ax.set_yticks(cfg["yticks"])
+    ax.ticklabel_format(style="plain")
+
+    anelados = _anelados(cfg, df["scope_id"], highlight, "Fig.2", "no dataset")
+    _anelar(
+        ax,
+        df[df["scope_id"].isin(anelados)],
+        "development_days",
+        "contributors",
+        lambda r: _repo(r["scope_id"]),
+    )
+
+    ax.set_title(f"IEICE16 Fig.2: período × contribuidores  (n={len(df)})", fontsize=9)
+    stem = "ieice16_fig2"
+    dados = df[["scope_id", "development_days", "contributors"]].copy()
+    dados.insert(1, "project", dados["scope_id"].map(lambda s: labels().get(int(s), str(s))))
+    dados["highlighted"] = dados["scope_id"].isin(anelados)
+    _dump(dados, stem)
+    return _save(fig, stem)
+
+
 def figure_ieice16_fig3(highlight: list[int] | None = None) -> Path:
     """IEICE16 Fig.3: atividades de código (x) × atividades de não-código (y).
 
@@ -750,9 +803,7 @@ def figure_ieice16_fig3(highlight: list[int] | None = None) -> Path:
     docs/replicacao/discrepancias.md, seção 39.
     """
     cfg = _fig_cfg("ieice16_fig3")
-    if not classify.overview_path().exists():
-        raise ValueError("Fig.3: sem overview do classify; rode `pyramid classify` antes.")
-    df = classify.load_overview()
+    df = _overview("Fig.3")
 
     fig, ax = plt.subplots(figsize=(5.0, 4.4))
     _scatter(
@@ -785,7 +836,18 @@ def figure_ieice16_fig3(highlight: list[int] | None = None) -> Path:
 
     ax.set_title(f"IEICE16 Fig.3: atividades de código × não-código  (n={len(df)})", fontsize=9)
     stem = "ieice16_fig3"
-    dados = df.copy()
+    # Só o que esta figura desenha, mais a leitura de contribuidor que a legenda
+    # do artigo sugere. Despejar o overview inteiro faria o CSV mudar toda vez que
+    # outra figura pedisse uma coluna nova.
+    dados = df[
+        [
+            "scope_id",
+            "coding_activities",
+            "non_coding_activities",
+            "coding_contributors",
+            "non_coding_contributors",
+        ]
+    ].copy()
     dados.insert(1, "project", dados["scope_id"].map(lambda s: labels().get(int(s), str(s))))
     dados["highlighted"] = dados["scope_id"].isin(anelados)
     _dump(dados, stem)
@@ -1283,6 +1345,7 @@ def figure_quadrant_table() -> Path:
 
 FIGURES = {
     "activity-scatter": figure_ieice16_fig3,
+    "period-scatter": figure_ieice16_fig2,
     "pyramid-grid-status": figure_grid_status,
     "pyramid-transition": figure_fig3,
     "type-scatter": figure_fig5,
