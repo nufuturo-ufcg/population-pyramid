@@ -2878,3 +2878,47 @@ rails 3.767 para 1.143). As figuras do ESEM14 saem byte a byte iguais, porque o
 mapa mantém os 12 meses medidos para elas. `pyramid validate` continua em 167
 checks, `conhecida=70`, `ok=97`, relatório idêntico: nenhum checkpoint publicado
 depende da janela da figura.
+
+## 41. `commit_scope` medido contra as duas figuras publicadas: elas discordam
+
+A seção 39.3 mostrou que a leitura `root` de "commit do projeto" fica 37 % abaixo
+do artigo no eixo de código da Fig.3, e que as leituras de família chegam perto.
+Isso pedia a pergunta inteira: trocar o escopo melhora a replicação, ou só melhora
+aquela figura? As três leituras foram rodadas de ponta a ponta.
+
+```sh
+# em cada leitura, com a correção do DISTINCT (seção 39.4) aplicada
+pyramid run-all --force && pyramid validate --report /tmp/val_<leitura>.md
+```
+
+| leitura | Fig.3 homebrew | Fig.3 rails | Tipos A-D | erro L1 dos tipos | `validate` |
+|---|---|---|---|---|---|
+| **`root`** (em vigor) | -36,7 % | -23,5 % | 26/40/15/4 | **9** | 0 falhas |
+| `family_project_commits` | **+3,5 %** | **+2,4 %** | 28/39/14/4 | 13 | 3 falhas |
+| `family_project_id` | +5,8 % | +3,7 % | 29/38/15/3 | 13 | 5 falhas, 2 obsoletas |
+
+O artigo publica 23/42/18/3 nos tipos.
+
+**As duas medidas publicadas apontam para lados opostos.** A contagem de evento da
+Fig.3 escolhe família com folga (erro de 3 % contra 37 %). A distribuição de tipos
+da Fig.5, que é o checkpoint de referência desta replicação, escolhe `root`: a
+família empurra mais quatro projetos para o tipo A, que já é o lado que sobra
+(seção 38), e piora o L1 de 9 para 13.
+
+Sob `family_project_commits` quebram três travas que hoje passam:
+`msr14.tab2.2008.mojombo/jekyll` (floating vira terminal) e as duas travas do
+agregado da projeção (`cohort` 0,3894 vira 0,4000, `p` 0,0124 vira 0,0055). Sob
+`family_project_id` quebram cinco, incluindo `types.examples.78852`: rails sai do
+tipo D, que o artigo nomeia, e vira C.
+
+**Decisão: fica `root`, e a divergência da Fig.3 fica declarada.** O critério é o
+que `CONTRIBUTING.md` manda: o caso de aceite é a reprodução dos números
+publicados, e a Fig.5 é o checkpoint de referência. Trocar o escopo para ganhar
+uma figura descritiva e perder o checkpoint principal seria ajustar o método ao
+artefato mais conveniente.
+
+Fica registrada a hipótese que explicaria as duas coisas ao mesmo tempo, sem teste
+possível com o que está publicado: os autores podem ter descrito o dataset (Fig.2
+e Fig.3, seção 2.3) com uma contagem de commit e rodado o método (Fig.5 em diante)
+com outra. Este repositório não faz isso: escopo é um parâmetro só, para o método
+inteiro, e um escopo por artefato seria irreproduzível na prática.
