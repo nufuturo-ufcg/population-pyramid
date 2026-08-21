@@ -110,6 +110,7 @@ def coleta_minima(raiz: Path) -> Path:
             # issue de verdade, sem arquivo: cai no fallback
             {
                 "id": 11,
+                "number": 1,
                 "url": _url(ALPHA, "issues/1"),
                 "repository_url": _url(ALPHA, ""),
                 "user": humano,
@@ -118,6 +119,7 @@ def coleta_minima(raiz: Path) -> Path:
             # PODRE: sem data
             {
                 "id": 12,
+                "number": 2,
                 "url": _url(ALPHA, "issues/2"),
                 "repository_url": _url(ALPHA, ""),
                 "user": outro,
@@ -126,6 +128,7 @@ def coleta_minima(raiz: Path) -> Path:
             # com a chave `pull_request` vira abertura de PR
             {
                 "id": 13,
+                "number": 3,
                 "url": _url(BETA, "issues/3"),
                 "repository_url": _url(BETA, ""),
                 "user": humano,
@@ -154,6 +157,7 @@ def coleta_minima(raiz: Path) -> Path:
                 "url": _url(BETA, "comments/31"),
                 "commit_id": "ddd",
                 "path": None,
+                "position": None,
                 "user": humano,
                 "created_at": "2021-03-05T10:00:00Z",
             }
@@ -346,3 +350,65 @@ def test_extensao_ambigua_e_resolvida_pelo_mapa_de_bytes():
     # `.md` e Markdown e GCC Machine Description, e o mapa de /languages exclui
     # prosa, entao nenhum repositorio normal reivindica o README.
     assert m._linguagem_no_repo("README.md", {"Clojure": 10}) is None
+
+
+# --- coleta que traz /pulls num arquivo à parte -------------------------------
+#
+# A coleta grande é feita por outra pessoa, que pode listar `/pulls` em vez de
+# tirar os PRs do `/issues`. Item de `/pulls` traz `issue_url`, igual a
+# comentário de issue, e sem tratamento próprio a abertura de PR entraria como
+# comentário. Isso troca `coding` por `non_coding` e inverte o CCR do escopo.
+
+
+def _item_de_pulls(numero: int, user: dict, quando: str) -> dict:
+    """Forma real de `GET /pulls`, com os campos que decidem a classificação."""
+    return {
+        "id": 900 + numero,
+        "number": numero,
+        "url": _url(ALPHA, f"pulls/{numero}"),
+        "issue_url": _url(ALPHA, f"issues/{numero}"),
+        "head": {"ref": "feat"},
+        "base": {"ref": "main"},
+        "user": user,
+        "created_at": quando,
+    }
+
+
+def _com_pulls(raiz: Path, itens: list[dict]) -> Path:
+    (raiz / "pulls.jsonl").write_text(
+        "".join(json.dumps(i) + "\n" for i in itens), encoding="utf-8"
+    )
+    return raiz
+
+
+def test_arquivo_de_pulls_vira_abertura_de_pr(tmp_path):
+    raiz = _com_pulls(
+        coleta_minima(tmp_path / "ghapi"),
+        [_item_de_pulls(9, {"id": 7, "login": "carl", "type": "User"}, "2021-08-01T10:00:00Z")],
+    )
+    src = GHAPISource({}, raiz=raiz)
+    por_tipo = {
+        t
+        for s in src.list_scopes()
+        for t in src.get_events(s).loc[src.get_events(s)["contributor_id"] == 7, "event_type"]
+    }
+
+    assert por_tipo == {"pull_requests"}
+
+
+def test_o_mesmo_pr_nas_duas_listagens_nao_conta_duas_vezes(tmp_path):
+    """`/issues` e `/pulls` descrevem o PR com o mesmo autor e a mesma data.
+
+    Conferido nos PRs 2949, 2950 e 2951 do clj-kondo: `user.id` e `created_at`
+    batem nas duas listagens. A linha canônica sai idêntica, e a limpeza de
+    duplicata exata que o contrato já exige resolve sozinha.
+    """
+    humano = {"id": 1, "login": "ana", "type": "User"}
+    sem = GHAPISource({}, raiz=coleta_minima(tmp_path / "a"))
+    # O PR 3 do `beta` já existe na coleta mínima, dentro de issues.jsonl.
+    duplicado = _item_de_pulls(3, humano, "2021-03-03T10:00:00Z")
+    duplicado["url"] = _url(BETA, "pulls/3")
+    duplicado["issue_url"] = _url(BETA, "issues/3")
+    com = GHAPISource({}, raiz=_com_pulls(coleta_minima(tmp_path / "b"), [duplicado]))
+
+    assert _eventos(com) == _eventos(sem)

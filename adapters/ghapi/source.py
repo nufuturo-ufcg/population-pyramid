@@ -144,15 +144,28 @@ def _linguagem_no_repo(caminho: str, bytes_por_lang: Mapping[str, int]) -> str |
 
 # --- leitura da coleta ---------------------------------------------------------
 
-# Discriminadores por forma do item. A ordem importa: comentário de review tem
-# `commit_id` igual ao comentário de commit, e só o `pull_request_url` separa.
-_FORMA: tuple[tuple[str, str], ...] = (
-    ("pull_request_comments", "pull_request_url"),
-    ("issue_comments", "issue_url"),
-    ("commit_comments", "commit_id"),
-    ("issue_events", "event"),
-    ("commits", "sha"),
-    ("issues", "repository_url"),
+# Que chaves cada busca traz. A classificação é por presença de chave, e não
+# por valor, porque valor nulo é normal: `commit_comments.path` vem `null` em
+# metade dos itens e `issue_events.commit_id` vem `null` quase sempre.
+#
+# A ordem vai do mais específico para o mais geral, e cada linha existe por uma
+# colisão medida:
+#
+# - item de `/pulls` traz `issue_url`, igual a comentário de issue. Sem o
+#   `head`/`base` na frente, abertura de PR entraria como comentário, o que
+#   inverte o CCR do escopo inteiro.
+# - comentário de review traz `commit_id`, igual a comentário de commit, e só o
+#   `pull_request_url` separa.
+# - comentário de commit traz `position`, que o evento de issue não tem, embora
+#   os dois tenham `commit_id`.
+_FORMA: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("pull_requests", ("issue_url", "head", "base")),
+    ("pull_request_comments", ("pull_request_url",)),
+    ("issue_comments", ("issue_url",)),
+    ("commit_comments", ("commit_id", "position")),
+    ("issue_events", ("event", "actor")),
+    ("commits", ("sha", "commit")),
+    ("issues", ("repository_url", "number")),
 )
 
 
@@ -182,8 +195,8 @@ def _linhas(arquivo: Path) -> Iterator[dict]:
 
 def _classifica(item: Mapping[str, Any]) -> str | None:
     """Qual busca produziu este item, pela forma dele."""
-    for busca, chave in _FORMA:
-        if item.get(chave) is not None:
+    for busca, chaves in _FORMA:
+        if all(c in item for c in chaves):
             return busca
     return None
 
@@ -228,6 +241,7 @@ def _busca_por_arquivo(raiz: Path) -> dict[str, list[Path]]:
 _QUEM: dict[str, str] = {
     "commits": "author",
     "issues": "user",
+    "pull_requests": "user",
     "issue_comments": "user",
     "commit_comments": "user",
     "pull_request_comments": "user",
