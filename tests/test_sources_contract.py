@@ -98,8 +98,24 @@ def _msr14():
         yield src
 
 
+@contextmanager
+def _ghapi():
+    # A coleta mínima mora no teste do adaptador, e é desenhada para cair nas
+    # mesmas garantias: 3 eventos limpos de 5 itens crus no primeiro escopo, com
+    # um escopo de `language` None no fim.
+    from test_ghapi import ghapi_de_teste
+
+    with ghapi_de_teste() as src:
+        yield src
+
+
 # Registro de fontes. Adicionar a fonte nova AQUI é o que a torna testada.
-SOURCES = {"MSR14Source": _msr14}
+SOURCES = {"MSR14Source": _msr14, "GHAPISource": _ghapi}
+
+# Quantos eventos limpos sobram no primeiro escopo de cada fonte. O fixture cru
+# de cada uma traz linha podre de propósito, e este número é o que tem de
+# sobreviver. Fonte nova declara o dela aqui.
+EVENTOS_LIMPOS = {"MSR14Source": 3, "GHAPISource": 4}
 
 
 @pytest.fixture(params=list(SOURCES), ids=list(SOURCES))
@@ -130,8 +146,8 @@ def test_dtypes_canonicos(source):
 def test_sem_nulos_a_limpeza_e_da_fonte(source):
     df = source.get_events(source.list_scopes()[0])
     assert not df[["contributor_id", "timestamp"]].isna().any().any()
-    # As duas linhas podres do fixture não podem ter sobrevivido.
-    assert len(df) == 3
+    # As linhas podres do fixture não podem ter sobrevivido.
+    assert len(df) == EVENTOS_LIMPOS[type(source).__name__]
 
 
 def test_event_type_dentro_do_enum(source):
