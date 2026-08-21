@@ -28,6 +28,7 @@ from .classify import DAYS_PER_MONTH
 from .classify import load as load_spans
 from .config import settings, stage_dir, window_override
 from .extract import source
+from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "snapshots"
@@ -348,7 +349,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     dates = snapshot_dates(cfg)
 
     src = source()
-    targets = scopes if scopes is not None else src.list_scopes()
+    targets = scopes if scopes is not None else [e.id for e in scopes_of_unit(src)]
 
     man = runlog.load(STAGE)
     if force:

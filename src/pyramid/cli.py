@@ -17,6 +17,7 @@ import typer
 
 from . import logging_config as runlog
 from .config import set_window, start_run
+from .units import scopes_of_unit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -90,8 +91,9 @@ def _scopes(project: str | None, project_all: bool) -> list[int] | None:
     from .extract import source
 
     src = source()
-    ids = src.list_scopes()
-    return [_resolve(project, {s: src.scope_label(s) for s in ids})]
+    # O rótulo sai do escopo lógico, e não do adaptador: com `unit: language` o
+    # que o usuário digita é "Clojure", que não é escopo de adaptador nenhum.
+    return [_resolve(project, {e.id: e.label for e in scopes_of_unit(src)})]
 
 
 def _data(valor: str | None, flag: str) -> str | None:

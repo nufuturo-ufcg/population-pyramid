@@ -56,6 +56,7 @@ from . import logging_config as runlog
 from . import snapshots
 from .config import stage_dir
 from .extract import label_of, source
+from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "metrics"
@@ -193,7 +194,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     manifesto.
     """
     src = source()
-    targets = scopes if scopes is not None else src.list_scopes()
+    targets = scopes if scopes is not None else [e.id for e in scopes_of_unit(src)]
 
     man = runlog.load(STAGE)
     if force:

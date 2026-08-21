@@ -34,6 +34,7 @@ import pandas as pd
 from . import logging_config as runlog
 from .config import settings, stage_dir
 from .extract import events_path, label_of, load_events, source
+from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "attractiveness"
@@ -78,7 +79,7 @@ def activity(
     que ninguém consegue enxergar olhando o resultado.
     """
     src = source()
-    ids = scopes if scopes is not None else src.list_scopes()
+    ids = scopes if scopes is not None else [e.id for e in scopes_of_unit(src)]
     ev = events if events is not None else coding_events()
 
     faltando = [s for s in ids if not events_path(s).exists()]
@@ -349,5 +350,5 @@ def run(
 
     runlog.save(STAGE, man)
     log.info(runlog.summarize(STAGE, man))
-    log.debug("rótulos disponíveis para %d projetos", len(src.list_scopes()))
+    log.debug("rótulos disponíveis para %d escopos", len(scopes_of_unit(src)))
     return man

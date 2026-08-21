@@ -25,9 +25,14 @@ output:
 
 analysis:
   # Unidade de análise da pirâmide: uma pirâmide por quê.
-  #   project  -> uma população por projeto (é o que os dois artigos fazem)
-  # `language` entra quando o motor agregar escopos por `scope_meta.language`.
-  # O contrato de entrada já exige esse atributo; o que falta é o agregador.
+  #   project   -> uma população por escopo do adaptador (é o que os dois artigos fazem)
+  #   language  -> soma os escopos que compartilham `scope_meta.language`
+  #
+  # `language` responde "quem escreve Clojure", somando os N repositórios da
+  # linguagem. A soma acontece no `extract`, antes do `classify`, porque é o
+  # `profile` que decide quem nasceu quando: somando pirâmides prontas, quem
+  # mexe em cinco repositórios vira cinco pessoas, cada uma nascendo na estreia
+  # do repositório dela. Quem agrupa é `src/pyramid/units.py`.
   unit: project
 
 # As três chaves abaixo descrevem o recorte de projetos DO ADAPTADOR MSR14.

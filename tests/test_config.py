@@ -1,8 +1,8 @@
 """Leitura de `config/settings.yaml` que o resto do pipeline assume.
 
-`analysis.unit` escolhe a unidade de análise da saída. O contrato de entrada já
-exige `scope_meta.language`, então o dia em que existir agregador por linguagem
-o valor entra aqui. Até lá o valor desconhecido tem que parar antes do banco.
+`analysis.unit` escolhe a unidade de análise da saída. `project` e `language`
+têm agregador em `pyramid.units`. Valor desconhecido tem que parar antes do
+banco, e não três estágios adiante com uma pirâmide de nome errado.
 """
 
 from __future__ import annotations
@@ -24,10 +24,17 @@ def test_settings_sem_analysis_cai_em_project(monkeypatch):
     assert config.analysis_unit() == "project"
 
 
-def test_unit_sem_agregador_falha_com_a_lista(monkeypatch):
+def test_language_tem_agregador(monkeypatch):
+    """`language` passou de valor recusado a unidade implementada em `units.py`."""
     monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": "language"}})
 
-    with pytest.raises(ValueError, match=r"analysis\.unit='language'.*project"):
+    assert config.analysis_unit() == "language"
+
+
+def test_unit_sem_agregador_falha_com_a_lista(monkeypatch):
+    monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": "team"}})
+
+    with pytest.raises(ValueError, match=r"analysis\.unit='team'.*project, language"):
         config.analysis_unit()
 
 

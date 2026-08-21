@@ -45,15 +45,15 @@ def settings() -> dict:
     return yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
 
 
-UNITS_IMPLEMENTADAS = ("project",)
+UNITS_IMPLEMENTADAS = ("project", "language")
 
 
 def analysis_unit() -> str:
     """Unidade de análise da saída, de `analysis.unit`.
 
-    Valor sem agregador implementado falha aqui. `language` já está previsto no
-    contrato de entrada (`scope_meta`) e ainda não tem agregador: aceitar o
-    valor entregaria uma pirâmide por projeto com o nome de outra coisa.
+    Valor sem agregador implementado falha aqui. Quem soma os escopos de cada
+    unidade é `pyramid.units.scopes_of_unit`, e aceitar um valor sem agregador
+    entregaria uma pirâmide por projeto com o nome de outra coisa.
     """
     unit = str(settings().get("analysis", {}).get("unit", "project"))
     if unit not in UNITS_IMPLEMENTADAS:
