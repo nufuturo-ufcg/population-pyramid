@@ -211,26 +211,20 @@ def _repo_do_item(item: Mapping[str, Any]) -> str | None:
     return f"{resto[0]}/{resto[1]}" if len(resto) >= 2 else None
 
 
-def _busca_por_arquivo(raiz: Path) -> dict[str, list[Path]]:
-    """Varre o diretório e agrupa os arquivos por busca.
+def _arquivos_de_evento(raiz: Path) -> list[Path]:
+    """Arquivos da coleta que podem conter evento, em ordem estável.
 
-    Classifica pelo primeiro item de cada arquivo. Arquivo vazio, ou de forma
-    desconhecida, fica de fora com um aviso, para coleta com lixo dentro não
-    derrubar o pipeline inteiro.
+    Fora ficam só os dois de metadado e o que começa com `_`. Nada aqui olha o
+    nome do arquivo para adivinhar o que tem dentro.
     """
-    achados: dict[str, list[Path]] = {}
-    for arquivo in sorted(raiz.rglob("*")):
-        if not arquivo.is_file() or arquivo.suffix not in {".json", ".jsonl"}:
-            continue
-        if arquivo.name.startswith("_") or arquivo.name in {"repos.jsonl", "languages.jsonl"}:
-            continue
-        primeiro = next(_linhas(arquivo), None)
-        busca = _classifica(primeiro) if isinstance(primeiro, dict) else None
-        if busca is None:
-            log.warning("ignorando %s: forma nao reconhecida", arquivo.name)
-            continue
-        achados.setdefault(busca, []).append(arquivo)
-    return achados
+    return [
+        a
+        for a in sorted(raiz.rglob("*"))
+        if a.is_file()
+        and a.suffix in {".json", ".jsonl"}
+        and not a.name.startswith("_")
+        and a.name not in {"repos.jsonl", "languages.jsonl"}
+    ]
 
 
 # --- a coleta como tabela ------------------------------------------------------
@@ -454,9 +448,9 @@ class GHAPISource(ActivityDataSource):
             )
         repos, langs = _metadados(self.raiz)
         por_sha = _caminhos_por_sha(self.raiz)
-        arquivos = _busca_por_arquivo(self.raiz)
+        arquivos = _arquivos_de_evento(self.raiz)
         if not arquivos:
-            raise ValueError(f"{self.raiz}: nenhum arquivo de evento reconhecido.")
+            raise ValueError(f"{self.raiz}: nenhum arquivo .json ou .jsonl de evento.")
 
         # Universo de linguagens de cada repositório, ordenado, de onde sai o
         # índice que compõe o `scope_id`. Sai só dos dados, então é estável.
@@ -473,13 +467,21 @@ class GHAPISource(ActivityDataSource):
 
         linhas: list[tuple[int, int, str, str]] = []
         descartes: Counter[str] = Counter()
-        for busca, caminhos in sorted(arquivos.items()):
-            for arquivo in caminhos:
-                for item in _linhas(arquivo):
-                    saiu, motivo = self._linhas_do_item(busca, item, ctx)
-                    linhas.extend(saiu)
-                    if motivo:
-                        descartes[motivo] += 1
+        # A classificação é POR ITEM, e não por arquivo. A coleta pode separar
+        # por busca, por repositório, ou jogar tudo num arquivo só, e nenhuma
+        # dessas formas muda o resultado. Classificar pelo primeiro item e
+        # aplicar o veredito ao arquivo inteiro leria um arquivo misto errado,
+        # trocando o tipo de evento de tudo que viesse depois da primeira linha.
+        for arquivo in arquivos:
+            for item in _linhas(arquivo):
+                busca = _classifica(item) if isinstance(item, dict) else None
+                if busca is None:
+                    descartes["forma nao reconhecida"] += 1
+                    continue
+                saiu, motivo = self._linhas_do_item(busca, item, ctx)
+                linhas.extend(saiu)
+                if motivo:
+                    descartes[motivo] += 1
 
         for motivo, n in sorted(descartes.items()):
             log.info("descartados %d eventos: %s", n, motivo, extra={"stage": "extract"})

@@ -463,27 +463,64 @@ def test_ordem_das_linhas_nao_muda_o_resultado(tmp_path):
 
 
 def test_um_arquivo_so_com_tudo_dentro_da_o_mesmo_resultado(tmp_path):
-    """Coleta que junta buscas diferentes no mesmo arquivo continua sendo lida.
+    """Todos os eventos, de todos os tipos e repositórios, num arquivo só.
 
-    A classificação é por item, então um arquivo misto é classificado pelo
-    primeiro. Separar por busca é o caso normal, e este teste trava o caso em que
-    a coleta separa por repositório em vez de por busca.
+    A classificação é por item, então separar por busca, separar por repositório
+    ou jogar tudo junto tem de dar a mesma tabela. Classificar pelo primeiro item
+    e aplicar o veredito ao arquivo inteiro leria tudo depois da primeira linha
+    com o tipo errado.
     """
+    por_busca = coleta_minima(tmp_path / "a")
+    tudo_junto = tmp_path / "b"
+    tudo_junto.mkdir()
+    for nome in ["repos.jsonl", "languages.jsonl", "commit_files.tsv"]:
+        conteudo = (por_busca / nome).read_text(encoding="utf-8")
+        (tudo_junto / nome).write_text(conteudo, encoding="utf-8")
+    misturado = []
+    for arquivo in sorted(por_busca.glob("*.jsonl")):
+        if arquivo.name in {"repos.jsonl", "languages.jsonl"}:
+            continue
+        misturado += arquivo.read_text(encoding="utf-8").splitlines()
+    (tudo_junto / "eventos.jsonl").write_text("\n".join(misturado) + "\n", encoding="utf-8")
+
+    esperado = GHAPISource({}, raiz=por_busca)
+    obtido = GHAPISource({}, raiz=tudo_junto)
+
+    assert obtido.list_scopes() == esperado.list_scopes()
+    for sid in esperado.list_scopes():
+        colunas = list(esperado.get_events(sid).columns)
+        a = esperado.get_events(sid).sort_values(colunas).reset_index(drop=True)
+        b = obtido.get_events(sid).sort_values(colunas).reset_index(drop=True)
+        assert a.equals(b)
+
+
+def test_um_arquivo_por_repositorio_da_o_mesmo_resultado(tmp_path):
+    """A coleta pode separar por repositório em vez de por busca."""
     por_busca = coleta_minima(tmp_path / "a")
     por_repo = tmp_path / "b"
     por_repo.mkdir()
     for nome in ["repos.jsonl", "languages.jsonl", "commit_files.tsv"]:
-        (por_repo / nome).write_text(
-            (por_busca / nome).read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        conteudo = (por_busca / nome).read_text(encoding="utf-8")
+        (por_repo / nome).write_text(conteudo, encoding="utf-8")
     for arquivo in sorted(por_busca.glob("*.jsonl")):
         if arquivo.name in {"repos.jsonl", "languages.jsonl"}:
             continue
-        (por_repo / f"{arquivo.stem}-parte.jsonl").write_text(
-            arquivo.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        conteudo = arquivo.read_text(encoding="utf-8")
+        (por_repo / f"{arquivo.stem}-parte.jsonl").write_text(conteudo, encoding="utf-8")
 
     assert (
         GHAPISource({}, raiz=por_repo).list_scopes()
         == GHAPISource({}, raiz=por_busca).list_scopes()
+    )
+
+
+def test_item_de_forma_desconhecida_nao_derruba_a_coleta(tmp_path):
+    """Lixo no meio do arquivo sai contado, e o resto da coleta continua."""
+    raiz = coleta_minima(tmp_path / "a")
+    with (raiz / "commits.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"algo": "que nao e evento"}) + "\n")
+
+    assert (
+        GHAPISource({}, raiz=raiz).list_scopes()
+        == GHAPISource({}, raiz=coleta_minima(tmp_path / "b")).list_scopes()
     )
