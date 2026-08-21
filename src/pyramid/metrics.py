@@ -225,13 +225,13 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             if last is None:
                 log.warning(
                     "%-38s sem população ativa em nenhum snapshot",
-                    src.scope_label(sid),
+                    label_of(sid),
                     extra={"scope_id": sid, "stage": STAGE},
                 )
             else:
                 log.info(
                     "%-38s %3d snapshots  último: CCR %+.3f  NCR %+.3f  Tipo %s",
-                    src.scope_label(sid),
+                    label_of(sid),
                     len(out),
                     last["ccr"],
                     last["ncr"],

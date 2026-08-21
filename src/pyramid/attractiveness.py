@@ -317,7 +317,6 @@ def run(
             raise
         return man
 
-    src = source()
     for y, g in out.groupby("year"):
         if years is not None and int(y) not in years:
             continue
@@ -358,5 +357,4 @@ def run(
 
     runlog.save(STAGE, man)
     log.info(runlog.summarize(STAGE, man))
-    log.debug("rótulos disponíveis para %d escopos", len(scopes_of_unit(src)))
     return man

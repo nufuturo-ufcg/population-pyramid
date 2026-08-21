@@ -112,10 +112,15 @@ def _ghapi():
 # Registro de fontes. Adicionar a fonte nova AQUI é o que a torna testada.
 SOURCES = {"MSR14Source": _msr14, "GHAPISource": _ghapi}
 
-# Quantos eventos limpos sobram no primeiro escopo de cada fonte. O fixture cru
-# de cada uma traz linha podre de propósito, e este número é o que tem de
-# sobreviver. Fonte nova declara o dela aqui.
-EVENTOS_LIMPOS = {"MSR14Source": 3, "GHAPISource": 4}
+# Quantos eventos limpos sobram no TOTAL de cada fonte. O fixture cru de cada uma
+# traz linha podre de propósito, e este número é o que tem de sobreviver.
+#
+# O total, e não o primeiro escopo: qual escopo vem primeiro depende de como a
+# fonte numera, e isso é decisão dela. Prender o teste a essa ordem faz uma
+# mudança legítima de numeração parecer regressão de limpeza.
+#
+# Fonte nova declara o dela aqui.
+EVENTOS_LIMPOS = {"MSR14Source": 6, "GHAPISource": 10}
 
 
 @pytest.fixture(params=list(SOURCES), ids=list(SOURCES))
@@ -144,10 +149,11 @@ def test_dtypes_canonicos(source):
 
 
 def test_sem_nulos_a_limpeza_e_da_fonte(source):
-    df = source.get_events(source.list_scopes()[0])
-    assert not df[["contributor_id", "timestamp"]].isna().any().any()
+    frames = [source.get_events(s) for s in source.list_scopes()]
+    for df in frames:
+        assert not df[["contributor_id", "timestamp"]].isna().any().any()
     # As linhas podres do fixture não podem ter sobrevivido.
-    assert len(df) == EVENTOS_LIMPOS[type(source).__name__]
+    assert sum(len(df) for df in frames) == EVENTOS_LIMPOS[type(source).__name__]
 
 
 def test_event_type_dentro_do_enum(source):

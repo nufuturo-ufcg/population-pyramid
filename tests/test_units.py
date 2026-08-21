@@ -255,3 +255,44 @@ def test_com_project_todo_escopo_plota(por_projeto):
 
     assert escopos["acme/quatro"].meta["language"] is None
     assert escopos["acme/quatro"].plotavel
+
+
+# --- retomada não pode reusar dado de outra configuração ----------------------
+
+
+def test_mudar_a_escolha_da_fonte_invalida_o_manifesto(tmp_path, monkeypatch):
+    """O id do escopo não carrega a política que o produziu.
+
+    Sob `unit: language` o id sai do nome da linguagem. Trocar uma chave que
+    muda os MEMBROS do escopo não muda o id, então a retomada encontrava a chave
+    no manifesto e o parquet no disco, pulava, e gravava a política nova por
+    cima de dados da política velha. Número errado sem erro nenhum.
+    """
+    from pyramid import extract
+
+    monkeypatch.setattr(config, "OUTPUT_DIR", tmp_path / "output")
+    monkeypatch.setattr(config, "RUNS_DIR", tmp_path / "output" / "runs")
+    monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": "language"}})
+    config.end_run()
+
+    class ComEscolha(FonteFake):
+        def __init__(self, escolha, escopos=None):
+            super().__init__(escopos)
+            self.escolha = escolha
+
+        def provenance(self):
+            return {"escolha": self.escolha}
+
+    # Primeira execução: dois repositórios Clojure.
+    monkeypatch.setattr(extract, "source", lambda: ComEscolha("a"))
+    antes = extract.run()
+    clojure = next(k for k, v in antes["ok"].items() if v["label"] == "Clojure")
+    assert antes["ok"][clojure]["events"] == 4  # os dois repositórios Clojure
+
+    # A escolha muda e o repositório 11 sai do grupo. O id de Clojure é o mesmo.
+    so_um = {10: ESCOPOS[10], 12: ESCOPOS[12]}
+    monkeypatch.setattr(extract, "source", lambda: ComEscolha("b", so_um))
+    depois = extract.run()
+
+    assert depois["ok"][clojure]["events"] == 2  # só o repositório 10 sobrou
+    assert depois["escolha"] == "b"

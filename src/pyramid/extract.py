@@ -111,7 +111,24 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
 
-    man.update(src.provenance())
+    # A retomada pula escopo que já está `ok` no manifesto com o parquet no
+    # disco. O id do escopo não carrega a política que o produziu: sob
+    # `unit: language` ele sai do nome da linguagem, então trocar
+    # `language.outside_eligible` muda os MEMBROS de cada escopo e não muda o
+    # id. Sem esta invalidação, a execução seguinte reusa o parquet da política
+    # anterior, grava a política nova no manifesto, e reporta `ok`. Número
+    # errado, sem erro nenhum.
+    prov = src.provenance()
+    if man.get("ok") and {k: man.get(k) for k in prov} != prov:
+        log.warning(
+            "as escolhas da fonte mudaram desde a última execução; reextraindo tudo. "
+            "antes=%s agora=%s",
+            {k: man.get(k) for k in prov},
+            prov,
+            extra={"stage": STAGE},
+        )
+        man = {"stage": STAGE, "ok": {}, "failed": {}}
+    man.update(prov)
 
     # Um escopo lógico é uma pirâmide. Com `unit: project` ele é um escopo do
     # adaptador. Com `unit: language` ele soma os escopos que compartilham a

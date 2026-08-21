@@ -604,3 +604,29 @@ def test_o_formato_de_entrega_nao_muda_o_resultado(tmp_path, transforma):
         a = esperado.get_events(sid).sort_values(colunas).reset_index(drop=True)
         b = obtido.get_events(sid).sort_values(colunas).reset_index(drop=True)
         assert a.equals(b)
+
+
+def test_o_id_do_escopo_nao_depende_do_mapa_de_bytes(tmp_path):
+    """Recoleta que acrescente uma linguagem não pode renomear as outras.
+
+    O id vinha da posição no mapa de `GET /languages`, ordenado. Uma linguagem
+    nova que ordenasse antes deslocava todo índice acima dela, e o parquet
+    gravado antes continuava no disco com o nome de outro escopo.
+    """
+    raiz = coleta_minima(tmp_path / "a")
+    inicial = GHAPISource({}, raiz=raiz)
+    antes = {inicial.scope_label(s): s for s in inicial.list_scopes()}
+
+    # `Ada` ordena antes de `Clojure` e de `Java` no mapa do alpha.
+    linhas = (raiz / "languages.jsonl").read_text(encoding="utf-8").splitlines()
+    novo = []
+    for linha in linhas:
+        item = json.loads(linha)
+        if item["full_name"] == ALPHA:
+            item["languages"] = {"Ada": 1, **item["languages"]}
+        novo.append(json.dumps(item))
+    (raiz / "languages.jsonl").write_text("\n".join(novo) + "\n", encoding="utf-8")
+    src = GHAPISource({}, raiz=raiz)
+    depois = {src.scope_label(s): s for s in src.list_scopes()}
+
+    assert all(depois[rotulo] == sid for rotulo, sid in antes.items())

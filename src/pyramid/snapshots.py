@@ -27,7 +27,7 @@ from . import logging_config as runlog
 from .classify import DAYS_PER_MONTH
 from .classify import load as load_spans
 from .config import settings, stage_dir, window_override
-from .extract import source
+from .extract import label_of, source
 from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
@@ -388,7 +388,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             man["failed"].pop(key, None)
             log.info(
                 "%-38s %6d linhas  %4d ativos em %s",
-                src.scope_label(sid),
+                label_of(sid),
                 len(df),
                 man["ok"][key]["active_at_last_snapshot"],
                 dates[-1].date(),

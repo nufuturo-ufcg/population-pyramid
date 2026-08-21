@@ -38,6 +38,7 @@ em `clj-kondo/clj-kondo` (repo 176829714, 3097 commits):
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import logging
 import os
@@ -63,10 +64,22 @@ from pyramid.sources.base import (
 log = logging.getLogger(__name__)
 AQUI = Path(__file__).resolve().parent
 
-# Um escopo é (repo_id, índice da linguagem no universo daquele repositório).
-# O universo é ordenado e sai só dos dados, então o id é estável entre execuções.
-# 1000 linguagens num repositório só é folga larga: o clj-kondo tem 6.
-LINGUAGENS_POR_REPO = 1000
+# Um escopo é o par (repositório, linguagem), e o id junta os dois num inteiro.
+#
+# A parte da linguagem sai de um hash do NOME dela, e não da posição no mapa de
+# bytes daquele repositório. Posição parece mais legível e não serve: uma
+# recoleta em que o `GET /languages` ganhe uma linguagem desloca todo índice
+# acima dela, e aí `176829714000` deixa de ser a mesma linguagem enquanto o
+# parquet gravado antes continua no disco com aquele nome.
+LINGUAGENS_POR_REPO = 100_000
+
+
+def id_do_escopo(repo_id: int, linguagem: str) -> int:
+    """Id estável do par (repositório, linguagem), derivado só dos dois nomes."""
+    return repo_id * LINGUAGENS_POR_REPO + (
+        int(hashlib.sha1(linguagem.encode()).hexdigest()[:8], 16) % LINGUAGENS_POR_REPO
+    )
+
 
 # Rótulo do escopo que recebe evento sem linguagem. Ele é extraído e contado,
 # e o `scope_meta.language` dele é None, então o agregador por linguagem o
@@ -545,6 +558,13 @@ class GHAPISource(ActivityDataSource):
         # Naive em UTC: `snapshots` compara com datas do settings.yaml, que são
         # naive, e comparar tz-aware com naive levanta exceção no pandas.
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+        # Data que o pandas não lê vira NaT e a linha sai. `0000-00-00` aparece em
+        # histórico reescrito. Contar é o que separa "não tinha evento" de
+        # "o evento foi apagado aqui", e o `msr14` já loga do mesmo jeito.
+        if ilegiveis := int(df["timestamp"].isna().sum()):
+            log.warning(
+                "%d eventos descartados: data ilegivel", ilegiveis, extra={"stage": "extract"}
+            )
         df = df[df["timestamp"].notna()].copy()
         df["timestamp"] = df["timestamp"].dt.tz_localize(None)
         df["scope_id"] = df["scope_id"].astype("int64")
@@ -595,7 +615,7 @@ class GHAPISource(ActivityDataSource):
         universo = ctx.universo[nome]
         return (
             [
-                (rid * LINGUAGENS_POR_REPO + universo.index(lang), int(pessoa["id"]), tipo, quando)
+                (id_do_escopo(rid, lang), int(pessoa["id"]), tipo, quando)
                 for lang in destinos
                 if lang in universo
             ],
@@ -624,8 +644,8 @@ class GHAPISource(ActivityDataSource):
         saida: dict[int, dict[str, Any]] = {}
         for nome, meta in repos.items():
             rid = int(meta["id"])
-            for idx, lang in enumerate(universo[nome]):
-                sid = rid * LINGUAGENS_POR_REPO + idx
+            for lang in universo[nome]:
+                sid = id_do_escopo(rid, lang)
                 if sid not in vivos:
                     continue
                 criado = meta.get("created_at")
