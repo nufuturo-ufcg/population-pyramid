@@ -106,10 +106,39 @@ def _pasta_da_unidade() -> Path | None:
     return None if unit == "project" else Path(f"by-{unit}")
 
 
+def _pasta_do_adaptador() -> Path | None:
+    """Subpasta que separa a saída de cada fonte de dados, ou `None`.
+
+    Dois adaptadores gravam `<scope_id>.parquet` no mesmo estágio. Os ids não se
+    sobrescrevem, porque cada fonte numera do jeito dela, e é por isso que o modo
+    de falha é pior: `_ids_gravados` lista o diretório e empilha as duas
+    populações como se fossem uma, produzindo pirâmide de gente que nunca esteve
+    junta.
+
+    Qual adaptador fica na raiz de `output/` é decisão de dado, então mora em
+    `config/settings.yaml`, na chave `output.adapter_sem_subpasta`. O motor não
+    carrega nome de dataset.
+    """
+    cfg = settings()
+    adaptador = str((cfg.get("input") or {}).get("adapter", ""))
+    na_raiz = str((cfg.get("output") or {}).get("adapter_sem_subpasta", ""))
+    if not adaptador or adaptador == na_raiz:
+        return None
+    return Path(adaptador)
+
+
 def _com_unidade(base: Path, stage: str) -> Path:
-    """`base/<estágio>` para `project`, `base/by-<unidade>/<estágio>` no resto."""
-    pasta = _pasta_da_unidade()
-    d = base / stage if pasta is None else base / pasta / stage
+    """Caminho do estágio, com a subpasta da fonte e a da unidade quando houver.
+
+    A ordem é `output/[<adaptador>/][by-<unidade>/]<estágio>/`. A fonte declarada
+    em `output.adapter_sem_subpasta` rodando em `project` devolve `output/<estágio>/`,
+    que é onde a replicação sempre gravou.
+    """
+    d = base
+    for pasta in (_pasta_do_adaptador(), _pasta_da_unidade()):
+        if pasta is not None:
+            d = d / pasta
+    d = d / stage
     d.mkdir(parents=True, exist_ok=True)
     return d
 

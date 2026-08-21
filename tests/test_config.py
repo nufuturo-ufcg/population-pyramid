@@ -138,3 +138,49 @@ def test_parquet_de_unidades_diferentes_nao_colide(saida, monkeypatch):
 
     _unidade(monkeypatch, "project")
     assert (config.stage_dir("extract") / "1.parquet").read_text() == "projeto 1"
+
+
+# --- separação da saída por fonte de dados ------------------------------------
+
+
+def _fonte(monkeypatch, adaptador, na_raiz="msr14", unit="project"):
+    monkeypatch.setattr(config, "UNITS_IMPLEMENTADAS", ("project", unit))
+    monkeypatch.setattr(
+        config,
+        "settings",
+        lambda: {
+            "input": {"adapter": adaptador},
+            "output": {"adapter_sem_subpasta": na_raiz},
+            "analysis": {"unit": unit},
+        },
+    )
+
+
+def test_adaptador_declarado_grava_na_raiz(saida, monkeypatch):
+    _fonte(monkeypatch, "msr14")
+
+    assert config.stage_dir("extract") == saida / "extract"
+
+
+def test_adaptador_novo_ganha_subpasta(saida, monkeypatch):
+    _fonte(monkeypatch, "ghapi")
+
+    assert config.stage_dir("extract") == saida / "ghapi" / "extract"
+    assert config.artifact_dir("plots") == saida / "ghapi" / "plots"
+
+
+def test_fonte_e_unidade_se_empilham(saida, monkeypatch):
+    _fonte(monkeypatch, "ghapi", unit="language")
+
+    assert config.stage_dir("extract") == saida / "ghapi" / "by-language" / "extract"
+
+
+def test_duas_fontes_nao_compartilham_o_diretorio(saida, monkeypatch):
+    """O risco não é sobrescrever, é `_ids_gravados` empilhar as duas populações."""
+    _fonte(monkeypatch, "msr14")
+    (config.stage_dir("extract") / "1.parquet").write_text("msr14")
+    _fonte(monkeypatch, "ghapi")
+    ghapi = config.stage_dir("extract")
+    (ghapi / "176829714001.parquet").write_text("ghapi")
+
+    assert sorted(p.name for p in ghapi.glob("*.parquet")) == ["176829714001.parquet"]
