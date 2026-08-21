@@ -412,3 +412,78 @@ def test_o_mesmo_pr_nas_duas_listagens_nao_conta_duas_vezes(tmp_path):
     com = GHAPISource({}, raiz=_com_pulls(coleta_minima(tmp_path / "b"), [duplicado]))
 
     assert _eventos(com) == _eventos(sem)
+
+
+# --- a coleta vem concatenada por busca, com os repositórios embaralhados ------
+#
+# A coleta grande grava um arquivo por busca com os itens de todos os
+# repositórios juntos, em qualquer ordem. O repositório de cada evento sai do
+# campo `url`, que as sete formas trazem, então nome de arquivo, nome de pasta e
+# ordem de linha não entram na conta.
+
+
+def test_repositorio_sai_do_url_nas_sete_formas():
+    import sys
+
+    m = sys.modules[GHAPISource.__module__]
+    formas = {
+        "commits": {"url": _url(ALPHA, "commits/aaa")},
+        "issues": {"url": _url(BETA, "issues/1")},
+        "pull_requests": {"url": _url(ALPHA, "pulls/9")},
+        "issue_comments": {"url": _url(BETA, "issues/comments/21")},
+        "commit_comments": {"url": _url(ALPHA, "comments/31")},
+        "pull_request_comments": {"url": _url(BETA, "pulls/comments/41")},
+        "issue_events": {"url": _url(ALPHA, "issues/events/51")},
+    }
+    achados = {busca: m._repo_do_item(item) for busca, item in formas.items()}
+
+    assert set(achados.values()) == {ALPHA, BETA}
+    assert achados["pull_requests"] == ALPHA
+    assert achados["issue_events"] == ALPHA
+
+
+def test_ordem_das_linhas_nao_muda_o_resultado(tmp_path):
+    """Embaralhar os itens dentro de cada arquivo tem de dar a mesma tabela."""
+    import random
+
+    direto = GHAPISource({}, raiz=coleta_minima(tmp_path / "a"))
+    embaralhado_raiz = coleta_minima(tmp_path / "b")
+    rng = random.Random(0)
+    for arquivo in embaralhado_raiz.glob("*.jsonl"):
+        linhas = arquivo.read_text(encoding="utf-8").splitlines()
+        rng.shuffle(linhas)
+        arquivo.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+    embaralhado = GHAPISource({}, raiz=embaralhado_raiz)
+
+    assert direto.list_scopes() == embaralhado.list_scopes()
+    for sid in direto.list_scopes():
+        a = direto.get_events(sid).sort_values(list(direto.get_events(sid).columns))
+        b = embaralhado.get_events(sid).sort_values(list(a.columns))
+        assert a.reset_index(drop=True).equals(b.reset_index(drop=True))
+
+
+def test_um_arquivo_so_com_tudo_dentro_da_o_mesmo_resultado(tmp_path):
+    """Coleta que junta buscas diferentes no mesmo arquivo continua sendo lida.
+
+    A classificação é por item, então um arquivo misto é classificado pelo
+    primeiro. Separar por busca é o caso normal, e este teste trava o caso em que
+    a coleta separa por repositório em vez de por busca.
+    """
+    por_busca = coleta_minima(tmp_path / "a")
+    por_repo = tmp_path / "b"
+    por_repo.mkdir()
+    for nome in ["repos.jsonl", "languages.jsonl", "commit_files.tsv"]:
+        (por_repo / nome).write_text(
+            (por_busca / nome).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    for arquivo in sorted(por_busca.glob("*.jsonl")):
+        if arquivo.name in {"repos.jsonl", "languages.jsonl"}:
+            continue
+        (por_repo / f"{arquivo.stem}-parte.jsonl").write_text(
+            arquivo.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+    assert (
+        GHAPISource({}, raiz=por_repo).list_scopes()
+        == GHAPISource({}, raiz=por_busca).list_scopes()
+    )

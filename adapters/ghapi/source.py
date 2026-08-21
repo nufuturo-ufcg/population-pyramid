@@ -282,10 +282,9 @@ def _caminhos_por_sha(raiz: Path) -> dict[str, list[str]]:
     tsv = next(raiz.rglob("commit_files.tsv"), None)
     if tsv is None:
         raise FileNotFoundError(
-            f"sem commit_files.tsv em {raiz}. Ele sai do clone parcial e é o que dá "
-            "o caminho dos arquivos de cada commit:\n"
-            "  git clone --bare --filter=blob:none https://github.com/{owner}/{repo}.git\n"
-            "  git -C {repo}.git log --all --pretty=format:'%H%x09%aI%x09%ae' --name-only"
+            f"sem commit_files.tsv em {raiz}. Ele sai do clone parcial, é o que dá o caminho "
+            "dos arquivos de cada commit, e não custa cota nenhuma:\n"
+            f"  GHAPI_DIR={raiz} .venv/bin/python adapters/ghapi/coleta.py --completar"
         )
     por_sha: dict[str, list[str]] = {}
     with tsv.open(encoding="utf-8") as f:
@@ -307,10 +306,10 @@ def _metadados(raiz: Path) -> tuple[dict[str, dict], dict[str, dict[str, int]]]:
     langs_jsonl = next(raiz.rglob("languages.jsonl"), None)
     if repos_jsonl is None or langs_jsonl is None:
         raise FileNotFoundError(
-            f"sem repos.jsonl ou languages.jsonl em {raiz}. São duas requisições por "
-            "repositório, GET /repos e GET /repos/{owner}/{name}/languages, e delas saem "
-            "o rótulo, a data de criação e o mapa de bytes que decide a linguagem de cada "
-            "caminho de arquivo."
+            f"sem repos.jsonl ou languages.jsonl em {raiz}. A coleta de eventos não produz "
+            "os dois, e deles saem o rótulo, a data de criação e o mapa de bytes que decide "
+            "a linguagem de cada caminho de arquivo. São duas requisições por repositório:\n"
+            f"  GHAPI_DIR={raiz} .venv/bin/python adapters/ghapi/coleta.py --completar"
         )
     repos = {m["full_name"]: m for m in _linhas(repos_jsonl)}
     langs = {m["full_name"]: m["languages"] for m in _linhas(langs_jsonl)}

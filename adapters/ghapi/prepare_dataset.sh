@@ -16,7 +16,7 @@ cd "$AQUI/../.."
 GHAPI_DIR="${GHAPI_DIR:-data/ghapi}"
 [[ -d "$GHAPI_DIR" ]] || die "GHAPI_DIR '$GHAPI_DIR' nao existe. Aponte no .env para a pasta da coleta.
   amostra de desenvolvimento:
-    GHAPI_DIR=$GHAPI_DIR .venv/bin/python adapters/ghapi/coleta_amostra.py clj-kondo/clj-kondo"
+    GHAPI_DIR=$GHAPI_DIR .venv/bin/python adapters/ghapi/coleta.py clj-kondo/clj-kondo"
 
 n=$(find "$GHAPI_DIR" -type f \( -name '*.json' -o -name '*.jsonl' \) -size +0 | wc -l | tr -d ' ')
 [[ "$n" -gt 0 ]] || die "'$GHAPI_DIR' nao tem nenhum .json ou .jsonl com conteudo."
