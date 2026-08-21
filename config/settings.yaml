@@ -56,6 +56,74 @@ projects:
   # não-determinística; checkpoints.yaml sempre usa ID.
 
 # ---------------------------------------------------------------------------
+# De onde sai a LINGUAGEM de cada evento. Vale só para o adaptador `ghapi`, e
+# só importa com `analysis.unit: language`.
+#
+# O motor não sabe o que é um arquivo. Quem traduz caminho em linguagem é o
+# adaptador, e cada chave abaixo move um número que foi medido. Reproduza com:
+#
+#   GHAPI_DIR=data/ghapi .venv/bin/python scripts/sweep_language_policy.py
+#
+# Os números citados saem da amostra de três repositórios Clojure
+# (clj-kondo, edamame, medley), no snapshot 2026-06-30.
+# ---------------------------------------------------------------------------
+language:
+  # Quais linguagens cada repositório tem, sobre o mapa de bytes de
+  # `GET /repos/{owner}/{name}/languages`. Esse mapa é a leitura que o GitHub já
+  # fez com o linguist, abrindo o conteúdo dos arquivos, e é ele que desempata
+  # extensão ambígua: 172 das 1483 extensões têm mais de um dono, e `.h` é C,
+  # C++ e Objective-C.
+  repo_languages:
+    policy: primary      # primary: só a de mais bytes
+                         # min_share: todas acima do corte
+    min_share: 0.0       # pontos percentuais, lido só com policy: min_share
+
+  # Quem decide a linguagem do evento que TEM caminho de arquivo.
+  #   by_path         a extensão do caminho decide
+  #   repo_languages  ignora o caminho e usa o conjunto elegível
+  #
+  # Medido: `repo_languages` apaga a linguagem Shell da amostra, porque ela só
+  # existe pelos arquivos tocados.
+  attribution: by_path
+
+  # Para onde vai o evento que NÃO tem caminho de arquivo: abertura de issue e
+  # de PR, comentário de issue, issue event, comentário de commit sem `path`, e
+  # o commit que só toca prosa ou configuração.
+  #
+  #   repo_languages  escopo da linguagem do repositório
+  #   unknown         escopo "unknown", contado e sem figura
+  #   drop            descartado
+  #
+  # ESTA É A CHAVE QUE MAIS PESA, e o número é grande: com `unknown` ou `drop`,
+  # o lado não-código da pirâmide de Clojure vai de 8 contribuidores para ZERO,
+  # e o CCR salta de 0.652 para 1.000. O lado esquerdo da pirâmide por
+  # linguagem é inteiramente herdado do repositório onde a conversa aconteceu.
+  # Não é um viés que infla o lado não-código: sem a herança esse lado não
+  # existe. Quem publicar CCR por linguagem precisa dizer isso.
+  fallback: repo_languages
+  fallback_spread: top   # quando o conjunto elegível tem mais de uma
+                         # top: a de mais bytes
+                         # all: uma cópia do evento em cada
+
+  # Para onde vai o evento com caminho cuja linguagem não é elegível no
+  # repositório, como o `.java` dentro de um repositório Clojure.
+  #   keep      escopo próprio da linguagem do caminho
+  #   fallback  segue a chave `fallback`
+  #   drop      descartado
+  #
+  # Medido: `drop` faz a linguagem Shell sumir da amostra.
+  outside_eligible: keep
+
+  # Bot não é contribuidor humano. `dependabot` e companhia dominam
+  # `issue_events` e `issue_comments` nos repositórios de hoje.
+  #
+  # Medido: com `false`, o lado não-código de Clojure vai de 8 para 11 e o CCR
+  # cai de 0.652 para 0.522. O adaptador msr14 não filtra nada, e o dump de
+  # 2014 mal tem bot, então a contagem de população das duas fontes deixa de
+  # ser comparável.
+  drop_bots: true
+
+# ---------------------------------------------------------------------------
 # AMBIGUIDADE 1: taxonomia de eventos.
 # O IEICE16 se contradiz na mesma página 1307:
 #   * Tabela 1  -> `issues` = non-coding, `issues_events` = "excluded in this study"
