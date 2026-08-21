@@ -176,3 +176,30 @@ def test_pdf_da_figura_nao_carrega_relogio(tmp_path, monkeypatch):
     assert b"CreationDate" not in primeiro
     assert primeiro == segundo
     plt.close("all")
+
+
+# --- o rótulo do eixo tem de dizer o método configurado -----------------------
+
+
+def test_o_rotulo_da_idade_sai_da_config(monkeypatch):
+    """`acumulada` descreve `accumulated_active`, que foi medido e refutado.
+
+    O literal estava fixo nos seis lugares que desenham pirâmide, e a config
+    publicada é `calendar_tenure`, onde o gap de inatividade não desconta. O
+    eixo dizia uma coisa e o cálculo fazia outra.
+    """
+    monkeypatch.setattr(plots, "settings", lambda: {"periods": {"age_basis": "calendar_tenure"}})
+    assert plots.rotulo_da_idade() == "idade (anos)"
+
+    monkeypatch.setattr(plots, "settings", lambda: {"periods": {"age_basis": "accumulated_active"}})
+    assert plots.rotulo_da_idade() == "idade acumulada (anos)"
+
+
+def test_nenhum_rotulo_de_idade_fica_escrito_no_codigo():
+    """Trava a regressão: o literal não pode voltar para o corpo das figuras."""
+    from pathlib import Path
+
+    fonte = Path(plots.__file__).read_text(encoding="utf-8")
+    corpo = fonte.split("def rotulo_da_idade")[1].split('return "idade (anos)"')[1]
+
+    assert "idade acumulada (anos)" not in corpo
