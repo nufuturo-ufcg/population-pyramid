@@ -124,10 +124,6 @@ Depois aponte `input.adapter` para `<nome>` no settings.yaml. O script que sobe
 ou baixa aquele dataset mora na mesma pasta, e `make check ADAPTER=<nome>` roda
 o `adapters/<nome>/prepare_dataset.sh`.
 
-Fonte que precisa de coleta própria documenta o que a coleta entrega num doc
-separado, para quem coleta não precisar ler este. O `ghapi` faz assim, em
-[`COLETA_GITHUB.md`](COLETA_GITHUB.md).
-
 Regras que valem para qualquer adaptador:
 
 1. SQL só dentro de `adapters/`. O hook `sql-so-em-adaptadores` recusa o

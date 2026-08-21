@@ -17,7 +17,6 @@ O repo tem dois assuntos, e todo doc pertence a um deles.
 | rodar o pipeline do zero | [`README.md`](../README.md) na raiz |
 | entender o que o programa faz, sem fórmula | [`ferramenta/COMO_FUNCIONA.md`](ferramenta/COMO_FUNCIONA.md) |
 | plugar outra fonte de dados | [`ferramenta/FONTES.md`](ferramenta/FONTES.md) |
-| coletar os dados da API do GitHub | [`ferramenta/COLETA_GITHUB.md`](ferramenta/COLETA_GITHUB.md) |
 | mexer no código | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | saber como está a replicação hoje | [`replicacao/RESUMO_EXECUTIVO.md`](replicacao/RESUMO_EXECUTIVO.md) |
 | entender o método replicado | [`replicacao/METODO.md`](replicacao/METODO.md) |
@@ -39,7 +38,6 @@ Muda quando o código muda.
 |---|---|
 | [`COMO_FUNCIONA.md`](ferramenta/COMO_FUNCIONA.md) | visão de alto nível, sem fórmula e sem nome de biblioteca. Comece por aqui. |
 | [`FONTES.md`](ferramenta/FONTES.md) | contrato de entrada: formato canônico de evento e como escrever uma fonte nova. |
-| [`COLETA_GITHUB.md`](ferramenta/COLETA_GITHUB.md) | contrato de coleta: quais requisições fazer na API do GitHub, o que gravar e em que layout. |
 
 Como preparar o dump MSR14 está no [`README.md`](../README.md) da raiz, em
 "Dados do adaptador msr14". O que cada query do adaptador faz está comentado dentro
