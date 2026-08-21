@@ -157,7 +157,7 @@ def _fonte(monkeypatch, adaptador, na_raiz="msr14", unit="project"):
         "settings",
         lambda: {
             "input": {"adapter": adaptador},
-            "output": {"adapter_sem_subpasta": na_raiz},
+            "output": {"adapter_da_replicacao": na_raiz},
             "analysis": {"unit": unit},
         },
     )

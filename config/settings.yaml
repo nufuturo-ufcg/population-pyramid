@@ -9,19 +9,24 @@ input:
   # eventos (adapters/<nome>/source.py, contrato em src/pyramid/sources/base.py).
   adapter: msr14
 
-# Onde a saída de cada fonte cai dentro de output/.
+# Qual fonte de dados é a da replicação publicada.
 output:
-  # Adaptador que grava na raiz de `output/<estágio>/`, sem subpasta. Todos os
-  # outros ganham `output/<adaptador>/<estágio>/`.
+  # O adaptador nomeado aqui é o que `config/checkpoints.yaml` descreve, e isso
+  # decide duas coisas:
   #
-  # Existe porque dois adaptadores numeram escopo de jeitos diferentes e os
-  # parquets não se sobrescrevem: eles convivem, e `_ids_gravados` empilha as
-  # duas populações como se fossem uma. O modo de falha é pirâmide de gente que
-  # nunca esteve junta, sem erro nenhum.
+  # 1. Ele grava na raiz de `output/<estágio>/`. Todos os outros ganham
+  #    `output/<adaptador>/<estágio>/`. Dois adaptadores numeram escopo de
+  #    jeitos diferentes, então os parquets não se sobrescrevem: eles convivem,
+  #    e `_ids_gravados` empilha as duas populações como se fossem uma. O modo
+  #    de falha é pirâmide de gente que nunca esteve junta, sem erro nenhum.
+  #
+  # 2. Só ele produz as figuras de réplica dos artigos. A composição de cada
+  #    painel vem de `checkpoints.yaml: figures`, com projeto e data fixos do
+  #    dump MSR14, e essas figuras não existem para outro dataset.
   #
   # O msr14 está aqui porque a replicação foi publicada nesses caminhos e os
   # docs embutem as figuras. Mover a saída dele reescreveria o histórico do diff.
-  adapter_sem_subpasta: msr14
+  adapter_da_replicacao: msr14
 
 analysis:
   # Unidade de análise da pirâmide: uma pirâmide por quê.

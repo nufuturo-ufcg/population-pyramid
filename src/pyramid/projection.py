@@ -46,7 +46,7 @@ import numpy as np
 import pandas as pd
 
 from . import logging_config as runlog
-from .config import settings, stage_dir
+from .config import settings, stage_dir, unidade_suportada
 from .extract import source
 from .metrics import load_all as load_metrics
 from .snapshots import CATEGORIES, anchors, require_date_match
@@ -54,6 +54,12 @@ from .snapshots import load_all as load_snapshots
 
 log = logging.getLogger(__name__)
 STAGE = "projection"
+
+# Unidades de análise em que este estágio faz sentido. A elegibilidade é
+# "mais de 100 contribuidores ativos", calibrada contra os 36 projetos da
+# Tabela 3 do IEICE16. Toda linguagem passa desse corte, então o limiar deixa de
+# selecionar e a comparação com o artigo perde o sentido.
+UNIDADES = ("project",)
 
 # A UNIDADE DE ANÁLISE É A COORTE, NÃO O PROJETO.
 #
@@ -421,6 +427,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     tabelas são medianas sobre ela. `force` recalcula o que já está gravado.
     `fail_fast` propaga o erro do cálculo. Devolve o manifesto.
     """
+    unidade_suportada(STAGE, UNIDADES)
     if scopes is not None:
         raise ValueError(
             "projection não aceita --project: a amostra é definida pelo limiar "

@@ -199,3 +199,59 @@ def test_o_span_atravessa_repositorio(por_linguagem):
 
     assert len(juntos) == 1
     assert separados == 2
+
+
+# --- estágio que não vale na unidade configurada ------------------------------
+
+
+@pytest.mark.parametrize("modulo", ["attractiveness", "projection"])
+def test_estagio_calibrado_por_projeto_recusa_outra_unidade(monkeypatch, modulo):
+    """Magnetismo compara com a mediana da amostra; projeção, com um limiar dela.
+
+    Os dois mudam de significado quando a amostra deixa de ser projeto, e rodar
+    assim mesmo devolveria número plausível e errado.
+    """
+    import importlib
+
+    mod = importlib.import_module(f"pyramid.{modulo}")
+    monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": "language"}})
+
+    with pytest.raises(ValueError, match=f"{modulo} não roda com"):
+        mod.run()
+
+
+@pytest.mark.parametrize("modulo", ["attractiveness", "projection"])
+def test_a_unidade_suportada_esta_declarada(modulo):
+    import importlib
+
+    mod = importlib.import_module(f"pyramid.{modulo}")
+
+    assert mod.UNIDADES == ("project",)
+
+
+def test_run_all_pula_em_vez_de_morrer(monkeypatch):
+    """Bloquear o estágio não pode inutilizar o `run-all` da unidade nova."""
+    from pyramid import attractiveness, classify, cli
+
+    monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": "language"}})
+    assert cli._pula_na_unidade(attractiveness)
+    assert not cli._pula_na_unidade(classify)
+
+    monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": "project"}})
+    assert not cli._pula_na_unidade(attractiveness)
+
+
+def test_o_grupo_unknown_nao_vira_figura(por_linguagem):
+    """`unknown` não é uma linguagem, e desenhar a pirâmide dele sugeriria que é."""
+    escopos = {e.label: e for e in units.scopes_of_unit(por_linguagem)}
+
+    assert not escopos["unknown"].plotavel
+    assert escopos["Clojure"].plotavel
+
+
+def test_com_project_todo_escopo_plota(por_projeto):
+    """`language` nula aí é projeto de verdade sem linguagem registrada na origem."""
+    escopos = {e.label: e for e in units.scopes_of_unit(por_projeto)}
+
+    assert escopos["acme/quatro"].meta["language"] is None
+    assert escopos["acme/quatro"].plotavel

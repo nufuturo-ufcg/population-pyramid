@@ -41,7 +41,7 @@ from matplotlib.figure import Figure
 from . import attractiveness as attr
 from . import logging_config as runlog
 from . import metrics, projection, snapshots
-from .config import artifact_dir, checkpoints, settings
+from .config import artifact_dir, checkpoints, e_da_replicacao, settings
 from .extract import labels
 
 log = logging.getLogger(__name__)
@@ -1249,6 +1249,31 @@ FIGURES = {
 SINGLE = "pyramid-single"
 
 
+def _piramides_de_todo_escopo() -> dict:
+    """Uma pirâmide por escopo, no snapshot da classificação.
+
+    É a saída de `--figure all` para fonte que não é a da replicação. Lê o
+    manifesto do `extract`, e não o adaptador, porque desenhar é leitura e
+    leitura não abre banco.
+    """
+    from .extract import scope_meta
+
+    t = snapshots.classification_snapshot()
+    man: dict[str, Any] = {"stage": STAGE, "ok": {}, "failed": {}}
+    for sid, meta in sorted(scope_meta().items()):
+        if not meta.get("plotavel", True):
+            log.info("%s: sem figura, nao e uma linguagem", meta.get("label", sid))
+            continue
+        try:
+            man["ok"][str(sid)] = str(figure_pyramid(sid, t).name)
+        except Exception as e:
+            man["failed"][str(sid)] = f"{type(e).__name__}: {e}"
+            log.exception("falha na piramide de %s", sid, extra={"stage": STAGE})
+    runlog.save(STAGE, man)
+    log.info("figuras: %d ok, %d falhas", len(man["ok"]), len(man["failed"]))
+    return man
+
+
 def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **_: object) -> dict:
     """Assinatura de estágio: o 1º posicional é escopo em todo o pipeline.
 
@@ -1264,9 +1289,21 @@ def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **
             extra={"stage": STAGE},
         )
     alvos = figures or list(FIGURES)
+    # A composição de cada painel de réplica vem de `checkpoints.yaml: figures`,
+    # com projeto e data fixos do dump que os artigos usaram. Pedir essas figuras
+    # de outro dataset não é erro do usuário: elas não existem lá. Sem esta
+    # guarda, `plot --figure all` derruba o `run-all` de qualquer fonte nova.
+    if figures is None and not e_da_replicacao():
+        log.info(
+            "figuras de réplica puladas: a fonte configurada não é a da replicação "
+            "(config/settings.yaml, output.adapter_da_replicacao). Sai uma pirâmide "
+            "por escopo.",
+            extra={"stage": STAGE},
+        )
+        return _piramides_de_todo_escopo()
     man: dict[str, Any] = {"stage": STAGE, "ok": {}, "failed": {}}
     for nome in alvos:
-        if nome not in FIGURES:
+        if nome not in FIGURES and nome != SINGLE:
             raise ValueError(f"figura desconhecida: {nome}. Conhecidas: {sorted(FIGURES)}")
         try:
             man["ok"][nome] = str(FIGURES[nome]().name)

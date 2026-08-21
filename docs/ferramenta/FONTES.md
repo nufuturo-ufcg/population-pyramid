@@ -79,10 +79,23 @@ analysis:
   unit: project
 ```
 
-Hoje `project` é o único valor aceito. Valor sem agregador para o `extract` na
-hora, com a lista do que existe (`config.analysis_unit()`). O motor por
-linguagem entra como outro valor dessa chave, consumindo `scope_meta`. Nenhum
-adaptador precisa mudar.
+`project` dá uma pirâmide por escopo do adaptador. `language` soma os escopos
+que compartilham `scope_meta.language`, e é o que responde "quem escreve
+Clojure" sobre os N repositórios da linguagem. Quem agrupa é
+`src/pyramid/units.py`, e nenhum adaptador muda para isso: o eixo sai do
+`scope_meta` que a fonte já entrega.
+
+A soma acontece no `extract`, antes do `classify`. Quem mexe em cinco
+repositórios da mesma linguagem é uma pessoa só, nascida no evento mais antigo
+entre os cinco.
+
+Valor sem agregador para o `extract` na hora, com a lista do que existe
+(`config.analysis_unit()`).
+
+Dois estágios declaram em quais unidades valem, na constante `UNIDADES`:
+`attractiveness` e `projection` rodam só com `project`, porque comparam cada
+escopo com a mediana da amostra ou com um limiar calibrado contra ela. O
+`run-all` pula quem não vale na unidade configurada.
 
 ## O que a fonte garante
 

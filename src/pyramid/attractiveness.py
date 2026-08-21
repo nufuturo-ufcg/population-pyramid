@@ -32,12 +32,19 @@ import numpy as np
 import pandas as pd
 
 from . import logging_config as runlog
-from .config import settings, stage_dir
+from .config import settings, stage_dir, unidade_suportada
 from .extract import events_path, label_of, load_events, source
 from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "attractiveness"
+
+# Unidades de análise em que este estágio faz sentido. Magnetismo e stickiness
+# comparam cada escopo com a MEDIANA anual dos escopos elegíveis, e a mediana de
+# 90 projetos não quer dizer a mesma coisa que a mediana de 13 linguagens: o
+# quadrante de um escopo passaria a depender de quantas linguagens entraram na
+# amostra. Isso é outra pergunta de pesquisa, e ela ainda não foi feita.
+UNIDADES = ("project",)
 
 QUADRANTS = {
     (True, True): "attractive",
@@ -277,6 +284,7 @@ def run(
     years: list[int] | None = None,
 ) -> dict:
     """Calcula sempre o dataset inteiro; `years` só filtra o que é reportado."""
+    unidade_suportada(STAGE, UNIDADES)
     if scopes is not None:
         raise ValueError(
             "attractiveness não aceita --project: o magnetismo é uma fração "

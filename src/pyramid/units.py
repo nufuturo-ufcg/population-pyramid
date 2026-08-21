@@ -43,8 +43,14 @@ class Escopo:
 
     @property
     def plotavel(self) -> bool:
-        """Escopo sem linguagem é contado e não vira figura."""
-        return self.meta.get("language") is not None
+        """Se este escopo vira figura.
+
+        Falso só para o grupo que junta escopo sem linguagem declarada: "unknown"
+        não é uma linguagem, e desenhar a pirâmide dele sugeriria que é. Com
+        `unit: project` todo escopo plota, inclusive o de `language` nula, que aí
+        é um projeto de verdade cuja linguagem a origem não registrou.
+        """
+        return bool(self.meta.get("plotavel", True))
 
 
 def id_da_linguagem(nome: str) -> int:
@@ -83,6 +89,7 @@ def _por_linguagem(src: ActivityDataSource) -> list[Escopo]:
                 "language": None if nome == SEM_LINGUAGEM else nome,
                 "created_at": nascimento.get(nome),
                 "membros": len(membros),
+                "plotavel": nome != SEM_LINGUAGEM,
             },
         )
         for nome, membros in sorted(grupos.items())

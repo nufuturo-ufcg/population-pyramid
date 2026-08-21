@@ -203,3 +203,27 @@ def test_nenhum_rotulo_de_idade_fica_escrito_no_codigo():
     corpo = fonte.split("def rotulo_da_idade")[1].split('return "idade (anos)"')[1]
 
     assert "idade acumulada (anos)" not in corpo
+
+
+def test_figura_de_replica_so_existe_para_a_fonte_da_replicacao(monkeypatch):
+    """`--figure all` de outra fonte não pode morrer pedindo painel do artigo.
+
+    A composição de cada painel vem de `checkpoints.yaml: figures`, com projeto e
+    data fixos do dump MSR14. Sem esta guarda, `run-all` de qualquer fonte nova
+    quebra no último estágio.
+    """
+    from pyramid import config
+
+    monkeypatch.setattr(
+        config,
+        "settings",
+        lambda: {"input": {"adapter": "outra"}, "output": {"adapter_da_replicacao": "msr14"}},
+    )
+    assert not config.e_da_replicacao()
+
+    monkeypatch.setattr(
+        config,
+        "settings",
+        lambda: {"input": {"adapter": "msr14"}, "output": {"adapter_da_replicacao": "msr14"}},
+    )
+    assert config.e_da_replicacao()
