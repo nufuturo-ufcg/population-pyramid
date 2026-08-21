@@ -37,6 +37,7 @@ em `clj-kondo/clj-kondo` (repo 176829714, 3097 commits):
 
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 import os
@@ -45,7 +46,7 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import pandas as pd
 import yaml
@@ -169,28 +170,71 @@ _FORMA: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
-def _linhas(arquivo: Path) -> Iterator[dict]:
-    """Itens de um arquivo, aceitando JSON Lines ou um array só.
+def _abre(arquivo: Path) -> TextIO:
+    """Abre o arquivo, descomprimindo quando o nome termina em `.gz`.
 
-    A coleta grande concatena páginas, e nem sempre no mesmo formato. Ler as duas
-    formas evita depender de como quem coletou resolveu gravar.
-
-    Vai linha a linha porque o arquivo é grande: `issue_events` da amostra de
-    três repositórios já tem 104 MB, e ler tudo para a memória de uma vez
-    multiplica isso pelo JSON expandido.
+    Coleta grande costuma chegar comprimida: `issue_events` da amostra de três
+    repositórios já tem 104 MB, e gzip corta isso por volta de dez vezes.
     """
-    with arquivo.open(encoding="utf-8") as f:
-        primeiro = f.read(1)
-        while primeiro and primeiro.isspace():
-            primeiro = f.read(1)
-        if primeiro == "[":
-            f.seek(0)
-            yield from json.load(f)
+    if arquivo.suffix == ".gz":
+        return gzip.open(arquivo, "rt", encoding="utf-8")
+    return arquivo.open(encoding="utf-8")
+
+
+def _itens_do_json(dado: object) -> list[dict]:
+    """Os itens de um JSON já carregado, seja ele lista, envelope ou item só.
+
+    Envelope é o objeto que guarda a lista dentro de uma chave, como
+    `{"items": [...]}` ou `{"total_count": 9, "items": [...]}`.
+
+    O que separa envelope de evento é o campo `url`. Todo item da API tem um, e
+    envelope não tem. Desembrulhar só por existir valor de lista devolveria o
+    campo errado: item de commit tem `parents`, item de issue tem `labels` e
+    `assignees`, e os três são listas.
+    """
+    if isinstance(dado, list):
+        return [x for x in dado if isinstance(x, dict)]
+    if isinstance(dado, dict):
+        if "url" in dado or "repository_url" in dado:
+            return [dado]
+        for valor in dado.values():
+            if isinstance(valor, list):
+                return [x for x in valor if isinstance(x, dict)]
+        return [dado]
+    return []
+
+
+def _linhas(arquivo: Path) -> Iterator[dict]:
+    """Itens de um arquivo, em JSON Lines, array, envelope ou item só.
+
+    A coleta é feita por outra pessoa e chega no formato que ela escolheu. Ler as
+    quatro formas evita depender dessa escolha.
+
+    JSON Lines vai linha a linha, porque o arquivo é grande e carregar tudo de
+    uma vez multiplica os 104 MB de `issue_events` pelo JSON expandido. As outras
+    formas exigem o arquivo inteiro para fechar o parse.
+    """
+    with _abre(arquivo) as f:
+        primeira = f.readline()
+        while primeira and not primeira.strip():
+            primeira = f.readline()
+        if not primeira:
             return
-        f.seek(0)
-        for linha in f:
-            if linha.strip():
-                yield json.loads(linha)
+        try:
+            cabeca = json.loads(primeira)
+        except json.JSONDecodeError:
+            cabeca = None  # o JSON atravessa mais de uma linha
+        if cabeca is not None and f.readline():
+            # Mais de uma linha, e a primeira fecha sozinha: é JSON Lines.
+            yield from _itens_do_json(cabeca)
+            f.seek(0)
+            f.readline()
+            for linha in f:
+                if linha.strip():
+                    yield from _itens_do_json(json.loads(linha))
+            return
+    with _abre(arquivo) as f:
+        yield from _itens_do_json(json.load(f))
 
 
 def _classifica(item: Mapping[str, Any]) -> str | None:
@@ -211,6 +255,17 @@ def _repo_do_item(item: Mapping[str, Any]) -> str | None:
     return f"{resto[0]}/{resto[1]}" if len(resto) >= 2 else None
 
 
+# Extensões que valem como coleta. `.ndjson` é o outro nome de JSON Lines, e o
+# `.gz` vem colado numa delas quando a coleta chega comprimida.
+_EXTENSOES = (".json", ".jsonl", ".ndjson")
+
+
+def _e_json(arquivo: Path) -> bool:
+    """Se o nome do arquivo promete JSON, comprimido ou não."""
+    nome = arquivo.name.removesuffix(".gz")
+    return nome.endswith(_EXTENSOES)
+
+
 def _arquivos_de_evento(raiz: Path) -> list[Path]:
     """Arquivos da coleta que podem conter evento, em ordem estável.
 
@@ -221,9 +276,9 @@ def _arquivos_de_evento(raiz: Path) -> list[Path]:
         a
         for a in sorted(raiz.rglob("*"))
         if a.is_file()
-        and a.suffix in {".json", ".jsonl"}
+        and _e_json(a)
         and not a.name.startswith("_")
-        and a.name not in {"repos.jsonl", "languages.jsonl"}
+        and a.name.removesuffix(".gz") not in {"repos.jsonl", "languages.jsonl"}
     ]
 
 

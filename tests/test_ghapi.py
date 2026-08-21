@@ -73,6 +73,7 @@ def coleta_minima(raiz: Path) -> Path:
                 "url": _url(ALPHA, "commits/aaa"),
                 "author": humano,
                 "commit": {"author": {"date": "2021-03-01T10:00:00Z"}},
+                "parents": [{"sha": "000"}],
             },
             # toca Clojure e Java: vira dois eventos, um em cada escopo
             {
@@ -115,6 +116,8 @@ def coleta_minima(raiz: Path) -> Path:
                 "repository_url": _url(ALPHA, ""),
                 "user": humano,
                 "created_at": "2021-03-02T10:00:00Z",
+                "labels": [{"name": "bug"}],
+                "assignees": [],
             },
             # PODRE: sem data
             {
@@ -524,3 +527,80 @@ def test_item_de_forma_desconhecida_nao_derruba_a_coleta(tmp_path):
         GHAPISource({}, raiz=raiz).list_scopes()
         == GHAPISource({}, raiz=coleta_minima(tmp_path / "b")).list_scopes()
     )
+
+
+# --- a coleta chega no formato que quem coletou escolheu ----------------------
+
+
+def _eventos_da(raiz: Path) -> list[Path]:
+    return [f for f in raiz.glob("*.jsonl") if f.name not in {"repos.jsonl", "languages.jsonl"}]
+
+
+def _para_array(raiz: Path) -> None:
+    for f in _eventos_da(raiz):
+        itens = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
+        f.with_suffix(".json").write_text(json.dumps(itens), encoding="utf-8")
+        f.unlink()
+
+
+def _para_envelope(raiz: Path) -> None:
+    """Envelope com contagem junto, como a API de busca devolve."""
+    for f in _eventos_da(raiz):
+        itens = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
+        f.with_suffix(".json").write_text(
+            json.dumps({"total_count": len(itens), "items": itens}), encoding="utf-8"
+        )
+        f.unlink()
+
+
+def _para_ndjson(raiz: Path) -> None:
+    for f in _eventos_da(raiz):
+        f.rename(f.with_suffix(".ndjson"))
+
+
+def _para_gzip(raiz: Path) -> None:
+    import gzip
+    import shutil
+
+    for f in _eventos_da(raiz):
+        with f.open("rb") as entrada, gzip.open(f"{f}.gz", "wb") as saida:
+            shutil.copyfileobj(entrada, saida)
+        f.unlink()
+
+
+def _para_subpastas(raiz: Path) -> None:
+    for f in _eventos_da(raiz):
+        pasta = raiz / f.stem
+        pasta.mkdir(exist_ok=True)
+        f.rename(pasta / "pagina1.jsonl")
+
+
+def _numa_linha_so(raiz: Path) -> None:
+    for f in _eventos_da(raiz):
+        itens = [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines() if x.strip()]
+        f.write_text(json.dumps(itens), encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "transforma",
+    [_para_array, _para_envelope, _para_ndjson, _para_gzip, _para_subpastas, _numa_linha_so],
+    ids=["array", "envelope", "ndjson", "gzip", "subpastas", "array numa linha"],
+)
+def test_o_formato_de_entrega_nao_muda_o_resultado(tmp_path, transforma):
+    """Quem coleta escolhe o formato, e a tabela final tem de sair igual.
+
+    O envelope é o caso delicado: desembrulhar por existir valor de lista pegaria
+    o campo errado, porque item de commit tem `parents` e item de issue tem
+    `labels`. O que separa envelope de evento é o campo `url`.
+    """
+    esperado = GHAPISource({}, raiz=coleta_minima(tmp_path / "a"))
+    outra = coleta_minima(tmp_path / "b")
+    transforma(outra)
+    obtido = GHAPISource({}, raiz=outra)
+
+    assert obtido.list_scopes() == esperado.list_scopes()
+    for sid in esperado.list_scopes():
+        colunas = list(esperado.get_events(sid).columns)
+        a = esperado.get_events(sid).sort_values(colunas).reset_index(drop=True)
+        b = obtido.get_events(sid).sort_values(colunas).reset_index(drop=True)
+        assert a.equals(b)
