@@ -18,7 +18,7 @@ O repo tem dois assuntos, e todo doc pertence a um deles.
 | entender o que o programa faz, sem fórmula | [`ferramenta/COMO_FUNCIONA.md`](ferramenta/COMO_FUNCIONA.md) |
 | plugar outra fonte de dados | [`ferramenta/FONTES.md`](ferramenta/FONTES.md) |
 | mexer no código | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
-| saber como está a replicação hoje | [`replicacao/RESUMO_EXECUTIVO.md`](replicacao/RESUMO_EXECUTIVO.md) |
+| saber como está o projeto hoje | [`replicacao/RESUMO_EXECUTIVO.md`](replicacao/RESUMO_EXECUTIVO.md) |
 | entender o método replicado | [`replicacao/METODO.md`](replicacao/METODO.md) |
 | saber por que um número não bate | [`replicacao/discrepancias.md`](replicacao/discrepancias.md) |
 
@@ -49,7 +49,7 @@ Muda quando um número muda.
 
 | arquivo | o que é |
 |---|---|
-| [`RESUMO_EXECUTIVO.md`](replicacao/RESUMO_EXECUTIVO.md) | estado do projeto em uma página: o que bate, o que diverge, o placar. |
+| [`RESUMO_EXECUTIVO.md`](replicacao/RESUMO_EXECUTIVO.md) | estado do projeto numa página: o placar da replicação, o que existe da pirâmide por linguagem, e o que está pendente. Reescrito por completo a cada sessão. |
 | [`METODO.md`](replicacao/METODO.md) | do dump ao número, estágio por estágio, com o parâmetro de cada decisão. |
 | [`discrepancias.md`](replicacao/discrepancias.md) | log vivo de ambiguidade investigada. Cada entrada cita o comando exato e o número obtido. Cresce por acréscimo e nunca é podado. |
 | [`figuras/`](replicacao/figuras/README.md) | uma leitura por figura replicada: o que mostra, o que bate, o que diverge. |
