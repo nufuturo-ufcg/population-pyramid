@@ -68,3 +68,73 @@ def test_estagios_de_leitura_nao_chamam_o_adaptador(monkeypatch):
 
     metrics.load_all()
     snapshots.load_all()
+
+
+# --- separação da saída por unidade de análise --------------------------------
+# `<scope_id>.parquet` é o nome em todo estágio, e id de projeto colide com id de
+# linguagem. Sem subpasta as duas populações se sobrescrevem, e `_ids_gravados`
+# leria as duas como uma só. `project` continua sem subpasta, senão a replicação
+# MSR14 muda de caminho.
+
+
+@pytest.fixture
+def saida(tmp_path, monkeypatch):
+    """Redireciona a saída e fecha qualquer execução isolada aberta."""
+    monkeypatch.setattr(config, "OUTPUT_DIR", tmp_path / "output")
+    monkeypatch.setattr(config, "RUNS_DIR", tmp_path / "output" / "runs")
+    config.end_run()
+    yield tmp_path / "output"
+    config.end_run()
+
+
+def _unidade(monkeypatch, unit):
+    monkeypatch.setattr(config, "UNITS_IMPLEMENTADAS", ("project", unit))
+    monkeypatch.setattr(config, "settings", lambda: {"analysis": {"unit": unit}})
+
+
+def test_project_grava_onde_sempre_gravou(saida, monkeypatch):
+    _unidade(monkeypatch, "project")
+
+    assert config.stage_dir("extract") == saida / "extract"
+    assert config.artifact_dir("plots") == saida / "plots"
+
+
+def test_unidade_nova_ganha_subpasta_propria(saida, monkeypatch):
+    _unidade(monkeypatch, "language")
+
+    assert config.stage_dir("extract") == saida / "by-language" / "extract"
+    assert config.artifact_dir("plots") == saida / "by-language" / "plots"
+
+
+def test_o_manifesto_segue_a_unidade(saida, monkeypatch):
+    """O manifesto mora no `artifact_dir`. Sem a subpasta lá, a execução por
+    linguagem sobrescreve o `_manifest.json` da execução por projeto."""
+    from pyramid import logging_config as runlog
+
+    _unidade(monkeypatch, "project")
+    por_projeto = runlog._path("extract")
+    _unidade(monkeypatch, "language")
+    por_linguagem = runlog._path("extract")
+
+    assert por_projeto == saida / "extract" / "_manifest.json"
+    assert por_linguagem == saida / "by-language" / "extract" / "_manifest.json"
+
+
+def test_execucao_isolada_tambem_separa_por_unidade(saida, monkeypatch):
+    _unidade(monkeypatch, "language")
+    destino = config.start_run("teste")
+
+    assert config.artifact_dir("plots") == destino / "by-language" / "plots"
+    # O parquet fica canônico mesmo com execução aberta, senão a cadeia
+    # extract -> classify -> snapshots quebra.
+    assert config.stage_dir("extract") == saida / "by-language" / "extract"
+
+
+def test_parquet_de_unidades_diferentes_nao_colide(saida, monkeypatch):
+    _unidade(monkeypatch, "project")
+    (config.stage_dir("extract") / "1.parquet").write_text("projeto 1")
+    _unidade(monkeypatch, "language")
+    (config.stage_dir("extract") / "1.parquet").write_text("linguagem 1")
+
+    _unidade(monkeypatch, "project")
+    assert (config.stage_dir("extract") / "1.parquet").read_text() == "projeto 1"

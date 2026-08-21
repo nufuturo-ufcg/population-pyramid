@@ -90,6 +90,30 @@ def checkpoints() -> dict:
     return yaml.safe_load((CONFIG_DIR / "checkpoints.yaml").read_text())
 
 
+def _pasta_da_unidade() -> Path | None:
+    """Subpasta que separa a saída de cada unidade de análise, ou `None`.
+
+    O nome do parquet é `<scope_id>.parquet` em todo estágio. Id de projeto e id
+    de linguagem são inteiros pequenos e colidem nesse nome, então a saída de
+    duas unidades na mesma pasta se sobrescreve em silêncio. Pior: `_ids_gravados`
+    lista o diretório com `glob("*.parquet")` e leria as duas como se fossem uma
+    população só.
+
+    `project` devolve `None` e a saída fica exatamente onde sempre esteve. É o
+    que mantém a replicação MSR14 byte a byte no mesmo caminho.
+    """
+    unit = analysis_unit()
+    return None if unit == "project" else Path(f"by-{unit}")
+
+
+def _com_unidade(base: Path, stage: str) -> Path:
+    """`base/<estágio>` para `project`, `base/by-<unidade>/<estágio>` no resto."""
+    pasta = _pasta_da_unidade()
+    d = base / stage if pasta is None else base / pasta / stage
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def stage_dir(stage: str) -> Path:
     """Diretório canônico do estágio, criado na primeira chamada.
 
@@ -97,9 +121,7 @@ def stage_dir(stage: str) -> Path:
     execução isolada (ver `start_run`) não move esses arquivos de lugar: mover
     quebraria a cadeia extract -> snapshots -> classify -> metrics.
     """
-    d = OUTPUT_DIR / stage
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return _com_unidade(OUTPUT_DIR, stage)
 
 
 def artifact_dir(stage: str) -> Path:
@@ -108,11 +130,13 @@ def artifact_dir(stage: str) -> Path:
     Sem execução aberta devolve o mesmo que `stage_dir`. Com uma execução
     aberta devolve `output/runs/<carimbo>/<estágio>/`, e aí a execução anterior
     continua inteira no lugar dela.
+
+    Leva a mesma subpasta de unidade que `stage_dir`, porque o manifesto mora
+    aqui (`logging_config._path`). Sem isso, uma execução por linguagem
+    sobrescreveria o `_manifest.json` da execução por projeto, e o
+    `extract.scope_meta()` passaria a descrever os escopos errados.
     """
-    base = _estado.run or OUTPUT_DIR
-    d = base / stage
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return _com_unidade(_estado.run or OUTPUT_DIR, stage)
 
 
 def run_dir() -> Path | None:
