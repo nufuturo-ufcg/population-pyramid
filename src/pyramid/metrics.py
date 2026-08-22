@@ -152,15 +152,36 @@ def load(scope_id: int) -> pd.DataFrame:
 
 
 def _ids_gravados() -> list[int]:
-    """Ids que este estágio já gravou, lidos do disco.
+    """Ids que este estágio gravou NESTA configuração, lidos do disco.
 
     Leitura não pergunta o escopo ao banco. `load_all` empilha o que existe, e o
     que existe está no disco: perguntar a lista ao MySQL só para depois filtrar
     por `path(s).exists()` amarrava `pyramid types`, `pyramid validate` e os
     testes de checkpoint a um banco de pé. Arquivo que não é `<id>.parquet` fica
     de fora (o manifesto e as tabelas do estágio começam com `_`).
+
+    O disco sozinho não basta. Quando o conjunto de escopos encolhe (mudou a
+    política de linguagem, mudou a unidade, mudou o recorte), o parquet do
+    escopo morto continua lá e voltaria em `table`, em `pyramid types`, no
+    `validate` e nas figuras agregadas, nomeado pelo próprio id, porque o
+    manifesto já não tem rótulo para ele. Por isso o manifesto filtra.
+
+    Manifesto vazio devolve tudo que está no disco: é o caso do clone que
+    recebeu os parquets prontos, sem ter rodado o estágio.
     """
-    return sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+    no_disco = sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+    registrados = {int(k) for k in runlog.load(STAGE).get("ok", {})}
+    if not registrados:
+        return no_disco
+    if orfaos := [s for s in no_disco if s not in registrados]:
+        log.warning(
+            "%d parquets de escopo que nao esta no manifesto, ignorados: %s. "
+            "Rode com --force para limpar.",
+            len(orfaos),
+            orfaos[:5],
+            extra={"stage": STAGE},
+        )
+    return [s for s in no_disco if s in registrados]
 
 
 def load_all(scopes: list[int] | None = None) -> pd.DataFrame:
@@ -199,6 +220,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     man = runlog.load(STAGE)
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
+    prov = src.provenance()
+    man = runlog.invalidar_se_mudou(STAGE, man, prov)
+    man.update(prov)
 
     for sid in targets:
         key = str(sid)

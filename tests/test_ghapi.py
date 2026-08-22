@@ -630,3 +630,65 @@ def test_o_id_do_escopo_nao_depende_do_mapa_de_bytes(tmp_path):
     depois = {src.scope_label(s): s for s in src.list_scopes()}
 
     assert all(depois[rotulo] == sid for rotulo, sid in antes.items())
+
+
+def test_bot_por_tipo_sem_o_sufixo_no_login(tmp_path):
+    """`user.type == "Bot"` e o sufixo `[bot]` são dois sinais, e nem sempre andam juntos.
+
+    O fixture principal usa um bot com os dois, então cobria os dois ramos com
+    um caso só. Conta de app com login limpo existe, e sem o teste o `type`
+    podia sair da regra sem quebrar nada.
+    """
+    import sys
+
+    m = sys.modules[GHAPISource.__module__]
+
+    assert m._e_bot({"type": "Bot", "login": "renovate"})
+    assert m._e_bot({"type": "User", "login": "github-actions[bot]"})
+    assert not m._e_bot({"type": "User", "login": "ana"})
+
+
+def test_duas_linguagens_do_mesmo_repositorio_nao_podem_colidir(tmp_path):
+    """A fusão silenciosa some com uma pirâmide inteira.
+
+    `_monta_meta` grava por id, então dois nomes no mesmo id deixam só o último,
+    e os eventos do outro passam a contar na linguagem errada.
+    """
+    import sys
+
+    m = sys.modules[GHAPISource.__module__]
+
+    antigo = m.id_do_escopo
+    m.id_do_escopo = lambda _repo, _lang: 42  # colisão forçada, sem depender da tabela
+    try:
+        with pytest.raises(ValueError, match="colidem no mesmo id"):
+            m._sem_colisao("acme/alpha", ["Clojure", "Java"])
+    finally:
+        m.id_do_escopo = antigo
+
+
+def test_nenhuma_linguagem_da_tabela_colide_com_outra():
+    """As 829 do `languages.yml` versionado cabem no módulo escolhido."""
+    import collections
+    import sys
+
+    import yaml
+
+    m = sys.modules[GHAPISource.__module__]
+    nomes = sorted(yaml.safe_load((Path(m.__file__).parent / "languages.yml").read_text()))
+    por_id = collections.defaultdict(list)
+    for nome in nomes:
+        por_id[m.id_do_escopo(0, nome)].append(nome)
+
+    assert [v for v in por_id.values() if len(v) > 1] == []
+
+
+def test_mapa_de_bytes_zerado_nao_divide_por_zero(tmp_path):
+    """Coleta corrompida vira recorte `primary`, e não um traceback sem contexto."""
+    import sys
+
+    m = sys.modules[GHAPISource.__module__]
+    politica = {"policy": "min_share", "min_share": 1.0}
+
+    assert m._elegiveis({"Clojure": 0, "Java": 0}, politica) == ["Clojure"]
+    assert m._elegiveis({}, politica) == []

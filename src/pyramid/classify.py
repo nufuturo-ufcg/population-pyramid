@@ -120,6 +120,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     man = runlog.load(STAGE)
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
+    prov = src.provenance()
+    man = runlog.invalidar_se_mudou(STAGE, man, prov)
+    man.update(prov)
     man["taxonomy_variant"] = cfg["taxonomy"]["variant"]
     man["gap_days"] = gap_days
 

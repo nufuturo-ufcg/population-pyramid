@@ -51,6 +51,10 @@ class FonteFake:
     def scope_label(self, scope_id: int) -> str:
         return self.escopos[scope_id][0]
 
+    def provenance(self) -> dict:
+        """O default da ABC. Os estágios gravam isto no manifesto."""
+        return {}
+
     def get_events(self, scope_id: int) -> pd.DataFrame:
         linhas = [
             (scope_id, quem, tipo, pd.Timestamp(quando))
@@ -296,3 +300,106 @@ def test_mudar_a_escolha_da_fonte_invalida_o_manifesto(tmp_path, monkeypatch):
 
     assert depois["ok"][clojure]["events"] == 2  # só o repositório 10 sobrou
     assert depois["escolha"] == "b"
+
+
+# --- quem carimba o escopo lógico nas linhas ----------------------------------
+#
+# Estas duas eram mutações que passavam: apagar `df["scope_id"] = sid` no
+# `extract` e fixar o `scope_id` do `snapshots` em zero não quebravam teste
+# nenhum. É o contrato central da unidade: sem o carimbo, o parquet de uma
+# linguagem carrega o id do repositório e o arquivo diz outra coisa.
+
+
+def test_a_uniao_carimba_o_escopo_logico_em_toda_linha(por_linguagem):
+    from pyramid import extract
+
+    clojure = _escopo(por_linguagem, "Clojure")
+    df = extract._eventos_do_escopo(por_linguagem, clojure.id, clojure)
+
+    assert set(df["scope_id"]) == {clojure.id}
+    assert len(df) == 4
+
+
+def test_project_nao_reescreve_o_escopo(por_projeto):
+    """Com um membro cujo id é o do próprio escopo, o adaptador já entregou certo."""
+    from pyramid import extract
+
+    escopo = _escopo(por_projeto, "acme/um")
+    df = extract._eventos_do_escopo(por_projeto, escopo.id, escopo)
+
+    assert set(df["scope_id"]) == {10}
+
+
+def test_o_snapshot_carrega_o_escopo_de_onde_veio(tmp_path, monkeypatch):
+    """O parquet de `snapshots` tem de carregar o id do escopo que o gerou.
+
+    Fixar essa coluna em zero passava na suíte inteira. Sem ela, `load_all`
+    empilha as pirâmides de escopos diferentes com o mesmo carimbo, e o
+    `metrics` calcula CCR de uma população que nunca existiu.
+    """
+    from pyramid import classify, snapshots
+
+    monkeypatch.setattr(config, "OUTPUT_DIR", tmp_path / "output")
+    monkeypatch.setattr(config, "RUNS_DIR", tmp_path / "output" / "runs")
+    monkeypatch.setattr(
+        config,
+        "settings",
+        lambda: {
+            "analysis": {"unit": "project"},
+            "periods": {
+                "inactivity_months": 3,
+                "band_months": 3,
+                "band_days": 90,
+                "age_basis": "calendar_tenure",
+                "newcomer_max_months": 3,
+            },
+            "snapshots": {"start": "2019-03-31", "end": "2019-09-30", "freq_months": 3},
+        },
+    )
+    config.end_run()
+    # `snapshots` faz `from .config import settings`, então o nome está preso no
+    # módulo dele: trocar só `config.settings` não alcança.
+    monkeypatch.setattr(snapshots, "settings", config.settings)
+    monkeypatch.setattr(snapshots, "check_dates", lambda *_a, **_k: None)
+    monkeypatch.setattr(snapshots, "source", FonteFake)
+    # O log do estágio pede o rótulo, e com o manifesto do `extract` vazio o
+    # `label_of` cai no adaptador de verdade, que abriria conexão.
+    from pyramid import extract
+
+    monkeypatch.setattr(extract, "source", FonteFake)
+
+    sid = 10
+    classify.path(sid).parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "contributor_id": [1],
+            "init_c": [pd.Timestamp("2019-01-01")],
+            "init_d": [pd.NaT],
+            "span_start": [pd.Timestamp("2019-01-01")],
+            "span_end": [pd.Timestamp("2019-03-15")],
+            "span_idx": [0],
+        }
+    ).to_parquet(classify.path(sid), index=False)
+
+    man = snapshots.run([sid], force=True, fail_fast=True)
+    gravado = pd.read_parquet(snapshots.path(sid))
+
+    assert not man["failed"]
+    assert set(gravado["scope_id"]) == {sid}
+
+
+def test_o_id_da_linguagem_e_o_mesmo_em_outro_processo():
+    """`hash()` embutido satisfaz "estável dentro do processo" e muda entre eles.
+
+    O docstring promete id derivado só do nome, e o parquet gravado hoje precisa
+    ser lido amanhã. Um valor fixo é o que prende a promessa.
+    """
+    import subprocess
+    import sys
+
+    programa = "from pyramid.units import id_da_linguagem; print(id_da_linguagem('Clojure'))"
+    saida = subprocess.run(
+        [sys.executable, "-c", programa], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+    assert int(saida) == units.id_da_linguagem("Clojure") == 3788768076

@@ -124,11 +124,22 @@ def require_date_match(
     if not result.empty:
         return result
     series = [str(t.date()) for t in snapshot_dates()]
+    alvo = pd.Timestamp(wanted)
+    # Duas causas diferentes levam ao mesmo vazio, e apontar a errada manda a
+    # pessoa mexer na config quando o problema é o escopo. A data existir na
+    # série separa as duas.
+    if alvo in set(snapshot_dates()) and column in result.columns:
+        raise ValueError(
+            f"{ctx}: {column} == {alvo.date()} está na série e o escopo não tem "
+            "nenhuma linha. O escopo ficou sem população, e a série está certa. "
+            "Confira se a janela de snapshots cobre o período dos eventos "
+            "daquele escopo."
+        )
     raise ValueError(
-        f"{ctx}: filtro {column} == {pd.Timestamp(wanted).date()} não casou "
+        f"{ctx}: filtro {column} == {alvo.date()} não casou "
         "nenhuma linha. Datas válidas na série: " + ", ".join(series) + ". "
         "Se a data pedida parece certa, o erro está na geração da série "
-        "(snapshots.start/freq_months em config/settings.yaml), não nos dados."
+        "(snapshots.start/freq_months em config/settings.yaml)."
     )
 
 
@@ -304,15 +315,36 @@ def load(scope_id: int) -> pd.DataFrame:
 
 
 def _ids_gravados() -> list[int]:
-    """Ids que este estágio já gravou, lidos do disco.
+    """Ids que este estágio gravou NESTA configuração, lidos do disco.
 
     Leitura não pergunta o escopo ao banco. `load_all` empilha o que existe, e o
     que existe está no disco: perguntar a lista ao MySQL só para depois filtrar
     por `path(s).exists()` amarrava `pyramid types`, `pyramid validate` e os
     testes de checkpoint a um banco de pé. Arquivo que não é `<id>.parquet` fica
     de fora (o manifesto e as tabelas do estágio começam com `_`).
+
+    O disco sozinho não basta. Quando o conjunto de escopos encolhe (mudou a
+    política de linguagem, mudou a unidade, mudou o recorte), o parquet do
+    escopo morto continua lá e voltaria em `table`, em `pyramid types`, no
+    `validate` e nas figuras agregadas, nomeado pelo próprio id, porque o
+    manifesto já não tem rótulo para ele. Por isso o manifesto filtra.
+
+    Manifesto vazio devolve tudo que está no disco: é o caso do clone que
+    recebeu os parquets prontos, sem ter rodado o estágio.
     """
-    return sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+    no_disco = sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+    registrados = {int(k) for k in runlog.load(STAGE).get("ok", {})}
+    if not registrados:
+        return no_disco
+    if orfaos := [s for s in no_disco if s not in registrados]:
+        log.warning(
+            "%d parquets de escopo que nao esta no manifesto, ignorados: %s. "
+            "Rode com --force para limpar.",
+            len(orfaos),
+            orfaos[:5],
+            extra={"stage": STAGE},
+        )
+    return [s for s in no_disco if s in registrados]
 
 
 def load_all(
@@ -354,6 +386,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     man = runlog.load(STAGE)
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
+    prov = src.provenance()
+    man = runlog.invalidar_se_mudou(STAGE, man, prov)
+    man.update(prov)
     man["snapshots"] = [str(d.date()) for d in dates]
 
     for sid in targets:

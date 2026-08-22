@@ -71,7 +71,14 @@ AQUI = Path(__file__).resolve().parent
 # recoleta em que o `GET /languages` ganhe uma linguagem desloca todo índice
 # acima dela, e aí `176829714000` deixa de ser a mesma linguagem enquanto o
 # parquet gravado antes continua no disco com aquele nome.
-LINGUAGENS_POR_REPO = 100_000
+#
+# O módulo é largo de propósito. Com 100.000 e as 823 linguagens do
+# `languages.yml` versionado, dois pares colidem: `KerboScript` com
+# `Protocol Buffer Text Format`, e `LFE` com `SVG`. O segundo é plausível num
+# repositório só (um logo `.svg` num projeto Lisp-Flavoured-Erlang), e a colisão
+# funde os dois escopos sem erro: o commit `.lfe` vira SVG e a pirâmide de LFE
+# nunca existe. Com 10 milhões nenhum par das 823 colide.
+LINGUAGENS_POR_REPO = 10_000_000
 
 
 def id_do_escopo(repo_id: int, linguagem: str) -> int:
@@ -79,6 +86,24 @@ def id_do_escopo(repo_id: int, linguagem: str) -> int:
     return repo_id * LINGUAGENS_POR_REPO + (
         int(hashlib.sha1(linguagem.encode()).hexdigest()[:8], 16) % LINGUAGENS_POR_REPO
     )
+
+
+def _sem_colisao(nome: str, universo: list[str]) -> None:
+    """Recusa duas linguagens do mesmo repositório com o mesmo id.
+
+    O módulo largo torna isso improvável, e improvável não é impossível. Sem a
+    checagem a fusão é silenciosa: `_monta_meta` sobrescreve a entrada e o
+    escopo perdido some sem deixar rastro.
+    """
+    por_id: dict[int, str] = {}
+    for lang in universo:
+        sid = id_do_escopo(0, lang)
+        if (outra := por_id.get(sid)) is not None:
+            raise ValueError(
+                f"{nome}: '{lang}' e '{outra}' colidem no mesmo id de escopo. "
+                f"Aumente LINGUAGENS_POR_REPO em adapters/ghapi/source.py."
+            )
+        por_id[sid] = lang
 
 
 # Rótulo do escopo que recebe evento sem linguagem. Ele é extraído e contado,
@@ -419,6 +444,12 @@ def _elegiveis(bytes_por_lang: Mapping[str, int], politica: Mapping[str, Any]) -
         return [ordenado[0][0]]
     if modo == "min_share":
         total = sum(bytes_por_lang.values())
+        if total <= 0:
+            # Mapa com bytes zerados sai de coleta corrompida. Sem esta guarda o
+            # erro vira um ZeroDivisionError no meio da montagem, sem dizer qual
+            # repositório. A de mais bytes continua definida, então `primary` é
+            # o recorte honesto aqui.
+            return [ordenado[0][0]]
         corte = float(politica["min_share"])
         return [k for k, v in ordenado if 100.0 * v / total >= corte]
     raise ValueError(f"language.repo_languages.policy={modo!r}. Use primary ou min_share.")
@@ -523,6 +554,8 @@ class GHAPISource(ActivityDataSource):
         # Universo de linguagens de cada repositório, ordenado, de onde sai o
         # índice que compõe o `scope_id`. Sai só dos dados, então é estável.
         universo = {nome: sorted({*langs[nome], SEM_LINGUAGEM}) for nome in repos}
+        for nome, linguagens in universo.items():
+            _sem_colisao(nome, linguagens)
         elegiveis = {
             nome: _elegiveis(langs[nome], self.politica["repo_languages"]) for nome in repos
         }
