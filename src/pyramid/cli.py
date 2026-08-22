@@ -16,7 +16,8 @@ from typing import TYPE_CHECKING
 import typer
 
 from . import logging_config as runlog
-from .config import set_window, start_run
+from .config import analysis_unit, set_window, start_run
+from .units import scopes_of_unit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -38,6 +39,17 @@ STAGE_ORDER = [
     "projection",
     "plots",
 ]
+
+
+def _pula_na_unidade(mod: object) -> bool:
+    """Se este estágio não vale na unidade configurada.
+
+    O estágio que declara `UNIDADES` recusa a unidade errada quando chamado
+    direto, com o motivo. No `run-all` ele é pulado, senão bloquear um estágio
+    inutilizaria o encadeamento inteiro para a unidade nova.
+    """
+    unidades = getattr(mod, "UNIDADES", None)
+    return unidades is not None and analysis_unit() not in unidades
 
 
 # Texto único para as duas flags de execução isolada, para plot, validate e
@@ -90,8 +102,9 @@ def _scopes(project: str | None, project_all: bool) -> list[int] | None:
     from .extract import source
 
     src = source()
-    ids = src.list_scopes()
-    return [_resolve(project, {s: src.scope_label(s) for s in ids})]
+    # O rótulo sai do escopo lógico, e não do adaptador: com `unit: language` o
+    # que o usuário digita é "Clojure", que não é escopo de adaptador nenhum.
+    return [_resolve(project, {e.id: e.label for e in scopes_of_unit(src)})]
 
 
 def _data(valor: str | None, flag: str) -> str | None:
@@ -154,8 +167,12 @@ def run_all(
     _abrir_run(run=run, rotulo=rotulo)
     start = STAGE_ORDER.index(from_stage) if from_stage else 0
     for stage in STAGE_ORDER[start:]:
+        mod = _module(stage)
+        if _pula_na_unidade(mod):
+            log.info("=== %s === pulado: nao roda com unit=%s", stage, analysis_unit())
+            continue
         log.info("=== %s ===", stage)
-        man = _module(stage).run(None, force=force, fail_fast=fail_fast)
+        man = mod.run(None, force=force, fail_fast=fail_fast)
         if man.get("failed"):
             raise typer.Exit(1)
 

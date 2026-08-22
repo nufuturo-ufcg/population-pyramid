@@ -37,7 +37,8 @@ import pandas as pd
 
 from . import logging_config as runlog
 from .config import settings, stage_dir
-from .extract import load_events, source
+from .extract import label_of, load_events, source
+from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "classify"
@@ -114,11 +115,14 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     coding = coding_events()
 
     src = source()
-    targets = scopes if scopes is not None else src.list_scopes()
+    targets = scopes if scopes is not None else [e.id for e in scopes_of_unit(src)]
 
     man = runlog.load(STAGE)
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
+    prov = src.provenance()
+    man = runlog.invalidar_se_mudou(STAGE, man, prov)
+    man.update(prov)
     man["taxonomy_variant"] = cfg["taxonomy"]["variant"]
     man["gap_days"] = gap_days
 
@@ -140,7 +144,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             man["failed"].pop(key, None)
             log.info(
                 "%-38s %5d contribuidores (%4d codaram)  %5d spans",
-                src.scope_label(sid),
+                label_of(sid),
                 n_total,
                 n_c,
                 len(df),

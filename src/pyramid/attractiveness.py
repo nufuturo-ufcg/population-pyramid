@@ -32,11 +32,27 @@ import numpy as np
 import pandas as pd
 
 from . import logging_config as runlog
-from .config import settings, stage_dir
+from .config import settings, stage_dir, unidade_suportada
 from .extract import events_path, label_of, load_events, source
+from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "attractiveness"
+
+# Unidades de análise em que este estágio faz sentido.
+#
+# O quadrante compara o escopo com a MEDIANA anual dos escopos elegíveis. Com
+# um escopo elegível só, a mediana é o próprio valor dele, o empate cai do lado
+# baixo, e todo ano sai `terminal`. Medido na amostra de três repositórios
+# Clojure: Clojure é a única linguagem que passa de `min_active_devs` em
+# qualquer ano, o magnetismo dela dá 1,0 por construção (ela é o dataset
+# inteiro), e os sete anos saem `terminal`.
+#
+# O impedimento é tamanho de amostra, e não a unidade em si: "esta linguagem
+# atrai mais que a mediana das linguagens" é uma pergunta legítima. Ela volta a
+# fazer sentido quando a amostra tiver várias linguagens acima do corte, e aí a
+# trava sai daqui.
+UNIDADES = ("project",)
 
 QUADRANTS = {
     (True, True): "attractive",
@@ -78,7 +94,7 @@ def activity(
     que ninguém consegue enxergar olhando o resultado.
     """
     src = source()
-    ids = scopes if scopes is not None else src.list_scopes()
+    ids = scopes if scopes is not None else [e.id for e in scopes_of_unit(src)]
     ev = events if events is not None else coding_events()
 
     faltando = [s for s in ids if not events_path(s).exists()]
@@ -276,6 +292,7 @@ def run(
     years: list[int] | None = None,
 ) -> dict:
     """Calcula sempre o dataset inteiro; `years` só filtra o que é reportado."""
+    unidade_suportada(STAGE, UNIDADES)
     if scopes is not None:
         raise ValueError(
             "attractiveness não aceita --project: o magnetismo é uma fração "
@@ -308,7 +325,6 @@ def run(
             raise
         return man
 
-    src = source()
     for y, g in out.groupby("year"):
         if years is not None and int(y) not in years:
             continue
@@ -349,5 +365,4 @@ def run(
 
     runlog.save(STAGE, man)
     log.info(runlog.summarize(STAGE, man))
-    log.debug("rótulos disponíveis para %d projetos", len(src.list_scopes()))
     return man
