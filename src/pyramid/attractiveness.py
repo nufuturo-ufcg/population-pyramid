@@ -39,11 +39,19 @@ from .units import scopes_of_unit
 log = logging.getLogger(__name__)
 STAGE = "attractiveness"
 
-# Unidades de análise em que este estágio faz sentido. Magnetismo e stickiness
-# comparam cada escopo com a MEDIANA anual dos escopos elegíveis, e a mediana de
-# 90 projetos não quer dizer a mesma coisa que a mediana de 13 linguagens: o
-# quadrante de um escopo passaria a depender de quantas linguagens entraram na
-# amostra. Isso é outra pergunta de pesquisa, e ela ainda não foi feita.
+# Unidades de análise em que este estágio faz sentido.
+#
+# O quadrante compara o escopo com a MEDIANA anual dos escopos elegíveis. Com
+# um escopo elegível só, a mediana é o próprio valor dele, o empate cai do lado
+# baixo, e todo ano sai `terminal`. Medido na amostra de três repositórios
+# Clojure: Clojure é a única linguagem que passa de `min_active_devs` em
+# qualquer ano, o magnetismo dela dá 1,0 por construção (ela é o dataset
+# inteiro), e os sete anos saem `terminal`.
+#
+# O impedimento é tamanho de amostra, e não a unidade em si: "esta linguagem
+# atrai mais que a mediana das linguagens" é uma pergunta legítima. Ela volta a
+# fazer sentido quando a amostra tiver várias linguagens acima do corte, e aí a
+# trava sai daqui.
 UNIDADES = ("project",)
 
 QUADRANTS = {

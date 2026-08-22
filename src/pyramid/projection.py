@@ -55,10 +55,17 @@ from .snapshots import load_all as load_snapshots
 log = logging.getLogger(__name__)
 STAGE = "projection"
 
-# Unidades de análise em que este estágio faz sentido. A elegibilidade é
-# "mais de 100 contribuidores ativos", calibrada contra os 36 projetos da
-# Tabela 3 do IEICE16. Toda linguagem passa desse corte, então o limiar deixa de
-# selecionar e a comparação com o artigo perde o sentido.
+# Unidades de análise em que este estágio faz sentido.
+#
+# A elegibilidade é "mais de 100 contribuidores ATIVOS no snapshot base",
+# calibrada contra os 36 projetos da Tabela 3 do IEICE16. Medido na amostra de
+# três repositórios Clojure: nenhuma linguagem passa. Clojure tem 708
+# contribuidores em sete anos e 31 ativos no snapshot da classificação, então a
+# projeção sai vazia.
+#
+# O impedimento é tamanho de amostra. A projeção coorte-componente é cálculo
+# interno ao escopo, e a pirâmide de uma linguagem se projeta como a de um
+# projeto. A trava sai daqui quando a amostra tiver linguagem acima do corte.
 UNIDADES = ("project",)
 
 # A UNIDADE DE ANÁLISE É A COORTE, NÃO O PROJETO.
