@@ -56,6 +56,7 @@ from dotenv import load_dotenv
 from pyramid.config import ROOT
 from pyramid.sources.base import (
     EVENT_COLUMNS,
+    EVENT_TYPES,
     ActivityDataSource,
     validate_canonical_schema,
     validate_scope_meta,
@@ -566,6 +567,15 @@ class GHAPISource(ActivityDataSource):
             )
         ctx = _Contexto(repos, langs, universo, elegiveis, por_sha)
 
+        # `msr14` só consulta `coding + non_coding`: o tipo `excluded` da
+        # variante de taxonomia ativa nunca chega ao dataframe dele. Aqui a
+        # coleta já entrega os sete tipos, então o filtro precisa acontecer
+        # aqui, ou `classify.profile()` trataria `excluded` como `non_coding`
+        # por padrão (ele só sabe separar `coding` do resto). Sob a variante
+        # `prose`, isso faria toda abertura de issue contar como conversa, que
+        # é exatamente o que `prose` exclui.
+        permitidos = self._tipos_permitidos()
+
         linhas: list[tuple[int, int, str, str]] = []
         descartes: Counter[str] = Counter()
         # A classificação é POR ITEM, e não por arquivo. A coleta pode separar
@@ -578,6 +588,9 @@ class GHAPISource(ActivityDataSource):
                 busca = _classifica(item) if isinstance(item, dict) else None
                 if busca is None:
                     descartes["forma nao reconhecida"] += 1
+                    continue
+                if _tipo_canonico(busca, item) not in permitidos:
+                    descartes["excluido pela taxonomia"] += 1
                     continue
                 saiu, motivo = self._linhas_do_item(busca, item, ctx)
                 linhas.extend(saiu)
@@ -731,7 +744,27 @@ class GHAPISource(ActivityDataSource):
             "colecao": str(self.raiz),
             "language_policy": self.politica,
             "linguist": "github-linguist/linguist@b45dbe9",
+            "taxonomy_variant": (self._settings.get("taxonomy") or {}).get("variant"),
         }
+
+    def _tipos_permitidos(self) -> set[str]:
+        """Tipos que a variante de taxonomia ativa deixa passar.
+
+        `msr14` só consulta `coding + non_coding`: o tipo `excluded` nunca
+        chega ao dataframe dele. A coleta do `ghapi` entrega os sete tipos sem
+        filtro, então o corte precisa acontecer aqui, ou `classify.profile()`
+        trataria `excluded` como `non_coding` por padrão (ele só sabe separar
+        `coding` do resto). Sob a variante `prose`, isso faria toda abertura de
+        issue contar como conversa, que é exatamente o que `prose` exclui.
+
+        Sem `taxonomy` no settings (caso dos testes deste adaptador, que
+        passam um dict mínimo), nada é filtrado.
+        """
+        tax = self._settings.get("taxonomy")
+        if not tax:
+            return set(EVENT_TYPES)
+        spec = tax["variants"][tax["variant"]]
+        return set(spec["coding"]) | set(spec["non_coding"])
 
 
 SOURCE = GHAPISource

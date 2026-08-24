@@ -19,12 +19,12 @@ escopo `Clojure` só.
 | | |
 |---|---|
 | repositórios | 3 |
-| eventos | 27.152 |
-| contribuidores | 708 |
+| eventos | 25.436 |
+| contribuidores | 624 |
 | primeiro evento | 2013-08-25 |
 | último evento | 2026-08-21 |
-| períodos de atividade (spans) | 1.184 |
-| série de snapshots | 52 trimestres, 2013-09-30 a 2026-06-30 |
+| períodos de atividade (spans) | 1.014 |
+| série de snapshots | 51 trimestres, 2013-12-31 a 2026-06-30 |
 
 Eventos por tipo:
 
@@ -33,14 +33,18 @@ Eventos por tipo:
 | `issue_events` | 13.469 |
 | `issue_comments` | 6.458 |
 | `commits` | 3.282 |
-| `issues` | 1.716 |
 | `pull_requests` | 1.429 |
 | `pull_request_comments` | 761 |
 | `commit_comments` | 37 |
 
-`issue_events` é metade da base. Ele já vem colapsado em 29,5% pela limpeza de
-duplicata exata do contrato, porque rotular uma issue com três etiquetas gera
-três eventos do mesmo ator no mesmo segundo.
+`issue_events` é mais da metade da base. Ele já vem colapsado em 29,5% pela
+limpeza de duplicata exata do contrato, porque rotular uma issue com três
+etiquetas gera três eventos do mesmo ator no mesmo segundo.
+
+Não aparece `issues` (abertura de issue) nesta lista. A taxonomia ativa em
+`config/settings.yaml` (`taxonomy.variant: prose`) exclui esse tipo das duas
+categorias, coding e non-coding, por decisão medida na replicação (ver
+`discrepancias.md`, seção 32). O adaptador `ghapi` aplica esse mesmo corte.
 
 ## A pirâmide
 
@@ -51,18 +55,18 @@ O lado direito é quem escreve código, o esquerdo é quem só conversa, e o cin
 no meio é quem começou conversando e passou a codar.
 
 A forma é a de uma comunidade que renova pela base. A banda de menos de 1 ano
-carrega a maior parte da população dos dois lados, e acima de 8 anos só sobra um
-contribuidor ativo: `weavejester` (id 8780), na banda 52, com 4.691 dias desde o
-primeiro evento em 2013-08-25, que é a criação do `medley`. Ele é o dono do
-repositório mais velho da amostra e a única pessoa daquela época que ainda
-aparece.
+carrega a maior parte da população dos dois lados, e acima de 8 anos só sobra
+um contribuidor ativo: `weavejester` (id 8780), na banda 52, com 4.691 dias
+desde o primeiro evento em 2013-08-25, que é a criação do `medley`. Ele é o
+dono do repositório mais velho da amostra e a única pessoa daquela época que
+ainda aparece.
 
 ## Os dois números de população, e por que diferem
 
 | | janela | não-código | código |
 |---|---|---|---|
-| a figura desenha | 12 meses | 52 | 43 |
-| o CCR e o NCR contam | 3 meses | 8 | 23 |
+| a figura desenha | 12 meses | 39 | 42 |
+| o CCR e o NCR contam | 3 meses | 6 | 22 |
 
 A diferença é declarada e medida. A figura usa
 `plots.pyramid_window_months: 12`, fixado pela leitura em pixel da Fig.2 do
@@ -77,12 +81,12 @@ populações diferentes do mesmo escopo.
 
 | medida | valor |
 |---|---|
-| contribuidores de código | 23 |
-| contribuidores de não-código | 8 |
-| novatos (banda 0, até 3 meses) | 8 |
-| experientes (banda 1 ou mais) | 23 |
-| CCR | +0,652 |
-| NCR | -0,652 |
+| contribuidores de código | 22 |
+| contribuidores de não-código | 6 |
+| novatos (banda 0, até 3 meses) | 9 |
+| experientes (banda 1 ou mais) | 19 |
+| CCR | +0,727 |
+| NCR | -0,526 |
 | tipo | **C** |
 
 CCR e NCR seguem a fórmula do IEICE16 p.1308, com corte em zero e o `moved`
@@ -94,30 +98,27 @@ código, e a renovação por baixo está fraca no trimestre.
 
 ## A série completa
 
-52 snapshots trimestrais. Últimos oito:
+51 snapshots trimestrais. Últimos oito:
 
 | snapshot | código | não-código | novatos | experientes | CCR | NCR | tipo |
 |---|---|---|---|---|---|---|---|
-| 2024-09-30 | 22 | 23 | 14 | 31 | -0,043 | -0,548 | D |
-| 2024-12-31 | 20 | 10 | 10 | 20 | +0,500 | -0,500 | C |
-| 2025-03-31 | 14 | 12 | 6 | 20 | +0,143 | -0,700 | C |
-| 2025-06-30 | 13 | 14 | 8 | 19 | -0,071 | -0,579 | D |
-| 2025-09-30 | 20 | 19 | 17 | 22 | +0,050 | -0,227 | C |
-| 2025-12-31 | 13 | 17 | 10 | 20 | -0,235 | -0,500 | D |
-| 2026-03-31 | 16 | 15 | 12 | 19 | +0,062 | -0,368 | C |
-| 2026-06-30 | 23 | 8 | 8 | 23 | +0,652 | -0,652 | C |
+| 2024-09-30 | 19 | 17 | 13 | 23 | +0,105 | -0,435 | C |
+| 2024-12-31 | 19 | 6 | 8 | 17 | +0,684 | -0,529 | C |
+| 2025-03-31 | 13 | 9 | 5 | 17 | +0,308 | -0,706 | C |
+| 2025-06-30 | 11 | 9 | 4 | 16 | +0,182 | -0,750 | C |
+| 2025-09-30 | 20 | 13 | 14 | 19 | +0,350 | -0,263 | C |
+| 2025-12-31 | 11 | 12 | 6 | 17 | -0,083 | -0,647 | D |
+| 2026-03-31 | 16 | 12 | 11 | 17 | +0,250 | -0,353 | C |
+| 2026-06-30 | 22 | 6 | 9 | 19 | +0,727 | -0,526 | C |
 
-Distribuição dos 52 trimestres: C em 20, D em 12, A em 10, B em 10.
+Distribuição dos 51 trimestres: C em 28, A em 9, B em 9, D em 5.
 
-CCR mediano de +0,062 e NCR mediano de 0,000 na série inteira. A leitura: a
-população de Clojure fica **em cima da linha de corte** quase o tempo todo, e o
-tipo alterna entre C e D conforme o trimestre. O tipo de um único snapshot é
-frágil para esta população, e o do último trimestre (+0,652) é o valor mais
-extremo da série recente.
-
-Isso é o mesmo modo de falha que o IEICE16 registra na Fig.7, onde `homebrew` e
-`rails` ficam com CCR e NCR perto de zero e o quadrante vira sorte. Para uma
-linguagem, olhar a série vale mais que olhar um snapshot.
+CCR mediano de +0,350 e NCR mediano de -0,091 na série inteira. A leitura: a
+população de Clojure fica consistentemente do lado do código, com o NCR
+puxando para o lado experiente na maior parte dos trimestres. O último
+snapshot (+0,727) é mais extremo que a mediana, mas na mesma direção dela, ao
+contrário do que uma leitura de um snapshot isolado sugeriria sem olhar a
+série.
 
 ## As outras linguagens da amostra
 
@@ -126,7 +127,7 @@ os arquivos soltos dentro deles.
 
 | linguagem | repositórios | eventos | pessoas | tipo |
 |---|---|---|---|---|
-| Clojure | 3 | 27.152 | 708 | C |
+| Clojure | 3 | 25.436 | 624 | C |
 | Batchfile | 1 | 23 | 4 | sem ativo |
 | Dockerfile | 1 | 20 | 6 | sem ativo |
 | Java | 1 | 10 | 3 | sem ativo |
@@ -155,21 +156,41 @@ construção, porque Clojure é o dataset inteiro. Medido rodando o estágio com
 trava removida.
 
 **Projeção coorte-componente (IEICE16 Fig.8, Tabelas 3 e 4).** A elegibilidade é
-mais de 100 contribuidores **ativos** no snapshot base. Clojure tem 708
-contribuidores em treze anos e 31 ativos no snapshot da classificação, então
-nenhum escopo é elegível e a projeção sai vazia.
+mais de 100 contribuidores **ativos** no snapshot base. Clojure tem 624
+contribuidores em treze anos e menos de 40 ativos no snapshot da classificação,
+então nenhum escopo é elegível e a projeção sai vazia.
 
 Os dois voltam quando a amostra tiver várias linguagens acima do corte. A trava
 está em `UNIDADES`, no topo de `attractiveness.py` e de `projection.py`, com o
 motivo escrito.
 
+## Duas limitações desta coleta, herdadas do formato de entrada
+
+Esta rodada não usa a mesma coleta da rodada maior (`data/clojure_first_round`,
+1011 repositórios), que chegou num formato de CSV diferente do que o adaptador
+`ghapi` lê. Duas limitações desse formato, que vão pesar no próximo documento
+gerado a partir dele:
+
+1. **Identidade quebrada entre commit e issue/PR.** A coleta em CSV identifica
+   quem commitou pelo nome do git (por exemplo, "Nikita Prokopov") e quem abriu
+   issue ou PR pelo login do GitHub (por exemplo, "tonsky"). Sem uma chave em
+   comum, a mesma pessoa conta como duas na pirâmide quando ela faz as duas
+   coisas.
+2. **Arquivo do commit pré-filtrado.** A coleta em CSV só lista arquivo com
+   extensão Clojure para cada commit, então não há como saber se aquele commit
+   também tocou outra linguagem no mesmo repositório.
+
+Um documento de sugestões para a próxima coleta cobre isso em detalhe, fora
+deste repositório.
+
 ## O que conferir nesta validação
 
 1. A forma da pirâmide bate com a de uma comunidade que renova pela base.
-2. Os 708 contribuidores e os 27.152 eventos batem com a coleta.
+2. Os 624 contribuidores e os 25.436 eventos batem com a coleta.
 3. CCR e NCR do snapshot batem com a tabela, lembrando que a figura usa janela
    de 12 meses e a métrica usa 3.
 4. `borkdude` aparece uma vez só. Ele está nos três repositórios, com primeiro
    evento em 2019-02-04 no `medley`, e é essa a data que vale. Sob
    `unit: project` ele seria três pessoas, a mais nova estreando em agosto.
-5. O tipo do último snapshot é C, e a série mostra que ele alterna com D.
+5. O tipo do último snapshot é C, e a série mostra que a maioria dos
+   trimestres também é C.

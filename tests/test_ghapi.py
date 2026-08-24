@@ -204,14 +204,52 @@ def coleta_minima(raiz: Path) -> Path:
     return raiz
 
 
+# A variante `prose`, ativa em `config/settings.yaml`, exclui `issues`
+# (abertura de issue) das duas categorias. `table1` inclui `issues` como
+# non_coding e exclui `issue_events`. As duas entram no `settings` de teste
+# quando quem chama passa `taxonomy=True`, para exercitar o filtro sem
+# depender do arquivo real.
+TAXONOMIA = {
+    "variant": "prose",
+    "variants": {
+        "prose": {
+            "coding": ["commits", "pull_requests"],
+            "non_coding": [
+                "commit_comments",
+                "issue_comments",
+                "pull_request_comments",
+                "issue_events",
+            ],
+            "excluded": ["issues"],
+        },
+        "table1": {
+            "coding": ["commits", "pull_requests"],
+            "non_coding": ["commit_comments", "issues", "issue_comments", "pull_request_comments"],
+            "excluded": ["issue_events"],
+        },
+    },
+}
+
+
 @contextmanager
-def ghapi_de_teste(politica: dict | None = None):
-    """Fonte apontada para uma coleta mínima recém-escrita."""
+def ghapi_de_teste(politica: dict | None = None, *, taxonomy: dict | bool | None = None):
+    """Fonte apontada para uma coleta mínima recém-escrita.
+
+    `taxonomy=None` (o default) não configura taxonomia nenhuma, e o adaptador
+    não filtra nada: é o comportamento de antes deste filtro existir, mantido
+    para não prender todo teste deste arquivo ao assunto. `taxonomy=True` usa
+    `TAXONOMIA` acima; um dict usa o que foi passado.
+    """
     import tempfile
 
+    settings: dict = {"language": politica or {}}
+    if taxonomy is True:
+        settings["taxonomy"] = TAXONOMIA
+    elif taxonomy:
+        settings["taxonomy"] = taxonomy
     with tempfile.TemporaryDirectory() as tmp:
         raiz = coleta_minima(Path(tmp) / "ghapi")
-        yield GHAPISource({"language": politica or {}}, raiz=raiz)
+        yield GHAPISource(settings, raiz=raiz)
 
 
 @pytest.fixture
@@ -692,3 +730,41 @@ def test_mapa_de_bytes_zerado_nao_divide_por_zero(tmp_path):
 
     assert m._elegiveis({"Clojure": 0, "Java": 0}, politica) == ["Clojure"]
     assert m._elegiveis({}, politica) == []
+
+
+# --- a taxonomia decide o que existe no dataframe, não só a categoria --------
+#
+# msr14 só consulta coding+non_coding, então o tipo `excluded` nunca chega ao
+# dataframe dele. Sem o mesmo corte aqui, `classify.profile()` trata qualquer
+# coisa fora de `coding` como `non_coding` por padrão, e a variante `prose`
+# (ativa em settings.yaml) passaria a contar abertura de issue como conversa,
+# exatamente o que ela existe para excluir.
+
+
+def test_variante_prose_exclui_abertura_de_issue():
+    with ghapi_de_teste(taxonomy=True) as src:
+        tipos = {t for s in src.list_scopes() for t in src.get_events(s)["event_type"]}
+
+    assert "issues" not in tipos
+    assert "pull_requests" in tipos  # a chave pull_request separa o PR da issue
+
+
+def test_variante_table1_inclui_a_issue_como_nao_codigo():
+    tabela1 = {**TAXONOMIA, "variant": "table1"}
+    with ghapi_de_teste(taxonomy=tabela1) as src:
+        tipos = {t for s in src.list_scopes() for t in src.get_events(s)["event_type"]}
+
+    assert "issues" in tipos
+
+
+def test_sem_taxonomia_configurada_nada_e_filtrado(fonte):
+    """O default sem `taxonomy` no settings não filtra, para não prender todo
+    teste deste arquivo ao assunto."""
+    tipos = {t for s in fonte.list_scopes() for t in fonte.get_events(s)["event_type"]}
+
+    assert "issues" in tipos
+
+
+def test_taxonomia_entra_no_provenance():
+    with ghapi_de_teste(taxonomy=True) as src:
+        assert src.provenance()["taxonomy_variant"] == "prose"
