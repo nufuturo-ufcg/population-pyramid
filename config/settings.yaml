@@ -212,7 +212,8 @@ periods:
   band_days: 90
 
   # "we define newcomers as contributors who have less than three months of
-  #  activity periods" (p.1308)
+  #  activity periods" (p.1308). Só entra em conta quando
+  # `metrics.newcomer_basis: days`. Ver o comentário dessa chave.
   newcomer_max_months: 3
 
   # AMBIGUIDADE 3: o que é a "idade" do contribuidor.
@@ -254,6 +255,23 @@ metrics:
   # Corte é ZERO. A mediana foi testada e refutada. `coding` inclui os `moved`.
   threshold: 0.0
   coding_includes_moved: true
+
+  # Quem conta como "novato" (o `new` do NCR).
+  #   band   novato é quem cai na banda 0 da pirâmide (`periods.band_months`).
+  #          É o comportamento validado contra o MSR14 até aqui. Só significa
+  #          "menos de 3 meses" enquanto band_months TAMBÉM vale 3: são duas
+  #          constantes independentes que hoje coincidem em valor. Mudar a
+  #          largura da banda (por exemplo pra testar pirâmide com banda de 1
+  #          ou 5 anos) muda a definição de novato junto, sem avisar.
+  #   days   novato é quem tem idade real (`age_days`) abaixo de
+  #          `periods.newcomer_max_months`, direto pela idade em dias, citação
+  #          literal do artigo (p.1308), independente da banda que a pirâmide
+  #          desenha.
+  # Trocar para `days` muda a classificação Tipo A-D. Só vira padrão depois de
+  # rodar `pyramid validate` contra o MSR14 e comparar os dois
+  # `validation_report.md`, pelo procedimento de "mudança que mexe em número"
+  # do CONTRIBUTING.md.
+  newcomer_basis: band   # band | days
 
   # Quadrantes (IEICE16 p.1309, descritos em palavras, não em sinal):
   #   A: mais newcomers + mais coding      -> CCR > 0, NCR > 0
