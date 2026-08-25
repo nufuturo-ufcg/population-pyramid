@@ -204,15 +204,15 @@ def coleta_minima(raiz: Path) -> Path:
     return raiz
 
 
-# A variante `prose`, ativa em `config/settings.yaml`, exclui `issues`
+# A variante `prosa`, ativa em `config/settings.yaml`, exclui `issues`
 # (abertura de issue) das duas categorias. `table1` inclui `issues` como
 # non_coding e exclui `issue_events`. As duas entram no `settings` de teste
 # quando quem chama passa `taxonomy=True`, para exercitar o filtro sem
 # depender do arquivo real.
 TAXONOMIA = {
-    "variant": "prose",
+    "variant": "prosa",
     "variants": {
-        "prose": {
+        "prosa": {
             "coding": ["commits", "pull_requests"],
             "non_coding": [
                 "commit_comments",
@@ -736,12 +736,12 @@ def test_mapa_de_bytes_zerado_nao_divide_por_zero(tmp_path):
 #
 # msr14 só consulta coding+non_coding, então o tipo `excluded` nunca chega ao
 # dataframe dele. Sem o mesmo corte aqui, `classify.profile()` trata qualquer
-# coisa fora de `coding` como `non_coding` por padrão, e a variante `prose`
+# coisa fora de `coding` como `non_coding` por padrão, e a variante `prosa`
 # (ativa em settings.yaml) passaria a contar abertura de issue como conversa,
 # exatamente o que ela existe para excluir.
 
 
-def test_variante_prose_exclui_abertura_de_issue():
+def test_variante_prosa_exclui_abertura_de_issue():
     with ghapi_de_teste(taxonomy=True) as src:
         tipos = {t for s in src.list_scopes() for t in src.get_events(s)["event_type"]}
 
@@ -767,4 +767,4 @@ def test_sem_taxonomia_configurada_nada_e_filtrado(fonte):
 
 def test_taxonomia_entra_no_provenance():
     with ghapi_de_teste(taxonomy=True) as src:
-        assert src.provenance()["taxonomy_variant"] == "prose"
+        assert src.provenance()["taxonomy_variant"] == "prosa"

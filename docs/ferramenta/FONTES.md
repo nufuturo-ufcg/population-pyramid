@@ -43,7 +43,7 @@ fora dela.
 
 Sete tipos, contra os seis que a spec lista na seção 8. O sétimo é `issues`
 (abrir uma issue), que existe porque a variante `table1` da taxonomia conta
-abertura de issue como não-coding, enquanto a variante `prose` a exclui. Ver
+abertura de issue como não-coding, enquanto a variante `prosa` a exclui. Ver
 `docs/replicacao/discrepancias.md`, seção 17.
 
 ## Os atributos do escopo

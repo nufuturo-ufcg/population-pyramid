@@ -572,8 +572,8 @@ class GHAPISource(ActivityDataSource):
         # coleta já entrega os sete tipos, então o filtro precisa acontecer
         # aqui, ou `classify.profile()` trataria `excluded` como `non_coding`
         # por padrão (ele só sabe separar `coding` do resto). Sob a variante
-        # `prose`, isso faria toda abertura de issue contar como conversa, que
-        # é exatamente o que `prose` exclui.
+        # `prosa`, isso faria toda abertura de issue contar como conversa, que
+        # é exatamente o que `prosa` exclui.
         permitidos = self._tipos_permitidos()
 
         linhas: list[tuple[int, int, str, str]] = []
@@ -754,8 +754,8 @@ class GHAPISource(ActivityDataSource):
         chega ao dataframe dele. A coleta do `ghapi` entrega os sete tipos sem
         filtro, então o corte precisa acontecer aqui, ou `classify.profile()`
         trataria `excluded` como `non_coding` por padrão (ele só sabe separar
-        `coding` do resto). Sob a variante `prose`, isso faria toda abertura de
-        issue contar como conversa, que é exatamente o que `prose` exclui.
+        `coding` do resto). Sob a variante `prosa`, isso faria toda abertura de
+        issue contar como conversa, que é exatamente o que `prosa` exclui.
 
         Sem `taxonomy` no settings (caso dos testes deste adaptador, que
         passam um dict mínimo), nada é filtrado.

@@ -42,7 +42,7 @@ limpeza de duplicata exata do contrato, porque rotular uma issue com três
 etiquetas gera três eventos do mesmo ator no mesmo segundo.
 
 Não aparece `issues` (abertura de issue) nesta lista. A taxonomia ativa em
-`config/settings.yaml` (`taxonomy.variant: prose`) exclui esse tipo das duas
+`config/settings.yaml` (`taxonomy.variant: prosa`) exclui esse tipo das duas
 categorias, coding e non-coding, por decisão medida na replicação (ver
 `discrepancias.md`, seção 32). O adaptador `ghapi` aplica esse mesmo corte.
 

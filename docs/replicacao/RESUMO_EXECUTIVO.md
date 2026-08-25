@@ -48,7 +48,7 @@ Os artigos admitem mais de uma leitura em seis pontos, numerados no
 
 | # | ambiguidade | chave | resolvida em |
 |---|---|---|---|
-| 1 | taxonomia de evento | `taxonomy.variant` | `prose` |
+| 1 | taxonomia de evento | `taxonomy.variant` | `prosa` |
 | 2 | escopo de commit | `commit_scope` | `root` |
 | 3 | o que é a idade | `periods.age_basis` | `calendar_tenure` |
 | 4 | quem conta na stickiness | `attractiveness.stickiness_scope` | `project` |
