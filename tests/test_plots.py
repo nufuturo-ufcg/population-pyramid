@@ -227,3 +227,80 @@ def test_figura_de_replica_so_existe_para_a_fonte_da_replicacao(monkeypatch):
         lambda: {"input": {"adapter": "msr14"}, "output": {"adapter_da_replicacao": "msr14"}},
     )
     assert config.e_da_replicacao()
+
+
+# --- linha do tempo de um escopo só (figure_pyramid_timeline) ----------------
+
+_TL_DATAS = [pd.Timestamp("2020-12-31"), pd.Timestamp("2021-12-31")]
+
+
+def _tl_cfg() -> dict:
+    return {
+        "plots": {"pyramid_population": "active", "pyramid_window_months": JANELA_M},
+        "periods": {"band_months": 3, "age_basis": "calendar_tenure"},
+    }
+
+
+def _tl_df() -> pd.DataFrame:
+    """2020 só tem gente com `idle_days` acima da janela; 2021 tem 1 ativo.
+
+    Reproduz o caso real: as duas datas existem na série e no escopo (não é
+    "data fora da série", seção 8), mas 2020 não sobra ninguém depois do
+    filtro de população ativa.
+    """
+    return pd.DataFrame(
+        [
+            {
+                "snapshot": _TL_DATAS[0],
+                "band": 0,
+                "category": "coding",
+                "active": False,
+                "idle_days": 400.0,
+                "contributor_id": 0,
+            },
+            {
+                "snapshot": _TL_DATAS[1],
+                "band": 0,
+                "category": "coding",
+                "active": True,
+                "idle_days": 10.0,
+                "contributor_id": 1,
+            },
+        ]
+    )
+
+
+def _tl_monkeypatch(monkeypatch, tmp_path):
+    monkeypatch.setattr(plots, "settings", _tl_cfg)
+    monkeypatch.setattr(plots, "out_dir", lambda: tmp_path)
+    monkeypatch.setattr(plots, "labels", lambda: {})
+    monkeypatch.setattr(snapshots, "snapshot_dates", lambda *a, **k: _TL_DATAS)
+    monkeypatch.setattr(snapshots, "load", lambda *a, **k: _tl_df())
+
+
+def test_timeline_exige_anos_xor_ultimos_anos(monkeypatch, tmp_path):
+    _tl_monkeypatch(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="anos/ultimos_anos"):
+        plots.figure_pyramid_timeline(1)
+    with pytest.raises(ValueError, match="anos/ultimos_anos"):
+        plots.figure_pyramid_timeline(1, anos=[2021], ultimos_anos=1)
+
+
+def test_timeline_descarta_ano_sem_ninguem_ativo(monkeypatch, tmp_path):
+    """2020 está na série e no escopo, mas ninguém passa no filtro de ativo.
+
+    O painel de 2020 não pode aparecer na figura: não há o que comparar contra
+    um "nenhum contribuidor ativo".
+    """
+    _tl_monkeypatch(monkeypatch, tmp_path)
+    caminho = plots.figure_pyramid_timeline(1, anos=[2020, 2021])
+    assert caminho.exists()
+    # Só 2021 sobreviveu: o nome do arquivo carrega a primeira e a última data
+    # que entraram na figura, e as duas têm de ser 2021 aqui.
+    assert "2021-12-31_2021-12-31" in caminho.stem
+
+
+def test_timeline_falha_quando_nenhum_ano_pedido_tem_gente_ativa(monkeypatch, tmp_path):
+    _tl_monkeypatch(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="nenhum dos anos pedidos tem contribuidor ativo"):
+        plots.figure_pyramid_timeline(1, anos=[2020])

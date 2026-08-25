@@ -210,6 +210,10 @@ def _plot_list() -> None:
     for nome, fn in plots.FIGURES.items():
         typer.echo(f"{nome:<28} {(fn.__doc__ or '').splitlines()[0]}")
     typer.echo(f"{plots.SINGLE:<28} Pirâmide avulsa de um projeto (exige --project).")
+    typer.echo(
+        f"{plots.TIMELINE:<28} Um projeto em vários anos (exige --project e "
+        "--anos ou --ultimos-anos)."
+    )
 
 
 def _plot_kwargs(
@@ -240,10 +244,31 @@ def _plot_kwargs(
     return kw
 
 
+def _plot_timeline(project: str | None, anos: str | None, ultimos_anos: int | None) -> None:
+    """`--figure pyramid-timeline`: um escopo, vários anos escolhidos na CLI."""
+    from . import plots
+
+    if not project:
+        raise typer.BadParameter(f"--figure {plots.TIMELINE} exige --project")
+    if bool(anos) == bool(ultimos_anos):
+        raise typer.BadParameter(
+            f"--figure {plots.TIMELINE} exige exatamente um de --anos ou --ultimos-anos"
+        )
+    sid = _resolve(project, plots.labels())
+    lista_anos = [int(a.strip()) for a in anos.split(",") if a.strip()] if anos else None
+    try:
+        caminho = plots.figure_pyramid_timeline(sid, anos=lista_anos, ultimos_anos=ultimos_anos)
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    typer.echo(caminho)
+
+
 @app.command("plot")
 def plot(
     figure: str = typer.Option("all", "--figure", help="nome da figura, ou 'all'"),
-    project: str = typer.Option(None, "--project", help="só para --figure pyramid-single"),
+    project: str = typer.Option(
+        None, "--project", help="só para --figure pyramid-single ou pyramid-timeline"
+    ),
     snapshot: str = typer.Option(None, "--snapshot", help="data; default: o da classificação"),
     year: int = typer.Option(None, "--year", help="só para --figure magnet-sticky"),
     highlight: str = typer.Option(
@@ -252,6 +277,14 @@ def plot(
         help="só para --figure magnet-sticky ou type-scatter: projetos a anelar "
         "(nome ou id, separados por vírgula); default vem de "
         "checkpoints.figures",
+    ),
+    anos: str = typer.Option(
+        None, "--anos", help="só para --figure pyramid-timeline: anos separados por vírgula"
+    ),
+    ultimos_anos: int = typer.Option(
+        None,
+        "--ultimos-anos",
+        help="só para --figure pyramid-timeline: janela a partir do último snapshot",
     ),
     listar: bool = typer.Option(False, "--list", help="lista as figuras e sai"),
     run: bool = typer.Option(False, "--run", help=RUN_HELP),
@@ -271,6 +304,10 @@ def plot(
             raise typer.BadParameter(f"--figure {plots.SINGLE} exige --project")
         sid = _resolve(project, plots.labels())
         typer.echo(plots.figure_pyramid(sid, snapshot))
+        return
+
+    if figure == plots.TIMELINE:
+        _plot_timeline(project, anos, ultimos_anos)
         return
 
     if figure != "all" and figure not in plots.FIGURES:

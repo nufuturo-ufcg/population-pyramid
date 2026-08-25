@@ -441,6 +441,68 @@ def figure_fig3() -> Path:
     return _save(fig, "esem14_fig3_transicoes", rect=(0, 0.05, 1, 0.96))
 
 
+def figure_pyramid_timeline(
+    scope_id: int, anos: list[int] | None = None, ultimos_anos: int | None = None
+) -> Path:
+    """Um escopo só, a mesma pirâmide em vários anos lado a lado.
+
+    Mesma ideia da Fig.3 (`figure_fig3`), mas para qualquer escopo, com as
+    datas escolhidas na chamada em vez de travadas em `checkpoints.yaml`
+    (que só cobre os 4 projetos do checkpoint da replicação). Passe `anos`
+    (lista de anos) ou `ultimos_anos` (janela a partir do último snapshot da
+    série), nunca os dois.
+
+    Ano sem ninguém ativo é descartado antes de desenhar: um painel "nenhum
+    contribuidor ativo" não compara nada com o resto da figura, só ocupa
+    espaço.
+    """
+    if (anos is None) == (ultimos_anos is None):
+        raise ValueError("figure_pyramid_timeline: passe exatamente um de anos/ultimos_anos.")
+    serie = snapshots.snapshot_dates()
+    if not serie:
+        raise ValueError("figure_pyramid_timeline: settings.snapshots não gera nenhuma data.")
+    if anos is not None:
+        alvo = set(anos)
+        candidatas = [d for d in serie if d.year in alvo]
+    else:
+        limite = serie[-1] - pd.DateOffset(years=ultimos_anos)
+        candidatas = [d for d in serie if d >= limite]
+
+    por_ano: dict[int, pd.Timestamp] = {}
+    for d in candidatas:
+        por_ano[d.year] = d  # `serie` é crescente: fica a ÚLTIMA data de cada ano
+    quadros = {d: pyramid_frame(snapshots.load(scope_id), d) for d in sorted(por_ano.values())}
+    datas = [
+        d
+        for d, f in quadros.items()
+        if not f.empty and (f["non_coding"].sum() + f["moved"].sum() + f["coding"].sum()) > 0
+    ]
+    if not datas:
+        raise ValueError(
+            f"figure_pyramid_timeline: nenhum dos anos pedidos tem contribuidor "
+            f"ativo em {_repo(scope_id)}."
+        )
+
+    vivos = [quadros[d] for d in datas]
+    xmax = max(max(f["non_coding"].max(), (f["moved"] + f["coding"]).max()) for f in vivos)
+    ymax = max(int(f["band"].max()) for f in vivos)
+    fig, axes = plt.subplots(1, len(datas), figsize=(3.0 * len(datas), 4.2), squeeze=False)
+    for j, d in enumerate(datas):
+        ax = axes[0][j]
+        draw_pyramid(ax, quadros[d], xmax=float(xmax), ymax=ymax)
+        ax.set_title(str(d.date()), fontsize=9)
+        if j == 0:
+            ax.set_ylabel(f"{_repo(scope_id)}\n{rotulo_da_idade()}", fontsize=8)
+        else:
+            ax.tick_params(axis="y", labelleft=False)
+        ax.set_xlabel("contribuidores", fontsize=8)
+
+    _legend(fig)
+    fig.suptitle(f"{_repo(scope_id)}: pirâmide ao longo do tempo", fontsize=10)
+    stem = f"pyramid_timeline_{scope_id}_{datas[0].date()}_{datas[-1].date()}"
+    return _save(fig, stem, rect=(0, 0.08, 1, 0.92))
+
+
 # ---------------------------------------------------------------------------
 # dispersões
 # ---------------------------------------------------------------------------
@@ -1247,6 +1309,10 @@ FIGURES = {
 # `pyramid-single` não entra no dict: é a única que exige --project, então não
 # tem o que rodar em `--figure all`.
 SINGLE = "pyramid-single"
+
+# `pyramid-timeline` também exige --project (mais --anos ou --ultimos-anos),
+# pelo mesmo motivo: não há lista de escopo pra rodar sozinha em `--figure all`.
+TIMELINE = "pyramid-timeline"
 
 
 def _piramides_de_todo_escopo() -> dict:
