@@ -41,7 +41,7 @@ from matplotlib.figure import Figure
 from . import attractiveness as attr
 from . import logging_config as runlog
 from . import metrics, projection, snapshots
-from .config import artifact_dir, checkpoints, settings
+from .config import artifact_dir, checkpoints, e_da_replicacao, settings
 from .extract import labels
 
 log = logging.getLogger(__name__)
@@ -103,6 +103,24 @@ def _repo(sid: int | str) -> str:
 # ---------------------------------------------------------------------------
 # pirâmide
 # ---------------------------------------------------------------------------
+def rotulo_da_idade() -> str:
+    """Nome do eixo vertical, tirado de `periods.age_basis`.
+
+    O rótulo era o literal "idade acumulada" nos seis lugares que desenham
+    pirâmide, e "acumulada" descreve `accumulated_active`, que soma os períodos
+    de atividade. A configuração publicada é `calendar_tenure`, onde a idade é o
+    tempo desde a origem e o gap de inatividade não desconta. As duas leituras
+    foram medidas, e `accumulated_active` foi refutada por deixar os tipos C e D
+    vazios (`config/settings.yaml`, `periods.age_basis`).
+
+    Sai da config para o rótulo não poder voltar a contradizer o método.
+    """
+    basis = settings()["periods"]["age_basis"]
+    if basis == "accumulated_active":
+        return "idade acumulada (anos)"
+    return "idade (anos)"
+
+
 def pyramid_frame(df: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
     """Contagem por (banda, categoria) num snapshot.
 
@@ -264,7 +282,7 @@ def draw_pyramid(
     ax.set_xticks(ticks)
     ax.set_xticklabels([f"{abs(v):.0f}" for v in ticks])
 
-    # Eixo y em anos de idade acumulada: as bandas são de `band_months`, mas o
+    # Eixo y em anos de idade: as bandas são de `band_months`, mas o
     # leitor pensa em anos, e é assim que o artigo rotula.
     #
     # A banda b termina em (b+1)*bm meses, então o rótulo "1 year" cai na banda
@@ -309,7 +327,7 @@ def figure_pyramid(scope_id: int, snapshot: str | pd.Timestamp | None = None) ->
     draw_pyramid(ax, frame)
     ax.set_title(f"{_repo(scope_id)}, {t.date()}", fontsize=9)
     ax.set_xlabel("contribuidores", fontsize=8)
-    ax.set_ylabel("idade acumulada (anos)", fontsize=8)
+    ax.set_ylabel(rotulo_da_idade(), fontsize=8)
     _legend(fig)
     return _save(fig, f"pyramid_{scope_id}_{t.date()}")
 
@@ -409,7 +427,7 @@ def figure_fig3() -> Path:
             marca = "  [right-censored]" if t.year in shape_only else ""
             ax.set_title(f"{t.year}{marca}", fontsize=9)
             if j == 0:
-                ax.set_ylabel(f"{_repo(sid)}\nidade acumulada (anos)", fontsize=8)
+                ax.set_ylabel(f"{_repo(sid)}\n{rotulo_da_idade()}", fontsize=8)
             else:
                 # Escala de y é comum na linha, então repetir "1 year, 2 years,
                 # ..." nos quatro painéis é tinta gasta duas vezes e largura a
@@ -421,6 +439,68 @@ def figure_fig3() -> Path:
     _legend(fig)
     fig.suptitle("ESEM14 Fig.3: transições da pirâmide populacional", fontsize=10)
     return _save(fig, "esem14_fig3_transicoes", rect=(0, 0.05, 1, 0.96))
+
+
+def figure_pyramid_timeline(
+    scope_id: int, anos: list[int] | None = None, ultimos_anos: int | None = None
+) -> Path:
+    """Um escopo só, a mesma pirâmide em vários anos lado a lado.
+
+    Mesma ideia da Fig.3 (`figure_fig3`), mas para qualquer escopo, com as
+    datas escolhidas na chamada em vez de travadas em `checkpoints.yaml`
+    (que só cobre os 4 projetos do checkpoint da replicação). Passe `anos`
+    (lista de anos) ou `ultimos_anos` (janela a partir do último snapshot da
+    série), nunca os dois.
+
+    Ano sem ninguém ativo é descartado antes de desenhar: um painel "nenhum
+    contribuidor ativo" não compara nada com o resto da figura, só ocupa
+    espaço.
+    """
+    if (anos is None) == (ultimos_anos is None):
+        raise ValueError("figure_pyramid_timeline: passe exatamente um de anos/ultimos_anos.")
+    serie = snapshots.snapshot_dates()
+    if not serie:
+        raise ValueError("figure_pyramid_timeline: settings.snapshots não gera nenhuma data.")
+    if anos is not None:
+        alvo = set(anos)
+        candidatas = [d for d in serie if d.year in alvo]
+    else:
+        limite = serie[-1] - pd.DateOffset(years=ultimos_anos)
+        candidatas = [d for d in serie if d >= limite]
+
+    por_ano: dict[int, pd.Timestamp] = {}
+    for d in candidatas:
+        por_ano[d.year] = d  # `serie` é crescente: fica a ÚLTIMA data de cada ano
+    quadros = {d: pyramid_frame(snapshots.load(scope_id), d) for d in sorted(por_ano.values())}
+    datas = [
+        d
+        for d, f in quadros.items()
+        if not f.empty and (f["non_coding"].sum() + f["moved"].sum() + f["coding"].sum()) > 0
+    ]
+    if not datas:
+        raise ValueError(
+            f"figure_pyramid_timeline: nenhum dos anos pedidos tem contribuidor "
+            f"ativo em {_repo(scope_id)}."
+        )
+
+    vivos = [quadros[d] for d in datas]
+    xmax = max(max(f["non_coding"].max(), (f["moved"] + f["coding"]).max()) for f in vivos)
+    ymax = max(int(f["band"].max()) for f in vivos)
+    fig, axes = plt.subplots(1, len(datas), figsize=(3.0 * len(datas), 4.2), squeeze=False)
+    for j, d in enumerate(datas):
+        ax = axes[0][j]
+        draw_pyramid(ax, quadros[d], xmax=float(xmax), ymax=ymax)
+        ax.set_title(str(d.date()), fontsize=9)
+        if j == 0:
+            ax.set_ylabel(f"{_repo(scope_id)}\n{rotulo_da_idade()}", fontsize=8)
+        else:
+            ax.tick_params(axis="y", labelleft=False)
+        ax.set_xlabel("contribuidores", fontsize=8)
+
+    _legend(fig)
+    fig.suptitle(f"{_repo(scope_id)}: pirâmide ao longo do tempo", fontsize=10)
+    stem = f"pyramid_timeline_{scope_id}_{datas[0].date()}_{datas[-1].date()}"
+    return _save(fig, stem, rect=(0, 0.08, 1, 0.92))
 
 
 # ---------------------------------------------------------------------------
@@ -793,7 +873,7 @@ def figure_grid_status() -> Path:
         _cell(ax, sid, t, sub=_confere(got, esperado[sid]), xticks=ticks_artigo.get(sid))
         ax.set_xlabel("contribuidores", fontsize=8)
     for i in range(nrows):
-        axes[i][0].set_ylabel("idade acumulada (anos)", fontsize=8)
+        axes[i][0].set_ylabel(rotulo_da_idade(), fontsize=8)
     for k in range(len(ids), nrows * ncols):
         axes[k // ncols][k % ncols].axis("off")
 
@@ -837,7 +917,7 @@ def figure_grid_types() -> Path:
             _cell(ax, sid, t, sub=_confere(tipos.get(sid), tipo))
             if i == len(rows) - 1:
                 ax.set_xlabel("contribuidores", fontsize=8)
-        axes[i][0].set_ylabel(f"Tipo {tipo}\nidade acumulada (anos)", fontsize=8)
+        axes[i][0].set_ylabel(f"Tipo {tipo}\n{rotulo_da_idade()}", fontsize=8)
 
     _legend(fig)
     fig.suptitle(
@@ -880,7 +960,7 @@ def figure_grid_centered() -> Path:
             ),
         )
         ax.set_xlabel("contribuidores", fontsize=8)
-    axes[0][0].set_ylabel("idade acumulada (anos)", fontsize=8)
+    axes[0][0].set_ylabel(rotulo_da_idade(), fontsize=8)
 
     _legend(fig)
     fig.suptitle(f"IEICE16 Fig.7: CCR e NCR próximos de zero, {t.date()}", fontsize=10)
@@ -970,7 +1050,7 @@ def figure_projection_overlay() -> Path:
         if k // ncol == nlin - 1:
             ax.set_xlabel("contribuidores", fontsize=8)
         if k % ncol == 0:
-            ax.set_ylabel("idade acumulada (anos)", fontsize=8)
+            ax.set_ylabel(rotulo_da_idade(), fontsize=8)
     for k in range(len(ids), nlin * ncol):
         axes[k // ncol][k % ncol].axis("off")
 
@@ -1230,6 +1310,35 @@ FIGURES = {
 # tem o que rodar em `--figure all`.
 SINGLE = "pyramid-single"
 
+# `pyramid-timeline` também exige --project (mais --anos ou --ultimos-anos),
+# pelo mesmo motivo: não há lista de escopo pra rodar sozinha em `--figure all`.
+TIMELINE = "pyramid-timeline"
+
+
+def _piramides_de_todo_escopo() -> dict:
+    """Uma pirâmide por escopo, no snapshot da classificação.
+
+    É a saída de `--figure all` para fonte que não é a da replicação. Lê o
+    manifesto do `extract`, e não o adaptador, porque desenhar é leitura e
+    leitura não abre banco.
+    """
+    from .extract import scope_meta
+
+    t = snapshots.classification_snapshot()
+    man: dict[str, Any] = {"stage": STAGE, "ok": {}, "failed": {}}
+    for sid, meta in sorted(scope_meta().items()):
+        if not meta.get("plotavel", True):
+            log.info("%s: sem figura, nao e uma linguagem", meta.get("label", sid))
+            continue
+        try:
+            man["ok"][str(sid)] = str(figure_pyramid(sid, t).name)
+        except Exception as e:
+            man["failed"][str(sid)] = f"{type(e).__name__}: {e}"
+            log.exception("falha na piramide de %s", sid, extra={"stage": STAGE})
+    runlog.save(STAGE, man)
+    log.info("figuras: %d ok, %d falhas", len(man["ok"]), len(man["failed"]))
+    return man
+
 
 def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **_: object) -> dict:
     """Assinatura de estágio: o 1º posicional é escopo em todo o pipeline.
@@ -1246,9 +1355,21 @@ def run(scopes: list[int] | None = None, *, figures: list[str] | None = None, **
             extra={"stage": STAGE},
         )
     alvos = figures or list(FIGURES)
+    # A composição de cada painel de réplica vem de `checkpoints.yaml: figures`,
+    # com projeto e data fixos do dump que os artigos usaram. Pedir essas figuras
+    # de outro dataset não é erro do usuário: elas não existem lá. Sem esta
+    # guarda, `plot --figure all` derruba o `run-all` de qualquer fonte nova.
+    if figures is None and not e_da_replicacao():
+        log.info(
+            "figuras de réplica puladas: a fonte configurada não é a da replicação "
+            "(config/settings.yaml, output.adapter_da_replicacao). Sai uma pirâmide "
+            "por escopo.",
+            extra={"stage": STAGE},
+        )
+        return _piramides_de_todo_escopo()
     man: dict[str, Any] = {"stage": STAGE, "ok": {}, "failed": {}}
     for nome in alvos:
-        if nome not in FIGURES:
+        if nome not in FIGURES and nome != SINGLE:
             raise ValueError(f"figura desconhecida: {nome}. Conhecidas: {sorted(FIGURES)}")
         try:
             man["ok"][nome] = str(FIGURES[nome]().name)

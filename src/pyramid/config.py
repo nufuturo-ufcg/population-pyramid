@@ -45,15 +45,15 @@ def settings() -> dict:
     return yaml.safe_load((CONFIG_DIR / "settings.yaml").read_text())
 
 
-UNITS_IMPLEMENTADAS = ("project",)
+UNITS_IMPLEMENTADAS = ("project", "language")
 
 
 def analysis_unit() -> str:
     """Unidade de análise da saída, de `analysis.unit`.
 
-    Valor sem agregador implementado falha aqui. `language` já está previsto no
-    contrato de entrada (`scope_meta`) e ainda não tem agregador: aceitar o
-    valor entregaria uma pirâmide por projeto com o nome de outra coisa.
+    Valor sem agregador implementado falha aqui. Quem soma os escopos de cada
+    unidade é `pyramid.units.scopes_of_unit`, e aceitar um valor sem agregador
+    entregaria uma pirâmide por projeto com o nome de outra coisa.
     """
     unit = str(settings().get("analysis", {}).get("unit", "project"))
     if unit not in UNITS_IMPLEMENTADAS:
@@ -90,6 +90,70 @@ def checkpoints() -> dict:
     return yaml.safe_load((CONFIG_DIR / "checkpoints.yaml").read_text())
 
 
+def e_da_replicacao() -> bool:
+    """Se a fonte configurada é a que `config/checkpoints.yaml` descreve.
+
+    O nome dela vem de `output.adapter_da_replicacao`, e não do código: o motor
+    não carrega nome de dataset. Decide onde a saída cai e quais figuras existem,
+    porque a réplica de figura de artigo tem projeto e data fixos daquele dump.
+    """
+    cfg = settings()
+    adaptador = str((cfg.get("input") or {}).get("adapter", ""))
+    da_replicacao = str((cfg.get("output") or {}).get("adapter_da_replicacao", ""))
+    return bool(adaptador) and adaptador == da_replicacao
+
+
+def _pasta_da_unidade() -> Path | None:
+    """Subpasta que separa a saída de cada unidade de análise, ou `None`.
+
+    O nome do parquet é `<scope_id>.parquet` em todo estágio. Id de projeto e id
+    de linguagem são inteiros pequenos e colidem nesse nome, então a saída de
+    duas unidades na mesma pasta se sobrescreve em silêncio. Pior: `_ids_gravados`
+    lista o diretório com `glob("*.parquet")` e leria as duas como se fossem uma
+    população só.
+
+    `project` devolve `None` e a saída fica exatamente onde sempre esteve. É o
+    que mantém a replicação MSR14 byte a byte no mesmo caminho.
+    """
+    unit = analysis_unit()
+    return None if unit == "project" else Path(f"by-{unit}")
+
+
+def _pasta_do_adaptador() -> Path | None:
+    """Subpasta que separa a saída de cada fonte de dados, ou `None`.
+
+    Dois adaptadores gravam `<scope_id>.parquet` no mesmo estágio. Os ids não se
+    sobrescrevem, porque cada fonte numera do jeito dela, e é por isso que o modo
+    de falha é pior: `_ids_gravados` lista o diretório e empilha as duas
+    populações como se fossem uma, produzindo pirâmide de gente que nunca esteve
+    junta.
+
+    Qual adaptador fica na raiz de `output/` é decisão de dado, então mora em
+    `config/settings.yaml`, na chave `output.adapter_da_replicacao`. O motor não
+    carrega nome de dataset.
+    """
+    adaptador = str((settings().get("input") or {}).get("adapter", ""))
+    if not adaptador or e_da_replicacao():
+        return None
+    return Path(adaptador)
+
+
+def _com_unidade(base: Path, stage: str) -> Path:
+    """Caminho do estágio, com a subpasta da fonte e a da unidade quando houver.
+
+    A ordem é `output/[<adaptador>/][by-<unidade>/]<estágio>/`. A fonte declarada
+    em `output.adapter_da_replicacao` rodando em `project` devolve `output/<estágio>/`,
+    que é onde a replicação sempre gravou.
+    """
+    d = base
+    for pasta in (_pasta_do_adaptador(), _pasta_da_unidade()):
+        if pasta is not None:
+            d = d / pasta
+    d = d / stage
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def stage_dir(stage: str) -> Path:
     """Diretório canônico do estágio, criado na primeira chamada.
 
@@ -97,9 +161,7 @@ def stage_dir(stage: str) -> Path:
     execução isolada (ver `start_run`) não move esses arquivos de lugar: mover
     quebraria a cadeia extract -> snapshots -> classify -> metrics.
     """
-    d = OUTPUT_DIR / stage
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return _com_unidade(OUTPUT_DIR, stage)
 
 
 def artifact_dir(stage: str) -> Path:
@@ -108,11 +170,13 @@ def artifact_dir(stage: str) -> Path:
     Sem execução aberta devolve o mesmo que `stage_dir`. Com uma execução
     aberta devolve `output/runs/<carimbo>/<estágio>/`, e aí a execução anterior
     continua inteira no lugar dela.
+
+    Leva a mesma subpasta de unidade que `stage_dir`, porque o manifesto mora
+    aqui (`logging_config._path`). Sem isso, uma execução por linguagem
+    sobrescreveria o `_manifest.json` da execução por projeto, e o
+    `extract.scope_meta()` passaria a descrever os escopos errados.
     """
-    base = _estado.run or OUTPUT_DIR
-    d = base / stage
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return _com_unidade(_estado.run or OUTPUT_DIR, stage)
 
 
 def run_dir() -> Path | None:
@@ -185,3 +249,20 @@ def _apontar_latest(destino: Path) -> None:
         link.symlink_to(destino.name)
     except OSError:
         (RUNS_DIR / "latest.txt").write_text(destino.name + "\n", encoding="utf-8")
+
+
+def unidade_suportada(stage: str, unidades: tuple[str, ...]) -> None:
+    """Recusa o estágio quando ele não faz sentido na unidade configurada.
+
+    Estágio que compara escopo com a mediana da amostra, ou com um limiar
+    calibrado contra a amostra publicada, muda de significado quando a amostra
+    deixa de ser projeto. Rodar assim mesmo devolve número plausível e errado,
+    que é o modo de falha que este repositório mais combate.
+    """
+    unit = analysis_unit()
+    if unit not in unidades:
+        raise ValueError(
+            f"{stage} não roda com analysis.unit={unit!r}. "
+            f"Unidades suportadas: {', '.join(unidades)}. O motivo está no "
+            f"comentário de UNIDADES em src/pyramid/{stage}.py."
+        )
