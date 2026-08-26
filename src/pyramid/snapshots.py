@@ -319,9 +319,9 @@ def load_all(
 ) -> pd.DataFrame:
     """Empilha os snapshots de vários projetos.
 
-    `dates` filtra na leitura de cada arquivo. A série inteira são ~19 bandas
-    × 90 projetos × 16 trimestres e a projeção só precisa de 3 datas; filtrar
-    depois do empilhamento carregaria tudo à toa.
+    `dates` filtra na leitura de cada arquivo. A série inteira cobre todas as
+    bandas de todos os escopos em todos os trimestres, e a projeção só precisa
+    de 3 datas; filtrar depois do empilhamento carregaria tudo à toa.
     """
     ids = scopes if scopes is not None else _ids_gravados()
     want = None if dates is None else {pd.Timestamp(d) for d in dates}
@@ -337,7 +337,7 @@ def load_all(
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
     """Executa o estágio snapshots nos projetos pedidos.
 
-    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    `scopes=None` roda todos os escopos da fonte. `force` recalcula o que já
     está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
     padrão anota a falha no manifesto e segue para o próximo. Devolve o
     manifesto.
