@@ -104,7 +104,7 @@ def load(scope_id: int) -> pd.DataFrame:
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
     """Executa o estágio classify nos projetos pedidos.
 
-    `scopes=None` roda os 90 projetos do dump. `force` recalcula o que já
+    `scopes=None` roda todos os escopos da fonte. `force` recalcula o que já
     está gravado. `fail_fast` interrompe no primeiro projeto que falhar; o
     padrão anota a falha no manifesto e segue para o próximo. Devolve o
     manifesto.

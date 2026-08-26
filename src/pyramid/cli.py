@@ -266,7 +266,7 @@ def plot(
         try:
             typer.echo(plots.FIGURES[figure](**kw))
         except ValueError as e:
-            # Projeto que existe nas 90 raízes e não é elegível no ano pedido
+            # Projeto que existe no escopo e não é elegível no ano pedido
             # configura erro de uso. Mensagem curta serve melhor que traceback.
             raise typer.BadParameter(str(e)) from e
         return

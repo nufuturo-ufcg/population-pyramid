@@ -73,9 +73,10 @@ def activity(
 ) -> tuple[pd.DataFrame, pd.Timestamp | None]:
     """(scope_id, contributor_id, year) único, + a última data coberta.
 
-    Lê os parquets do estágio 1. Um parquet faltando é erro: com 89 dos 90
-    projetos o denominador do magnetismo já sai errado, e errado por um valor
-    que ninguém consegue enxergar olhando o resultado.
+    Lê os parquets do estágio 1. O denominador do magnetismo soma novatos de
+    todos os escopos pedidos: um parquet faltando baixa esse total e desloca a
+    fração de todo escopo, sem deixar rastro visível no resultado. Por isso
+    falha aqui, antes de calcular.
     """
     src = source()
     ids = scopes if scopes is not None else src.list_scopes()
@@ -229,7 +230,7 @@ def annual(
 
 
 def path() -> Path:
-    """Arquivo único do estágio: a tabela anual dos 90 projetos."""
+    """Arquivo único do estágio: a tabela anual de todos os escopos."""
     return stage_dir(STAGE) / "attractiveness.parquet"
 
 
@@ -279,9 +280,9 @@ def run(
     if scopes is not None:
         raise ValueError(
             "attractiveness não aceita --project: o magnetismo é uma fração "
-            "sobre os novatos de TODO o dataset e o corte é a mediana entre os "
-            "90 projetos. Restringir o escopo muda denominador e mediana, e o "
-            "resultado sairia errado sem parecer errado."
+            "sobre os novatos de TODO o dataset e o corte é a mediana entre "
+            "todos os escopos elegíveis. Restringir o escopo muda denominador "
+            "e mediana, e o resultado sairia errado sem parecer errado."
         )
 
     man = runlog.load(STAGE)
