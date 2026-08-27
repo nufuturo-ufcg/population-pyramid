@@ -442,7 +442,10 @@ def figure_fig3() -> Path:
 
 
 def figure_pyramid_timeline(
-    scope_id: int, anos: list[int] | None = None, ultimos_anos: int | None = None
+    scope_id: int,
+    anos: list[int] | None = None,
+    ultimos_anos: int | None = None,
+    passo_anos: int = 1,
 ) -> Path:
     """Um escopo só, a mesma pirâmide em vários anos lado a lado.
 
@@ -452,12 +455,18 @@ def figure_pyramid_timeline(
     (lista de anos) ou `ultimos_anos` (janela a partir do último snapshot da
     série), nunca os dois.
 
+    `passo_anos` pula ano: com `passo_anos=2` fica 1 painel a cada 2 anos,
+    contando a partir do ano mais recente do conjunto (`ultimos_anos=10,
+    passo_anos=2` dá 5 painéis, não 10). Padrão 1 mantém todo ano candidato.
+
     Ano sem ninguém ativo é descartado antes de desenhar: um painel "nenhum
     contribuidor ativo" não compara nada com o resto da figura, só ocupa
     espaço.
     """
     if (anos is None) == (ultimos_anos is None):
         raise ValueError("figure_pyramid_timeline: passe exatamente um de anos/ultimos_anos.")
+    if passo_anos < 1:
+        raise ValueError("figure_pyramid_timeline: passo_anos precisa ser >= 1.")
     serie = snapshots.snapshot_dates()
     if not serie:
         raise ValueError("figure_pyramid_timeline: settings.snapshots não gera nenhuma data.")
@@ -471,6 +480,9 @@ def figure_pyramid_timeline(
     por_ano: dict[int, pd.Timestamp] = {}
     for d in candidatas:
         por_ano[d.year] = d  # `serie` é crescente: fica a ÚLTIMA data de cada ano
+    if passo_anos > 1 and por_ano:
+        ultimo_ano = max(por_ano)
+        por_ano = {a: d for a, d in por_ano.items() if (ultimo_ano - a) % passo_anos == 0}
     quadros = {d: pyramid_frame(snapshots.load(scope_id), d) for d in sorted(por_ano.values())}
     datas = [
         d
@@ -499,7 +511,8 @@ def figure_pyramid_timeline(
 
     _legend(fig)
     fig.suptitle(f"{_repo(scope_id)}: pirâmide ao longo do tempo", fontsize=10)
-    stem = f"pyramid_timeline_{scope_id}_{datas[0].date()}_{datas[-1].date()}"
+    sufixo_passo = f"_passo{passo_anos}a" if passo_anos > 1 else ""
+    stem = f"pyramid_timeline_{scope_id}_{datas[0].date()}_{datas[-1].date()}{sufixo_passo}"
     return _save(fig, stem, rect=(0, 0.08, 1, 0.92))
 
 

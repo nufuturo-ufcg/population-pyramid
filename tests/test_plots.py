@@ -304,3 +304,51 @@ def test_timeline_falha_quando_nenhum_ano_pedido_tem_gente_ativa(monkeypatch, tm
     _tl_monkeypatch(monkeypatch, tmp_path)
     with pytest.raises(ValueError, match="nenhum dos anos pedidos tem contribuidor ativo"):
         plots.figure_pyramid_timeline(1, anos=[2020])
+
+
+_TL_DATAS_4 = [pd.Timestamp(f"{ano}-12-31") for ano in (2018, 2019, 2020, 2021)]
+
+
+def _tl_df_4() -> pd.DataFrame:
+    """Um contribuidor ativo em cada um dos 4 anos, para testar `passo_anos`."""
+    return pd.DataFrame(
+        [
+            {
+                "snapshot": d,
+                "band": 0,
+                "category": "coding",
+                "active": True,
+                "idle_days": 10.0,
+                "contributor_id": i,
+            }
+            for i, d in enumerate(_TL_DATAS_4)
+        ]
+    )
+
+
+def _tl4_monkeypatch(monkeypatch, tmp_path):
+    monkeypatch.setattr(plots, "settings", _tl_cfg)
+    monkeypatch.setattr(plots, "out_dir", lambda: tmp_path)
+    monkeypatch.setattr(plots, "labels", lambda: {})
+    monkeypatch.setattr(snapshots, "snapshot_dates", lambda *a, **k: _TL_DATAS_4)
+    monkeypatch.setattr(snapshots, "load", lambda *a, **k: _tl_df_4())
+
+
+def test_timeline_passo_anos_1_mantem_todo_ano(monkeypatch, tmp_path):
+    _tl4_monkeypatch(monkeypatch, tmp_path)
+    caminho = plots.figure_pyramid_timeline(1, ultimos_anos=4, passo_anos=1)
+    assert "2018-12-31_2021-12-31" in caminho.stem
+
+
+def test_timeline_passo_anos_2_pula_um_ano_a_partir_do_mais_recente(monkeypatch, tmp_path):
+    """2021 é o mais recente: passo 2 mantém 2021 e 2019, descarta 2020 e 2018."""
+    _tl4_monkeypatch(monkeypatch, tmp_path)
+    caminho = plots.figure_pyramid_timeline(1, ultimos_anos=4, passo_anos=2)
+    assert "2019-12-31_2021-12-31" in caminho.stem
+    assert "passo2a" in caminho.stem
+
+
+def test_timeline_passo_anos_invalido_falha_alto(monkeypatch, tmp_path):
+    _tl4_monkeypatch(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="passo_anos"):
+        plots.figure_pyramid_timeline(1, ultimos_anos=4, passo_anos=0)

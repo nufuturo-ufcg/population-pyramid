@@ -244,7 +244,9 @@ def _plot_kwargs(
     return kw
 
 
-def _plot_timeline(project: str | None, anos: str | None, ultimos_anos: int | None) -> None:
+def _plot_timeline(
+    project: str | None, anos: str | None, ultimos_anos: int | None, passo_anos: int
+) -> None:
     """`--figure pyramid-timeline`: um escopo, vários anos escolhidos na CLI."""
     from . import plots
 
@@ -257,7 +259,9 @@ def _plot_timeline(project: str | None, anos: str | None, ultimos_anos: int | No
     sid = _resolve(project, plots.labels())
     lista_anos = [int(a.strip()) for a in anos.split(",") if a.strip()] if anos else None
     try:
-        caminho = plots.figure_pyramid_timeline(sid, anos=lista_anos, ultimos_anos=ultimos_anos)
+        caminho = plots.figure_pyramid_timeline(
+            sid, anos=lista_anos, ultimos_anos=ultimos_anos, passo_anos=passo_anos
+        )
     except ValueError as e:
         raise typer.BadParameter(str(e)) from e
     typer.echo(caminho)
@@ -286,6 +290,11 @@ def plot(
         "--ultimos-anos",
         help="só para --figure pyramid-timeline: janela a partir do último snapshot",
     ),
+    passo_anos: int = typer.Option(
+        1,
+        "--passo-anos",
+        help="só para --figure pyramid-timeline: 1 painel a cada N anos (default 1, todo ano)",
+    ),
     listar: bool = typer.Option(False, "--list", help="lista as figuras e sai"),
     run: bool = typer.Option(False, "--run", help=RUN_HELP),
     rotulo: str = typer.Option(None, "--rotulo", help=ROTULO_HELP),
@@ -307,7 +316,7 @@ def plot(
         return
 
     if figure == plots.TIMELINE:
-        _plot_timeline(project, anos, ultimos_anos)
+        _plot_timeline(project, anos, ultimos_anos, passo_anos)
         return
 
     if figure != "all" and figure not in plots.FIGURES:
