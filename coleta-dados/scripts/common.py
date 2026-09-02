@@ -479,9 +479,27 @@ def get_repo_language(owner: str, repo: str) -> str:
 
 # entrada
 
+def _detect_delimiter(header_line):
+    """
+    Detecta o delimitador do CSV de entrada pela linha de cabeçalho.
+
+    O formato nativo da Etapa 1 é separado por '|'. Para permitir usar um
+    CSV de origem externa (ex.: substituindo a saída da Etapa 1 por outra
+    fonte) sem precisar reformatar o arquivo inteiro, basta que o cabeçalho
+    já tenha as colunas renomeadas (repo_id, repo_name, default_branch);
+    o delimitador em si é detectado automaticamente comparando a contagem
+    de ',' e '|' na linha de cabeçalho.
+    """
+    if header_line.count(",") > header_line.count("|"):
+        return ","
+    return "|"
+
+
 def load_repositories(input_csv):
     """
-    Lê exclusivamente repositorios_clojure_alvo.csv produzido pela Etapa 1.
+    Lê exclusivamente repositorios_clojure_alvo.csv produzido pela Etapa 1
+    (ou um CSV externo equivalente, com as colunas renomeadas — ver
+    _detect_delimiter).
     """
     if not input_csv.exists():
         raise FileNotFoundError(
@@ -489,7 +507,10 @@ def load_repositories(input_csv):
         )
 
     with input_csv.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f, delimiter='|')
+        header_line = f.readline()
+        f.seek(0)
+        delimiter = _detect_delimiter(header_line)
+        reader = csv.DictReader(f, delimiter=delimiter)
 
         required = {"repo_id", "repo_name", "default_branch"}
         missing = required - set(reader.fieldnames or [])
