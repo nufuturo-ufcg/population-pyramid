@@ -49,7 +49,7 @@ GITHUB_TOKEN=token_segundo
 GITHUB_TOKEN=token_terceiro
 ```
 
-Com um único token, o pipeline faz sleep quando atinge rate limit. Com dois ou mais, rotaciona automaticamente para o próximo token.
+Com um único token, o pipeline faz sleep quando atinge rate limit. Na etapa 1, com dois ou mais tokens, o pipeline rotaciona automaticamente para o próximo token ao atingir o limite. Na etapa 2A, com dois ou mais tokens, a coleta roda em paralelo, uma thread por token (ver "Etapa 2 — Coleta de Eventos" abaixo).
 
 2. Execute o setup:
 
@@ -129,6 +129,8 @@ A etapa 2 é dividida em dois scripts paralelos:
 - **etapa_2A**: coleta os 6 tipos via GitHub REST API
 - **etapa_2B**: coleta commits via git clone (mais eficiente para histórico completo)
 
+Dentro da etapa_2A, quando há mais de um token configurado no `.env`, os repositórios são distribuídos entre threads, uma por token. Cada thread mantém o mesmo token do início ao fim da execução e não rotaciona para outro: se o token de uma thread atingir seu próprio limite de requisições, só aquela thread aguarda o reset, as demais continuam coletando. Com N tokens, o teto agregado de requisições por hora passa a ser N vezes o limite de um único token (5.000/h por token). Com 0 ou 1 token, a etapa_2A roda sequencial, um repositório por vez, como antes.
+
 **Saída:** `eventos_repositorios.csv` (merge dos dois CSVs)
 
 Ambos os CSVs (`eventos_api.csv` e `eventos_git.csv`) compartilham o mesmo schema:
@@ -140,6 +142,8 @@ repo_id|repo_name|event_type|number|title|author|author_login|author_email|creat
 Na etapa_2A, `author_login` é preenchido com o login do GitHub e `author_email` fica vazio. Na etapa_2B, `author_login` fica vazio e `author_email` é extraído do clone local (sem requisições HTTP).
 
 **Resumibilidade:** O progresso é salvo em `reports/etapa_2A_progresso.json` e `reports/etapa_2B_progresso.json`. Repositórios concluídos são pulados em execuções futuras.
+
+Com a etapa_2A paralela, a ordem das linhas em `eventos_api.csv` segue a ordem de conclusão dos repositórios, não a ordem de entrada em `repositorios_clojure_alvo.csv`. Quem precisar de ordem estável deve ordenar por `repo_id` ou `created_at` na leitura.
 
 ## Dependências
 

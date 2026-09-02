@@ -26,6 +26,8 @@ from pathlib import Path
 
 import common
 
+common.STAGE_LABEL = "2B"
+
 
 DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
 
@@ -174,10 +176,10 @@ def collect_commits(repo_id, repo_name, collection_started_at):
     repo_dir = temp_root / "repository.git"
 
     try:
-        print("    Clonando histórico Git sem blobs...")
+        common.log("    Clonando histórico Git sem blobs...")
         clone_bare_repository(repo_name, repo_dir)
 
-        print("    Analisando arquivos tocados por cada commit...")
+        common.log("    Analisando arquivos tocados por cada commit...")
         commit_files = get_commit_files_from_git(repo_dir)
 
         rows = []
@@ -185,7 +187,7 @@ def collect_commits(repo_id, repo_name, collection_started_at):
 
         for index, (sha, touched_files) in enumerate(commit_files.items(), start=1):
             if index == 1 or index % 500 == 0 or index == total:
-                print(f"    Metadados de commits: {index}/{total}")
+                common.log(f"    Metadados de commits: {index}/{total}")
 
             metadata = get_commit_metadata(repo_dir, sha)
             metadata["touched_files"] = touched_files
@@ -201,7 +203,7 @@ def collect_commits(repo_id, repo_name, collection_started_at):
 
 def process_repo(repo_id, repo_name, branch, collection_started_at):
     """Orquestra o coletor de commits via git clone."""
-    print("  Coletando commits...")
+    common.log("  Coletando commits...")
     commit_rows = collect_commits(repo_id, repo_name, collection_started_at)
 
     return commit_rows
@@ -209,7 +211,7 @@ def process_repo(repo_id, repo_name, branch, collection_started_at):
 
 def print_repo_event_counts(rows):
     counts = Counter(row["event_type"] for row in rows)
-    print(f"  Concluído: {counts['commit']} commits.")
+    common.log(f"  Concluído: {counts['commit']} commits.")
 
 
 def main():

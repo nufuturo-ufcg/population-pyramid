@@ -25,6 +25,8 @@ from pathlib import Path
 
 import common
 
+common.STAGE_LABEL = "2A"
+
 
 DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
 
@@ -277,7 +279,7 @@ def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_
     for item in common.get_paginated(url):
         count += 1
         if count == 1 or count % 500 == 0:
-            print(f"    Commit comments: {count}...")
+            common.log(f"    Commit comments: {count}...")
         lang = common.language_from_path(item.get("path") or "")
         rows.append(normalize_commit_comment(repo_id, repo_name, item, lang, collection_started_at))
 
@@ -299,7 +301,7 @@ def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at):
     for item in common.get_paginated(url):
         count += 1
         if count == 1 or count % 500 == 0:
-            print(f"    PR comments: {count}...")
+            common.log(f"    PR comments: {count}...")
         lang = common.language_from_path(item.get("path") or "")
         rows.append(normalize_pr_comment(repo_id, repo_name, item, lang, collection_started_at))
 
@@ -321,7 +323,7 @@ def collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, colle
     for item in common.get_paginated(url):
         count += 1
         if count == 1 or count % 500 == 0:
-            print(f"    Issue comments: {count}...")
+            common.log(f"    Issue comments: {count}...")
         rows.append(normalize_issue_comment(repo_id, repo_name, item, repo_language, collection_started_at))
 
     return rows
@@ -343,7 +345,7 @@ def collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collect
     for item in common.get_paginated(url):
         count += 1
         if count == 1 or count % 500 == 0:
-            print(f"    Issue events: {count}...")
+            common.log(f"    Issue events: {count}...")
         rows.append(normalize_issue_event(repo_id, repo_name, item, repo_language, collection_started_at))
 
     return rows
@@ -367,22 +369,22 @@ def process_repo(repo_id, repo_name, branch, collection_started_at):
 
     repo_language = common.get_repo_language(owner, repo)
 
-    print("  Coletando issues...")
+    common.log("  Coletando issues...")
     issue_rows = collect_issues(repo_id, repo_name, owner, repo, collection_started_at)
 
-    print("  Coletando PRs que tocam Clojure...")
+    common.log("  Coletando PRs que tocam Clojure...")
     pr_rows = collect_prs(repo_id, repo_name, owner, repo, collection_started_at)
 
-    print("  Coletando commit comments...")
+    common.log("  Coletando commit comments...")
     commit_comment_rows = collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at)
 
-    print("  Coletando PR comments...")
+    common.log("  Coletando PR comments...")
     pr_comment_rows = collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at)
 
-    print("  Coletando issue comments...")
+    common.log("  Coletando issue comments...")
     issue_comment_rows = collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, collection_started_at)
 
-    print("  Coletando issue events...")
+    common.log("  Coletando issue events...")
     issue_event_rows = collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collection_started_at)
 
     return (
@@ -397,7 +399,7 @@ def process_repo(repo_id, repo_name, branch, collection_started_at):
 
 def print_repo_event_counts(rows):
     counts = Counter(row["event_type"] for row in rows)
-    print(
+    common.log(
         f"  Concluído: {counts['issue']} issues, "
         f"{counts['pr']} PRs, "
         f"{counts['commit_comment']} commit_comments, "
@@ -428,17 +430,37 @@ def main():
             output_file.flush()
             os.fsync(output_file.fileno())
 
-        common.collect_repositories(
-            repositories,
-            repo_status,
-            writer,
-            output_file,
-            collection_started_at,
-            process_repo_fn=process_repo,
-            print_counts_fn=print_repo_event_counts,
-            progress_file=PROGRESS_FILE,
-            limit=limit,
-        )
+        if common.token_pool.count > 1:
+            # Um token dedicado por thread: multiplica o teto de rate limit
+            # agregado por número de tokens em vez de usá-los um de cada vez.
+            common.log(
+                f"INFO: coletando com {common.token_pool.count} threads "
+                "(1 token dedicado por thread)."
+            )
+            common.collect_repositories_threaded(
+                repositories,
+                repo_status,
+                writer,
+                output_file,
+                collection_started_at,
+                process_repo_fn=process_repo,
+                print_counts_fn=print_repo_event_counts,
+                progress_file=PROGRESS_FILE,
+                max_workers=common.token_pool.count,
+                limit=limit,
+            )
+        else:
+            common.collect_repositories(
+                repositories,
+                repo_status,
+                writer,
+                output_file,
+                collection_started_at,
+                process_repo_fn=process_repo,
+                print_counts_fn=print_repo_event_counts,
+                progress_file=PROGRESS_FILE,
+                limit=limit,
+            )
 
     collection_ended_at = datetime.now(timezone.utc).isoformat()
     common.save_progress(repo_status, PROGRESS_FILE, collection_started_at, collection_ended_at)

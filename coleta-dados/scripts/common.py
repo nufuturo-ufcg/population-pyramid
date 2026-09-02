@@ -15,11 +15,14 @@ PROGRESS_FILE, e passa esses caminhos para as funções que os utilizam.
 """
 
 import csv
+import itertools
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -105,10 +108,108 @@ SESSION.mount("https://", _adapter)
 SESSION.mount("http://", _adapter)
 
 api_calls = 0
+_api_calls_lock = threading.Lock()
+
+# Escrita de CSV/progresso é compartilhada entre threads em collect_repositories_threaded;
+# esse lock protege writer.writerow/flush/fsync + update_repo_status em _process_single_repo.
+_io_lock = threading.Lock()
+
+# Tag de etapa (ex.: "2A", "2B") prefixada em toda linha de log(). Cada script
+# define isso uma vez, logo após "import common". Sem isso, log() se comporta
+# como print() puro.
+STAGE_LABEL = None
+_print_lock = threading.Lock()
 
 
 def print_api_usage():
-    print(f"Requisições API utilizadas: {api_calls}")
+    log(f"Requisições API utilizadas: {api_calls}")
+
+
+# sessão HTTP por thread (usada por collect_repositories_threaded)
+
+_thread_local = threading.local()
+_token_assignment_lock = threading.Lock()
+_token_cycle = None
+
+
+def _next_assigned_token():
+    """Tira o próximo token do ciclo de forma thread-safe.
+
+    Usado só por _init_worker_session, uma vez por thread do pool.
+    """
+    global _token_cycle
+    with _token_assignment_lock:
+        if _token_cycle is None:
+            _token_cycle = itertools.cycle(token_pool.tokens)
+        return next(_token_cycle)
+
+
+def _init_worker_session():
+    """Initializer do ThreadPoolExecutor: fixa um token exclusivo para a thread.
+
+    Chamado uma vez por thread do pool, antes dela processar qualquer tarefa.
+    Com max_workers == len(token_pool.tokens), cada thread recebe um token
+    diferente e nunca rotaciona: se aquele token específico bater rate limit,
+    a thread apenas espera o próprio reset (ver get_response_with_retry).
+    """
+    _thread_local.assigned_token = _next_assigned_token()
+    _thread_local.session = None  # força get_thread_session() a reconstruir
+
+
+def get_thread_session():
+    """Devolve a requests.Session da thread atual, criando-a sob demanda.
+
+    Threads do pool (ver _init_worker_session) usam o token fixado para elas.
+    Fora do pool (execução sequencial com 0-1 token), cai no token_pool.current
+    global, preservando o comportamento anterior.
+    """
+    session = getattr(_thread_local, "session", None)
+    if session is not None:
+        return session
+
+    session = requests.Session()
+    session.headers.update(HEADERS)
+    token = getattr(_thread_local, "assigned_token", None) or token_pool.current
+    if token:
+        session.headers["Authorization"] = f"Bearer {token}"
+    session.mount("https://", _adapter)
+    session.mount("http://", _adapter)
+
+    _thread_local.session = session
+    return session
+
+
+def log(msg):
+    """Imprime msg prefixada com [ETAPA][repo], quando disponíveis.
+
+    STAGE_LABEL é definido uma vez por script (ex.: "2A", "2B"). O tag de
+    repositório é setado por thread em _process_single_repo, então chamadas
+    aninhadas (collect_issues, collect_prs, etc.) já saem com o prefixo
+    certo sem precisar repassar o repositório por parâmetro.
+
+    Uma quebra de linha inicial em msg (usada hoje para separar seções) é
+    preservada como linha em branco antes do prefixo, em vez de virar parte
+    dele. Sem STAGE_LABEL nem repo_tag definidos, se comporta como print(msg).
+    """
+    leading_newline = msg.startswith("\n")
+    if leading_newline:
+        msg = msg[1:]
+
+    tags = []
+    if STAGE_LABEL:
+        tags.append(STAGE_LABEL)
+    repo_tag = getattr(_thread_local, "repo_tag", None)
+    if repo_tag:
+        tags.append(repo_tag)
+    prefix = "".join(f"[{tag}]" for tag in tags)
+
+    line = f"{prefix} {msg.lstrip()}" if prefix else msg
+    if leading_newline:
+        line = "\n" + line
+
+    with _print_lock:
+        print(line)
+
 
 CLOJURE_EXTENSIONS = {
     ".clj",
@@ -243,11 +344,17 @@ def _wait_for_rate_limit(response: requests.Response) -> bool:
 def get_response_with_retry(url, params=None, max_retries=5):
     global api_calls
     last_error = None
+    # Threads do pool (etapa_2A threaded) têm um token fixo; para elas, rotacionar
+    # o token_pool global não faz sentido (os outros tokens já estão em uso por
+    # outras threads). Só rotaciona no caminho sequencial (0-1 token), onde
+    # assigned_token nunca foi setado.
+    has_dedicated_token = getattr(_thread_local, "assigned_token", None) is not None
 
     for attempt in range(1, max_retries + 1):
         try:
-            response = SESSION.get(url, params=params, timeout=30)
-            api_calls += 1
+            response = get_thread_session().get(url, params=params, timeout=30)
+            with _api_calls_lock:
+                api_calls += 1
 
             if response.status_code == 200:
                 return response
@@ -260,8 +367,11 @@ def get_response_with_retry(url, params=None, max_retries=5):
                 continue
 
             if _is_rate_limited(response):
-                if token_pool.rotate():
+                if not has_dedicated_token and token_pool.rotate():
                     token_pool.update_session(SESSION)
+                    # Invalida a sessão cacheada da thread para que a próxima
+                    # get_thread_session() releia token_pool.current já rotacionado.
+                    _thread_local.session = None
                     token = token_pool.current
                     masked = token[:4] + "..." + token[-4:] if token and len(token) > 8 else token
                     print(f"Rate limit atingido. Rotacionando para token {masked}...")
@@ -505,18 +615,18 @@ def update_repo_status(repo_status, repo_id, repo_name, branch, status, error=""
 
 def warn_if_github_token_missing():
     if token_pool.count == 0:
-        print(
+        log(
             "AVISO: GITHUB_TOKEN não definido no .env. "
             "Issues e PRs estarão sujeitos ao limite baixo da GitHub API."
         )
     elif token_pool.count == 1:
-        print(
+        log(
             "INFO: Apenas 1 token configurado. "
             "Adicione mais tokens no .env (um por linha) para rotação automática "
             "em caso de rate limit."
         )
     else:
-        print(
+        log(
             f"INFO: {token_pool.count} tokens configurados. "
             "Rotação automática em caso de rate limit."
         )
@@ -536,22 +646,22 @@ def print_collection_summary(label, input_csv, output_csv, repositories, repo_st
         elif status == "error":
             error_count += 1
 
-    print(f"=== Etapa 2{label}: coleta de eventos ===")
-    print(f"Entrada: {input_csv}")
-    print(f"Saída: {output_csv}")
-    print(f"Repos na entrada: {len(repositories)}")
-    print(f"Repos já concluídos: {completed_count}")
-    print(f"Repos com erro para retentar: {error_count}")
+    log(f"=== Etapa 2{label}: coleta de eventos ===")
+    log(f"Entrada: {input_csv}")
+    log(f"Saída: {output_csv}")
+    log(f"Repos na entrada: {len(repositories)}")
+    log(f"Repos já concluídos: {completed_count}")
+    log(f"Repos com erro para retentar: {error_count}")
 
     return output_exists, completed_count, error_count
 
 
 def print_collection_finished(label, output_csv, progress_file, collection_started_at, collection_ended_at):
-    print(f"\n=== Etapa 2{label} concluída ===")
-    print(f"Eventos salvos em: {output_csv}")
-    print(f"Progresso salvo em: {progress_file}")
-    print(f"Coleta iniciada em: {collection_started_at}")
-    print(f"Coleta finalizada em: {collection_ended_at}")
+    log(f"\n=== Etapa 2{label} concluída ===")
+    log(f"Eventos salvos em: {output_csv}")
+    log(f"Progresso salvo em: {progress_file}")
+    log(f"Coleta iniciada em: {collection_started_at}")
+    log(f"Coleta finalizada em: {collection_ended_at}")
     print_api_usage()
 
 
@@ -567,22 +677,27 @@ def _process_single_repo(index, total, repo_info, repo_status, writer, output_fi
     repo_name = repo_info["repo_name"]
     branch = repo_info["branch"]
 
+    # Tag de log por thread: toda chamada a log() feita por esta thread (aqui
+    # e em qualquer função aninhada, como os coletores de process_repo_fn) sai
+    # prefixada com este repositório até a thread pegar o próximo.
+    _thread_local.repo_tag = repo_name
+
     current_status = repo_status.get(repo_id, {}).get("status")
 
     if current_status == "complete":
-        print(
+        log(
             f"[{index}/{total}] "
             f"Pulando {repo_name} ({repo_id}) (já concluído)"
         )
         return False
 
     if current_status == "error":
-        print(
+        log(
             f"[{index}/{total}] "
             f"Retentando {repo_name} ({repo_id}) (erro anterior)"
         )
     else:
-        print(
+        log(
             f"[{index}/{total}] "
             f"Processando {repo_name} ({repo_id})"
         )
@@ -592,39 +707,45 @@ def _process_single_repo(index, total, repo_info, repo_status, writer, output_fi
 
     except Exception as exc:
         error_message = str(exc)
-        print(f"ERRO em {repo_name} ({repo_id}): {error_message}")
+        log(f"ERRO em {repo_name} ({repo_id}): {error_message}")
+
+        # repo_status e progress_file são compartilhados entre threads em
+        # collect_repositories_threaded; serializa a escrita.
+        with _io_lock:
+            update_repo_status(
+                repo_status,
+                repo_id,
+                repo_name,
+                branch,
+                status="error",
+                error=error_message,
+                progress_file=progress_file,
+            )
+
+        log(
+            "Status salvo como 'error'. O repositório será "
+            "retentado na próxima execução."
+        )
+        return True
+
+    # writer/output_file/repo_status são compartilhados entre threads em
+    # collect_repositories_threaded; serializa a gravação do lote do repositório.
+    with _io_lock:
+        for row in rows:
+            writer.writerow(row)
+
+        # Persiste o lote inteiro do repositório antes de marcá-lo complete.
+        output_file.flush()
+        os.fsync(output_file.fileno())
 
         update_repo_status(
             repo_status,
             repo_id,
             repo_name,
             branch,
-            status="error",
-            error=error_message,
+            status="complete",
             progress_file=progress_file,
         )
-
-        print(
-            "Status salvo como 'error'. O repositório será "
-            "retentado na próxima execução."
-        )
-        return True
-
-    for row in rows:
-        writer.writerow(row)
-
-    # Persiste o lote inteiro do repositório antes de marcá-lo complete.
-    output_file.flush()
-    os.fsync(output_file.fileno())
-
-    update_repo_status(
-        repo_status,
-        repo_id,
-        repo_name,
-        branch,
-        status="complete",
-        progress_file=progress_file,
-    )
 
     print_counts_fn(rows)
     return True
@@ -656,5 +777,66 @@ def collect_repositories(repositories, repo_status, writer, output_file,
         if was_processed:
             processed += 1
             if limit is not None and processed >= limit:
-                print(f"\nLimite de {limit} repositórios atingido.")
+                log(f"\nLimite de {limit} repositórios atingido.")
                 break
+
+
+def collect_repositories_threaded(repositories, repo_status, writer, output_file,
+                                  collection_started_at, process_repo_fn, print_counts_fn,
+                                  progress_file, max_workers, limit=None):
+    """
+    Versão paralela de collect_repositories: um token GitHub dedicado por thread
+    (ver _init_worker_session), cada uma processando repositórios distintos.
+
+    A escrita em writer/output_file/repo_status é serializada dentro de
+    _process_single_repo (via _io_lock); a parte cara de cada tarefa (as
+    chamadas de rede em process_repo_fn) roda de fato em paralelo.
+
+    Repositórios já "complete" são pulados sem consumir uma vaga do pool.
+    Se limit é informado, apenas os N primeiros repositórios pendentes são
+    submetidos (filtro feito antes de abrir o executor, para não precisar
+    cancelar tarefas em voo quando o limite é atingido).
+    """
+    total = len(repositories)
+
+    pending = [
+        (index, repo_info)
+        for index, repo_info in enumerate(repositories, start=1)
+        if repo_status.get(repo_info["repo_id"], {}).get("status") != "complete"
+    ]
+
+    if limit is not None:
+        pending = pending[:limit]
+
+    if not pending:
+        return
+
+    with ThreadPoolExecutor(
+        max_workers=max_workers,
+        initializer=_init_worker_session,
+    ) as executor:
+        futures = [
+            executor.submit(
+                _process_single_repo,
+                index,
+                total,
+                repo_info,
+                repo_status,
+                writer,
+                output_file,
+                collection_started_at,
+                process_repo_fn,
+                print_counts_fn,
+                progress_file,
+            )
+            for index, repo_info in pending
+        ]
+
+        for future in as_completed(futures):
+            # _process_single_repo já trata e loga suas próprias exceções
+            # (marca status="error" e retorna True); só propaga aqui algo
+            # verdadeiramente inesperado, para não engolir um bug silenciosamente.
+            future.result()
+
+    if limit is not None and len(pending) >= limit:
+        log(f"\nLimite de {limit} repositórios atingido.")
