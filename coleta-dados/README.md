@@ -5,16 +5,27 @@ Pipeline para mineração e análise de repositórios Clojure no GitHub.
 ## Estrutura
 
 ```
-├── .env                          # Token do GitHub (não committar)
-├── requirements.txt              # Dependências Python
-├── setup.sh                      # Configuração do ambiente
-├── run.sh                        # Executa pipeline completo
-├── etapa_1_coleta.py             # Etapa 1: Filtragem de repositórios
-├── etapa_2_eventos.py            # Etapa 2: Coleta de eventos
-├── repositorios_clojure_alvo.csv # Saída Etapa 1
-├── eventos_repositorios.csv      # Saída Etapa 2
-└── reports/
-    └── etapa_2_eventos_progresso.json
+├── .env                              # Token do GitHub (não committar)
+├── requirements.txt                  # Dependências Python
+├── setup.sh                          # Configuração do ambiente
+├── run.sh                            # Executa pipeline completo
+├── scripts/
+│   ├── common.py                     # Infraestrutura compartilhada
+│   ├── etapa_1_coleta.py             # Etapa 1: Filtragem de repositórios
+│   ├── etapa_2A_eventos.py           # Etapa 2A: Coleta via GitHub REST API
+│   ├── etapa_2B_eventos.py           # Etapa 2B: Commits via git clone
+│   ├── etapa_2_orchestrator.py       # Orquestrador (roda 2A + 2B em paralelo)
+│   ├── contar_repos.py               # Contagem de repositórios
+│   └── contar_eventos.py             # Contagem de eventos
+└── runs/
+    └── <run_name>/
+        ├── repositorios_clojure_alvo.csv
+        ├── eventos_api.csv           # Saída etapa_2A
+        ├── eventos_git.csv           # Saída etapa_2B
+        ├── eventos_repositorios.csv  # Merge dos dois
+        └── reports/
+            ├── etapa_2A_progresso.json
+            └── etapa_2B_progresso.json
 ```
 
 ## Pré-requisitos
@@ -30,6 +41,16 @@ Pipeline para mineração e análise de repositórios Clojure no GitHub.
 GITHUB_TOKEN=seu_token_aqui
 ```
 
+Para múltiplos tokens (rotação automática em caso de rate limit), adicione um por linha:
+
+```
+GITHUB_TOKEN=token_primeiro
+GITHUB_TOKEN=token_segundo
+GITHUB_TOKEN=token_terceiro
+```
+
+Com um único token, o pipeline faz sleep quando atinge rate limit. Com dois ou mais, rotaciona automaticamente para o próximo token.
+
 2. Execute o setup:
 
 ```bash
@@ -42,19 +63,41 @@ chmod +x setup.sh run.sh
 ### Pipeline completo
 
 ```bash
-./run.sh
+./run.sh [NOME_DA_RUN]
 ```
+
+Se nenhum nome for informado, usa `2026-08-23-clojure` como padrão.
+
+### Com limite de repositórios
+
+Para testar com poucos repositórios antes de rodar em todos:
+
+```bash
+# Coleta apenas 10 repositórios válidos na etapa_1,
+# depois coleta eventos nesses 10 na etapa_2
+./run.sh my-run --limit 10
+```
+
+O `--limit N` emite ordem para as duas etapas:
+- **Etapa 1**: para após escrever N repositórios válidos em `repositorios_clojure_alvo.csv` (repos inválidos não contam)
+- **Etapa 2**: processa no máximo N repositórios novos para coleta de eventos (repos já coletados são pulados sem contar)
 
 ### Etapas individualmente
 
 ```bash
 source venv/bin/activate
 
-# Etapa 1: Filtra repositórios Clojure do GitHub
-python etapa_1_coleta.py
+# Etapa 1: Filtra repositórios Clojure do GitHub (com limite)
+python scripts/etapa_1_coleta.py runs/my-run --limit 10
 
-# Etapa 2: Coleta issues, PRs e commits com código Clojure
-python etapa_2_eventos.py
+# Etapa 2A: Coleta eventos via GitHub REST API
+python scripts/etapa_2A_eventos.py runs/my-run --limit 10
+
+# Etapa 2B: Coleta commits via git clone
+python scripts/etapa_2B_eventos.py runs/my-run --limit 10
+
+# Orchestrator: roda 2A + 2B em paralelo
+python scripts/etapa_2_orchestrator.py runs/my-run --limit 10
 ```
 
 ## Etapas
@@ -70,14 +113,33 @@ Busca repositórios Clojure no GitHub e aplica filtros metodológicos:
 
 ### Etapa 2 — Coleta de Eventos
 
-Para cada repositório aprovado na Etapa 1, coleta:
-- **Issues** — todas, sem filtro
-- **Pull Requests** — apenas os que modificam arquivos `.clj`, `.cljs`, `.cljc`, `.edn`, `.bb`, `.cljx`
-- **Commits** — apenas os que modificam arquivos Clojure
+Para cada repositório aprovado na Etapa 1, coleta 7 tipos de evento:
 
-**Saída:** `eventos_repositorios.csv`
+| Tipo | Fonte | Token necessário? | Descrição |
+|------|-------|--------------------|-----------|
+| `issue` | API REST | Sim | Issues do repositório |
+| `pr` | API REST | Sim | Pull requests que modificam arquivos Clojure |
+| `commit_comment` | API REST | Sim | Comentários em commits |
+| `pr_comment` | API REST | Sim | Comentários em pull requests |
+| `issue_comment` | API REST | Sim | Comentários em issues |
+| `issue_event` | API REST | Sim | Eventos de issues (labels, assigns, etc.) |
+| `commit` | git clone | Não | Commits que modificam arquivos Clojure |
 
-**Resumabilidade:** O progresso é salvo em `reports/etapa_2_eventos_progresso.json`. Repositórios concluídos são pulados em execuções futuras.
+A etapa 2 é dividida em dois scripts paralelos:
+- **etapa_2A**: coleta os 6 tipos via GitHub REST API
+- **etapa_2B**: coleta commits via git clone (mais eficiente para histórico completo)
+
+**Saída:** `eventos_repositorios.csv` (merge dos dois CSVs)
+
+Ambos os CSVs (`eventos_api.csv` e `eventos_git.csv`) compartilham o mesmo schema:
+
+```
+repo_id|repo_name|event_type|number|title|author|author_login|author_email|created_at|state|sha|message|url|labels|files|language|collection_status|collection_started_at
+```
+
+Na etapa_2A, `author_login` é preenchido com o login do GitHub e `author_email` fica vazio. Na etapa_2B, `author_login` fica vazio e `author_email` é extraído do clone local (sem requisições HTTP).
+
+**Resumibilidade:** O progresso é salvo em `reports/etapa_2A_progresso.json` e `reports/etapa_2B_progresso.json`. Repositórios concluídos são pulados em execuções futuras.
 
 ## Dependências
 

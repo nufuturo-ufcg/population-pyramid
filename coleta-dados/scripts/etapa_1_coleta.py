@@ -6,6 +6,7 @@ Critérios metodológicos de filtragem baseados nas diretrizes canônicas de:
 """
 
 import os
+import sys
 import time
 import requests
 import csv
@@ -21,27 +22,23 @@ from urllib.parse import quote
 # Carrega variáveis de ambiente do arquivo .env
 load_dotenv()
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-HEADERS = {
-    "Authorization": f"token {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github.v3+json"
-} if GITHUB_TOKEN else {
-    "Accept": "application/vnd.github.v3+json"
-}
+import common
+from common import TokenPool
 
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+token_pool = TokenPool()
+
+HEADERS = {
+    "Accept": "application/vnd.github.v3+json",
+}
 
 # Sessão HTTP global reutilizável para pool de conexões e retries
 SESSION = requests.Session()
 SESSION.headers.update(HEADERS)
-_adapter = HTTPAdapter(
-    pool_connections=20,
-    pool_maxsize=20,
-    max_retries=Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504]),
-)
-SESSION.mount("https://", _adapter)
-SESSION.mount("http://", _adapter)
+token_pool.update_session(SESSION)
+
+# Para compatibilidade: formata Authorization como "token xxx" (etapa_1 usava esse formato)
+if token_pool.current:
+    SESSION.headers["Authorization"] = f"token {token_pool.current}"
 
 DEFAULT_CRITERIA = {
     'min_stars': 0,
@@ -197,63 +194,64 @@ def interactive_config():
             val = input("Novo valor para tempo de vida mínimo (dias): ")
             if val.isdigit(): criteria['min_lifespan_days'] = int(val)
 
+
+def _is_rate_limited(response):
+    """Detecta rate limit primário ou secundário da GitHub API."""
+    remaining = response.headers.get("X-RateLimit-Remaining")
+    primary = response.status_code == 403 and remaining == "0"
+    secondary = response.status_code in {403, 429} and (
+        "secondary rate limit" in response.text.lower()
+        or "rate limit" in response.text.lower()
+        or response.status_code == 429
+    )
+    return primary or secondary
+
+
 def get_with_retry(url, params=None, max_retries=3):
     """
     Realiza requisições GET para a API do GitHub com tratamento de erros,
-    paginação, conexão persistente (keep-alive) e limite de taxa.
+    paginação, conexão persistente (keep-alive), limite de taxa e
+    rotação automática de tokens.
     """
     for attempt in range(max_retries):
         try:
             response = SESSION.get(url, params=params, timeout=20)
+            common.api_calls += 1
+
             if response.status_code == 200:
                 return response.json()
-            elif response.status_code == 202:
-                time.sleep(2)
-            elif response.status_code == 403 and "rate limit" in response.text.lower():
+
+            if response.status_code == 202:
+                sleep_times = [5, 30, 120]
+                time.sleep(sleep_times[attempt] if attempt < len(sleep_times) else sleep_times[-1])
+                continue
+
+            if response.status_code == 404:
+                return None
+
+            if _is_rate_limited(response):
+                if token_pool.rotate():
+                    if token_pool.current:
+                        SESSION.headers["Authorization"] = f"token {token_pool.current}"
+                    masked = token_pool.current[:4] + "..." + token_pool.current[-4:] if token_pool.current and len(token_pool.current) > 8 else token_pool.current
+                    print(f"Rate limit atingido. Rotacionando para token {masked}...")
+                    continue
+
                 reset_time = int(response.headers.get("X-RateLimit-Reset", time.time() + 60))
                 sleep_time = max(reset_time - time.time(), 0) + 1
                 print(f"Limite de taxa excedido. Aguardando {sleep_time} segundos...")
                 time.sleep(sleep_time)
-            elif response.status_code == 404:
-                return None
-            else:
-                print(f"Erro {response.status_code} na URL {url}")
-                break
+                continue
+
+            print(f"Erro {response.status_code} na URL {url}")
+            break
+
         except requests.RequestException as e:
             if attempt == max_retries - 1:
                 print(f"Falha de conexão em {url}: {e}")
             time.sleep(1)
+
     return None
-
-README_MAX_CHARS = 4000
-
-def get_readme_preview(owner, repo_name, max_chars=README_MAX_CHARS):
-    """
-    Obtém um extrato significativo e estruturado do README do repositório (até max_chars)
-    preservando quebras de linha e formatação Markdown para a validação manual.
-    """
-    url = f"https://api.github.com/repos/{owner}/{repo_name}/readme"
-    headers = {"Accept": "application/vnd.github.v3.raw"}
-    
-    for attempt in range(2):
-        try:
-            response = SESSION.get(url, headers=headers, timeout=15)
-            if response.status_code == 200:
-                import re
-                text = response.text.strip()
-                # Normaliza quebras de linha excessivas mantendo parágrafos
-                text = re.sub(r'\r\n', '\n', text)
-                text = re.sub(r'\n{3,}', '\n\n', text)
-                if len(text) > max_chars:
-                    return text[:max_chars] + "\n\n... [README truncado para validação]"
-                return text
-            elif response.status_code == 404:
-                return "(Sem README disponível)"
-            elif response.status_code == 403 and "rate limit" in response.text.lower():
-                time.sleep(2)
-        except requests.RequestException:
-            pass
-    return "(Erro ao obter README)"
 
 def process_repo(item, criteria):
     """
@@ -263,12 +261,14 @@ def process_repo(item, criteria):
     """
     owner = item['owner']['login']
     repo_name = item['name']
-    repo_id = item['full_name']
+    repo_id = item['id']
+    repo_full_name = item['full_name']
     desc = item['description'] or ""
-    
+
     # Preenche um dict base com o que já sabemos
     repo_dict = {
         'repo_id': repo_id,
+        'repo_name': repo_full_name,
         'repo_url': item['html_url'],
         'clone_url': item['clone_url'],
         'default_branch': item['default_branch'],
@@ -276,6 +276,7 @@ def process_repo(item, criteria):
         'stars': item['stargazers_count'],
         'watchers': item.get('watchers_count', 0), # Fallback temporário
         'clojure_ratio': 0.0,
+        'languages': '{}',
         'total_commits': 0,
         'lifespan_days': 0,
         'num_contributors': 0,
@@ -309,6 +310,7 @@ def process_repo(item, criteria):
     clojure_bytes = langs.get('Clojure', 0)
     clojure_ratio = clojure_bytes / total_bytes
     repo_dict['clojure_ratio'] = round(clojure_ratio, 4)
+    repo_dict['languages'] = json.dumps(langs)
     if clojure_ratio < criteria['min_clojure_ratio']:
         return repo_dict, f"Clojure ratio menor que o exigido ({clojure_ratio:.2f} < {criteria['min_clojure_ratio']})", desc
 
@@ -364,16 +366,34 @@ def process_repo(item, criteria):
     if structure_reason:
         return repo_dict, f"Descartado por análise estrutural ({structure_reason})", desc
 
-    # Passou em tudo!
     return repo_dict, None, desc
 
+
+def parse_limit(args):
+    """
+    Extrai --limit N de uma lista de argumentos.
+
+    Retorna int ou None.
+    """
+    for i, arg in enumerate(args):
+        if arg == "--limit" and i + 1 < len(args):
+            return int(args[i + 1])
+    return None
+
+
 def main():
-    if not GITHUB_TOKEN:
+    if token_pool.count == 0:
         print("AVISO: GITHUB_TOKEN não definido no .env. A taxa de requisições será muito limitada (60/hora).")
+    elif token_pool.count > 1:
+        print(f"INFO: {token_pool.count} tokens configurados. Rotação automática em caso de rate limit.")
+
+    data_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    limit = parse_limit(sys.argv[2:])
+    data_dir.mkdir(parents=True, exist_ok=True)
     
     criteria = interactive_config()
     
-    reports_dir = Path("reports")
+    reports_dir = data_dir / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     criteria_file = reports_dir / "criterios_coleta.json"
     temp_file = reports_dir / "criterios_coleta.tmp.json"
@@ -386,19 +406,19 @@ def main():
     temp_file.replace(criteria_file)
     print(f"Critérios salvos em {criteria_file}")
     
-    csv_file = "repositorios_clojure_alvo.csv"
-    pending_csv = "repositorios_pendentes_avaliacao.csv"
-    invalid_csv = "repositorios_invalidos.csv"
+    csv_file = data_dir / "repositorios_clojure_alvo.csv"
+    pending_csv = data_dir / "repositorios_pendentes_avaliacao.csv"
+    invalid_csv = data_dir / "repositorios_invalidos.csv"
     
     file_exists = os.path.isfile(csv_file)
     pending_exists = os.path.isfile(pending_csv)
     invalid_exists = os.path.isfile(invalid_csv)
     
     fieldnames = [
-        'repo_id', 'repo_url', 'clone_url', 'default_branch', 'size_kb', 'stars', 
-        'watchers', 'clojure_ratio', 'total_commits', 'lifespan_days', 
+        'repo_id', 'repo_name', 'repo_url', 'clone_url', 'default_branch', 'size_kb', 'stars',
+        'watchers', 'clojure_ratio', 'languages', 'total_commits', 'lifespan_days',
         'num_contributors', 'top_contributor_ratio', 'collected_at',
-        'about', 'readme_preview'
+        'about',
     ] + STRUCTURAL_FIELDS
     pending_fieldnames = fieldnames + ['motivo']
     invalid_fieldnames = fieldnames + ['motivo']
@@ -408,36 +428,36 @@ def main():
     
     if file_exists:
         with open(csv_file, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
+            reader = csv.DictReader(f, delimiter='|')
             for row in reader:
-                processed_repos.add(row['repo_id'])
+                processed_repos.add(int(row['repo_id']))
                 if 'size_kb' in row and row['size_kb']:
                     total_size_kb += int(row['size_kb'])
                     
     if pending_exists:
         with open(pending_csv, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
+            reader = csv.DictReader(f, delimiter='|')
             for row in reader:
-                processed_repos.add(row['repo_id'])
+                processed_repos.add(int(row['repo_id']))
 
     if invalid_exists:
         with open(invalid_csv, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
+            reader = csv.DictReader(f, delimiter='|')
             for row in reader:
-                processed_repos.add(row['repo_id'])
+                processed_repos.add(int(row['repo_id']))
                 
     # Mantém CSVs antigos legíveis e migra colunas se necessário
     for path, expected_fields in ((csv_file, fieldnames), (pending_csv, pending_fieldnames), (invalid_csv, invalid_fieldnames)):
         if not os.path.isfile(path):
             continue
         with open(path, 'r', newline='', encoding='utf-8') as existing:
-            reader = csv.DictReader(existing)
+            reader = csv.DictReader(existing, delimiter='|')
             old_fields = reader.fieldnames or []
             if set(expected_fields).issubset(old_fields):
                 continue
             rows = list(reader)
         with tempfile.NamedTemporaryFile('w', newline='', encoding='utf-8', delete=False, dir='.') as migrated:
-            writer = csv.DictWriter(migrated, fieldnames=expected_fields)
+            writer = csv.DictWriter(migrated, fieldnames=expected_fields, delimiter='|')
             writer.writeheader()
             for row in rows:
                 writer.writerow({field: row.get(field, '') for field in expected_fields})
@@ -452,9 +472,9 @@ def main():
          open(pending_csv, 'a', newline='', encoding='utf-8') as pend_f, \
          open(invalid_csv, 'a', newline='', encoding='utf-8') as inv_f:
          
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        pend_writer = csv.DictWriter(pend_f, fieldnames=pending_fieldnames)
-        inv_writer = csv.DictWriter(inv_f, fieldnames=invalid_fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='|')
+        pend_writer = csv.DictWriter(pend_f, fieldnames=pending_fieldnames, delimiter='|')
+        inv_writer = csv.DictWriter(inv_f, fieldnames=invalid_fieldnames, delimiter='|')
         
         if not file_exists:
             writer.writeheader()
@@ -465,10 +485,13 @@ def main():
             
         page = 1
         max_pages = 34
-        
+        valid_count = 0
+
+        if limit is not None:
+            print(f"\nModo limitado: coletar no máximo {limit} repositórios válidos.")
         print("\nIniciando coleta de repositórios Clojure...")
-        
-        while page <= max_pages:
+
+        while page <= max_pages and (limit is None or valid_count < limit):
             print(f"Consultando página {page} da pesquisa...")
             search_url = "https://api.github.com/search/repositories"
             params = {
@@ -484,33 +507,36 @@ def main():
                 break
                 
             for item in response['items']:
-                repo_id = item['full_name']
+                repo_id = item['id']
+                repo_name = item['full_name']
                 
                 if repo_id in processed_repos:
                     continue
 
-                print(f"Analisando: {repo_id}...")
+                print(f"Analisando: {repo_name} ({repo_id})...")
                 repo_dict, reason, desc = process_repo(item, criteria)
                 
                 size_kb = repo_dict.get('size_kb', 0)
                 size_mb = size_kb / 1024
                 total_size_kb += size_kb
                 
-                readme_preview = get_readme_preview(item['owner']['login'], item['name'])
                 repo_dict['about'] = desc
-                repo_dict['readme_preview'] = readme_preview
 
                 if reason is not None:
-                    print(f"INVÁLIDO AUTOMÁTICO: {repo_id} - Motivo: {reason}")
+                    print(f"INVÁLIDO AUTOMÁTICO: {repo_name} ({repo_id}) - Motivo: {reason}")
                     invalid_dict = repo_dict.copy()
                     invalid_dict['motivo'] = reason
                     inv_writer.writerow(invalid_dict)
                     inv_f.flush()
                 else:
-                    print(f"VÁLIDO AUTOMÁTICO: {repo_id} (Tamanho aprox: {size_mb:.2f} MB) - Adicionado ao alvo.csv.")
+                    print(f"VÁLIDO AUTOMÁTICO: {repo_name} ({repo_id}) (Tamanho aprox: {size_mb:.2f} MB) - Adicionado ao alvo.csv.")
                     writer.writerow(repo_dict)
                     f.flush()
-                    
+                    valid_count += 1
+                    if limit is not None and valid_count >= limit:
+                        print(f"\nLimite de {limit} repositórios válidos atingido.")
+                        break
+
                 processed_repos.add(repo_id)
                 time.sleep(1)
                 
@@ -521,6 +547,15 @@ def main():
         total_size_gb = total_size_mb / 1024
         print(f"Total de repositórios (válidos ou inválidos) varridos/analisados: {len(processed_repos)}")
         print(f"Tamanho total aproximado dos VÁLIDOS (incluindo histórico do Git): {total_size_mb:.2f} MB ({total_size_gb:.2f} GB)")
+        common.print_api_usage()
+
+        common.save_run_stats(data_dir, {
+            "etapa_1": {
+                "api_calls": common.api_calls,
+                "repos_scanned": len(processed_repos),
+                "repos_valid": valid_count,
+            }
+        })
 
 if __name__ == "__main__":
     main()
