@@ -1,11 +1,14 @@
 """
 Etapa 2B: Mineração de Commits via Git Clone.
 
-Coleta commits de repositórios Clojure alvo usando git clone --bare
+Coleta commits de repositórios alvo usando git clone --bare
 --filter=blob:none. Roda em paralelo com a etapa_2A (GitHub REST API).
 
+Uso:
+    python etapa_2B_eventos.py <run_dir> --language <linguagem> [--limit N]
+
 Entrada:
-    repositorios_clojure_alvo.csv
+    repositorios_{language}_alvo.csv
 
 Saída:
     eventos_git.csv
@@ -28,12 +31,6 @@ import common
 
 common.STAGE_LABEL = "2B"
 
-
-DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
-
-INPUT_CSV = DATA_DIR / "repositorios_clojure_alvo.csv"
-OUTPUT_CSV = DATA_DIR / "eventos_git.csv"
-PROGRESS_FILE = DATA_DIR / "reports" / "etapa_2B_progresso.json"
 
 # Timeout do `git clone` (segundos). --filter=blob:none já evita baixar
 # conteúdo de arquivo, só histórico/metadados, então mesmo repositórios
@@ -232,15 +229,33 @@ def print_repo_event_counts(rows):
 
 
 def main():
+    language = common.parse_language(sys.argv[1:])
+    if language is None:
+        print(
+            f"Uso: python {Path(__file__).name} <run_dir> "
+            f"--language <linguagem> [--limit N]"
+        )
+        print(f"Disponíveis: {', '.join(sorted(common.LANGUAGE_CONFIGS))}")
+        sys.exit(1)
+
     limit = common.parse_limit(sys.argv[1:])
 
-    repositories = common.load_repositories(INPUT_CSV)
-    repo_status = common.load_progress(PROGRESS_FILE)
+    data_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    input_csv = common.input_csv_path(data_dir, language)
+    output_csv = data_dir / "eventos_git.csv"
+    progress_file = data_dir / "reports" / "etapa_2B_progresso.json"
+
+    if not input_csv.exists():
+        print(f"CSV de entrada não encontrado: {input_csv}")
+        sys.exit(1)
+
+    repositories = common.load_repositories(input_csv)
+    repo_status = common.load_progress(progress_file)
 
     collection_started_at = datetime.now(timezone.utc).isoformat()
 
     output_exists, _, _ = common.print_collection_summary(
-        "B", INPUT_CSV, OUTPUT_CSV, repositories, repo_status,
+        "B", input_csv, output_csv, repositories, repo_status,
     )
 
     common.log(
@@ -248,7 +263,7 @@ def main():
         f"(ajustável via ETAPA_2B_WORKERS)."
     )
 
-    with OUTPUT_CSV.open("a", newline="", encoding="utf-8") as output_file:
+    with output_csv.open("a", newline="", encoding="utf-8") as output_file:
         writer = csv.DictWriter(output_file, fieldnames=common.OUTPUT_FIELDS, delimiter='|')
 
         if not output_exists:
@@ -264,21 +279,18 @@ def main():
             collection_started_at,
             process_repo_fn=process_repo,
             print_counts_fn=print_repo_event_counts,
-            progress_file=PROGRESS_FILE,
+            progress_file=progress_file,
             max_workers=CLONE_WORKERS,
             limit=limit,
-            # etapa_2B não usa a API REST nem tokens -- sem initializer, as
-            # threads não precisam de nenhum setup antes de processar (ver
-            # collect_repositories_threaded em common.py).
             initializer=None,
         )
 
     collection_ended_at = datetime.now(timezone.utc).isoformat()
-    common.save_progress(repo_status, PROGRESS_FILE, collection_started_at, collection_ended_at)
-    common.print_collection_finished("B", OUTPUT_CSV, PROGRESS_FILE, collection_started_at, collection_ended_at)
+    common.save_progress(repo_status, progress_file, collection_started_at, collection_ended_at)
+    common.print_collection_finished("B", output_csv, progress_file, collection_started_at, collection_ended_at)
 
     completed = sum(1 for info in repo_status.values() if info.get("status") == "complete")
-    common.save_run_stats(DATA_DIR, {
+    common.save_run_stats(data_dir, {
         "etapa_2B": {
             "api_calls": 0,
             "repos_processed": completed,

@@ -2,11 +2,14 @@
 Etapa 2A: Mineração de Eventos via GitHub REST API.
 
 Coleta issues, PRs, commit_comments, pr_comments, issue_comments e
-issue_events de repositórios Clojure alvo. Roda em paralelo com a
+issue_events de repositórios alvo. Roda em paralelo com a
 etapa_2B (commits via git clone).
 
+Uso:
+    python etapa_2A_eventos.py <run_dir> --language <linguagem> [--limit N]
+
 Entrada:
-    repositorios_clojure_alvo.csv
+    repositorios_{language}_alvo.csv
 
 Saída:
     eventos_api.csv
@@ -21,18 +24,12 @@ import os
 import sys
 from collections import Counter
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 import common
 
 common.STAGE_LABEL = "2A"
-
-
-DATA_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
-
-INPUT_CSV = DATA_DIR / "repositorios_clojure_alvo.csv"
-OUTPUT_CSV = DATA_DIR / "eventos_api.csv"
-PROGRESS_FILE = DATA_DIR / "reports" / "etapa_2A_progresso.json"
 
 
 # normalização
@@ -215,12 +212,12 @@ def collect_issues(repo_id, repo_name, owner, repo, collection_started_at):
     return rows
 
 
-def collect_prs(repo_id, repo_name, owner, repo, collection_started_at):
+def collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language):
     """
-    Coleta PRs que tocaram pelo menos um arquivo Clojure.
+    Coleta PRs que tocaram pelo menos um arquivo da linguagem-alvo.
 
     Para cada PR, consulta /pulls/{number}/files e coleta todos os arquivos.
-    Apenas PRs com ao menos um arquivo Clojure são incluídos.
+    Apenas PRs com ao menos um arquivo da linguagem são incluídos.
     """
     prs_url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
     rows = []
@@ -242,15 +239,15 @@ def collect_prs(repo_id, repo_name, owner, repo, collection_started_at):
         )
 
         all_files = set()
-        has_clojure = False
+        has_target = False
 
         for file_data in common.get_paginated(files_url):
             filename = file_data.get("filename", "")
             all_files.add(filename)
-            if common.is_clojure_file(filename):
-                has_clojure = True
+            if common.is_language_file(filename, language):
+                has_target = True
 
-        if has_clojure:
+        if has_target:
             rows.append(
                 normalize_pr(
                     repo_id=repo_id,
@@ -264,7 +261,7 @@ def collect_prs(repo_id, repo_name, owner, repo, collection_started_at):
     return rows
 
 
-def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at):
+def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at, language):
     """
     Coleta todos os comentários em commits do repositório.
 
@@ -280,13 +277,13 @@ def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_
         count += 1
         if count == 1 or count % 500 == 0:
             common.log(f"    Commit comments: {count}...")
-        lang = common.language_from_path(item.get("path") or "")
+        lang = common.language_from_path(item.get("path") or "", language)
         rows.append(normalize_commit_comment(repo_id, repo_name, item, lang, collection_started_at))
 
     return rows
 
 
-def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at):
+def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, language):
     """
     Coleta todos os comentários em pull requests do repositório.
 
@@ -302,7 +299,7 @@ def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at):
         count += 1
         if count == 1 or count % 500 == 0:
             common.log(f"    PR comments: {count}...")
-        lang = common.language_from_path(item.get("path") or "")
+        lang = common.language_from_path(item.get("path") or "", language)
         rows.append(normalize_pr_comment(repo_id, repo_name, item, lang, collection_started_at))
 
     return rows
@@ -353,7 +350,7 @@ def collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collect
 
 # orquestração
 
-def process_repo(repo_id, repo_name, branch, collection_started_at):
+def process_repo(repo_id, repo_name, branch, collection_started_at, language):
     """
     Orquestra os seis coletores da API REST.
 
@@ -372,14 +369,14 @@ def process_repo(repo_id, repo_name, branch, collection_started_at):
     common.log("  Coletando issues...")
     issue_rows = collect_issues(repo_id, repo_name, owner, repo, collection_started_at)
 
-    common.log("  Coletando PRs que tocam Clojure...")
-    pr_rows = collect_prs(repo_id, repo_name, owner, repo, collection_started_at)
+    common.log(f"  Coletando PRs que tocam {language}...")
+    pr_rows = collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language)
 
     common.log("  Coletando commit comments...")
-    commit_comment_rows = collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at)
+    commit_comment_rows = collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at, language)
 
     common.log("  Coletando PR comments...")
-    pr_comment_rows = collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at)
+    pr_comment_rows = collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, language)
 
     common.log("  Coletando issue comments...")
     issue_comment_rows = collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, collection_started_at)
@@ -410,19 +407,37 @@ def print_repo_event_counts(rows):
 
 
 def main():
+    language = common.parse_language(sys.argv[1:])
+    if language is None:
+        print(
+            f"Uso: python {Path(__file__).name} <run_dir> "
+            f"--language <linguagem> [--limit N]"
+        )
+        print(f"Disponíveis: {', '.join(sorted(common.LANGUAGE_CONFIGS))}")
+        sys.exit(1)
+
     limit = common.parse_limit(sys.argv[1:])
     common.warn_if_github_token_missing()
 
-    repositories = common.load_repositories(INPUT_CSV)
-    repo_status = common.load_progress(PROGRESS_FILE)
+    data_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    input_csv = common.input_csv_path(data_dir, language)
+    output_csv = data_dir / "eventos_api.csv"
+    progress_file = data_dir / "reports" / "etapa_2A_progresso.json"
+
+    if not input_csv.exists():
+        print(f"CSV de entrada não encontrado: {input_csv}")
+        sys.exit(1)
+
+    repositories = common.load_repositories(input_csv)
+    repo_status = common.load_progress(progress_file)
 
     collection_started_at = datetime.now(timezone.utc).isoformat()
 
     output_exists, _, _ = common.print_collection_summary(
-        "A", INPUT_CSV, OUTPUT_CSV, repositories, repo_status,
+        "A", input_csv, output_csv, repositories, repo_status,
     )
 
-    with OUTPUT_CSV.open("a", newline="", encoding="utf-8") as output_file:
+    with output_csv.open("a", newline="", encoding="utf-8") as output_file:
         writer = csv.DictWriter(output_file, fieldnames=common.OUTPUT_FIELDS, delimiter='|')
 
         if not output_exists:
@@ -430,9 +445,9 @@ def main():
             output_file.flush()
             os.fsync(output_file.fileno())
 
+        process_repo_fn = partial(process_repo, language=language)
+
         if common.token_pool.count > 1:
-            # Um token dedicado por thread: multiplica o teto de rate limit
-            # agregado por número de tokens em vez de usá-los um de cada vez.
             common.log(
                 f"INFO: coletando com {common.token_pool.count} threads "
                 "(1 token dedicado por thread)."
@@ -443,9 +458,9 @@ def main():
                 writer,
                 output_file,
                 collection_started_at,
-                process_repo_fn=process_repo,
+                process_repo_fn=process_repo_fn,
                 print_counts_fn=print_repo_event_counts,
-                progress_file=PROGRESS_FILE,
+                progress_file=progress_file,
                 max_workers=common.token_pool.count,
                 limit=limit,
             )
@@ -456,18 +471,18 @@ def main():
                 writer,
                 output_file,
                 collection_started_at,
-                process_repo_fn=process_repo,
+                process_repo_fn=process_repo_fn,
                 print_counts_fn=print_repo_event_counts,
-                progress_file=PROGRESS_FILE,
+                progress_file=progress_file,
                 limit=limit,
             )
 
     collection_ended_at = datetime.now(timezone.utc).isoformat()
-    common.save_progress(repo_status, PROGRESS_FILE, collection_started_at, collection_ended_at)
-    common.print_collection_finished("A", OUTPUT_CSV, PROGRESS_FILE, collection_started_at, collection_ended_at)
+    common.save_progress(repo_status, progress_file, collection_started_at, collection_ended_at)
+    common.print_collection_finished("A", output_csv, progress_file, collection_started_at, collection_ended_at)
 
     completed = sum(1 for info in repo_status.values() if info.get("status") == "complete")
-    common.save_run_stats(DATA_DIR, {
+    common.save_run_stats(data_dir, {
         "etapa_2A": {
             "api_calls": common.api_calls,
             "repos_processed": completed,

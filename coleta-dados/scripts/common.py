@@ -3,9 +3,10 @@ Infraestrutura compartilhada entre etapa_2A (API) e etapa_2B (git clone).
 
 Este módulo contém:
 - Configuração da sessão GitHub API (token, retry, rate limit, paginação)
-- Utilitários gerais (_login, is_clojure_file, language_from_path, run_git)
+- Registro de linguagens e extensões (LANGUAGE_CONFIGS)
+- Utilitários gerais (_login, is_language_file, language_from_path, run_git)
 - Leitura do CSV de entrada (load_repositories)
-- Parse de argumentos (parse_limit)
+- Parse de argumentos (parse_limit, parse_language)
 - Controle de progresso (load_progress, save_progress, update_repo_status)
 - Helpers de impressão (warn_if_github_token_missing, print_collection_summary,
   print_collection_finished)
@@ -211,14 +212,43 @@ def log(msg):
         print(line)
 
 
-CLOJURE_EXTENSIONS = {
-    ".clj",
-    ".cljs",
-    ".cljc",
-    ".edn",
-    ".bb",
-    ".cljx",
+LANGUAGE_CONFIGS = {
+    "clojure": {
+        "extensions": {".clj", ".cljs", ".cljc", ".edn", ".bb", ".cljx"},
+        "extension_to_language": {
+            ".clj": "Clojure",
+            ".cljs": "ClojureScript",
+            ".cljc": "Clojure",
+            ".edn": "EDN",
+            ".bb": "Babashka",
+            ".cljx": "Clojure",
+        },
+    },
+    "python": {
+        "extensions": {".py"}, 
+        "extension_to_language": {".py": "Python",".pyi": "Python"},
+    },
+    "elixir": {
+        "extensions": {".ex", ".exs", ".erl", ".hrl"},
+        "extension_to_language": {
+            ".ex": "Elixir",
+            ".exs": "Elixir",
+            ".erl": "Erlang",
+            ".hrl": "Erlang",
+            },
+    },
 }
+
+
+def get_language_extensions(language):
+    """Extensões de arquivo para a linguagem-alvo."""
+    return LANGUAGE_CONFIGS[language]["extensions"]
+
+
+def get_extension_to_language(language):
+    """Mapa extensão → nome legível para a linguagem-alvo."""
+    return LANGUAGE_CONFIGS[language]["extension_to_language"]
+
 
 OUTPUT_FIELDS = [
     "repo_id",
@@ -241,15 +271,6 @@ OUTPUT_FIELDS = [
     "collection_started_at",
 ]
 
-EXTENSION_TO_LANGUAGE = {
-    ".clj": "Clojure",
-    ".cljs": "ClojureScript",
-    ".cljc": "Clojure",
-    ".edn": "EDN",
-    ".bb": "Babashka",
-    ".cljx": "Clojure",
-}
-
 
 # utils gerais
 
@@ -257,14 +278,15 @@ def _login(user):
     return (user or {}).get("login", "")
 
 
-def is_clojure_file(filepath: str) -> bool:
-    """Determina se um caminho corresponde a um arquivo Clojure do escopo."""
+def is_language_file(filepath, language):
+    """Determina se um caminho corresponde a um arquivo da linguagem-alvo."""
     if not filepath:
         return False
-    return Path(filepath.lower()).suffix in CLOJURE_EXTENSIONS
+    exts = get_language_extensions(language)
+    return Path(filepath.lower()).suffix in exts
 
 
-def language_from_path(filepath: str) -> str:
+def language_from_path(filepath, language):
     """Devolve o nome da linguagem a partir da extensão do arquivo.
 
     Se o path é None ou vazio, devolve string vazia.
@@ -274,7 +296,7 @@ def language_from_path(filepath: str) -> str:
     if not filepath:
         return ""
     ext = Path(filepath.lower()).suffix
-    return EXTENSION_TO_LANGUAGE.get(ext, "")
+    return get_extension_to_language(language).get(ext, "")
 
 
 def run_git(args, cwd=None, timeout=300):
@@ -514,9 +536,10 @@ def _detect_delimiter(header_line):
 
 def load_repositories(input_csv):
     """
-    Lê exclusivamente repositorios_clojure_alvo.csv produzido pela Etapa 1
-    (ou um CSV externo equivalente, com as colunas renomeadas — ver
-    _detect_delimiter).
+    Lê CSV de repositórios alvo (produzido pela Etapa 1 ou fonte externa).
+
+    O CSV deve ter as colunas: repo_id, repo_name, default_branch.
+    O delimitador é detectado automaticamente ('|' ou ',').
     """
     if not input_csv.exists():
         raise FileNotFoundError(
@@ -559,6 +582,29 @@ def parse_limit(args):
         if arg == "--limit" and i + 1 < len(args):
             return int(args[i + 1])
     return None
+
+
+def parse_language(args):
+    """
+    Extrai --language <nome> de uma lista de argumentos.
+
+    Retorna string lowercase ou None.
+    """
+    for i, arg in enumerate(args):
+        if arg == "--language" and i + 1 < len(args):
+            lang = args[i + 1].lower()
+            if lang not in LANGUAGE_CONFIGS:
+                raise ValueError(
+                    f"Linguagem não suportada: {lang}. "
+                    f"Disponíveis: {', '.join(sorted(LANGUAGE_CONFIGS))}"
+                )
+            return lang
+    return None
+
+
+def input_csv_path(run_dir, language):
+    """Caminho do CSV de repositórios para a linguagem dada."""
+    return run_dir / f"repositorios_{language}_alvo.csv"
 
 
 # controle do progresso

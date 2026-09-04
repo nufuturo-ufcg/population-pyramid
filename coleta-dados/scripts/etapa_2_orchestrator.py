@@ -3,10 +3,13 @@ Orquestrador da Etapa 2: executa etapa_2A e etapa_2B em paralelo e
 faz o merge dos CSVs de saída.
 
 Uso:
-    python etapa_2_orchestrator.py <run_dir> [--limit N]
+    python etapa_2_orchestrator.py <run_dir> --language <linguagem> [--limit N]
 
 O run_dir deve conter:
-    repositorios_clojure_alvo.csv  (saída da Etapa 1)
+    repositorios_{language}_alvo.csv  (saída da Etapa 1 ou fonte externa)
+
+Obrigatório:
+    --language <nome>  Linguagem-alvo (clojure, elixir, ...)
 
 Opcional:
     --limit N  Processa no máximo N repositórios novos (pulando já coletados)
@@ -65,14 +68,28 @@ def merge_csvs(api_csv, git_csv, output_csv):
 
 def main():
     if len(sys.argv) < 2:
-        print(f"Uso: {sys.executable} {__file__} <run_dir> [--limit N]")
+        print(
+            f"Uso: {sys.executable} {__file__} <run_dir> "
+            f"--language <linguagem> [--limit N]"
+        )
         sys.exit(1)
 
     run_dir = Path(sys.argv[1])
+    language = common.parse_language(sys.argv[2:])
     limit = common.parse_limit(sys.argv[2:])
+
+    if language is None:
+        print("ERRO: --language é obrigatório.")
+        print(f"Disponíveis: {', '.join(sorted(common.LANGUAGE_CONFIGS))}")
+        sys.exit(1)
 
     if not run_dir.exists():
         print(f"Diretório não encontrado: {run_dir}")
+        sys.exit(1)
+
+    input_csv = common.input_csv_path(run_dir, language)
+    if not input_csv.exists():
+        print(f"CSV de entrada não encontrado: {input_csv}")
         sys.exit(1)
 
     api_csv = run_dir / "eventos_api.csv"
@@ -80,6 +97,8 @@ def main():
     output_csv = run_dir / "eventos_repositorios.csv"
 
     print("=== Etapa 2: coleta de eventos (paralela) ===")
+    print(f"  Linguagem:   {language}")
+    print(f"  Entrada:     {input_csv}")
     print(f"  Script API:  etapa_2A_eventos.py")
     print(f"  Script Git:  etapa_2B_eventos.py")
     print(f"  Diretório:   {run_dir}")
@@ -88,7 +107,9 @@ def main():
     print()
 
     # Monta argumentos extras para os subprocessos
-    extra_args = ["--limit", str(limit)] if limit is not None else []
+    extra_args = ["--language", language]
+    if limit is not None:
+        extra_args += ["--limit", str(limit)]
 
     # Roda os dois scripts em paralelo
     api_proc = subprocess.Popen(
