@@ -277,8 +277,18 @@ def language_from_path(filepath: str) -> str:
     return EXTENSION_TO_LANGUAGE.get(ext, "")
 
 
-def run_git(args, cwd=None):
-    """Executa Git e devolve stdout; falhas viram RuntimeError."""
+def run_git(args, cwd=None, timeout=300):
+    """Executa Git e devolve stdout; falhas e timeout viram RuntimeError.
+
+    timeout (segundos) é necessário porque uma conexão que cai no meio de um
+    `git clone` (ex.: servidor fecha a conexão, mas o processo git não nota)
+    fica pendurada para sempre em espera de I/O, sem nunca retornar. Isso já
+    aconteceu na prática: git-remote-http dormindo em wait_woken sem nenhum
+    socket TCP aberto, travando a etapa_2B (sequencial, 1 repositório por
+    vez) por horas. Com timeout, subprocess.run mata o processo e o
+    repositório é marcado como erro e retentado na próxima execução, em vez
+    de travar o pipeline inteiro indefinidamente.
+    """
     try:
         result = subprocess.run(
             ["git", *args],
@@ -286,10 +296,17 @@ def run_git(args, cwd=None):
             text=True,
             capture_output=True,
             check=False,
+            timeout=timeout,
         )
     except FileNotFoundError as exc:
         raise RuntimeError(
             "Git não está instalado ou não está disponível no PATH."
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        command = "git " + " ".join(args)
+        raise RuntimeError(
+            f"`{command}` não terminou em {timeout}s (conexão provavelmente "
+            "caiu ou travou). Processo encerrado."
         ) from exc
 
     if result.returncode != 0:
@@ -562,7 +579,7 @@ def load_progress(progress_file):
 
     # Migração da primeira versão baseada em processed_repos.
     return {
-        repo_id: {
+        str(repo_id): {
             "repo_name": "",
             "status": "complete",
             "branch": "",
@@ -620,8 +637,14 @@ def save_run_stats(run_dir, stats):
 
 
 def update_repo_status(repo_status, repo_id, repo_name, branch, status, error="", progress_file=None):
-    """Atualiza complete/error de um repositório."""
-    repo_status[repo_id] = {
+    """Atualiza complete/error de um repositório.
+
+    Chave sempre str(repo_id): repo_status é serializado em JSON (só aceita
+    chave string) e recarregado a cada novo processo -- guardar com chave
+    int aqui criaria uma chave nova a cada reinício em vez de atualizar a
+    existente (ver também o lookup em _process_single_repo).
+    """
+    repo_status[str(repo_id)] = {
         "repo_name": repo_name,
         "status": status,
         "branch": branch,
@@ -703,7 +726,12 @@ def _process_single_repo(index, total, repo_info, repo_status, writer, output_fi
     # prefixada com este repositório até a thread pegar o próximo.
     _thread_local.repo_tag = repo_name
 
-    current_status = repo_status.get(repo_id, {}).get("status")
+    # repo_status é sempre recarregado de JSON no início do processo (ver
+    # load_progress) -- chaves de dict em JSON só existem como string, então
+    # repo_id (int, vindo de load_repositories) precisa virar str() aqui
+    # pra bater com a chave carregada do disco. Sem isso, TODO repositório
+    # parece "nunca processado" a cada reinício, mesmo já tendo terminado.
+    current_status = repo_status.get(str(repo_id), {}).get("status")
 
     if current_status == "complete":
         log(
@@ -804,10 +832,19 @@ def collect_repositories(repositories, repo_status, writer, output_file,
 
 def collect_repositories_threaded(repositories, repo_status, writer, output_file,
                                   collection_started_at, process_repo_fn, print_counts_fn,
-                                  progress_file, max_workers, limit=None):
+                                  progress_file, max_workers, limit=None,
+                                  initializer=_init_worker_session):
     """
-    Versão paralela de collect_repositories: um token GitHub dedicado por thread
-    (ver _init_worker_session), cada uma processando repositórios distintos.
+    Versão paralela de collect_repositories: cada thread processa repositórios
+    distintos, escolhidos de uma fila comum.
+
+    O initializer roda uma vez por thread, antes dela pegar qualquer tarefa.
+    O default (_init_worker_session) fixa um token GitHub exclusivo pra
+    thread -- faz sentido pra etapa_2A, que é limitada pela cota de rate
+    limit da API por token. A etapa_2B (git clone) não usa a API REST nem
+    tokens, então passa initializer=None: as threads não precisam de setup
+    nenhum, só chamam git diretamente, e o paralelismo ali é limitado por
+    rede/disco, não por cota.
 
     A escrita em writer/output_file/repo_status é serializada dentro de
     _process_single_repo (via _io_lock); a parte cara de cada tarefa (as
@@ -823,7 +860,7 @@ def collect_repositories_threaded(repositories, repo_status, writer, output_file
     pending = [
         (index, repo_info)
         for index, repo_info in enumerate(repositories, start=1)
-        if repo_status.get(repo_info["repo_id"], {}).get("status") != "complete"
+        if repo_status.get(str(repo_info["repo_id"]), {}).get("status") != "complete"
     ]
 
     if limit is not None:
@@ -834,7 +871,7 @@ def collect_repositories_threaded(repositories, repo_status, writer, output_file
 
     with ThreadPoolExecutor(
         max_workers=max_workers,
-        initializer=_init_worker_session,
+        initializer=initializer,
     ) as executor:
         futures = [
             executor.submit(

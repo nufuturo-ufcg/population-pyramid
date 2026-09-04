@@ -35,6 +35,22 @@ INPUT_CSV = DATA_DIR / "repositorios_clojure_alvo.csv"
 OUTPUT_CSV = DATA_DIR / "eventos_git.csv"
 PROGRESS_FILE = DATA_DIR / "reports" / "etapa_2B_progresso.json"
 
+# Timeout do `git clone` (segundos). --filter=blob:none já evita baixar
+# conteúdo de arquivo, só histórico/metadados, então mesmo repositórios
+# grandes (ex.: metabase, ~2GB de blobs) devem terminar bem antes disso numa
+# conexão saudável; 10 min é folga suficiente sem deixar uma conexão morta
+# pendurada por horas (ver run_git em common.py).
+CLONE_TIMEOUT_SECONDS = 600
+
+# Quantos `git clone`/repositório rodam em paralelo. Diferente da etapa_2A,
+# aqui não existe cota de token limitando isso -- o teto real é rede/disco
+# da máquina (múltiplos clones grandes ao mesmo tempo competem por banda e
+# espaço temporário) e o risco de acionar o rate limit "secondary" do
+# GitHub por operações git concorrentes demais vindas do mesmo IP. 4 é um
+# ponto de partida conservador; ajuste com a env var abaixo sem precisar
+# editar o código, ex.: ETAPA_2B_WORKERS=8 python3 scripts/etapa_2B_eventos.py ...
+CLONE_WORKERS = int(os.environ.get("ETAPA_2B_WORKERS", "4"))
+
 
 # normalização
 
@@ -80,7 +96,8 @@ def clone_bare_repository(repo_name, destination):
             "--no-tags",
             clone_url,
             str(destination),
-        ]
+        ],
+        timeout=CLONE_TIMEOUT_SECONDS,
     )
 
 
@@ -226,6 +243,11 @@ def main():
         "B", INPUT_CSV, OUTPUT_CSV, repositories, repo_status,
     )
 
+    common.log(
+        f"INFO: coletando com {CLONE_WORKERS} clones em paralelo "
+        f"(ajustável via ETAPA_2B_WORKERS)."
+    )
+
     with OUTPUT_CSV.open("a", newline="", encoding="utf-8") as output_file:
         writer = csv.DictWriter(output_file, fieldnames=common.OUTPUT_FIELDS, delimiter='|')
 
@@ -234,7 +256,7 @@ def main():
             output_file.flush()
             os.fsync(output_file.fileno())
 
-        common.collect_repositories(
+        common.collect_repositories_threaded(
             repositories,
             repo_status,
             writer,
@@ -243,7 +265,12 @@ def main():
             process_repo_fn=process_repo,
             print_counts_fn=print_repo_event_counts,
             progress_file=PROGRESS_FILE,
+            max_workers=CLONE_WORKERS,
             limit=limit,
+            # etapa_2B não usa a API REST nem tokens -- sem initializer, as
+            # threads não precisam de nenhum setup antes de processar (ver
+            # collect_repositories_threaded em common.py).
+            initializer=None,
         )
 
     collection_ended_at = datetime.now(timezone.utc).isoformat()
