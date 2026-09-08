@@ -146,8 +146,15 @@ LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
 # própria subpasta (`clojure/`, `elixir/`, `zig/`, ...), pra achar a figura sem
 # lembrar de qual rodada ela veio. Um plot que compare linguagens entre si
-# (nenhum existe ainda) vai direto em `TMP_BASE`, fora de qualquer subpasta.
+# vai em `PASTA_GERAL` (`TMP_BASE/geral/`), fora da subpasta de qualquer
+# linguagem específica.
 TMP_BASE = Path.home() / "Documents" / "pyramid-tmp"
+PASTA_GERAL = TMP_BASE / "geral"
+
+
+def _caminho_geral(nome: str) -> Path:
+    PASTA_GERAL.mkdir(parents=True, exist_ok=True)
+    return PASTA_GERAL / nome
 
 
 def _caminhos_padrao(rodada: int) -> tuple[Path, Path]:
@@ -643,15 +650,17 @@ def roda_pipeline(
 
 
 def _salva(caminho: Path, nome: str) -> None:
-    CFG.saida.mkdir(parents=True, exist_ok=True)
+    """`nome` pode ter subpasta (`"backtest/foo.png"`): cria o que faltar."""
     destino = CFG.saida / nome
+    destino.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(caminho, destino)
     print(f"salvo: {destino}")
 
 
 def _salva_fig(fig: object, nome: str) -> None:
-    CFG.saida.mkdir(parents=True, exist_ok=True)
+    """`nome` pode ter subpasta (`"backtest/foo.png"`): cria o que faltar."""
     caminho = CFG.saida / nome
+    caminho.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -659,10 +668,12 @@ def _salva_fig(fig: object, nome: str) -> None:
 
 def _caminho_csv(nome: str) -> Path:
     """CSV separado das figuras (pedido explícito): fica em `csv/` dentro da
-    pasta da linguagem, não solto ao lado do PNG."""
-    pasta = CFG.saida / "csv"
-    pasta.mkdir(parents=True, exist_ok=True)
-    return pasta / nome
+    pasta da linguagem, não solto ao lado do PNG. `nome` pode ter subpasta
+    dentro de `csv/` (`"backtest/foo.csv"`), pra espelhar a organização do
+    PNG correspondente."""
+    caminho = CFG.saida / "csv" / nome
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    return caminho
 
 
 def gera_piramide_multi(eventos: pd.DataFrame) -> None:
@@ -823,7 +834,7 @@ def _projecao_piramide_linha(pl: SimpleNamespace, linha: pd.DataFrame, ano_base:
     ax.set_xlabel("contribuidores")
     ax.set_ylabel(pl.plots.rotulo_da_idade())
     ax.set_title(f"{LING.atual.nome}: backtest {ano_base} (barra=real, linha vermelha=previsto)")
-    _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_{ano_base}_piramide.png")
+    _salva_fig(fig, f"backtest/projecao_{LING.atual.slug}_backtest_{ano_base}_piramide.png")
 
 
 def _anos_backtest_possiveis(eventos: pd.DataFrame) -> range:
@@ -886,7 +897,7 @@ def gera_backtest_todos_anos(eventos: pd.DataFrame) -> None:
         )
     resumo = pd.DataFrame(linhas)
 
-    saida_csv = _caminho_csv(f"projecao_{LING.atual.slug}_backtest_todos_anos.csv")
+    saida_csv = _caminho_csv(f"backtest/projecao_{LING.atual.slug}_backtest_todos_anos.csv")
     resumo.to_csv(saida_csv, index=False)
     print(f"salvo: {saida_csv}")
 
@@ -904,7 +915,7 @@ def gera_backtest_todos_anos(eventos: pd.DataFrame) -> None:
     ax2.set_ylim(0, 1)
     ax2.set_xlabel("ano-âncora")
     ax2.set_ylabel("taxa de acerto\nde direção")
-    _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_todos_anos.png")
+    _salva_fig(fig, f"backtest/projecao_{LING.atual.slug}_backtest_todos_anos.png")
 
 
 def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
@@ -942,7 +953,7 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
         print("mediana do ABRE por categoria (menor = melhor; cohort vs baseline):")
         print(resumo.to_string())
 
-        saida_csv = _caminho_csv(f"projecao_{LING.atual.slug}_backtest_{ano_base}.csv")
+        saida_csv = _caminho_csv(f"backtest/projecao_{LING.atual.slug}_backtest_{ano_base}.csv")
         linha.to_csv(saida_csv, index=False)
         print(f"salvo: {saida_csv}")
 
@@ -951,7 +962,7 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
             todos,
             todos["band"].astype(int),
             f"{LING.atual.nome}: backtest {ano_base} -> {alvo_real}",
-            f"projecao_{LING.atual.slug}_backtest_{ano_base}.png",
+            f"backtest/projecao_{LING.atual.slug}_backtest_{ano_base}.png",
         )
         for anos in (2, 3):
             agrupado = _agrupa_por_anos(todos, anos)
@@ -960,7 +971,7 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
                 agrupado["rotulo"],
                 f"{LING.atual.nome}: backtest {ano_base} -> {alvo_real} "
                 f"(agrupado em janelas de {anos} anos)",
-                f"projecao_{LING.atual.slug}_backtest_{ano_base}_agrupado{anos}anos.png",
+                f"backtest/projecao_{LING.atual.slug}_backtest_{ano_base}_agrupado{anos}anos.png",
             )
 
         direcao = _avalia_direcao(todos)
@@ -969,7 +980,9 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
             f"acerto de direção (coorte, subiu/desceu igual ao real): "
             f"{int(direcao['acertou'].sum())}/{len(direcao)} ({taxa:.0%})"
         )
-        saida_direcao = _caminho_csv(f"projecao_{LING.atual.slug}_backtest_{ano_base}_direcao.csv")
+        saida_direcao = _caminho_csv(
+            f"backtest/projecao_{LING.atual.slug}_backtest_{ano_base}_direcao.csv"
+        )
         direcao.to_csv(saida_direcao, index=False)
         print(f"salvo: {saida_direcao}")
 
@@ -1220,7 +1233,7 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     _registra_total_geral(total)
 
 
-REGISTRO_GERAL = TMP_BASE / "contribuintes_por_linguagem.json"
+REGISTRO_GERAL = PASTA_GERAL / "contribuintes_por_linguagem.json"
 
 
 def _registra_total_geral(total: int) -> None:
@@ -1232,7 +1245,7 @@ def _registra_total_geral(total: int) -> None:
     if REGISTRO_GERAL.exists():
         registro = json.loads(REGISTRO_GERAL.read_text(encoding="utf-8"))
     registro[LING.atual.slug] = total
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    PASTA_GERAL.mkdir(parents=True, exist_ok=True)
     REGISTRO_GERAL.write_text(json.dumps(registro, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
@@ -1270,8 +1283,7 @@ def gera_geral_contribuintes() -> None:
         )
     ax.set_ylabel("contribuintes distintos (todos os anos)")
     ax.set_title("Contribuintes distintos por linguagem")
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
-    caminho = TMP_BASE / "geral_contribuintes_por_linguagem.png"
+    caminho = _caminho_geral("geral_contribuintes_por_linguagem.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -1336,8 +1348,7 @@ def gera_geral_ccr_ncr() -> None:
     ax.set_ylabel("NCR")
     ax.set_title("CCR x NCR por trimestre, 4 linguagens")
     ax.legend(loc="best", fontsize=9)
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
-    caminho = TMP_BASE / "geral_ccr_ncr_por_linguagem.png"
+    caminho = _caminho_geral("geral_ccr_ncr_por_linguagem.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -1372,8 +1383,7 @@ def gera_geral_contribuintes_evolucao() -> None:
     ax.set_ylabel("contribuintes distintos naquele ano")
     ax.set_title("Contribuintes distintos por ano, 4 linguagens")
     ax.legend(loc="best")
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
-    caminho = TMP_BASE / "geral_contribuintes_evolucao_por_ano.png"
+    caminho = _caminho_geral("geral_contribuintes_evolucao_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -1390,7 +1400,7 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
     for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
         anos_disponiveis, cohort_por_ano, baseline_por_ano = [], [], []
         for ano in anos_base:
-            caminho = TMP_BASE / slug / "csv" / f"projecao_{slug}_backtest_{ano}.csv"
+            caminho = TMP_BASE / slug / "csv" / "backtest" / f"projecao_{slug}_backtest_{ano}.csv"
             if not caminho.exists():
                 continue
             todos = pd.read_csv(caminho)
@@ -1411,8 +1421,7 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
         eixo.legend(fontsize=8)
     fig.suptitle("Backtest da projeção: erro por ano-âncora, 4 linguagens", fontsize=13)
     fig.tight_layout()
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
-    caminho = TMP_BASE / "geral_backtest_evolucao_por_linguagem.png"
+    caminho = _caminho_geral("geral_backtest_evolucao_por_linguagem.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -1453,7 +1462,11 @@ def gera_piramide_comparativa() -> None:
         file=sys.stderr,
     )
 
-    for banda_meses in BANDAS_MESES_PIRAMIDE:
+    # 3 e 12: mesma convenção de `gera_piramide_multi` (quarter da metodologia,
+    # e a versão "sem quarter" em ano). 24 e 36: agrupamento de 2 e 3 anos,
+    # pedido explícito do usuário pra essa comparação entre linguagens.
+    rotulo_por_banda = {3: "comquarter", 12: "semquarter", 24: "agrupado2anos", 36: "agrupado3anos"}
+    for banda_meses, rotulo in rotulo_por_banda.items():
         fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
         for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
             LING.aplica(slug)
@@ -1469,15 +1482,15 @@ def gera_piramide_comparativa() -> None:
             finally:
                 shutil.rmtree(pl.scratch, ignore_errors=True)
 
-        rotulo = "comquarter" if banda_meses == 3 else "semquarter"
         fig.suptitle(
             f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
             f"banda {banda_meses}m",
             fontsize=14,
         )
         fig.tight_layout()
-        TMP_BASE.mkdir(parents=True, exist_ok=True)
-        caminho = TMP_BASE / f"piramides_por_linguagem_mesmo_corte_{rotulo}_banda{banda_meses}m.png"
+        caminho = _caminho_geral(
+            f"piramides_por_linguagem_mesmo_corte_{rotulo}_banda{banda_meses}m.png"
+        )
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -1596,8 +1609,7 @@ def gera_comparacao_metricas_linguagens(
             f"magnetismo x stickiness por linguagem {titulo_extra}",
         )
         fig.suptitle("As 4 linguagens como unidade de análise, competindo entre si", fontsize=13)
-        TMP_BASE.mkdir(parents=True, exist_ok=True)
-        caminho = TMP_BASE / f"geral_ccr_ncr_magnetismo_stickiness_por_linguagem{sufixo}.png"
+        caminho = _caminho_geral(f"geral_ccr_ncr_magnetismo_stickiness_por_linguagem{sufixo}.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
