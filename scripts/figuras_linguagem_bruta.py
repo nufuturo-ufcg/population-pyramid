@@ -28,8 +28,12 @@ Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
   linha-tempo-4  linha do tempo com ANOS_ESCOLHIDOS e banda de BANDA_ANOS anos,
                  gerada duas vezes: janela de população de 3 meses e de 12 meses
   projecao       projeção coorte-componente (tabela impressa + figura)
-  magnetismo     magnetismo x stickiness por ano (scatter, sem cor)
-  stickiness-ano stickiness por ano (barra)
+  stickiness-ano stickiness por ano (barra). Magnetismo NÃO entra aqui:
+                 com 1 linguagem só, `unit: language` não tem contra quem
+                 competir por atenção e o valor trava em 1,0 (sem análise
+                 nenhuma pra tirar disso). Comparação de verdade fica em
+                 `--comparativa`/`--comparativa-metricas`, que rodam as 4
+                 linguagens juntas no mesmo pipeline.
   ccr-ncr        CCR x NCR por trimestre (scatter)
   fantasmas      contas apagadas ('ghost') por ano: não entram na pirâmide,
                  só o registro de quantas existiram ao longo do tempo
@@ -729,13 +733,104 @@ def gera_projecao(pl: SimpleNamespace) -> None:
     print(f"salvo: {saida}")
 
 
+def _agrupa_por_anos(todos: pd.DataFrame, anos: int, band_months: int = 3) -> pd.DataFrame:
+    """Soma banda a banda (cada banda = `band_months` meses de idade) dentro
+    de janelas de `anos` anos, pra um gráfico com menos barras. Contribuidor
+    não conta duas vezes: banda é idade NUM instante (quem tem 3 anos não
+    também "é" quem tem 2), então somar bandas adjacentes é somar gente de
+    idade diferente dentro da mesma janela, não duplicar ninguém."""
+    bandas_por_grupo = round(anos * 12 / band_months)
+    grupo = todos["band"] // bandas_por_grupo
+    agregado = todos.groupby(grupo)[["actual", "cohort_pred", "baseline_pred"]].sum()
+    agregado["rotulo"] = [f"{int(g) * anos}-{(int(g) + 1) * anos} anos" for g in agregado.index]
+    return agregado.reset_index(drop=True)
+
+
+def _desenha_barra_projecao(
+    todos: pd.DataFrame, rotulos: pd.Series, titulo: str, nome: str
+) -> None:
+    """Real x previsto (coorte) x previsto (baseline), uma barra tripla por
+    banda ou grupo de bandas. Compartilhado pela versão trimestral e pelas
+    versões agrupadas de `gera_projecao_backtest`."""
+    n = len(todos)
+    largura = 0.25
+    x = list(range(n))
+    fig, ax = plt.subplots(figsize=(max(7.0, 0.5 * n), 4.5))
+    ax.bar([i - largura for i in x], todos["actual"], largura, color="black", label="real")
+    ax.bar(x, todos["cohort_pred"], largura, color="#3b6fa0", label="previsto (coorte)")
+    ax.bar(
+        [i + largura for i in x],
+        todos["baseline_pred"],
+        largura,
+        color="#aaaaaa",
+        label="previsto (baseline)",
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels(rotulos, rotation=90 if n > 15 else 0)
+    ax.set_xlabel("banda (idade)")
+    ax.set_ylabel("contribuidores")
+    ax.set_title(titulo)
+    ax.legend()
+    _salva_fig(fig, nome)
+
+
+def _avalia_direcao(todos: pd.DataFrame) -> pd.DataFrame:
+    """O "jogo" pedido: a previsão (coorte) disse que ia subir/descer/ficar
+    igual em relação à mesma coorte um passo antes (`baseline_pred` da banda
+    anterior, que é a contagem real dessa gente no snapshot base); acertou
+    quando a direção real bate com a prevista, não precisa acertar o número
+    exato. Banda 0 (novato) não tem "banda anterior" nessa coorte, porque não
+    é sobrevivência (é média dos dois novatos mais recentes): fica de fora."""
+    t = todos.sort_values("band").reset_index(drop=True)
+    antes = t["baseline_pred"].shift(1)
+    sinal = lambda serie: (serie > 1e-9).astype(int) - (serie < -1e-9).astype(int)  # noqa: E731
+    t["acertou"] = sinal(t["cohort_pred"] - antes) == sinal(t["actual"] - antes)
+    return t.loc[t["band"] > 0, ["band", "actual", "cohort_pred", "acertou"]]
+
+
+def _projecao_piramide_linha(pl: SimpleNamespace, linha: pd.DataFrame, ano_base: int) -> None:
+    """Mesmo desenho de `plots.figure_projection_overlay` (IEICE16 Fig.8):
+    pirâmide real em barra, linha vermelha tracejada sobreposta com o
+    previsto (coorte). Aqui pra 1 linguagem/1 ano-âncora só, fora do conjunto
+    fixo de projetos auditados que a Fig.8 original usa."""
+    real = pl.plots._projection_frame(linha, "actual")
+    pred = pl.plots._projection_frame(linha, "cohort_pred")
+    fig, ax = plt.subplots(figsize=(7.0, 5.5))
+    lim, _ = pl.plots.draw_pyramid(ax, real.astype({"band": int}))
+    y = pred["band"].to_numpy()
+    esq = -pred["non_coding"].to_numpy()
+    dirr = (pred["moved"] + pred["coding"]).to_numpy()
+    for serie in (esq, dirr):
+        ax.plot(
+            serie,
+            y,
+            color="#B03A2E",
+            linewidth=1.4,
+            linestyle="--",
+            marker="o",
+            markersize=3,
+            zorder=6,
+        )
+    pico = float(max(abs(esq).max(initial=0.0), dirr.max(initial=0.0)))
+    if pico > lim:
+        ax.set_xlim(-pico * 1.08, pico * 1.08)
+    ax.set_xlabel("contribuidores")
+    ax.set_ylabel(pl.plots.rotulo_da_idade())
+    ax.set_title(f"{LING.atual.nome}: backtest {ano_base} (barra=real, linha vermelha=previsto)")
+    _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_{ano_base}_piramide.png")
+
+
 def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
     """Mesma projeção coorte-componente de `gera_projecao`, mas ancorada em Q4
     de `ano_base` (T-1 = Q3, T = Q4, alvo = Q1 do ano seguinte) em vez do
     último trimestre da coleta: `roda_pipeline`/`escreve_config` já sabem
     forçar esse corte (`fim_forcado`, criado pra `gera_piramide_comparativa`).
     Mostra se a taxa de sobrevivência calculada num ponto passado da história
-    ainda acerta o real, não só no trimestre mais recente."""
+    ainda acerta o real, não só no trimestre mais recente.
+
+    Gera: a barra tripla trimestral (como antes), a mesma barra agrupada em
+    janelas de 2 e 3 anos, o jogo de acerto de direção (`_avalia_direcao`) e
+    a pirâmide com linha vermelha (`_projecao_piramide_linha`)."""
     alvo_forcado = pd.Timestamp(f"{ano_base + 1}-03-31")
     pl = roda_pipeline(eventos, band_months=3, fim_forcado=alvo_forcado)
     try:
@@ -765,71 +860,40 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
         linha.to_csv(saida_csv, index=False)
         print(f"salvo: {saida_csv}")
 
-        todos = linha[linha["category"] == "all"].sort_values("band")
-        n = len(todos)
-        largura = 0.25
-        x = list(range(n))
-        fig, ax = plt.subplots(figsize=(max(7.0, 0.5 * n), 4.5))
-        ax.bar([i - largura for i in x], todos["actual"], largura, color="black", label="real")
-        ax.bar(x, todos["cohort_pred"], largura, color="#3b6fa0", label="previsto (coorte)")
-        ax.bar(
-            [i + largura for i in x],
-            todos["baseline_pred"],
-            largura,
-            color="#aaaaaa",
-            label="previsto (baseline)",
+        todos = linha[linha["category"] == "all"].sort_values("band").reset_index(drop=True)
+        _desenha_barra_projecao(
+            todos,
+            todos["band"].astype(int),
+            f"{LING.atual.nome}: backtest {ano_base} -> {alvo_real}",
+            f"projecao_{LING.atual.slug}_backtest_{ano_base}.png",
         )
-        ax.set_xticks(x)
-        ax.set_xticklabels(todos["band"].astype(int))
-        ax.set_xlabel("banda (idade em trimestres)")
-        ax.set_ylabel("contribuidores")
-        ax.set_title(f"{LING.atual.nome}: backtest {ano_base} -> {alvo_real}")
-        ax.legend()
-        _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_{ano_base}.png")
+        for anos in (2, 3):
+            agrupado = _agrupa_por_anos(todos, anos)
+            _desenha_barra_projecao(
+                agrupado,
+                agrupado["rotulo"],
+                f"{LING.atual.nome}: backtest {ano_base} -> {alvo_real} "
+                f"(agrupado em janelas de {anos} anos)",
+                f"projecao_{LING.atual.slug}_backtest_{ano_base}_agrupado{anos}anos.png",
+            )
+
+        direcao = _avalia_direcao(todos)
+        taxa = direcao["acertou"].mean() if len(direcao) else float("nan")
+        print(
+            f"acerto de direção (coorte, subiu/desceu igual ao real): "
+            f"{int(direcao['acertou'].sum())}/{len(direcao)} ({taxa:.0%})"
+        )
+        saida_direcao = CFG.saida / f"projecao_{LING.atual.slug}_backtest_{ano_base}_direcao.csv"
+        direcao.to_csv(saida_direcao, index=False)
+        print(f"salvo: {saida_direcao}")
+
+        _projecao_piramide_linha(pl, linha, ano_base)
     finally:
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
 def _rotulo(pl: SimpleNamespace) -> str:
     return pl.plots.labels().get(pl.sid, str(pl.sid))
-
-
-def gera_magnetismo(pl: SimpleNamespace) -> None:
-    """Sem cor (pedido explícito): magnetismo é sempre 1,0 aqui (1 linguagem
-    só), então todo ponto cai na mesma coluna X. Os rótulos de ano vão numa
-    coluna igualmente espaçada à direita, cada um com uma linha fina até o
-    ponto real: zero sobreposição garantida, independente de quantos anos
-    colidirem em Y."""
-    pairs, coverage = pl.attractiveness.activity(scopes=[pl.sid])
-    df = pl.attractiveness.annual(pairs, coverage_end=coverage)
-    df = (
-        df[df["scope_id"] == pl.sid]
-        .dropna(subset=["magnetism", "stickiness"])
-        .sort_values("stickiness")
-        .reset_index(drop=True)
-    )
-    n = len(df)
-    fig, ax = plt.subplots(figsize=(6.5, max(4.0, 0.3 * n)))
-    ax.scatter(df["magnetism"], df["stickiness"], color="black", s=30, zorder=3)
-
-    x_rotulo = df["magnetism"].max() + 0.03
-    y_min, y_max = df["stickiness"].min(), df["stickiness"].max()
-    ys_rotulo = [y_min] if n == 1 else list(pd.Series(range(n)) / (n - 1) * (y_max - y_min) + y_min)
-    for y_lab, (_, row) in zip(ys_rotulo, df.iterrows(), strict=True):
-        ax.plot(
-            [row["magnetism"], x_rotulo],
-            [row["stickiness"], y_lab],
-            color="#aaaaaa",
-            lw=0.5,
-            zorder=1,
-        )
-        ax.annotate(str(int(row["year"])), (x_rotulo, y_lab), fontsize=8, va="center", ha="left")
-
-    ax.set_xlim(df["magnetism"].min() - 0.02, x_rotulo + 0.06)
-    ax.set_xlabel("magnetismo (degenerado em 1,0: unit=language com 1 linguagem só)")
-    ax.set_ylabel("stickiness")
-    ax.set_title(f"{_rotulo(pl)}: magnetismo x stickiness por ano")
-    _salva_fig(fig, f"magnetismo_stickiness_{LING.atual.slug}_metodologia.png")
 
 
 def gera_stickiness_ano(pl: SimpleNamespace) -> None:
@@ -1232,6 +1296,45 @@ def gera_geral_contribuintes_evolucao() -> None:
     print(f"salvo: {caminho}")
 
 
+ANOS_BACKTEST_PADRAO = (2016, 2019, 2024)
+
+
+def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADRAO) -> None:
+    """Como o erro do backtest (mediana do ABRE, categoria "all") evolui de
+    ano-âncora pra ano-âncora, as 4 linguagens num grid 2x2. Lê os CSVs que
+    `--backtest-anos` já deixou em cada subpasta; não recalcula nada."""
+    fig, eixos = plt.subplots(2, 2, figsize=(12, 9))
+    for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
+        anos_disponiveis, cohort_por_ano, baseline_por_ano = [], [], []
+        for ano in anos_base:
+            caminho = TMP_BASE / slug / f"projecao_{slug}_backtest_{ano}.csv"
+            if not caminho.exists():
+                continue
+            todos = pd.read_csv(caminho)
+            todos = todos[todos["category"] == "all"]
+            anos_disponiveis.append(ano)
+            cohort_por_ano.append(todos["abre_cohort"].median())
+            baseline_por_ano.append(todos["abre_baseline"].median())
+        if not anos_disponiveis:
+            eixo.axis("off")
+            eixo.set_title(f"{linguagem.nome} (sem backtest ainda)")
+            continue
+        eixo.plot(anos_disponiveis, cohort_por_ano, marker="o", color="#3b6fa0", label="coorte")
+        eixo.plot(anos_disponiveis, baseline_por_ano, marker="o", color="#aaaaaa", label="baseline")
+        eixo.set_xticks(anos_disponiveis)
+        eixo.set_xlabel("ano-âncora")
+        eixo.set_ylabel("mediana do ABRE (menor = melhor)")
+        eixo.set_title(linguagem.nome)
+        eixo.legend(fontsize=8)
+    fig.suptitle("Backtest da projeção: erro por ano-âncora, 4 linguagens", fontsize=13)
+    fig.tight_layout()
+    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    caminho = TMP_BASE / "geral_backtest_evolucao_por_linguagem.png"
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def _carrega_todas_linguagens(rodada: int = 2) -> dict[str, pd.DataFrame]:
     """As 4 coletas carregadas e filtradas (`carrega_eventos`), cada uma com a
     própria coluna `idioma` (ver `monta_fonte`). Ponto único de carga pras
@@ -1336,10 +1439,11 @@ def gera_comparacao_metricas_linguagens(
     """CCR/NCR e magnetismo/stickiness com a LINGUAGEM como unidade, um ponto
     por linguagem, dentro do MESMO pipeline (as 4 juntas numa fonte só, com
     `eventos["idioma"]` dizendo a linguagem de origem por linha; ver
-    `monta_fonte`). Rodar cada linguagem sozinha (como `gera_magnetismo` faz)
-    deixa magnetismo travado em 1,0: `unit: language` com 1 linguagem só não
-    tem contra quem competir por atenção. Junto, magnetismo compara as 4 de
-    verdade.
+    `monta_fonte`). Rodar cada linguagem sozinha deixa magnetismo travado em
+    1,0: `unit: language` com 1 linguagem só não tem contra quem competir por
+    atenção, e por isso não existe uma figura de magnetismo por linguagem
+    isolada (não daria nenhuma análise pra tirar). Junto, magnetismo compara
+    as 4 de verdade.
 
     `janela_anos=None` (default): NCR x CCR no último trimestre, stickiness x
     magnetismo no último ano completo, um ponto por linguagem (o valor mais
@@ -1423,7 +1527,6 @@ GERADORES = {
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
     "linha-tempo-4": lambda _pl, ev: gera_linha_tempo_4(ev),
     "projecao": lambda pl, _ev: gera_projecao(pl),
-    "magnetismo": lambda pl, _ev: gera_magnetismo(pl),
     "stickiness-ano": lambda pl, _ev: gera_stickiness_ano(pl),
     "ccr-ncr": lambda pl, _ev: gera_ccr_ncr(pl),
     "fantasmas": lambda _pl, ev: gera_fantasmas(ev),
@@ -1502,7 +1605,17 @@ def main() -> None:
         "trimestre da coleta, e compara com o real. Roda pra --linguagem "
         "escolhida, além do --figuras pedido (não substitui).",
     )
+    ap.add_argument(
+        "--backtest-geral",
+        action="store_true",
+        help="desenha como o erro do backtest evolui por ano-âncora, as 4 "
+        "linguagens num grid 2x2 (lê os CSVs que --backtest-anos já deixou "
+        "em cada subpasta), e sai. Ignora --linguagem/--rodada/--figuras.",
+    )
     args = ap.parse_args()
+    if args.backtest_geral:
+        gera_geral_backtest_evolucao()
+        return
     if args.geral:
         gera_geral_contribuintes()
         gera_geral_contribuintes_evolucao()
