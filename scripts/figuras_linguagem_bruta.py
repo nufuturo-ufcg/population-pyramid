@@ -729,6 +729,67 @@ def gera_projecao(pl: SimpleNamespace) -> None:
     print(f"salvo: {saida}")
 
 
+def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
+    """Mesma projeção coorte-componente de `gera_projecao`, mas ancorada em Q4
+    de `ano_base` (T-1 = Q3, T = Q4, alvo = Q1 do ano seguinte) em vez do
+    último trimestre da coleta: `roda_pipeline`/`escreve_config` já sabem
+    forçar esse corte (`fim_forcado`, criado pra `gera_piramide_comparativa`).
+    Mostra se a taxa de sobrevivência calculada num ponto passado da história
+    ainda acerta o real, não só no trimestre mais recente."""
+    alvo_forcado = pd.Timestamp(f"{ano_base + 1}-03-31")
+    pl = roda_pipeline(eventos, band_months=3, fim_forcado=alvo_forcado)
+    try:
+        df = pl.projection.compute()
+        linha = df[df["scope_id"] == pl.sid]
+        if linha.empty:
+            limiar = pl.config.settings()["projection"]["min_contributors"]
+            print(
+                f"{LING.atual.nome} em {ano_base} (scope_id={pl.sid}) não tem >{limiar} "
+                "contribuidores ativos no snapshot base: fora do critério de elegibilidade.",
+                file=sys.stderr,
+            )
+            return
+        ancoras = pl.snapshots.anchors()
+        alvo_real = pd.Timestamp(ancoras["projection_target"]).date()
+        print(f"\n=== Backtest {ano_base}, {LING.atual.nome} ===")
+        print(
+            f"base T-1: {ancoras['projection_base'][0]}  base T: {ancoras['projection_base'][1]}"
+            f"  alvo: {ancoras['projection_target']}"
+        )
+        resumo = linha.groupby("category")[["abre_cohort", "abre_baseline"]].median()
+        print("mediana do ABRE por categoria (menor = melhor; cohort vs baseline):")
+        print(resumo.to_string())
+
+        CFG.saida.mkdir(parents=True, exist_ok=True)
+        saida_csv = CFG.saida / f"projecao_{LING.atual.slug}_backtest_{ano_base}.csv"
+        linha.to_csv(saida_csv, index=False)
+        print(f"salvo: {saida_csv}")
+
+        todos = linha[linha["category"] == "all"].sort_values("band")
+        n = len(todos)
+        largura = 0.25
+        x = list(range(n))
+        fig, ax = plt.subplots(figsize=(max(7.0, 0.5 * n), 4.5))
+        ax.bar([i - largura for i in x], todos["actual"], largura, color="black", label="real")
+        ax.bar(x, todos["cohort_pred"], largura, color="#3b6fa0", label="previsto (coorte)")
+        ax.bar(
+            [i + largura for i in x],
+            todos["baseline_pred"],
+            largura,
+            color="#aaaaaa",
+            label="previsto (baseline)",
+        )
+        ax.set_xticks(x)
+        ax.set_xticklabels(todos["band"].astype(int))
+        ax.set_xlabel("banda (idade em trimestres)")
+        ax.set_ylabel("contribuidores")
+        ax.set_title(f"{LING.atual.nome}: backtest {ano_base} -> {alvo_real}")
+        ax.legend()
+        _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_{ano_base}.png")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
 def _rotulo(pl: SimpleNamespace) -> str:
     return pl.plots.labels().get(pl.sid, str(pl.sid))
 
@@ -1433,6 +1494,14 @@ def main() -> None:
         "--comparativa), e sai. Carrega as 4 coletas inteiras; ignora "
         "--linguagem/--rodada/--figuras.",
     )
+    ap.add_argument(
+        "--backtest-anos",
+        default="",
+        help="ancora a projeção coorte-componente em Q4 de cada ano da lista "
+        "(separados por vírgula, ex.: 2016,2019,2024) em vez do último "
+        "trimestre da coleta, e compara com o real. Roda pra --linguagem "
+        "escolhida, além do --figuras pedido (não substitui).",
+    )
     args = ap.parse_args()
     if args.geral:
         gera_geral_contribuintes()
@@ -1484,6 +1553,11 @@ def main() -> None:
             GERADORES[nome](pl, eventos)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
+
+    for ano_texto in (a.strip() for a in args.backtest_anos.split(",")):
+        if not ano_texto:
+            continue
+        gera_projecao_backtest(eventos, int(ano_texto))
 
 
 if __name__ == "__main__":
