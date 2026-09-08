@@ -70,6 +70,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import sys
@@ -839,6 +840,65 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     ax.set_title(f"{LING.atual.nome}: contribuintes por ano (total geral, todos os anos: {total})")
     _salva_fig(fig, "contribuintes_por_ano.png")
 
+    _registra_total_geral(total)
+
+
+REGISTRO_GERAL = TMP_BASE / "contribuintes_por_linguagem.json"
+
+
+def _registra_total_geral(total: int) -> None:
+    """Guarda o total de contribuintes desta linguagem num arquivo compartilhado,
+    lido depois por `gera_geral_contribuintes`. Lê e regrava (não é concorrente:
+    cada linguagem roda a própria vez), então uma linguagem não apaga o registro
+    das outras."""
+    registro = {}
+    if REGISTRO_GERAL.exists():
+        registro = json.loads(REGISTRO_GERAL.read_text(encoding="utf-8"))
+    registro[LING.atual.slug] = total
+    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    REGISTRO_GERAL.write_text(json.dumps(registro, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def gera_geral_contribuintes() -> None:
+    """Plot que compara linguagem com linguagem: vai na raiz de `TMP_BASE`, não
+    na subpasta de nenhuma linguagem específica. Lê `REGISTRO_GERAL`, que cada
+    `--figuras contribuintes` (ou `all`) já vai deixando atualizado; não recarrega
+    CSV nenhum."""
+    if not REGISTRO_GERAL.exists():
+        raise SystemExit(
+            f"{REGISTRO_GERAL} não existe ainda. Rode `--figuras contribuintes` "
+            "(ou `all`) em cada linguagem antes de `--geral`."
+        )
+    registro = json.loads(REGISTRO_GERAL.read_text(encoding="utf-8"))
+    faltando = set(LINGUAGENS) - set(registro)
+    if faltando:
+        print(f"aviso: sem registro ainda para {', '.join(sorted(faltando))}", file=sys.stderr)
+
+    itens = sorted(registro.items(), key=lambda kv: -kv[1])
+    slugs = [k for k, _ in itens]
+    valores = [v for _, v in itens]
+    rotulos = [LINGUAGENS[s].nome if s in LINGUAGENS else s for s in slugs]
+
+    fig, ax = plt.subplots(figsize=(max(6.0, 1.2 * len(itens)), 5))
+    ax.bar(rotulos, valores, color="black")
+    for i, v in enumerate(valores):
+        ax.annotate(
+            str(v),
+            (i, v),
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            xytext=(0, 3),
+            textcoords="offset points",
+        )
+    ax.set_ylabel("contribuintes distintos (todos os anos)")
+    ax.set_title("Contribuintes distintos por linguagem")
+    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    caminho = TMP_BASE / "geral_contribuintes_por_linguagem.png"
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
 
 GERADORES = {
     "piramide": lambda _pl, ev: gera_piramide_multi(ev),
@@ -892,7 +952,17 @@ def main() -> None:
         help="quais figuras gerar, separadas por vírgula (default: all). "
         f"Disponíveis: {', '.join(GERADORES)}",
     )
+    ap.add_argument(
+        "--geral",
+        action="store_true",
+        help="em vez de gerar figura de uma linguagem, desenha a comparação "
+        "entre linguagens (lê o registro que --figuras contribuintes já deixou "
+        "atualizado) e sai. Ignora --linguagem/--rodada/--figuras.",
+    )
     args = ap.parse_args()
+    if args.geral:
+        gera_geral_contribuintes()
+        return
     LING.aplica(args.linguagem)
 
     rodada = args.rodada
