@@ -55,9 +55,11 @@ Variáveis de ambiente (sobrepõem o default de cada uma; caminho sobrepõe o qu
 
 Não mexe em `config/` nem `output/` do repo: cada figura roda numa cópia de
 rascunho (`tempfile.mkdtemp`), apagada no fim. A saída vai para fora do
-repositório (`SAIDA_DIR`, default em `~/Documents/`): a coleta não passou pelo
-contrato de adaptador nem pela auditoria de `docs/linguagem/`, então não é
-material para `docs/`.
+repositório, em `~/Documents/pyramid-tmp/clojure/` por default: a coleta não
+passou pelo contrato de adaptador nem pela auditoria de `docs/linguagem/`,
+então não é material para `docs/`. `~/Documents/pyramid-tmp/` é a pasta
+temporária de TODAS as linguagens: cada uma tem a própria subpasta, e um plot
+que compare linguagens (nenhum existe ainda) vai solto ali, fora de subpasta.
 """
 
 from __future__ import annotations
@@ -98,10 +100,19 @@ MAPA_TIPO_R2 = {
 }
 
 
+# Pasta temporária única do projeto, não do dataset: cada linguagem tem a
+# própria subpasta (`clojure/`, e depois `elixir/`, `python/`, ...), pra achar
+# a figura sem lembrar de qual rodada ela veio. Um plot que compare linguagens
+# entre si (nenhum existe ainda) vai direto em `TMP_BASE`, fora de qualquer
+# subpasta, porque não pertence a uma linguagem só.
+TMP_BASE = Path.home() / "Documents" / "pyramid-tmp"
+LINGUAGEM = "clojure"  # este script só fala Clojure; outra linguagem pede outro loader
+
+
 def _caminhos_padrao(rodada: int) -> tuple[Path, Path]:
     sufixo = "first-round" if rodada == 1 else "second-round"
-    dados = ROOT / "data" / f"clojure-{sufixo}"
-    saida = Path.home() / "Documents" / f"pyramid-tmp-clojure-{sufixo}"
+    dados = ROOT / "data" / f"{LINGUAGEM}-{sufixo}"
+    saida = TMP_BASE / LINGUAGEM
     return dados, saida
 
 
