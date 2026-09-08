@@ -311,6 +311,25 @@ def _repos_elegiveis(rodada: int) -> set[str]:
     return set(alvo.loc[mascara, "repo_id"])
 
 
+def _repo_created_at() -> dict[str, pd.Timestamp]:
+    """`repo_id -> createdAt`, do arquivo-alvo (só existe na rodada 2). Usado
+    por `_carrega_git` pra decidir, entre `repo_id` diferentes que carregam o
+    MESMO commit (autor, data e arquivos idênticos: histórico herdado de fork
+    ou clone completo), qual fica com o evento: o repositório criado há mais
+    tempo, mais perto do original. `isFork` não serve pra achar esses casos:
+    achado em Zig, 3 dos 7 `repo_id` que compartilhavam o histórico inicial
+    do compilador `ziglang/zig` vinham marcados `isFork=False` (fork
+    "destacado" da rede do GitHub, ou push manual de um clone completo pra um
+    repositório novo, os dois preservam o histórico sem preservar a marca)."""
+    alvo = pd.read_csv(
+        CFG.dados / f"repositorios_{LING.atual.slug}_alvo.csv", dtype={"repo_id": str}
+    )
+    criado = pd.to_datetime(
+        alvo["createdAt"], utc=True, format="ISO8601", errors="coerce"
+    ).dt.tz_localize(None)
+    return dict(zip(alvo["repo_id"], criado, strict=True))
+
+
 def _e_arquivo_da_linguagem(caminhos: str) -> bool:
     """Ao menos um arquivo tocado tem extensão da linguagem escolhida."""
     if not isinstance(caminhos, str) or not caminhos:
@@ -334,23 +353,83 @@ def _carrega_api(main_lang: dict[str, str]) -> pd.DataFrame:
     return df[["repo_id", "event_type", "identidade", "created_at"]]
 
 
-def _carrega_git(main_lang: dict[str, str]) -> pd.DataFrame:
+def _carrega_git() -> pd.DataFrame:
     """`eventos_git.csv`: só commit, do clone. Sem `language`; decide pela
-    extensão dos arquivos tocados, com fallback pra linguagem principal do
-    repositório quando o commit não toca arquivo nenhum (merge vazio)."""
+    extensão dos arquivos tocados.
+
+    Não tem fallback pra linguagem principal do repositório quando o commit
+    não toca arquivo nenhum (merge vazio, ou lacuna da coleta). Existia um
+    fallback assim; caiu depois de achar o caso `Lukáš Lalinský`/Chromaprint
+    (repo_id 3899291): repositório de 2011, reescrito aos poucos até virar
+    majoritariamente Zig hoje, com um punhado de commit de 2011 sem `files`
+    registrado. O fallback lia "sem arquivo, repositório é Zig hoje" e
+    contava aquele commit de 2011 como atividade Zig, 4 anos antes da
+    linguagem existir. Sem forma de saber que linguagem um commit sem
+    `files` tocou de verdade, a escolha correta é não contar, não chutar
+    pela linguagem atual do repositório.
+
+    Também deduplica commit idêntico (mesmo autor, mesma data, mesmos
+    arquivos) que aparece em `repo_id` diferentes: fork completo ou clone
+    empurrado pra um repositório novo, preservando o histórico do original.
+    Sem isso, o mesmo commit conta uma vez por cópia, e um contribuidor de
+    2015 aparece "ativo" em repositórios criados anos depois. Ver
+    `_repo_created_at`."""
     df = pd.read_csv(CFG.dados / "eventos_git.csv", sep="|", dtype={"repo_id": str})
     df = df[df["author"].notna()].copy()
-    toca_linguagem = df["files"].map(_e_arquivo_da_linguagem)
-    sem_arquivo = df["files"].isna() | (df["files"] == "")
-    fallback_linguagem = sem_arquivo & (df["repo_id"].map(main_lang) == LING.atual.nome)
-    df = df[toca_linguagem | fallback_linguagem]
+    df = df[df["files"].map(_e_arquivo_da_linguagem)]
+
+    df["_criado"] = df["repo_id"].map(_repo_created_at())
+    chave = ["author", "created_at", "files"]
+    mais_antigo = df.groupby(chave)["_criado"].transform("min")
+    duplicado = df["_criado"] > mais_antigo
+    if duplicado.any():
+        print(
+            f"aviso: {int(duplicado.sum())} commits descartados por serem cópia de "
+            "histórico já contado num repositório criado antes (fork completo ou "
+            "clone empurrado pra um repositório novo)",
+            file=sys.stderr,
+        )
+    df = df[~duplicado].drop(columns="_criado")
+
     df = df.rename(columns={"author": "identidade"})
     return df[["repo_id", "event_type", "identidade", "created_at"]]
 
 
 def _carrega_r2() -> pd.DataFrame:
+    """`issue`/`pr` sem `language` (e `issue_comment`/`issue_event`/`pr_comment`,
+    já preenchidos assim pelo próprio coletor) usam a linguagem principal do
+    repositório como fallback: a API não diz em que linguagem uma issue foi
+    aberta, só o repositório sabe. Isso data qualquer issue antiga como sendo
+    da linguagem atual do repositório, mesmo se o repositório só virou
+    majoritariamente Zig/Elixir/... anos depois (achado em Zig: issue de 2014
+    num repositório que só teve o primeiro commit `.zig` de verdade em 2018).
+    Piso: nenhum evento conta pra essa linguagem antes do primeiro commit que
+    de fato toca um arquivo dela, no mesmo repositório. Repositório sem
+    nenhum commit assim (raro, dado o filtro de >50% de participação) fica
+    sem piso, evento nenhum descartado por essa regra."""
     main_lang = _linguagem_principal()
-    return pd.concat([_carrega_api(main_lang), _carrega_git(main_lang)], ignore_index=True)
+    git = _carrega_git()
+    piso_por_repo = (
+        pd.to_datetime(git["created_at"], utc=True, format="ISO8601", errors="coerce")
+        .groupby(git["repo_id"])
+        .min()
+        .dt.tz_localize(None)
+    )
+
+    todos = pd.concat([_carrega_api(main_lang), git], ignore_index=True)
+    timestamp = pd.to_datetime(
+        todos["created_at"], utc=True, format="ISO8601", errors="coerce"
+    ).dt.tz_localize(None)
+    piso = todos["repo_id"].map(piso_por_repo)
+    antes_do_piso = piso.notna() & (timestamp < piso)
+    if antes_do_piso.any():
+        print(
+            f"aviso: {int(antes_do_piso.sum())} eventos descartados por serem anteriores "
+            f"ao primeiro commit que de fato toca {LING.atual.nome} no mesmo repositório "
+            "(issue/pr/comentário datado antes do repositório virar essa linguagem)",
+            file=sys.stderr,
+        )
+    return todos[~antes_do_piso]
 
 
 def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.DataFrame:
@@ -455,13 +534,24 @@ def monta_fonte(eventos: pd.DataFrame) -> type:
     return FonteCSV
 
 
-def _serie_trimestral(eventos: pd.DataFrame) -> pd.DatetimeIndex:
+def _serie_trimestral(
+    eventos: pd.DataFrame, fim_forcado: pd.Timestamp | None = None
+) -> pd.DatetimeIndex:
     inicio = (eventos["timestamp"].min() + pd.offsets.QuarterEnd(0)).normalize()
-    fim = (eventos["timestamp"].max() - pd.offsets.QuarterEnd(1)).normalize()
+    fim = (
+        fim_forcado
+        if fim_forcado is not None
+        else (eventos["timestamp"].max() - pd.offsets.QuarterEnd(1)).normalize()
+    )
     return pd.date_range(inicio, fim, freq="QE")
 
 
-def escreve_config(scratch: Path, eventos: pd.DataFrame, band_months: int) -> None:
+def escreve_config(
+    scratch: Path,
+    eventos: pd.DataFrame,
+    band_months: int,
+    fim_forcado: pd.Timestamp | None = None,
+) -> None:
     alvo = scratch / "config" / "settings.yaml"
     cfg = yaml.safe_load(alvo.read_text(encoding="utf-8"))
     cfg["analysis"]["unit"] = "language"
@@ -470,7 +560,7 @@ def escreve_config(scratch: Path, eventos: pd.DataFrame, band_months: int) -> No
     cfg["periods"]["band_months"] = band_months
     cfg["periods"]["band_days"] = round(band_months * DAYS_PER_MONTH)
 
-    serie = _serie_trimestral(eventos)
+    serie = _serie_trimestral(eventos, fim_forcado)
     cfg["snapshots"]["start"] = str(serie[0].date())
     cfg["snapshots"]["end"] = str(serie[-1].date())
     cfg["snapshots"]["classification_snapshot"] = str(serie[-1].date())
@@ -481,14 +571,18 @@ def escreve_config(scratch: Path, eventos: pd.DataFrame, band_months: int) -> No
     alvo.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
 
-def roda_pipeline(eventos: pd.DataFrame, band_months: int) -> SimpleNamespace:
+def roda_pipeline(
+    eventos: pd.DataFrame, band_months: int, fim_forcado: pd.Timestamp | None = None
+) -> SimpleNamespace:
     """Extract/classify/snapshots/metrics numa config de rascunho.
 
+    `fim_forcado` sobrepõe o último trimestre da série (ver `gera_piramide_comparativa`,
+    que precisa das 4 linguagens no mesmo corte em vez do próprio máximo de cada uma).
     Devolve os módulos e o scope id.
     """
     scratch = Path(tempfile.mkdtemp(prefix="pyr_lang_fig_"))
     shutil.copytree(ROOT / "config", scratch / "config")
-    escreve_config(scratch, eventos, band_months)
+    escreve_config(scratch, eventos, band_months, fim_forcado)
 
     from pyramid import config
 
@@ -957,6 +1051,52 @@ def gera_geral_contribuintes() -> None:
     print(f"salvo: {caminho}")
 
 
+def gera_piramide_comparativa() -> None:
+    """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
+    trimestre completo da linguagem mais atrasada (senão a comparação mistura
+    uma pirâmide "hoje" com outra de meses atrás, e a diferença de forma pode
+    ser só isso). Mesma metodologia da pirâmide avulsa (table1, banda 3 meses);
+    só o corte final muda. Vai na raiz de `TMP_BASE`, como qualquer geral."""
+    rodada = 2
+    eventos_por_lingua: dict[str, pd.DataFrame] = {}
+    fim_natural: dict[str, pd.Timestamp] = {}
+    for slug in LINGUAGENS:
+        LING.aplica(slug)
+        CFG.aplica(rodada)
+        ev = carrega_eventos(rodada)
+        eventos_por_lingua[slug] = ev
+        fim_natural[slug] = _serie_trimestral(ev)[-1]
+
+    fim_comum = min(fim_natural.values())
+    atrasada = min(fim_natural, key=fim_natural.get)
+    print(
+        f"corte comum: {fim_comum.date()} (definido por {LINGUAGENS[atrasada].nome}, "
+        "a linguagem com o trimestre mais atrasado)",
+        file=sys.stderr,
+    )
+
+    fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
+    for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
+        LING.aplica(slug)
+        CFG.aplica(rodada)
+        pl = roda_pipeline(eventos_por_lingua[slug], band_months=3, fim_forcado=fim_comum)
+        try:
+            caminho = pl.plots.figure_pyramid(pl.sid)
+            eixo.imshow(plt.imread(caminho))
+            eixo.axis("off")
+            eixo.set_title(LING.atual.nome)
+        finally:
+            shutil.rmtree(pl.scratch, ignore_errors=True)
+
+    fig.suptitle(f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()})", fontsize=14)
+    fig.tight_layout()
+    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    caminho = TMP_BASE / "piramides_por_linguagem_mesmo_corte.png"
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 GERADORES = {
     "piramide": lambda _pl, ev: gera_piramide_multi(ev),
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
@@ -1016,9 +1156,19 @@ def main() -> None:
         "entre linguagens (lê o registro que --figuras contribuintes já deixou "
         "atualizado) e sai. Ignora --linguagem/--rodada/--figuras.",
     )
+    ap.add_argument(
+        "--comparativa",
+        action="store_true",
+        help="desenha as 4 pirâmides lado a lado, todas cortadas no mesmo "
+        "trimestre (o mais atrasado das 4), e sai. Carrega as 4 coletas "
+        "inteiras; ignora --linguagem/--rodada/--figuras.",
+    )
     args = ap.parse_args()
     if args.geral:
         gera_geral_contribuintes()
+        return
+    if args.comparativa:
+        gera_piramide_comparativa()
         return
     LING.aplica(args.linguagem)
 
