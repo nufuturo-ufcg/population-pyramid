@@ -268,6 +268,49 @@ def _linguagem_principal() -> dict[str, str]:
     return dict(zip(alvo["repo_id"], alvo["mainLanguage"], strict=True))
 
 
+# Um repositório "wrapper" (ex.: allyourcodebase/nasm, que empacota o NASM com
+# um build.zig por cima) tem `mainLanguage: Zig` pro GitHub, mas 0,21% do
+# código é Zig de verdade: o resto é o histórico inteiro do projeto que ele
+# empacota, importado junto. Sem esse corte, esse histórico alheio (de antes
+# da linguagem escolhida sequer existir, no caso do NASM) entra na amostra
+# inteiro. Limiar de maioria simples: mais da metade do código do repositório
+# tem que ser da linguagem escolhida.
+LIMIAR_SHARE_LINGUAGEM = 0.5
+
+
+def _repos_elegiveis(rodada: int) -> set[str]:
+    """`repo_id` cujo repositório tem mais de `LIMIAR_SHARE_LINGUAGEM` do
+    código na linguagem escolhida. Rodada 1 já traz a fração pronta
+    (`clojure_ratio`); rodada 2 traz o mapa completo de bytes por linguagem
+    (`languages`, JSON) e a fração é calculada aqui."""
+    alvo = pd.read_csv(
+        CFG.dados / f"repositorios_{LING.atual.slug}_alvo.csv", dtype={"repo_id": str}
+    )
+    if rodada == 1:
+        participacao = alvo["clojure_ratio"]
+    else:
+
+        def _participacao(linguagens_json: str) -> float:
+            try:
+                mapa = json.loads(linguagens_json)
+            except (TypeError, ValueError):
+                return 0.0
+            total = sum(mapa.values())
+            return mapa.get(LING.atual.nome, 0) / total if total else 0.0
+
+        participacao = alvo["languages"].map(_participacao)
+
+    mascara = participacao > LIMIAR_SHARE_LINGUAGEM
+    excluidos = int((~mascara).sum())
+    if excluidos:
+        print(
+            f"aviso: {excluidos} repositórios excluídos por terem <= "
+            f"{LIMIAR_SHARE_LINGUAGEM:.0%} de {LING.atual.nome} no código",
+            file=sys.stderr,
+        )
+    return set(alvo.loc[mascara, "repo_id"])
+
+
 def _e_arquivo_da_linguagem(caminhos: str) -> bool:
     """Ao menos um arquivo tocado tem extensão da linguagem escolhida."""
     if not isinstance(caminhos, str) or not caminhos:
@@ -359,7 +402,17 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
     if descartados:
         print(f"aviso: {descartados} eventos com data ilegível descartados", file=sys.stderr)
     df["timestamp"] = timestamp.dt.tz_localize(None)
-    df = df[df["timestamp"] >= "2008-01-01"]  # 1 evento corrompido (2001), achado na rodada 1
+    # Piso: 1 evento corrompido (2001), achado na rodada 1. Teto: relógio do
+    # computador de quem commitou estava errado (achado na coleta de Python,
+    # 6 eventos com data em 2030/2037). Sem o teto, esse punhado de outlier
+    # estica a série de trimestre pra anos que ainda não existem, e a última
+    # data da série (usada como "agora" pra classificar a pirâmide inteira)
+    # passa a ser um ano no futuro em vez do último dado de verdade.
+    agora = pd.Timestamp.now()
+    futuros = int((df["timestamp"] > agora).sum())
+    if futuros:
+        print(f"aviso: {futuros} eventos com data no futuro descartados", file=sys.stderr)
+    df = df[(df["timestamp"] >= "2008-01-01") & (df["timestamp"] <= agora)]
     df["contributor_id"] = df["identidade"].map(_id_estavel)
     df["scope_id"] = df["repo_id"].map(_id_estavel)
     return df[["scope_id", "contributor_id", "event_type", "timestamp", "repo_id"]].reset_index(
@@ -368,9 +421,13 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
 
 
 def carrega_eventos(rodada: int = RODADA) -> pd.DataFrame:
+    elegiveis = _repos_elegiveis(rodada)
     if rodada == 1:
-        return _finaliza_eventos(_carrega_r1(), MAPA_TIPO_R1)
-    return _finaliza_eventos(_carrega_r2(), MAPA_TIPO_R2)
+        bruto, mapa_tipo = _carrega_r1(), MAPA_TIPO_R1
+    else:
+        bruto, mapa_tipo = _carrega_r2(), MAPA_TIPO_R2
+    bruto = bruto[bruto["repo_id"].isin(elegiveis)]
+    return _finaliza_eventos(bruto, mapa_tipo)
 
 
 def monta_fonte(eventos: pd.DataFrame) -> type:
