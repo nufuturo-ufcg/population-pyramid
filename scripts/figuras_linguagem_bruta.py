@@ -510,10 +510,21 @@ def carrega_eventos(rodada: int = RODADA) -> pd.DataFrame:
 
 
 def monta_fonte(eventos: pd.DataFrame) -> type:
+    """`eventos["idioma"]`, quando presente, dá a linguagem por LINHA (não a
+    global `LING.atual.nome`): é o que permite `gera_comparacao_linguagens`
+    juntar as 4 coletas numa fonte só e deixar `unit: language` (`_por_linguagem`
+    em `units.py`) somar os escopos de cada linguagem de verdade, no lugar de
+    marcar tudo com uma linguagem só. Ausente (todo uso de uma linguagem por
+    vez), cai no comportamento de sempre."""
     from pyramid.sources.base import ActivityDataSource
 
     por_repo = {sid: g for sid, g in eventos.groupby("scope_id")}
     rotulo = eventos.drop_duplicates("scope_id").set_index("scope_id")["repo_id"].to_dict()
+    idioma = (
+        eventos.drop_duplicates("scope_id").set_index("scope_id")["idioma"].to_dict()
+        if "idioma" in eventos.columns
+        else None
+    )
 
     class FonteCSV(ActivityDataSource):
         def list_scopes(self) -> list[int]:
@@ -527,7 +538,7 @@ def monta_fonte(eventos: pd.DataFrame) -> type:
             g = por_repo[scope_id]
             return {
                 "label": rotulo[scope_id],
-                "language": LING.atual.nome,
+                "language": idioma[scope_id] if idioma else LING.atual.nome,
                 "created_at": g["timestamp"].min(),
             }
 
@@ -795,6 +806,13 @@ def gera_ccr_ncr(pl: SimpleNamespace) -> None:
     ax.set_title(f"{_rotulo(pl)}: CCR x NCR por trimestre")
     _salva_fig(fig, f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.png")
 
+    # CSV ao lado do PNG: sem isso, comparar CCR/NCR entre linguagens
+    # (`gera_geral_ccr_ncr`) precisaria rodar o pipeline de novo pra cada
+    # linguagem só pra reler o que essa figura já calculou.
+    caminho_csv = CFG.saida / f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.csv"
+    df[["snapshot", "ccr", "ncr", "type"]].to_csv(caminho_csv, index=False)
+    print(f"salvo: {caminho_csv}")
+
 
 def gera_fantasmas(ev: pd.DataFrame) -> None:  # noqa: ARG001
     """Lê o CSV que `carrega_eventos` já gravou e desenha a barra. Não recalcula."""
@@ -1051,19 +1069,78 @@ def gera_geral_contribuintes() -> None:
     print(f"salvo: {caminho}")
 
 
+CORES_LINGUAGEM = {
+    "clojure": "#5881d8",
+    "elixir": "#8250df",
+    "zig": "#f7a41d",
+    "python": "#2f9e44",
+}
+
+
+def gera_geral_ccr_ncr() -> None:
+    """CCR x NCR das 4 linguagens no mesmo plano, uma cor por linguagem. Lê o
+    CSV que `--figuras ccr-ncr` (ou `all`) já deixou em cada subpasta; não
+    recalcula nada."""
+    partes = []
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / f"tipos_ccr_ncr_{slug}_metodologia.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv)
+        df["linguagem"] = linguagem.nome
+        partes.append(df)
+    if faltando:
+        print(
+            f"aviso: sem CSV de CCR/NCR ainda para {', '.join(sorted(faltando))}", file=sys.stderr
+        )
+    if not partes:
+        raise SystemExit(
+            "nenhum tipos_ccr_ncr_*_metodologia.csv encontrado. Rode `--figuras "
+            "ccr-ncr` (ou `all`) em cada linguagem antes."
+        )
+    todos = pd.concat(partes, ignore_index=True)
+
+    fig, ax = plt.subplots(figsize=(8.0, 7.0))
+    ax.axhline(0, color="#888888", lw=0.7)
+    ax.axvline(0, color="#888888", lw=0.7)
+    for slug, grupo in todos.groupby("linguagem"):
+        ax.scatter(
+            grupo["ccr"],
+            grupo["ncr"],
+            color=CORES_LINGUAGEM.get(next(k for k, v in LINGUAGENS.items() if v.nome == slug)),
+            s=18,
+            alpha=0.65,
+            label=slug,
+        )
+    ax.set_xlabel("CCR")
+    ax.set_ylabel("NCR")
+    ax.set_title("CCR x NCR por trimestre, 4 linguagens")
+    ax.legend(loc="best", fontsize=9)
+    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    caminho = TMP_BASE / "geral_ccr_ncr_por_linguagem.png"
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def gera_piramide_comparativa() -> None:
     """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
     trimestre completo da linguagem mais atrasada (senão a comparação mistura
     uma pirâmide "hoje" com outra de meses atrás, e a diferença de forma pode
-    ser só isso). Mesma metodologia da pirâmide avulsa (table1, banda 3 meses);
-    só o corte final muda. Vai na raiz de `TMP_BASE`, como qualquer geral."""
+    ser só isso). Mesma metodologia da pirâmide avulsa; o corte final é comum
+    às 4, e roda uma vez por valor de `BANDAS_MESES_PIRAMIDE` (default: 3 meses
+    "com quarter" e 12 meses "sem quarter", mesma convenção de
+    `gera_piramide_multi`). Vai na raiz de `TMP_BASE`, como qualquer geral."""
     rodada = 2
     eventos_por_lingua: dict[str, pd.DataFrame] = {}
     fim_natural: dict[str, pd.Timestamp] = {}
-    for slug in LINGUAGENS:
+    for slug, linguagem in LINGUAGENS.items():
         LING.aplica(slug)
         CFG.aplica(rodada)
-        ev = carrega_eventos(rodada)
+        ev = carrega_eventos(rodada).copy()
+        ev["idioma"] = linguagem.nome
         eventos_por_lingua[slug] = ev
         fim_natural[slug] = _serie_trimestral(ev)[-1]
 
@@ -1075,26 +1152,105 @@ def gera_piramide_comparativa() -> None:
         file=sys.stderr,
     )
 
-    fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
-    for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
-        LING.aplica(slug)
-        CFG.aplica(rodada)
-        pl = roda_pipeline(eventos_por_lingua[slug], band_months=3, fim_forcado=fim_comum)
-        try:
-            caminho = pl.plots.figure_pyramid(pl.sid)
-            eixo.imshow(plt.imread(caminho))
-            eixo.axis("off")
-            eixo.set_title(LING.atual.nome)
-        finally:
-            shutil.rmtree(pl.scratch, ignore_errors=True)
+    for banda_meses in BANDAS_MESES_PIRAMIDE:
+        fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
+        for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
+            LING.aplica(slug)
+            CFG.aplica(rodada)
+            pl = roda_pipeline(
+                eventos_por_lingua[slug], band_months=banda_meses, fim_forcado=fim_comum
+            )
+            try:
+                caminho = pl.plots.figure_pyramid(pl.sid)
+                eixo.imshow(plt.imread(caminho))
+                eixo.axis("off")
+                eixo.set_title(LING.atual.nome)
+            finally:
+                shutil.rmtree(pl.scratch, ignore_errors=True)
 
-    fig.suptitle(f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()})", fontsize=14)
-    fig.tight_layout()
-    TMP_BASE.mkdir(parents=True, exist_ok=True)
-    caminho = TMP_BASE / "piramides_por_linguagem_mesmo_corte.png"
-    fig.savefig(caminho, dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    print(f"salvo: {caminho}")
+        rotulo = "comquarter" if banda_meses == 3 else "semquarter"
+        fig.suptitle(
+            f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
+            f"banda {banda_meses}m",
+            fontsize=14,
+        )
+        fig.tight_layout()
+        TMP_BASE.mkdir(parents=True, exist_ok=True)
+        caminho = TMP_BASE / f"piramides_por_linguagem_mesmo_corte_{rotulo}_banda{banda_meses}m.png"
+        fig.savefig(caminho, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"salvo: {caminho}")
+
+    gera_comparacao_metricas_linguagens(eventos_por_lingua)
+
+
+def gera_comparacao_metricas_linguagens(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
+    """CCR/NCR e magnetismo/stickiness com a LINGUAGEM como unidade, um ponto
+    por linguagem, dentro do MESMO pipeline (as 4 juntas numa fonte só, com
+    `eventos["idioma"]` dizendo a linguagem de origem por linha; ver
+    `monta_fonte`). Rodar cada linguagem sozinha (como `gera_magnetismo` faz)
+    deixa magnetismo travado em 1,0: `unit: language` com 1 linguagem só não
+    tem contra quem competir por atenção. Junto, magnetismo compara as 4 de
+    verdade. Dois painéis: NCR x CCR no último trimestre, stickiness x
+    magnetismo no último ano; cada um com 4 pontos rotulados."""
+    from pyramid import units
+
+    eventos = pd.concat(eventos_por_lingua.values(), ignore_index=True)
+    pl = roda_pipeline(eventos, band_months=3)
+    try:
+        ids_por_nome = {v.nome: units.id_da_linguagem(v.nome) for v in LINGUAGENS.values()}
+        cores = {v.nome: CORES_LINGUAGEM[k] for k, v in LINGUAGENS.items()}
+
+        ccr_ncr = pl.metrics.load_all()
+        ultimo_snap = ccr_ncr["snapshot"].max()
+        ccr_ncr = ccr_ncr[
+            (ccr_ncr["snapshot"] == ultimo_snap) & ccr_ncr["scope_id"].isin(ids_por_nome.values())
+        ].dropna(subset=["ccr", "ncr"])
+
+        pares, cobertura = pl.attractiveness.activity(scopes=list(ids_por_nome.values()))
+        anual = pl.attractiveness.annual(pares, coverage_end=cobertura).dropna(
+            subset=["magnetism", "stickiness"]
+        )
+        # Último ano só depois do dropna: o ano corrente vem incompleto (mesmo
+        # aviso de `attractiveness` sobre a stickiness de dezembro) e magnetismo/
+        # stickiness saem NaN nele pras 4 linguagens, o que deixava esse painel
+        # vazio antes desse ajuste.
+        ultimo_ano = anual["year"].max()
+        anual = anual[anual["year"] == ultimo_ano]
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 6))
+        ax1.axhline(0, color="#888888", lw=0.7)
+        ax1.axvline(0, color="#888888", lw=0.7)
+        for nome, sid in ids_por_nome.items():
+            linha = ccr_ncr[ccr_ncr["scope_id"] == sid]
+            if linha.empty:
+                continue
+            x, y = linha["ncr"].iloc[0], linha["ccr"].iloc[0]
+            ax1.scatter(x, y, color=cores[nome], s=70, zorder=3)
+            ax1.annotate(nome, (x, y), fontsize=9, xytext=(6, 6), textcoords="offset points")
+        ax1.set_xlabel("NCR")
+        ax1.set_ylabel("CCR")
+        ax1.set_title(f"CCR x NCR por linguagem ({pd.Timestamp(ultimo_snap).date()})")
+
+        for nome, sid in ids_por_nome.items():
+            linha = anual[anual["scope_id"] == sid]
+            if linha.empty:
+                continue
+            x, y = linha["stickiness"].iloc[0], linha["magnetism"].iloc[0]
+            ax2.scatter(x, y, color=cores[nome], s=70, zorder=3)
+            ax2.annotate(nome, (x, y), fontsize=9, xytext=(6, 6), textcoords="offset points")
+        ax2.set_xlabel("stickiness")
+        ax2.set_ylabel("magnetismo")
+        ax2.set_title(f"magnetismo x stickiness por linguagem ({int(ultimo_ano)})")
+
+        fig.suptitle("As 4 linguagens como unidade de análise, competindo entre si", fontsize=13)
+        TMP_BASE.mkdir(parents=True, exist_ok=True)
+        caminho = TMP_BASE / "geral_ccr_ncr_magnetismo_stickiness_por_linguagem.png"
+        fig.savefig(caminho, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"salvo: {caminho}")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
 GERADORES = {
@@ -1152,9 +1308,10 @@ def main() -> None:
     ap.add_argument(
         "--geral",
         action="store_true",
-        help="em vez de gerar figura de uma linguagem, desenha a comparação "
-        "entre linguagens (lê o registro que --figuras contribuintes já deixou "
-        "atualizado) e sai. Ignora --linguagem/--rodada/--figuras.",
+        help="em vez de gerar figura de uma linguagem, desenha as comparações "
+        "entre linguagens: contribuintes distintos (lê o registro que --figuras "
+        "contribuintes já deixou atualizado) e CCR x NCR (lê o CSV que --figuras "
+        "ccr-ncr já deixou atualizado). Sai depois. Ignora --linguagem/--rodada/--figuras.",
     )
     ap.add_argument(
         "--comparativa",
@@ -1166,6 +1323,7 @@ def main() -> None:
     args = ap.parse_args()
     if args.geral:
         gera_geral_contribuintes()
+        gera_geral_ccr_ncr()
         return
     if args.comparativa:
         gera_piramide_comparativa()
