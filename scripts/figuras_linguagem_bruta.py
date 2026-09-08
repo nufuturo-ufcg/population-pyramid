@@ -1,21 +1,24 @@
 #!/usr/bin/env python
-"""Gera as figuras da pirâmide de Clojure a partir de uma coleta bruta em CSV.
+"""Gera as figuras da pirâmide de uma linguagem a partir de uma coleta bruta em CSV.
 
-    .venv/bin/python scripts/figuras_clojure.py
-    .venv/bin/python scripts/figuras_clojure.py --rodada 1
-    .venv/bin/python scripts/figuras_clojure.py --figuras piramide,abandono
+    .venv/bin/python scripts/figuras_linguagem_bruta.py
+    .venv/bin/python scripts/figuras_linguagem_bruta.py --linguagem elixir
+    .venv/bin/python scripts/figuras_linguagem_bruta.py --linguagem clojure --rodada 1
+    .venv/bin/python scripts/figuras_linguagem_bruta.py --figuras piramide,abandono
 
 A coleta ainda não fala o contrato `ActivityDataSource` (é CSV cru de um
 coletor externo, não o adaptador `ghapi`): este script traduz na hora, com uma
 fonte descartável (`FonteCSV`, dentro de `monta_fonte`) que nunca é gravada em
-disco. Duas coletas já apareceram, com formato diferente, escolhidas por
-`--rodada`:
+disco. `--linguagem` escolhe qual coleta ler (ver `LINGUAGENS` abaixo pra
+extensão de arquivo e nome exato usado no dado). Só Clojure já teve duas
+coletas com formato diferente, escolhidas por `--rodada`:
 
   --rodada 1  `eventos_repositorios.csv`, um arquivo só, 3 tipos de evento
-              (commit, issue, pr). Coleta antiga, ~1000 repositórios.
+              (commit, issue, pr). Coleta antiga, ~1000 repositórios. Só existe
+              para Clojure.
   --rodada 2  `eventos_api.csv` + `eventos_git.csv`, pipe-delimitado, 7 tipos
-              de evento. Coleta corrente, ~7500 repositórios, ainda em
-              andamento (ver `data/clojure-second-round/reports/`). Default.
+              de evento. Formato corrente, o único que Elixir e Zig têm.
+              Default.
 
 Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
   piramide       pirâmide avulsa (table1, janela 3 meses), uma por valor de
@@ -37,10 +40,11 @@ Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
   contribuintes  contribuinte distinto por ano
 
 Variáveis de ambiente (sobrepõem o default de cada uma; caminho sobrepõe o que
-`--rodada` escolheria):
+`--linguagem`/`--rodada` escolheriam):
+  LINGUAGEM            clojure | elixir | zig (default: clojure; equivalente a `--linguagem`)
   RODADA               1 ou 2 (default: 2; equivalente a `--rodada`)
-  DADOS_DIR            pasta da coleta (default: depende de RODADA)
-  SAIDA_DIR            pasta de saída (default: depende de RODADA)
+  DADOS_DIR            pasta da coleta (default: depende de LINGUAGEM/RODADA)
+  SAIDA_DIR            pasta de saída (default: depende de LINGUAGEM)
   FIGURAS              quais gerar (default: all; equivalente a `--figuras`)
   ULTIMOS_ANOS         janela da linha-tempo automática (default: 20)
   PASSO_ANOS           espaçamento da linha-tempo automática (default: 2)
@@ -55,8 +59,8 @@ Variáveis de ambiente (sobrepõem o default de cada uma; caminho sobrepõe o qu
 
 Não mexe em `config/` nem `output/` do repo: cada figura roda numa cópia de
 rascunho (`tempfile.mkdtemp`), apagada no fim. A saída vai para fora do
-repositório, em `~/Documents/pyramid-tmp/clojure/` por default: a coleta não
-passou pelo contrato de adaptador nem pela auditoria de `docs/linguagem/`,
+repositório, em `~/Documents/pyramid-tmp/<linguagem>/` por default: a coleta
+não passou pelo contrato de adaptador nem pela auditoria de `docs/linguagem/`,
 então não é material para `docs/`. `~/Documents/pyramid-tmp/` é a pasta
 temporária de TODAS as linguagens: cada uma tem a própria subpasta, e um plot
 que compare linguagens (nenhum existe ainda) vai solto ali, fora de subpasta.
@@ -70,6 +74,7 @@ import os
 import shutil
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -84,10 +89,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 DAYS_PER_MONTH = 30.4375
-EXT_CLOJURE = (".clj", ".cljs", ".cljc", ".cljx", ".edn", ".bb")
 
 # Cada rodada de coleta tem o próprio enum de tipo bruto -> canônico. A rodada
 # 1 só tinha 3 tipos; a 2 trouxe os 7 do contrato (ver docs/ferramenta/FONTES.md).
+# Isso é do FORMATO da coleta, não da linguagem: as duas tabelas valem pra
+# qualquer `--linguagem`.
 MAPA_TIPO_R1 = {"commit": "commits", "issue": "issues", "pr": "pull_requests"}
 MAPA_TIPO_R2 = {
     "commit": "commits",
@@ -100,19 +106,58 @@ MAPA_TIPO_R2 = {
 }
 
 
+@dataclass(frozen=True)
+class Linguagem:
+    """O que muda de uma linguagem pra outra: nada de método, só esses 4 fatos."""
+
+    nome: str  # valor exato em `language`/`mainLanguage` no CSV (github-linguist)
+    slug: str  # nome de pasta e de arquivo (minúsculo, sem espaço)
+    extensoes: tuple[str, ...]  # extensão de arquivo-fonte, pro fallback do commit sem `language`
+    tem_rodada_1: bool  # só Clojure teve uma coleta no formato antigo (3 tipos, 1 arquivo só)
+
+
+_EXT_CLOJURE = (".clj", ".cljs", ".cljc", ".cljx", ".edn", ".bb")
+LINGUAGENS = {
+    "clojure": Linguagem("Clojure", "clojure", _EXT_CLOJURE, True),
+    "elixir": Linguagem("Elixir", "elixir", (".ex", ".exs"), False),
+    "zig": Linguagem("Zig", "zig", (".zig",), False),
+    "python": Linguagem("Python", "python", (".py", ".pyw", ".pyi"), False),
+}
+
+
+class _EstadoLinguagem:
+    """Linguagem escolhida, mutável por `--linguagem` (atributo, não `global`:
+    mesmo padrão de `_Config` logo abaixo)."""
+
+    def aplica(self, slug: str) -> None:
+        if slug not in LINGUAGENS:
+            raise SystemExit(f"--linguagem desconhecida: {slug!r}. Use: {', '.join(LINGUAGENS)}")
+        self.atual = LINGUAGENS[slug]
+
+
+LING = _EstadoLinguagem()
+LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
+
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
-# própria subpasta (`clojure/`, e depois `elixir/`, `python/`, ...), pra achar
-# a figura sem lembrar de qual rodada ela veio. Um plot que compare linguagens
-# entre si (nenhum existe ainda) vai direto em `TMP_BASE`, fora de qualquer
-# subpasta, porque não pertence a uma linguagem só.
+# própria subpasta (`clojure/`, `elixir/`, `zig/`, ...), pra achar a figura sem
+# lembrar de qual rodada ela veio. Um plot que compare linguagens entre si
+# (nenhum existe ainda) vai direto em `TMP_BASE`, fora de qualquer subpasta.
 TMP_BASE = Path.home() / "Documents" / "pyramid-tmp"
-LINGUAGEM = "clojure"  # este script só fala Clojure; outra linguagem pede outro loader
 
 
 def _caminhos_padrao(rodada: int) -> tuple[Path, Path]:
-    sufixo = "first-round" if rodada == 1 else "second-round"
-    dados = ROOT / "data" / f"{LINGUAGEM}-{sufixo}"
-    saida = TMP_BASE / LINGUAGEM
+    # "rodada" é o formato do dado (1 = arquivo único antigo, 2 = api+git
+    # split). Só Clojure já foi coletada duas vezes com formato diferente, e
+    # por coincidência o nome da pasta de cada coleta bate com o número da
+    # rodada. Elixir e Zig só têm uma coleta cada (sempre no formato 2), e ela
+    # se chama "first-round" mesmo sendo formato 2: "first" conta coleta, não
+    # formato.
+    if LING.atual.tem_rodada_1:
+        sufixo = "first-round" if rodada == 1 else "second-round"
+    else:
+        sufixo = "first-round"
+    dados = ROOT / "data" / f"{LING.atual.slug}-{sufixo}"
+    saida = TMP_BASE / LING.atual.slug
     return dados, saida
 
 
@@ -192,7 +237,9 @@ def candidatos_mesma_pessoa(df: pd.DataFrame) -> dict[str, str]:
 def _salva_fantasmas_por_ano(fantasmas: pd.DataFrame) -> None:
     """Não entram na pirâmide (não são uma pessoa rastreável), mas ficam
     registrados: quantos eventos de conta apagada por ano, à parte."""
-    ts = pd.to_datetime(fantasmas["created_at"], utc=True, format="ISO8601").dt.tz_localize(None)
+    ts = pd.to_datetime(
+        fantasmas["created_at"], utc=True, format="ISO8601", errors="coerce"
+    ).dt.tz_localize(None)
     por_ano = ts.dt.year.value_counts().sort_index()
     CFG.saida.mkdir(parents=True, exist_ok=True)
     caminho = CFG.saida / "fantasmas_por_ano.csv"
@@ -214,15 +261,17 @@ def _carrega_r1() -> pd.DataFrame:
 
 def _linguagem_principal() -> dict[str, str]:
     """`repo_id -> mainLanguage`, do arquivo-alvo da coleta (rodada 2)."""
-    alvo = pd.read_csv(CFG.dados / "repositorios_clojure_alvo.csv", dtype={"repo_id": str})
+    alvo = pd.read_csv(
+        CFG.dados / f"repositorios_{LING.atual.slug}_alvo.csv", dtype={"repo_id": str}
+    )
     return dict(zip(alvo["repo_id"], alvo["mainLanguage"], strict=True))
 
 
-def _e_clojure(caminhos: str) -> bool:
-    """Ao menos um arquivo tocado tem extensão Clojure."""
+def _e_arquivo_da_linguagem(caminhos: str) -> bool:
+    """Ao menos um arquivo tocado tem extensão da linguagem escolhida."""
     if not isinstance(caminhos, str) or not caminhos:
         return False
-    return any(p.lower().endswith(EXT_CLOJURE) for p in caminhos.split(";"))
+    return any(p.lower().endswith(LING.atual.extensoes) for p in caminhos.split(";"))
 
 
 def _carrega_api(main_lang: dict[str, str]) -> pd.DataFrame:
@@ -236,7 +285,7 @@ def _carrega_api(main_lang: dict[str, str]) -> pd.DataFrame:
     df = pd.read_csv(CFG.dados / "eventos_api.csv", sep="|", dtype={"repo_id": str})
     df = df[df["author_login"].notna()].copy()
     df["language"] = df["language"].fillna(df["repo_id"].map(main_lang))
-    df = df[df["language"] == "Clojure"]
+    df = df[df["language"] == LING.atual.nome]
     df = df.rename(columns={"author_login": "identidade"})
     return df[["repo_id", "event_type", "identidade", "created_at"]]
 
@@ -247,10 +296,10 @@ def _carrega_git(main_lang: dict[str, str]) -> pd.DataFrame:
     repositório quando o commit não toca arquivo nenhum (merge vazio)."""
     df = pd.read_csv(CFG.dados / "eventos_git.csv", sep="|", dtype={"repo_id": str})
     df = df[df["author"].notna()].copy()
-    toca_clojure = df["files"].map(_e_clojure)
+    toca_linguagem = df["files"].map(_e_arquivo_da_linguagem)
     sem_arquivo = df["files"].isna() | (df["files"] == "")
-    fallback_clojure = sem_arquivo & (df["repo_id"].map(main_lang) == "Clojure")
-    df = df[toca_clojure | fallback_clojure]
+    fallback_linguagem = sem_arquivo & (df["repo_id"].map(main_lang) == LING.atual.nome)
+    df = df[toca_linguagem | fallback_linguagem]
     df = df.rename(columns={"author": "identidade"})
     return df[["repo_id", "event_type", "identidade", "created_at"]]
 
@@ -299,9 +348,16 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
 
     df["event_type"] = df["event_type"].map(mapa_tipo)
     df = df[df["event_type"].notna()]
-    df["timestamp"] = pd.to_datetime(df["created_at"], utc=True, format="ISO8601").dt.tz_localize(
-        None
-    )
+    # `errors="coerce"`: uma coleta em andamento pode deixar linha cortada no
+    # meio da escrita, com o literal do formato do `git log` (`%aI`) vazando
+    # pra dentro da data em vez de uma data de verdade. Isso vira `NaT` em vez
+    # de derrubar a carga inteira, e o filtro de 2008 abaixo já descarta `NaT`
+    # (comparação com `NaT` é sempre falsa).
+    timestamp = pd.to_datetime(df["created_at"], utc=True, format="ISO8601", errors="coerce")
+    descartados = timestamp.isna().sum()
+    if descartados:
+        print(f"aviso: {descartados} eventos com data ilegível descartados", file=sys.stderr)
+    df["timestamp"] = timestamp.dt.tz_localize(None)
     df = df[df["timestamp"] >= "2008-01-01"]  # 1 evento corrompido (2001), achado na rodada 1
     df["contributor_id"] = df["identidade"].map(_id_estavel)
     df["scope_id"] = df["repo_id"].map(_id_estavel)
@@ -334,7 +390,7 @@ def monta_fonte(eventos: pd.DataFrame) -> type:
             g = por_repo[scope_id]
             return {
                 "label": rotulo[scope_id],
-                "language": "Clojure",
+                "language": LING.atual.nome,
                 "created_at": g["timestamp"].min(),
             }
 
@@ -407,7 +463,7 @@ def roda_pipeline(eventos: pd.DataFrame, band_months: int) -> SimpleNamespace:
         if res.get("failed"):
             raise SystemExit(f"{estagio.STAGE} falhou: {res['failed']}")
 
-    sid = units.id_da_linguagem("Clojure")
+    sid = units.id_da_linguagem(LING.atual.nome)
     return SimpleNamespace(
         config=config,
         plots=plots,
@@ -445,7 +501,8 @@ def gera_piramide_multi(eventos: pd.DataFrame) -> None:
         try:
             caminho = pl.plots.figure_pyramid(pl.sid)
             rotulo = "comquarter" if banda_meses == 3 else "semquarter"
-            _salva(caminho, f"piramide_clojure_metodologia_{rotulo}_banda{banda_meses}m.png")
+            nome = f"piramide_{LING.atual.slug}_metodologia_{rotulo}_banda{banda_meses}m.png"
+            _salva(caminho, nome)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
 
@@ -454,7 +511,8 @@ def gera_linha_tempo(pl: SimpleNamespace) -> None:
     caminho = pl.plots.figure_pyramid_timeline(
         pl.sid, ultimos_anos=ULTIMOS_ANOS, passo_anos=PASSO_ANOS
     )
-    _salva(caminho, f"linha_do_tempo_clojure_metodologia_{ULTIMOS_ANOS}anos_passo{PASSO_ANOS}.png")
+    nome = f"linha_do_tempo_{LING.atual.slug}_metodologia_{ULTIMOS_ANOS}anos_passo{PASSO_ANOS}.png"
+    _salva(caminho, nome)
 
 
 def gera_linha_tempo_4(eventos: pd.DataFrame) -> None:
@@ -468,10 +526,11 @@ def gera_linha_tempo_4(eventos: pd.DataFrame) -> None:
         pl.config.settings.cache_clear()
         caminho = pl.plots.figure_pyramid_timeline(pl.sid, anos=ANOS_ESCOLHIDOS)
         anos_txt = "-".join(str(a) for a in ANOS_ESCOLHIDOS)
-        _salva(
-            caminho,
-            f"linha_do_tempo_clojure_4anos_{anos_txt}_banda{BANDA_ANOS_TIMELINE}a_janela{janela}m.png",
+        nome = (
+            f"linha_do_tempo_{LING.atual.slug}_4anos_{anos_txt}"
+            f"_banda{BANDA_ANOS_TIMELINE}a_janela{janela}m.png"
         )
+        _salva(caminho, nome)
     shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
@@ -485,13 +544,13 @@ def gera_projecao(pl: SimpleNamespace) -> None:
     if linha.empty:
         limiar = pl.config.settings()["projection"]["min_contributors"]
         print(
-            f"Clojure (scope_id={pl.sid}) não tem >{limiar} contribuidores ativos "
+            f"{LING.atual.nome} (scope_id={pl.sid}) não tem >{limiar} contribuidores ativos "
             "no snapshot base: fora do critério de elegibilidade do método.",
             file=sys.stderr,
         )
         return
     ancoras = pl.snapshots.anchors()
-    print("\n=== Projeção coorte-componente, Clojure ===")
+    print(f"\n=== Projeção coorte-componente, {LING.atual.nome} ===")
     print(
         f"base T-1: {ancoras['projection_base'][0]}  base T: {ancoras['projection_base'][1]}"
         f"  alvo: {ancoras['projection_target']}"
@@ -501,7 +560,7 @@ def gera_projecao(pl: SimpleNamespace) -> None:
     print("\nmediana do ABRE por categoria (menor = melhor; cohort vs baseline):")
     resumo = linha.groupby("category")[["abre_cohort", "abre_baseline"]].median()
     print(resumo.to_string())
-    saida = CFG.saida / "projecao_clojure_metodologia_numeros.csv"
+    saida = CFG.saida / f"projecao_{LING.atual.slug}_metodologia_numeros.csv"
     CFG.saida.mkdir(parents=True, exist_ok=True)
     linha.to_csv(saida, index=False)
     print(f"salvo: {saida}")
@@ -546,7 +605,7 @@ def gera_magnetismo(pl: SimpleNamespace) -> None:
     ax.set_xlabel("magnetismo (degenerado em 1,0: unit=language com 1 linguagem só)")
     ax.set_ylabel("stickiness")
     ax.set_title(f"{_rotulo(pl)}: magnetismo x stickiness por ano")
-    _salva_fig(fig, "magnetismo_stickiness_clojure_metodologia.png")
+    _salva_fig(fig, f"magnetismo_stickiness_{LING.atual.slug}_metodologia.png")
 
 
 def gera_stickiness_ano(pl: SimpleNamespace) -> None:
@@ -558,7 +617,7 @@ def gera_stickiness_ano(pl: SimpleNamespace) -> None:
     ax.tick_params(axis="x", rotation=90)  # senão o rótulo de ano cola um no outro
     ax.set_ylabel("stickiness")
     ax.set_title(f"{_rotulo(pl)}: stickiness por ano (magnetismo omitido, degenerado em 1,0)")
-    _salva_fig(fig, "stickiness_por_ano_clojure_metodologia.png")
+    _salva_fig(fig, f"stickiness_por_ano_{LING.atual.slug}_metodologia.png")
 
 
 def gera_ccr_ncr(pl: SimpleNamespace) -> None:
@@ -582,7 +641,7 @@ def gera_ccr_ncr(pl: SimpleNamespace) -> None:
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
     ax.set_title(f"{_rotulo(pl)}: CCR x NCR por trimestre")
-    _salva_fig(fig, "tipos_ccr_ncr_clojure_metodologia.png")
+    _salva_fig(fig, f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.png")
 
 
 def gera_fantasmas(ev: pd.DataFrame) -> None:  # noqa: ARG001
@@ -600,13 +659,13 @@ def gera_fantasmas(ev: pd.DataFrame) -> None:  # noqa: ARG001
     ax.bar(df["ano"].astype(str), df["eventos_de_conta_apagada"], color="black")
     ax.tick_params(axis="x", rotation=90)  # senão o rótulo de ano cola um no outro
     ax.set_ylabel("eventos de conta apagada ('ghost')")
-    ax.set_title("Clojure: contas apagadas por ano (fora da pirâmide, só registro)")
+    ax.set_title(f"{LING.atual.nome}: contas apagadas por ano (fora da pirâmide, só registro)")
     _salva_fig(fig, "fantasmas_por_ano.png")
 
 
 def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     """Abandono: gente com conta de verdade (não fantasma, já filtrado em
-    `carrega_eventos`), sem nenhuma contribuição em Clojure nos últimos 3 meses,
+    `carrega_eventos`), sem nenhuma contribuição na linguagem nos últimos 3 meses,
     olhando a partir de um ponto fixo (o evento mais recente da coleta, não um
     corte por ano corrido). Agrupado pelo ano da ÚLTIMA contribuição de cada um:
     "quando essa pessoa foi vista pela última vez, antes de abandonar até hoje".
@@ -643,7 +702,8 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     ax.set_xlabel("ano")
     ax.set_ylabel("pessoas naquele ano")
     ax.set_title(
-        "Clojure: quantas pessoas abandonaram, por ano em que contribuíram pela última vez"
+        f"{LING.atual.nome}: quantas pessoas abandonaram, "
+        "por ano em que contribuíram pela última vez"
     )
 
     # Acumulado em eixo secundário: escala bem maior que o valor por ano,
@@ -692,7 +752,7 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     ax4.tick_params(axis="x", rotation=90)
     ax4.set_xlabel("ano")
     ax4.set_ylabel("pessoas")
-    ax4.set_title("Clojure: abandono por ano e acumulado, mesma escala")
+    ax4.set_title(f"{LING.atual.nome}: abandono por ano e acumulado, mesma escala")
     ax4.legend(loc="upper left")
     _salva_fig(fig3, "abandono_por_ano_mesma_escala.png")
 
@@ -713,7 +773,8 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     ax3.set_xlabel("ano")
     ax3.set_ylabel("pessoas (acumulado)")
     ax3.set_title(
-        f"Clojure: abandono acumulado por ano (total até {anos[-1]}: {int(acumulado.iloc[-1])})"
+        f"{LING.atual.nome}: abandono acumulado por ano "
+        f"(total até {anos[-1]}: {int(acumulado.iloc[-1])})"
     )
     _salva_fig(fig2, "abandono_acumulado_por_ano.png")
 
@@ -746,7 +807,7 @@ def gera_voltas_por_ano(ev: pd.DataFrame) -> None:
     ax.tick_params(axis="x", rotation=90)
     ax.set_xlabel("ano da volta")
     ax.set_ylabel("quantidade de voltas (pessoa que ficou 3+ meses sumida e contribuiu de novo)")
-    ax.set_title("Clojure: voltas por ano")
+    ax.set_title(f"{LING.atual.nome}: voltas por ano")
     _salva_fig(fig, "voltas_por_ano.png")
 
 
@@ -775,7 +836,7 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     ax.tick_params(axis="x", rotation=90)
     ax.set_xlabel("ano")
     ax.set_ylabel("contribuintes distintos naquele ano")
-    ax.set_title(f"Clojure: contribuintes por ano (total geral, todos os anos: {total})")
+    ax.set_title(f"{LING.atual.nome}: contribuintes por ano (total geral, todos os anos: {total})")
     _salva_fig(fig, "contribuintes_por_ano.png")
 
 
@@ -812,12 +873,18 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument(
+        "--linguagem",
+        choices=tuple(LINGUAGENS),
+        default=LING.atual.slug,
+        help="qual linguagem gerar (default: clojure)",
+    )
+    ap.add_argument(
         "--rodada",
         type=int,
         choices=(1, 2),
         default=RODADA,
-        help="qual coleta usar: 1 (eventos_repositorios.csv, coleta antiga) ou "
-        "2 (eventos_api.csv + eventos_git.csv, coleta corrente, default)",
+        help="qual coleta usar: 1 (eventos_repositorios.csv, coleta antiga, só existe "
+        "para Clojure) ou 2 (eventos_api.csv + eventos_git.csv, coleta corrente, default)",
     )
     ap.add_argument(
         "--figuras",
@@ -826,7 +893,14 @@ def main() -> None:
         f"Disponíveis: {', '.join(GERADORES)}",
     )
     args = ap.parse_args()
-    CFG.aplica(args.rodada)  # reaplica com a rodada escolhida; env var ainda vence dentro
+    LING.aplica(args.linguagem)
+
+    rodada = args.rodada
+    if not LING.atual.tem_rodada_1:
+        if rodada == 1:
+            raise SystemExit(f"--rodada 1 não existe para {LING.atual.nome}; use --rodada 2.")
+        rodada = 2
+    CFG.aplica(rodada)  # reaplica com a linguagem/rodada escolhidas; env var ainda vence dentro
 
     pedidas = (
         list(GERADORES)
@@ -837,7 +911,7 @@ def main() -> None:
     if desconhecidas:
         raise SystemExit(f"--figuras desconhecida: {desconhecidas}. Use: {', '.join(GERADORES)}")
 
-    eventos = carrega_eventos(args.rodada)
+    eventos = carrega_eventos(rodada)
     print(f"{len(eventos)} eventos, {eventos['scope_id'].nunique()} repositórios", file=sys.stderr)
 
     # Um pipeline por figura, não um só compartilhado: `roda_pipeline` mexe em
