@@ -246,8 +246,7 @@ def _salva_fantasmas_por_ano(fantasmas: pd.DataFrame) -> None:
         fantasmas["created_at"], utc=True, format="ISO8601", errors="coerce"
     ).dt.tz_localize(None)
     por_ano = ts.dt.year.value_counts().sort_index()
-    CFG.saida.mkdir(parents=True, exist_ok=True)
-    caminho = CFG.saida / "fantasmas_por_ano.csv"
+    caminho = _caminho_csv("fantasmas_por_ano.csv")
     por_ano.rename("eventos_de_conta_apagada").to_csv(caminho, header=True, index_label="ano")
     print(
         f"salvo: {caminho} ({len(fantasmas)} eventos de conta apagada, "
@@ -658,6 +657,14 @@ def _salva_fig(fig: object, nome: str) -> None:
     print(f"salvo: {caminho}")
 
 
+def _caminho_csv(nome: str) -> Path:
+    """CSV separado das figuras (pedido explícito): fica em `csv/` dentro da
+    pasta da linguagem, não solto ao lado do PNG."""
+    pasta = CFG.saida / "csv"
+    pasta.mkdir(parents=True, exist_ok=True)
+    return pasta / nome
+
+
 def gera_piramide_multi(eventos: pd.DataFrame) -> None:
     """Uma pirâmide por valor de `BANDAS_MESES_PIRAMIDE` (default: 3 e 12 meses
     de banda). 3 meses é a divisão em quarter da metodologia; qualquer outro
@@ -727,8 +734,7 @@ def gera_projecao(pl: SimpleNamespace) -> None:
     print("\nmediana do ABRE por categoria (menor = melhor; cohort vs baseline):")
     resumo = linha.groupby("category")[["abre_cohort", "abre_baseline"]].median()
     print(resumo.to_string())
-    saida = CFG.saida / f"projecao_{LING.atual.slug}_metodologia_numeros.csv"
-    CFG.saida.mkdir(parents=True, exist_ok=True)
+    saida = _caminho_csv(f"projecao_{LING.atual.slug}_metodologia_numeros.csv")
     linha.to_csv(saida, index=False)
     print(f"salvo: {saida}")
 
@@ -820,6 +826,87 @@ def _projecao_piramide_linha(pl: SimpleNamespace, linha: pd.DataFrame, ano_base:
     _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_{ano_base}_piramide.png")
 
 
+def _anos_backtest_possiveis(eventos: pd.DataFrame) -> range:
+    """Todo `ano_base` em que dá pra tentar o backtest: do primeiro ano com
+    evento até o último em que o alvo (Q1 do ano seguinte) ainda cai dentro
+    da coleta. Ano cedo demais (poucos contribuidores ativos na base) não
+    quebra: `gera_projecao_backtest` já reporta e pula, é só custo de
+    computar à toa. Ano tarde demais projetaria pra um trimestre que a
+    coleta não tem, o que geraria número fantasma; esse sim fica de fora."""
+    ano_min = int(eventos["timestamp"].min().year)
+    ultimo = eventos["timestamp"].max()
+    ano_max = (
+        ultimo.year - 1
+        if ultimo.month < 3 or (ultimo.month == 3 and ultimo.day < 31)
+        else ultimo.year
+    )
+    return range(ano_min, ano_max + 1)
+
+
+def _backtest_resumo(eventos: pd.DataFrame, ano_base: int) -> dict | None:
+    """ABRE mediana (categoria "all") e taxa de acerto de direção pro
+    `ano_base`, sem gravar PNG/CSV: usado por `gera_backtest_todos_anos` pra
+    varrer muitos anos rápido. `None` quando o ano não passa no critério de
+    elegibilidade (`gera_projecao_backtest` já cobre o caso avulso com
+    aviso; aqui é silencioso, o resumo final já mostra quem ficou de fora)."""
+    alvo_forcado = pd.Timestamp(f"{ano_base + 1}-03-31")
+    pl = roda_pipeline(eventos, band_months=3, fim_forcado=alvo_forcado)
+    try:
+        df = pl.projection.compute()
+        linha = df[df["scope_id"] == pl.sid]
+        if linha.empty:
+            return None
+        todos = linha[linha["category"] == "all"].sort_values("band").reset_index(drop=True)
+        direcao = _avalia_direcao(todos)
+        return {
+            "ano_base": ano_base,
+            "abre_cohort": todos["abre_cohort"].median(),
+            "abre_baseline": todos["abre_baseline"].median(),
+            "taxa_acerto_direcao": direcao["acertou"].mean() if len(direcao) else float("nan"),
+            "n_bandas": len(todos),
+        }
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+def gera_backtest_todos_anos(eventos: pd.DataFrame) -> None:
+    """Backtest pra TODO ano possível (`_anos_backtest_possiveis`), não só
+    2016/2019/2024: um resumo (`_backtest_resumo`) por ano, não o conjunto
+    pesado de figuras de `gera_projecao_backtest` (seriam dezenas de PNG por
+    linguagem). Pra ver o backtest completo de um ano específico, usa
+    `--backtest-anos`."""
+    anos = _anos_backtest_possiveis(eventos)
+    print(f"{LING.atual.nome}: testando {anos.start}-{anos.stop - 1}", file=sys.stderr)
+    linhas = [r for ano in anos if (r := _backtest_resumo(eventos, ano)) is not None]
+    fora = anos.stop - anos.start - len(linhas)
+    if fora:
+        print(
+            f"aviso: {fora} anos fora do critério de elegibilidade, sem linha no resumo",
+            file=sys.stderr,
+        )
+    resumo = pd.DataFrame(linhas)
+
+    saida_csv = _caminho_csv(f"projecao_{LING.atual.slug}_backtest_todos_anos.csv")
+    resumo.to_csv(saida_csv, index=False)
+    print(f"salvo: {saida_csv}")
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(max(8.0, 0.5 * len(resumo)), 8), sharex=True)
+    ax1.plot(resumo["ano_base"], resumo["abre_cohort"], marker="o", color="#3b6fa0", label="coorte")
+    ax1.plot(
+        resumo["ano_base"], resumo["abre_baseline"], marker="o", color="#aaaaaa", label="baseline"
+    )
+    ax1.set_ylabel("mediana do ABRE\n(menor = melhor)")
+    ax1.set_title(f"{LING.atual.nome}: backtest da projeção, todo ano-âncora possível")
+    ax1.legend()
+
+    ax2.plot(resumo["ano_base"], resumo["taxa_acerto_direcao"], marker="o", color="black")
+    ax2.axhline(0.5, color="#888888", lw=0.8, linestyle="--")
+    ax2.set_ylim(0, 1)
+    ax2.set_xlabel("ano-âncora")
+    ax2.set_ylabel("taxa de acerto\nde direção")
+    _salva_fig(fig, f"projecao_{LING.atual.slug}_backtest_todos_anos.png")
+
+
 def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
     """Mesma projeção coorte-componente de `gera_projecao`, mas ancorada em Q4
     de `ano_base` (T-1 = Q3, T = Q4, alvo = Q1 do ano seguinte) em vez do
@@ -855,8 +942,7 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
         print("mediana do ABRE por categoria (menor = melhor; cohort vs baseline):")
         print(resumo.to_string())
 
-        CFG.saida.mkdir(parents=True, exist_ok=True)
-        saida_csv = CFG.saida / f"projecao_{LING.atual.slug}_backtest_{ano_base}.csv"
+        saida_csv = _caminho_csv(f"projecao_{LING.atual.slug}_backtest_{ano_base}.csv")
         linha.to_csv(saida_csv, index=False)
         print(f"salvo: {saida_csv}")
 
@@ -883,7 +969,7 @@ def gera_projecao_backtest(eventos: pd.DataFrame, ano_base: int) -> None:
             f"acerto de direção (coorte, subiu/desceu igual ao real): "
             f"{int(direcao['acertou'].sum())}/{len(direcao)} ({taxa:.0%})"
         )
-        saida_direcao = CFG.saida / f"projecao_{LING.atual.slug}_backtest_{ano_base}_direcao.csv"
+        saida_direcao = _caminho_csv(f"projecao_{LING.atual.slug}_backtest_{ano_base}_direcao.csv")
         direcao.to_csv(saida_direcao, index=False)
         print(f"salvo: {saida_direcao}")
 
@@ -934,14 +1020,14 @@ def gera_ccr_ncr(pl: SimpleNamespace) -> None:
     # CSV ao lado do PNG: sem isso, comparar CCR/NCR entre linguagens
     # (`gera_geral_ccr_ncr`) precisaria rodar o pipeline de novo pra cada
     # linguagem só pra reler o que essa figura já calculou.
-    caminho_csv = CFG.saida / f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.csv"
+    caminho_csv = _caminho_csv(f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.csv")
     df[["snapshot", "ccr", "ncr", "type"]].to_csv(caminho_csv, index=False)
     print(f"salvo: {caminho_csv}")
 
 
 def gera_fantasmas(ev: pd.DataFrame) -> None:  # noqa: ARG001
     """Lê o CSV que `carrega_eventos` já gravou e desenha a barra. Não recalcula."""
-    caminho_csv = CFG.saida / "fantasmas_por_ano.csv"
+    caminho_csv = _caminho_csv("fantasmas_por_ano.csv")
     if not caminho_csv.exists():
         print(
             "aviso: fantasmas_por_ano.csv não existe (rode com --figuras incluindo "
@@ -974,8 +1060,7 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     abandonou = ultimo_por_pessoa[ultimo_por_pessoa < limite]
     por_ano = abandonou.dt.year.value_counts().sort_index()
 
-    CFG.saida.mkdir(parents=True, exist_ok=True)
-    caminho_csv = CFG.saida / "abandono_por_ano.csv"
+    caminho_csv = _caminho_csv("abandono_por_ano.csv")
     por_ano.rename("pessoas_que_abandonaram").to_csv(
         caminho_csv, header=True, index_label="ano_da_ultima_contribuicao"
     )
@@ -1089,8 +1174,7 @@ def gera_voltas_por_ano(ev: pd.DataFrame) -> None:
     voltas = perfil[perfil["span_idx"] > 0]  # span 0 é a primeira aparição, não é volta
     por_ano = pd.Series(voltas["span_start"]).dt.year.value_counts().sort_index()
 
-    CFG.saida.mkdir(parents=True, exist_ok=True)
-    caminho_csv = CFG.saida / "voltas_por_ano.csv"
+    caminho_csv = _caminho_csv("voltas_por_ano.csv")
     por_ano.rename("voltas").to_csv(caminho_csv, header=True, index_label="ano_da_volta")
     print(f"salvo: {caminho_csv} ({len(voltas)} voltas no total)", file=sys.stderr)
 
@@ -1115,8 +1199,7 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     por_ano = ev.assign(ano=anos_evento).groupby("ano")["contributor_id"].nunique()
     total = ev["contributor_id"].nunique()
 
-    CFG.saida.mkdir(parents=True, exist_ok=True)
-    caminho_csv = CFG.saida / "contribuintes_por_ano.csv"
+    caminho_csv = _caminho_csv("contribuintes_por_ano.csv")
     por_ano.rename("contribuintes_distintos").to_csv(caminho_csv, header=True, index_label="ano")
     print(
         f"salvo: {caminho_csv} (total geral, todos os anos: {total} contribuintes distintos)",
@@ -1217,7 +1300,7 @@ def gera_geral_ccr_ncr() -> None:
     partes = []
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
-        caminho_csv = TMP_BASE / slug / f"tipos_ccr_ncr_{slug}_metodologia.csv"
+        caminho_csv = TMP_BASE / slug / "csv" / f"tipos_ccr_ncr_{slug}_metodologia.csv"
         if not caminho_csv.exists():
             faltando.append(slug)
             continue
@@ -1267,7 +1350,7 @@ def gera_geral_contribuintes_evolucao() -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
-        caminho_csv = TMP_BASE / slug / "contribuintes_por_ano.csv"
+        caminho_csv = TMP_BASE / slug / "csv" / "contribuintes_por_ano.csv"
         if not caminho_csv.exists():
             faltando.append(slug)
             continue
@@ -1307,7 +1390,7 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
     for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
         anos_disponiveis, cohort_por_ano, baseline_por_ano = [], [], []
         for ano in anos_base:
-            caminho = TMP_BASE / slug / f"projecao_{slug}_backtest_{ano}.csv"
+            caminho = TMP_BASE / slug / "csv" / f"projecao_{slug}_backtest_{ano}.csv"
             if not caminho.exists():
                 continue
             todos = pd.read_csv(caminho)
@@ -1549,6 +1632,18 @@ SEM_PIPELINE_PADRAO = {
 }
 
 
+def _executa_geral() -> None:
+    gera_geral_contribuintes()
+    gera_geral_contribuintes_evolucao()
+    gera_geral_ccr_ncr()
+
+
+def _executa_comparativa_metricas() -> None:
+    eventos_por_lingua = _carrega_todas_linguagens()
+    gera_comparacao_metricas_linguagens(eventos_por_lingua)
+    gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -1606,6 +1701,14 @@ def main() -> None:
         "escolhida, além do --figuras pedido (não substitui).",
     )
     ap.add_argument(
+        "--backtest-todos-anos",
+        action="store_true",
+        help="backtest pra todo ano-âncora possível (não só os de "
+        "--backtest-anos): resumo leve (ABRE + taxa de acerto de direção) "
+        "por ano, não o conjunto completo de figuras por ano. Roda pra "
+        "--linguagem escolhida, além do --figuras pedido (não substitui).",
+    )
+    ap.add_argument(
         "--backtest-geral",
         action="store_true",
         help="desenha como o erro do backtest evolui por ano-âncora, as 4 "
@@ -1613,22 +1716,16 @@ def main() -> None:
         "em cada subpasta), e sai. Ignora --linguagem/--rodada/--figuras.",
     )
     args = ap.parse_args()
-    if args.backtest_geral:
-        gera_geral_backtest_evolucao()
-        return
-    if args.geral:
-        gera_geral_contribuintes()
-        gera_geral_contribuintes_evolucao()
-        gera_geral_ccr_ncr()
-        return
-    if args.comparativa:
-        gera_piramide_comparativa()
-        return
-    if args.comparativa_metricas:
-        eventos_por_lingua = _carrega_todas_linguagens()
-        gera_comparacao_metricas_linguagens(eventos_por_lingua)
-        gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
-        return
+    modos_sem_linguagem = {
+        "backtest_geral": gera_geral_backtest_evolucao,
+        "geral": _executa_geral,
+        "comparativa": gera_piramide_comparativa,
+        "comparativa_metricas": _executa_comparativa_metricas,
+    }
+    for flag, roda in modos_sem_linguagem.items():
+        if getattr(args, flag):
+            roda()
+            return
     LING.aplica(args.linguagem)
 
     rodada = args.rodada
@@ -1671,6 +1768,8 @@ def main() -> None:
         if not ano_texto:
             continue
         gera_projecao_backtest(eventos, int(ano_texto))
+    if args.backtest_todos_anos:
+        gera_backtest_todos_anos(eventos)
 
 
 if __name__ == "__main__":
