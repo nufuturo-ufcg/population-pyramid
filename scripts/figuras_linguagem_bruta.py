@@ -1076,6 +1076,14 @@ CORES_LINGUAGEM = {
     "python": "#2f9e44",
 }
 
+# CCR e NCR vivem em [-1, 1] por construção (razão com o maior dos dois lados
+# no denominador, ver `metrics.py`). Magnetismo e stickiness vivem em [0, 1]
+# (fração de um subconjunto sobre o todo, nunca negativa). Pedido explícito do
+# usuário: as 4 métricas nos MESMOS eixos, mesmo magnetismo/stickiness nunca
+# ocupando a metade negativa, pra comparar os 3 plots (CCR-NCR isolado, CCR-NCR
+# geral, magnetismo-stickiness) de relance, sem reler o número em cada eixo.
+ESCALA_METRICA = (-1.05, 1.05)
+
 
 def gera_geral_ccr_ncr() -> None:
     """CCR x NCR das 4 linguagens no mesmo plano, uma cor por linguagem. Lê o
@@ -1114,6 +1122,8 @@ def gera_geral_ccr_ncr() -> None:
             alpha=0.65,
             label=slug,
         )
+    ax.set_xlim(*ESCALA_METRICA)
+    ax.set_ylim(*ESCALA_METRICA)
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
     ax.set_title("CCR x NCR por trimestre, 4 linguagens")
@@ -1125,6 +1135,58 @@ def gera_geral_ccr_ncr() -> None:
     print(f"salvo: {caminho}")
 
 
+def gera_geral_contribuintes_evolucao() -> None:
+    """Contribuintes distintos por ano, as 4 linguagens no mesmo plano, uma
+    linha por linguagem. Lê `contribuintes_por_ano.csv`, que `--figuras
+    contribuintes` (ou `all`) já deixa em cada subpasta; não recalcula nada."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / "contribuintes_por_ano.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv)
+        ax.plot(
+            df["ano"],
+            df["contribuintes_distintos"],
+            marker="o",
+            markersize=4,
+            color=CORES_LINGUAGEM[slug],
+            label=linguagem.nome,
+        )
+    if faltando:
+        print(
+            f"aviso: sem contribuintes_por_ano.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    ax.set_xlabel("ano")
+    ax.set_ylabel("contribuintes distintos naquele ano")
+    ax.set_title("Contribuintes distintos por ano, 4 linguagens")
+    ax.legend(loc="best")
+    TMP_BASE.mkdir(parents=True, exist_ok=True)
+    caminho = TMP_BASE / "geral_contribuintes_evolucao_por_ano.png"
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
+def _carrega_todas_linguagens(rodada: int = 2) -> dict[str, pd.DataFrame]:
+    """As 4 coletas carregadas e filtradas (`carrega_eventos`), cada uma com a
+    própria coluna `idioma` (ver `monta_fonte`). Ponto único de carga pras
+    figuras que comparam linguagem com linguagem (`--comparativa` e
+    `--comparativa-metricas`): reaproveita o mesmo dict em vez de recarregar
+    os CSVs brutos de novo pra cada figura."""
+    eventos_por_lingua: dict[str, pd.DataFrame] = {}
+    for slug, linguagem in LINGUAGENS.items():
+        LING.aplica(slug)
+        CFG.aplica(rodada)
+        ev = carrega_eventos(rodada).copy()
+        ev["idioma"] = linguagem.nome
+        eventos_por_lingua[slug] = ev
+    return eventos_por_lingua
+
+
 def gera_piramide_comparativa() -> None:
     """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
     trimestre completo da linguagem mais atrasada (senão a comparação mistura
@@ -1133,16 +1195,8 @@ def gera_piramide_comparativa() -> None:
     às 4, e roda uma vez por valor de `BANDAS_MESES_PIRAMIDE` (default: 3 meses
     "com quarter" e 12 meses "sem quarter", mesma convenção de
     `gera_piramide_multi`). Vai na raiz de `TMP_BASE`, como qualquer geral."""
-    rodada = 2
-    eventos_por_lingua: dict[str, pd.DataFrame] = {}
-    fim_natural: dict[str, pd.Timestamp] = {}
-    for slug, linguagem in LINGUAGENS.items():
-        LING.aplica(slug)
-        CFG.aplica(rodada)
-        ev = carrega_eventos(rodada).copy()
-        ev["idioma"] = linguagem.nome
-        eventos_por_lingua[slug] = ev
-        fim_natural[slug] = _serie_trimestral(ev)[-1]
+    eventos_por_lingua = _carrega_todas_linguagens()
+    fim_natural = {slug: _serie_trimestral(ev)[-1] for slug, ev in eventos_por_lingua.items()}
 
     fim_comum = min(fim_natural.values())
     atrasada = min(fim_natural, key=fim_natural.get)
@@ -1156,7 +1210,7 @@ def gera_piramide_comparativa() -> None:
         fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
         for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
             LING.aplica(slug)
-            CFG.aplica(rodada)
+            CFG.aplica(2)
             pl = roda_pipeline(
                 eventos_por_lingua[slug], band_months=banda_meses, fim_forcado=fim_comum
             )
@@ -1182,17 +1236,55 @@ def gera_piramide_comparativa() -> None:
         print(f"salvo: {caminho}")
 
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
+    gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
 
 
-def gera_comparacao_metricas_linguagens(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
+def _desenha_pontos_por_linguagem(
+    ax: plt.Axes,
+    ids_por_nome: dict[str, int],
+    cores: dict[str, str],
+    x_por_sid: pd.Series,
+    y_por_sid: pd.Series,
+    rotulo_x: str,
+    rotulo_y: str,
+    titulo: str,
+    *,
+    linhas_zero: bool = False,
+) -> None:
+    """Um ponto rotulado por linguagem, eixos na `ESCALA_METRICA` comum.
+    Compartilhado pelos dois painéis de `gera_comparacao_metricas_linguagens`."""
+    if linhas_zero:
+        ax.axhline(0, color="#888888", lw=0.7)
+        ax.axvline(0, color="#888888", lw=0.7)
+    for nome, sid in ids_por_nome.items():
+        if sid not in x_por_sid.index:
+            continue
+        x, y = x_por_sid[sid], y_por_sid[sid]
+        ax.scatter(x, y, color=cores[nome], s=70, zorder=3)
+        ax.annotate(nome, (x, y), fontsize=9, xytext=(6, 6), textcoords="offset points")
+    ax.set_xlim(*ESCALA_METRICA)
+    ax.set_ylim(*ESCALA_METRICA)
+    ax.set_xlabel(rotulo_x)
+    ax.set_ylabel(rotulo_y)
+    ax.set_title(titulo)
+
+
+def gera_comparacao_metricas_linguagens(
+    eventos_por_lingua: dict[str, pd.DataFrame], janela_anos: int | None = None
+) -> None:
     """CCR/NCR e magnetismo/stickiness com a LINGUAGEM como unidade, um ponto
     por linguagem, dentro do MESMO pipeline (as 4 juntas numa fonte só, com
     `eventos["idioma"]` dizendo a linguagem de origem por linha; ver
     `monta_fonte`). Rodar cada linguagem sozinha (como `gera_magnetismo` faz)
     deixa magnetismo travado em 1,0: `unit: language` com 1 linguagem só não
     tem contra quem competir por atenção. Junto, magnetismo compara as 4 de
-    verdade. Dois painéis: NCR x CCR no último trimestre, stickiness x
-    magnetismo no último ano; cada um com 4 pontos rotulados."""
+    verdade.
+
+    `janela_anos=None` (default): NCR x CCR no último trimestre, stickiness x
+    magnetismo no último ano completo, um ponto por linguagem (o valor mais
+    recente). `janela_anos=N`: mediana dos últimos N anos em cada painel
+    (últimos 4*N trimestres pro CCR/NCR), pra suavizar oscilação de curto
+    prazo e mostrar a posição típica da linguagem, não só o instante atual."""
     from pyramid import units
 
     eventos = pd.concat(eventos_por_lingua.values(), ignore_index=True)
@@ -1202,50 +1294,62 @@ def gera_comparacao_metricas_linguagens(eventos_por_lingua: dict[str, pd.DataFra
         cores = {v.nome: CORES_LINGUAGEM[k] for k, v in LINGUAGENS.items()}
 
         ccr_ncr = pl.metrics.load_all()
-        ultimo_snap = ccr_ncr["snapshot"].max()
-        ccr_ncr = ccr_ncr[
-            (ccr_ncr["snapshot"] == ultimo_snap) & ccr_ncr["scope_id"].isin(ids_por_nome.values())
-        ].dropna(subset=["ccr", "ncr"])
-
+        ccr_ncr = ccr_ncr[ccr_ncr["scope_id"].isin(ids_por_nome.values())].dropna(
+            subset=["ccr", "ncr"]
+        )
         pares, cobertura = pl.attractiveness.activity(scopes=list(ids_por_nome.values()))
         anual = pl.attractiveness.annual(pares, coverage_end=cobertura).dropna(
             subset=["magnetism", "stickiness"]
         )
-        # Último ano só depois do dropna: o ano corrente vem incompleto (mesmo
-        # aviso de `attractiveness` sobre a stickiness de dezembro) e magnetismo/
-        # stickiness saem NaN nele pras 4 linguagens, o que deixava esse painel
-        # vazio antes desse ajuste.
-        ultimo_ano = anual["year"].max()
-        anual = anual[anual["year"] == ultimo_ano]
+
+        if janela_anos is None:
+            # Último trimestre/ano só depois do dropna: o período corrente vem
+            # incompleto (mesmo aviso de `attractiveness` sobre a stickiness de
+            # dezembro) e as métricas saem NaN nele pras 4 linguagens.
+            snap_rotulo = str(pd.Timestamp(ccr_ncr["snapshot"].max()).date())
+            ccr_ncr = ccr_ncr[ccr_ncr["snapshot"] == ccr_ncr["snapshot"].max()]
+            ano_rotulo = str(int(anual["year"].max()))
+            anual = anual[anual["year"] == anual["year"].max()]
+            agrega = lambda df, col: df.set_index("scope_id")[col]  # noqa: E731
+            sufixo, titulo_extra = "", f"({snap_rotulo} / {ano_rotulo})"
+        else:
+            corte_trimestre = ccr_ncr["snapshot"].max() - pd.DateOffset(years=janela_anos)
+            ccr_ncr = ccr_ncr[ccr_ncr["snapshot"] > corte_trimestre]
+            corte_ano = anual["year"].max() - janela_anos
+            anual = anual[anual["year"] > corte_ano]
+            agrega = lambda df, col: df.groupby("scope_id")[col].median()  # noqa: E731
+            sufixo, titulo_extra = f"_{janela_anos}anos", f"(mediana, últimos {janela_anos} anos)"
+
+        ncr_por_sid = agrega(ccr_ncr, "ncr")
+        ccr_por_sid = agrega(ccr_ncr, "ccr")
+        sticky_por_sid = agrega(anual, "stickiness")
+        magnet_por_sid = agrega(anual, "magnetism")
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 6))
-        ax1.axhline(0, color="#888888", lw=0.7)
-        ax1.axvline(0, color="#888888", lw=0.7)
-        for nome, sid in ids_por_nome.items():
-            linha = ccr_ncr[ccr_ncr["scope_id"] == sid]
-            if linha.empty:
-                continue
-            x, y = linha["ncr"].iloc[0], linha["ccr"].iloc[0]
-            ax1.scatter(x, y, color=cores[nome], s=70, zorder=3)
-            ax1.annotate(nome, (x, y), fontsize=9, xytext=(6, 6), textcoords="offset points")
-        ax1.set_xlabel("NCR")
-        ax1.set_ylabel("CCR")
-        ax1.set_title(f"CCR x NCR por linguagem ({pd.Timestamp(ultimo_snap).date()})")
-
-        for nome, sid in ids_por_nome.items():
-            linha = anual[anual["scope_id"] == sid]
-            if linha.empty:
-                continue
-            x, y = linha["stickiness"].iloc[0], linha["magnetism"].iloc[0]
-            ax2.scatter(x, y, color=cores[nome], s=70, zorder=3)
-            ax2.annotate(nome, (x, y), fontsize=9, xytext=(6, 6), textcoords="offset points")
-        ax2.set_xlabel("stickiness")
-        ax2.set_ylabel("magnetismo")
-        ax2.set_title(f"magnetismo x stickiness por linguagem ({int(ultimo_ano)})")
-
+        _desenha_pontos_por_linguagem(
+            ax1,
+            ids_por_nome,
+            cores,
+            ncr_por_sid,
+            ccr_por_sid,
+            "NCR",
+            "CCR",
+            f"CCR x NCR por linguagem {titulo_extra}",
+            linhas_zero=True,
+        )
+        _desenha_pontos_por_linguagem(
+            ax2,
+            ids_por_nome,
+            cores,
+            sticky_por_sid,
+            magnet_por_sid,
+            "stickiness",
+            "magnetismo",
+            f"magnetismo x stickiness por linguagem {titulo_extra}",
+        )
         fig.suptitle("As 4 linguagens como unidade de análise, competindo entre si", fontsize=13)
         TMP_BASE.mkdir(parents=True, exist_ok=True)
-        caminho = TMP_BASE / "geral_ccr_ncr_magnetismo_stickiness_por_linguagem.png"
+        caminho = TMP_BASE / f"geral_ccr_ncr_magnetismo_stickiness_por_linguagem{sufixo}.png"
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -1316,17 +1420,32 @@ def main() -> None:
     ap.add_argument(
         "--comparativa",
         action="store_true",
-        help="desenha as 4 pirâmides lado a lado, todas cortadas no mesmo "
-        "trimestre (o mais atrasado das 4), e sai. Carrega as 4 coletas "
-        "inteiras; ignora --linguagem/--rodada/--figuras.",
+        help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
+        "trimestre, o mais atrasado das 4) e a comparação de CCR/NCR/"
+        "magnetismo/stickiness com a linguagem como unidade, e sai. Carrega "
+        "as 4 coletas inteiras; ignora --linguagem/--rodada/--figuras.",
+    )
+    ap.add_argument(
+        "--comparativa-metricas",
+        action="store_true",
+        help="só a comparação de CCR/NCR/magnetismo/stickiness com a "
+        "linguagem como unidade (sem redesenhar as pirâmides de "
+        "--comparativa), e sai. Carrega as 4 coletas inteiras; ignora "
+        "--linguagem/--rodada/--figuras.",
     )
     args = ap.parse_args()
     if args.geral:
         gera_geral_contribuintes()
+        gera_geral_contribuintes_evolucao()
         gera_geral_ccr_ncr()
         return
     if args.comparativa:
         gera_piramide_comparativa()
+        return
+    if args.comparativa_metricas:
+        eventos_por_lingua = _carrega_todas_linguagens()
+        gera_comparacao_metricas_linguagens(eventos_por_lingua)
+        gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
         return
     LING.aplica(args.linguagem)
 
