@@ -161,7 +161,16 @@ class _EstadoLinguagem:
         self.atual = LINGUAGENS[slug]
 
 
+class _EstadoLinhaTempo4:
+    """`--teto-proprio-timeline`, mutável (atributo, não `global`: mesmo
+    padrão de `_EstadoLinguagem`/`_Config`). Default é o motor auditado
+    (teto comum, igual ESEM14 Fig.3); só muda quando o usuário pede."""
+
+    teto_proprio: bool = False
+
+
 LING = _EstadoLinguagem()
+ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -873,6 +882,86 @@ def gera_linha_tempo_4(eventos: pd.DataFrame) -> None:
         )
         _salva(caminho, nome)
     shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+def gera_linha_tempo_4_teto_proprio(eventos: pd.DataFrame) -> None:
+    """Mesma ideia de `gera_linha_tempo_4` (pirâmide nos mesmos
+    `ANOS_ESCOLHIDOS`, lado a lado), mas cada painel com o PRÓPRIO teto de
+    idade, não o teto emprestado do ano mais recente.
+
+    `figure_pyramid_timeline`/`figure_fig3` (motor auditado) usam de
+    propósito um teto comum entre os anos: a ESEM14 Fig.3 é sobre a
+    pirâmide crescer de ALTURA ao longo do tempo, e um teto próprio por
+    painel apagaria esse crescimento visual (ver comentário em
+    `plots.figure_fig3`). Pedido explícito do usuário: quando ele pede
+    teto próprio via `--teto-proprio-timeline`, quer o oposto — 2016 não
+    mostra espaço pra uma idade que não existia ainda naquele ano.
+
+    Não toca em `figure_pyramid_timeline`/`figure_fig3`: monta os painéis
+    na mão com as mesmas peças públicas do motor (`snapshots.snapshot_dates`,
+    `snapshots.load`, `plots.pyramid_frame`, `plots.draw_pyramid`), sem
+    arriscar a fidelidade da Fig.3 oficial."""
+    pl = roda_pipeline(eventos, band_months=BANDA_ANOS_TIMELINE * 12)
+    try:
+        for janela in (3, 12):
+            alvo = pl.scratch / "config" / "settings.yaml"
+            cfg = yaml.safe_load(alvo.read_text(encoding="utf-8"))
+            cfg["plots"]["pyramid_window_months"] = janela
+            alvo.write_text(
+                yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8"
+            )
+            pl.config.settings.cache_clear()
+
+            serie = pl.snapshots.snapshot_dates()
+            alvo_anos = set(ANOS_ESCOLHIDOS)
+            por_ano: dict[int, pd.Timestamp] = {}
+            for d in serie:
+                if d.year in alvo_anos:
+                    por_ano[d.year] = d  # serie é crescente: fica a última data de cada ano
+            historico = pl.snapshots.load(pl.sid)
+            quadros = {d: pl.plots.pyramid_frame(historico, d) for d in sorted(por_ano.values())}
+            datas = [
+                d
+                for d, f in quadros.items()
+                if not f.empty
+                and (f["non_coding"].sum() + f["moved"].sum() + f["coding"].sum()) > 0
+            ]
+            if not datas:
+                print(
+                    f"aviso: nenhum de {ANOS_ESCOLHIDOS} tem contribuidor ativo em "
+                    f"{LING.atual.nome} (janela {janela}m); painel pulado",
+                    file=sys.stderr,
+                )
+                continue
+
+            xmax = max(
+                max(
+                    quadros[d]["non_coding"].max(),
+                    (quadros[d]["moved"] + quadros[d]["coding"]).max(),
+                )
+                for d in datas
+            )
+            fig, axes = plt.subplots(1, len(datas), figsize=(3.0 * len(datas), 4.2), squeeze=False)
+            for j, d in enumerate(datas):
+                ax = axes[0][j]
+                # ymax=None (default): cada painel usa o próprio teto daquele ano.
+                pl.plots.draw_pyramid(ax, quadros[d], xmax=float(xmax))
+                ax.set_title(str(d.date()), fontsize=9)
+                if j == 0:
+                    ax.set_ylabel(f"{LING.atual.nome}\n{pl.plots.rotulo_da_idade()}", fontsize=8)
+                ax.set_xlabel("contribuidores", fontsize=8)
+            fig.suptitle(
+                f"{LING.atual.nome}: pirâmide ao longo do tempo (teto próprio de cada ano)",
+                fontsize=10,
+            )
+            anos_txt = "-".join(str(a) for a in ANOS_ESCOLHIDOS)
+            nome = (
+                f"linha-tempo-4-teto-proprio/linha_do_tempo_{LING.atual.slug}_4anos_{anos_txt}"
+                f"_banda{BANDA_ANOS_TIMELINE}a_janela{janela}m_tetoproprio.png"
+            )
+            _salva_fig(fig, nome)
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
 def gera_projecao(pl: SimpleNamespace) -> None:
@@ -2127,7 +2216,11 @@ GERADORES = {
     "piramide-veteranos": lambda _pl, ev: gera_piramide_veteranos(ev),
     "piramide-anos-distintos": lambda _pl, ev: gera_piramide_anos_distintos(ev),
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
-    "linha-tempo-4": lambda _pl, ev: gera_linha_tempo_4(ev),
+    "linha-tempo-4": lambda _pl, ev: (
+        gera_linha_tempo_4_teto_proprio(ev)
+        if ESTADO_LINHA_TEMPO_4.teto_proprio
+        else gera_linha_tempo_4(ev)
+    ),
     "projecao": lambda pl, _ev: gera_projecao(pl),
     "stickiness-ano": lambda pl, _ev: gera_stickiness_ano(pl),
     "ccr-ncr": lambda pl, _ev: gera_ccr_ncr(pl),
@@ -2195,6 +2288,14 @@ def main() -> None:
         f"Disponíveis: {', '.join(GERADORES)}",
     )
     ap.add_argument(
+        "--teto-proprio-timeline",
+        action="store_true",
+        help="em `linha-tempo-4`, cada painel usa o próprio teto de idade "
+        "daquele ano em vez do teto comum (o motor auditado usa teto comum "
+        "de propósito, igual ESEM14 Fig.3, pra mostrar a pirâmide crescendo "
+        "de altura; sem essa flag o comportamento não muda).",
+    )
+    ap.add_argument(
         "--geral",
         action="store_true",
         help="em vez de gerar figura de uma linguagem, desenha as comparações "
@@ -2242,6 +2343,7 @@ def main() -> None:
         "em cada subpasta), e sai. Ignora --linguagem/--rodada/--figuras.",
     )
     args = ap.parse_args()
+    ESTADO_LINHA_TEMPO_4.teto_proprio = args.teto_proprio_timeline
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
