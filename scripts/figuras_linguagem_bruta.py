@@ -1586,6 +1586,71 @@ def gera_curva_retencao(ev: pd.DataFrame) -> None:
     _salva_fig(fig, f"retencao/retencao_{LING.atual.slug}_por_k.png")
 
 
+NOVATO_JANELA_MESES = 3
+
+# Também usada por `gera_geral_backtest_evolucao`, mais abaixo no arquivo.
+ANOS_BACKTEST_PADRAO = (2016, 2019, 2024)
+
+
+def _novatos_por_ano_ancora(
+    eventos: pd.DataFrame, anos_base: tuple[int, ...] = ANOS_BACKTEST_PADRAO
+) -> pd.DataFrame:
+    """Quantos contribuintes tinham menos de `NOVATO_JANELA_MESES` de idade
+    (desde o primeiro evento) em cada ano-âncora, e a fração disso sobre o
+    total de sempre até aquele ponto. Mesma ancoragem do backtest: 31/dez do
+    ano, ou o último dado real quando o ano ainda não fechou (`min` evita
+    marcar o ano corrente como "sem dado" por não ter chegado no fim)."""
+    primeiro = eventos.groupby("contributor_id")["timestamp"].min()
+    fim_dataset = eventos["timestamp"].max()
+    linhas = []
+    for ano in anos_base:
+        snapshot = min(pd.Timestamp(f"{ano}-12-31"), fim_dataset)
+        if snapshot < primeiro.min():
+            continue
+        existentes = primeiro[primeiro <= snapshot]
+        janela = pd.Timedelta(days=NOVATO_JANELA_MESES * DAYS_PER_MONTH)
+        novatos = existentes[(snapshot - existentes) < janela]
+        linhas.append(
+            {
+                "ano_base": ano,
+                "snapshot": snapshot,
+                "novatos": len(novatos),
+                "total_ate_ali": len(existentes),
+                "fracao": len(novatos) / len(existentes) if len(existentes) else float("nan"),
+            }
+        )
+    return pd.DataFrame(linhas)
+
+
+def gera_novatos_por_ano_ancora(ev: pd.DataFrame) -> None:
+    """Desenha e salva `_novatos_por_ano_ancora`, ancorada nos mesmos anos do
+    backtest (`ANOS_BACKTEST_PADRAO`): pedido explícito do usuário, "gerar
+    com os mesmos anos" logo depois de perguntar quantos novatos (<3 meses)
+    existiam."""
+    tabela = _novatos_por_ano_ancora(ev)
+    caminho_csv = _caminho_csv("novatos-ancora/novatos_por_ano_ancora.csv")
+    tabela.to_csv(caminho_csv, index=False)
+    print(f"salvo: {caminho_csv}", file=sys.stderr)
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    rotulos = tabela["ano_base"].astype(str)
+    ax.bar(rotulos, tabela["novatos"], color="black")
+    for i, (n, frac) in enumerate(zip(tabela["novatos"], tabela["fracao"], strict=True)):
+        ax.annotate(
+            f"{frac:.1%}",
+            (i, n),
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            xytext=(0, 3),
+            textcoords="offset points",
+        )
+    ax.set_xlabel("ano-âncora")
+    ax.set_ylabel(f"contribuintes com <{NOVATO_JANELA_MESES} meses de idade")
+    ax.set_title(f"{LING.atual.nome}: novatos por ano-âncora (rótulo = % do total até ali)")
+    _salva_fig(fig, "novatos-ancora/novatos_por_ano_ancora.png")
+
+
 REGISTRO_GERAL = PASTA_GERAL / "contribuintes_por_linguagem.json"
 
 
@@ -1906,7 +1971,57 @@ def gera_geral_curva_retencao() -> None:
     print(f"salvo: {caminho}")
 
 
-ANOS_BACKTEST_PADRAO = (2016, 2019, 2024)
+def gera_geral_novatos_por_ano_ancora() -> None:
+    """`_novatos_por_ano_ancora` das 4 linguagens, uma cor por linguagem. Sem
+    linha ligando os pontos: os anos-âncora são esparsos (mesmo motivo de
+    `gera_geral_backtest_evolucao`). Lê `novatos_por_ano_ancora.csv` de cada
+    linguagem (`--figuras novatos-ancora` ou `all`); não recalcula nada."""
+    partes = []
+    faltando = []
+    for slug in LINGUAGENS:
+        caminho = TMP_BASE / slug / "csv" / "novatos-ancora" / "novatos_por_ano_ancora.csv"
+        if not caminho.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho)
+        df["linguagem"] = slug
+        partes.append(df)
+    if faltando:
+        print(
+            f"aviso: sem novatos_por_ano_ancora.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    if not partes:
+        raise SystemExit(
+            "nenhum novatos_por_ano_ancora.csv encontrado. Rode `--figuras "
+            "novatos-ancora` (ou `all`) em cada linguagem antes."
+        )
+    todos = pd.concat(partes, ignore_index=True)
+
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    for slug, linguagem in LINGUAGENS.items():
+        grupo = todos[todos["linguagem"] == slug].sort_values("ano_base")
+        if grupo.empty:
+            continue
+        ax.scatter(
+            grupo["ano_base"],
+            grupo["fracao"],
+            color=CORES_LINGUAGEM[slug],
+            s=60,
+            label=linguagem.nome,
+        )
+    from matplotlib.ticker import MaxNLocator
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_ylim(0, None)
+    ax.set_xlabel("ano-âncora")
+    ax.set_ylabel(f"% com <{NOVATO_JANELA_MESES} meses de idade, do total até ali")
+    ax.set_title("Novatos por ano-âncora, 4 linguagens")
+    ax.legend(fontsize=9)
+    caminho = _caminho_geral("geral_novatos_por_ano_ancora.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
 
 
 def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADRAO) -> None:
@@ -2293,6 +2408,7 @@ GERADORES = {
     "contribuintes": lambda _pl, ev: gera_contribuintes_por_ano(ev),
     "resumo-contribuintes": lambda _pl, ev: gera_resumo_contribuintes(ev),
     "retencao": lambda _pl, ev: gera_curva_retencao(ev),
+    "novatos-ancora": lambda _pl, ev: gera_novatos_por_ano_ancora(ev),
 }
 
 # Não usam o pipeline padrão do loop principal: `fantasmas`/`abandono`/`voltas`/
@@ -2307,6 +2423,7 @@ SEM_PIPELINE_PADRAO = {
     "contribuintes",
     "resumo-contribuintes",
     "retencao",
+    "novatos-ancora",
     "piramide",
     "piramide-veteranos",
     "piramide-anos-distintos",
@@ -2320,6 +2437,7 @@ def _executa_geral() -> None:
     gera_geral_ccr_ncr()
     gera_geral_histograma_eventos()
     gera_geral_curva_retencao()
+    gera_geral_novatos_por_ano_ancora()
 
 
 def _executa_comparativa_metricas() -> None:
