@@ -24,6 +24,11 @@ Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
   piramide       pirâmide avulsa (table1, janela 3 meses), uma por valor de
                  BANDAS_MESES_PIRAMIDE (default: 3 meses "com quarter" e 12
                  meses "sem quarter")
+  piramide-veteranos  a mesma pirâmide, mas tirando ANTES de rodar o pipeline
+                 quem tem menos de MESES_MIN_VETERANO meses de idade (default:
+                 3 e 12). A pirâmide normal só mostra quem está ativo, e quem
+                 chegou há pouco passa nesse filtro quase de graça; esta
+                 versão mostra a população sem quem chegou ontem.
   linha-tempo    linha do tempo automática (ULTIMOS_ANOS, PASSO_ANOS, banda 3 meses)
   linha-tempo-4  linha do tempo com ANOS_ESCOLHIDOS e banda de BANDA_ANOS anos,
                  gerada duas vezes: janela de população de 3 meses e de 12 meses
@@ -687,6 +692,47 @@ def gera_piramide_multi(eventos: pd.DataFrame) -> None:
             caminho = pl.plots.figure_pyramid(pl.sid)
             rotulo = "comquarter" if banda_meses == 3 else "semquarter"
             nome = f"piramide_{LING.atual.slug}_metodologia_{rotulo}_banda{banda_meses}m.png"
+            _salva(caminho, nome)
+        finally:
+            shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+MESES_MIN_VETERANO = (3, 12)
+
+
+def gera_piramide_veteranos(eventos: pd.DataFrame) -> None:
+    """A pirâmide padrão só mostra quem está ATIVO no snapshot
+    (`plots.pyramid_population = active`), e quem chegou há pouco passa nesse
+    filtro quase de graça (o único evento que tem já É recente). Quem chegou
+    há anos, a maioria já ficou quieto e cai fora. Resultado: a base da
+    pirâmide normal é dominada por gente recém-chegada, mesmo essa gente
+    sendo uma fração pequena do total histórico (medido: 1,4% dos 51 mil
+    contribuintes do Clojure têm menos de 3 meses de idade, mas isso ainda
+    assim é quase metade da população ATIVA num dado instante).
+
+    Esta função tira do evento bruto todo mundo cujo primeiro evento na
+    linguagem é mais recente que `MESES_MIN_VETERANO` meses (idade desde a
+    PRIMEIRA contribuição, a mesma base de idade que a pirâmide usa
+    internamente), antes de rodar o pipeline: não é cortar a barra da
+    pirâmide normal, é perguntar como fica a população SEM quem chegou
+    ontem. Uma pirâmide por valor de `MESES_MIN_VETERANO` (default: 3 e 12
+    meses, pedido explícito do usuário)."""
+    primeiro = eventos.groupby("contributor_id")["timestamp"].min()
+    fim = eventos["timestamp"].max()
+    for meses_min in MESES_MIN_VETERANO:
+        corte = fim - pd.DateOffset(months=meses_min)
+        veteranos = primeiro[primeiro <= corte].index
+        filtrado = eventos[eventos["contributor_id"].isin(veteranos)]
+        excluidos = eventos["contributor_id"].nunique() - len(veteranos)
+        print(
+            f"aviso: {excluidos} contribuidores com menos de {meses_min} meses de "
+            f"idade excluídos da pirâmide veteranos_{meses_min}m",
+            file=sys.stderr,
+        )
+        pl = roda_pipeline(filtrado, band_months=3)
+        try:
+            caminho = pl.plots.figure_pyramid(pl.sid)
+            nome = f"piramide_{LING.atual.slug}_veteranos_min{meses_min}m.png"
             _salva(caminho, nome)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
@@ -1619,6 +1665,7 @@ def gera_comparacao_metricas_linguagens(
 
 GERADORES = {
     "piramide": lambda _pl, ev: gera_piramide_multi(ev),
+    "piramide-veteranos": lambda _pl, ev: gera_piramide_veteranos(ev),
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
     "linha-tempo-4": lambda _pl, ev: gera_linha_tempo_4(ev),
     "projecao": lambda pl, _ev: gera_projecao(pl),
@@ -1641,6 +1688,7 @@ SEM_PIPELINE_PADRAO = {
     "voltas",
     "contribuintes",
     "piramide",
+    "piramide-veteranos",
 }
 
 
