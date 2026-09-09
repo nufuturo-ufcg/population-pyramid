@@ -1797,11 +1797,17 @@ def gera_grade_anos_distintos(
     do último dado disponível. Ano anterior à primeira coleta daquela
     linguagem fica em branco (não existe dado antes disso, não é zero).
 
-    Escala dentro de cada LINHA (linguagem) é compartilhada entre as 4
-    colunas: sem isso, auto-escala faria uma pirâmide de 2016 do tamanho de
-    uma de 2026 mesmo crescendo 10x, e o crescimento real viraria ilusão de
-    ótica (mesmo motivo do parâmetro `xmax`/`ymax` de `draw_pyramid`). Entre
-    linguagens a escala é livre: são ordens de grandeza diferentes."""
+    Largura (X, contribuidores) compartilhada dentro de cada LINHA
+    (linguagem): sem isso, auto-escala faria uma pirâmide de 2016 do tamanho
+    de uma de 2026 mesmo crescendo 10x, e o crescimento real viraria ilusão
+    de ótica. Altura (Y, teto de idade) NÃO é compartilhada: cada coluna usa
+    o próprio teto, o maior número de anos distintos que existia NAQUELE
+    ano. Uma pirâmide de 2016 não pode ter teto de 19 anos só porque a de
+    2026 tem: em 2016 esse teto fisicamente não existia ainda.
+
+    Título e rótulo não se repetem célula a célula: o ano vira cabeçalho de
+    coluna (só na linha de cima) e a linguagem vira rótulo de linha (só na
+    coluna da esquerda), em vez de "Linguagem, Ano" escrito nas 16 células."""
     from matplotlib.patches import Patch
 
     pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
@@ -1826,20 +1832,24 @@ def gera_grade_anos_distintos(
             validas = [t for t in tabelas.values() if t is not None and len(t)]
             somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
             xmax = max(somas, default=1.0)
-            ymax = max((int(t["band"].max()) for t in validas), default=0)
 
             for coluna, ano in enumerate(anos):
                 eixo = eixos[linha][coluna]
                 tabela = tabelas[ano]
+                if linha == 0:
+                    eixo.set_title(str(ano), fontsize=11)
                 if tabela is None or tabela.empty:
                     eixo.axis("off")
-                    eixo.set_title(f"{linguagem.nome}, {ano}\n(sem dado)", fontsize=9)
+                    eixo.text(
+                        0.5, 0.5, "sem dado", ha="center", va="center", transform=eixo.transAxes
+                    )
                     continue
-                pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax, ymax=ymax)
-                eixo.set_title(f"{linguagem.nome}, {ano}", fontsize=9)
-                eixo.set_xlabel("contribuidores", fontsize=8)
+                # ymax=None (default): cada coluna usa o próprio teto, não o da linha.
+                pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
+                if linha == len(LINGUAGENS) - 1:
+                    eixo.set_xlabel("contribuidores", fontsize=8)
                 if coluna == 0:
-                    eixo.set_ylabel("anos distintos", fontsize=8)
+                    eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=9)
 
         handles = [
             Patch(
