@@ -1726,6 +1726,51 @@ def gera_piramide_comparativa() -> None:
 
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
     gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
+    gera_piramide_anos_distintos_comparativa(eventos_por_lingua, fim_comum)
+
+
+def gera_piramide_anos_distintos_comparativa(
+    eventos_por_lingua: dict[str, pd.DataFrame], fim_comum: pd.Timestamp
+) -> None:
+    """`gera_piramide_anos_distintos` das 4 linguagens lado a lado, no mesmo
+    corte de data que as outras pirâmides de `gera_piramide_comparativa`
+    (recebido pronto, não recalcula). `roda_pipeline` entra só pelo efeito
+    colateral de deixar `plots`/`config` prontos pro desenho (band_months=12,
+    igual à versão avulsa); os dados de cada painel vêm de
+    `_frame_por_anos_contribuicao`, não do pipeline."""
+    from matplotlib.patches import Patch
+
+    pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
+    try:
+        fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
+        for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
+            tabela = _frame_por_anos_contribuicao(eventos_por_lingua[slug], fim_comum)
+            pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}))
+            eixo.set_xlabel("contribuidores")
+            eixo.set_ylabel("anos-calendário distintos")
+            eixo.set_title(linguagem.nome)
+
+        handles = [
+            Patch(
+                facecolor=pl.plots.FILL[c],
+                hatch=pl.plots.HATCH[c],
+                edgecolor="#4D4D4D",
+                label=pl.plots.PT_LABEL[c],
+            )
+            for c in ("non_coding", "moved", "coding")
+        ]
+        fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False)
+        fig.suptitle(
+            f"Pirâmide por linguagem, anos-calendário distintos, mesmo corte ({fim_comum.date()})",
+            fontsize=14,
+        )
+        fig.tight_layout(rect=(0, 0.04, 1, 0.96))
+        caminho = _caminho_geral("piramides_por_linguagem_anos_distintos_mesmo_corte.png")
+        fig.savefig(caminho, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"salvo: {caminho}")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
 def _desenha_pontos_por_linguagem(
