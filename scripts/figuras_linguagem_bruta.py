@@ -89,6 +89,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import matplotlib
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -114,6 +115,11 @@ MAPA_TIPO_R2 = {
     "pr": "pull_requests",
     "pr_comment": "pull_request_comments",
 }
+
+# Mesma divisão que `classify.py` usa internamente (coding/moved/non_coding):
+# código de verdade é commit ou pull request; o resto (issue, comentário,
+# evento de issue) é discussão.
+TIPOS_CODING = {"commits", "pull_requests"}
 
 
 @dataclass(frozen=True)
@@ -1227,9 +1233,8 @@ def gera_voltas_por_ano(ev: pd.DataFrame) -> None:
     motor usa pra decidir quem está vivo."""
     from pyramid import classify
 
-    coding = {"commits", "pull_requests"}
     gap_days = 3 * DAYS_PER_MONTH
-    perfil = classify.profile(ev, coding, gap_days)
+    perfil = classify.profile(ev, TIPOS_CODING, gap_days)
     voltas = perfil[perfil["span_idx"] > 0]  # span 0 é a primeira aparição, não é volta
     por_ano = pd.Series(voltas["span_start"]).dt.year.value_counts().sort_index()
 
@@ -1277,6 +1282,32 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     _salva_fig(fig, "contribuintes_por_ano.png")
 
     _registra_total_geral(total)
+
+
+def gera_resumo_contribuintes(ev: pd.DataFrame) -> None:
+    """Por contribuinte: quantos eventos de coding, quantos de discussão
+    (`TIPOS_CODING` e o resto), o total geral, primeira e última data, e o
+    intervalo entre as duas. Não desenha nada sozinho: é o material que
+    `gera_geral_histograma_eventos` combina das 4 linguagens sem recarregar
+    o CSV bruto de novo. Serve também pra achar caso suspeito na mão: gente
+    com poucos eventos espalhados por um intervalo grande de tempo (ver
+    `span_dias`) é candidato a olhar de perto antes de decidir um corte
+    mínimo de eventos."""
+    coding = ev["event_type"].isin(TIPOS_CODING)
+    n_coding = ev[coding].groupby("contributor_id").size()
+    n_discussao = ev[~coding].groupby("contributor_id").size()
+    primeiro = ev.groupby("contributor_id")["timestamp"].min()
+    ultimo = ev.groupby("contributor_id")["timestamp"].max()
+    resumo = pd.DataFrame(
+        {"n_coding": n_coding, "n_discussao": n_discussao, "primeiro": primeiro, "ultimo": ultimo}
+    )
+    resumo[["n_coding", "n_discussao"]] = resumo[["n_coding", "n_discussao"]].fillna(0).astype(int)
+    resumo["n_total"] = resumo["n_coding"] + resumo["n_discussao"]
+    resumo["span_dias"] = (resumo["ultimo"] - resumo["primeiro"]).dt.days
+
+    caminho = _caminho_csv("contribuintes_resumo.csv")
+    resumo.rename_axis("contributor_id").reset_index().to_csv(caminho, index=False)
+    print(f"salvo: {caminho} ({len(resumo)} contribuintes)", file=sys.stderr)
 
 
 REGISTRO_GERAL = PASTA_GERAL / "contribuintes_por_linguagem.json"
@@ -1430,6 +1461,69 @@ def gera_geral_contribuintes_evolucao() -> None:
     ax.set_title("Contribuintes distintos por ano, 4 linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_contribuintes_evolucao_por_ano.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
+def gera_geral_histograma_eventos() -> None:
+    """Frequência absoluta de contribuidores por número de eventos, 3
+    painéis (coding, discussão, geral), as 4 linguagens sobrepostas no mesmo
+    eixo. Eixo X em log: a distribuição é de cauda longa (a maioria faz
+    pouquíssimo, pouquíssimos fazem muito), histograma linear ia virar uma
+    barra só colada no zero. Lê `contribuintes_resumo.csv` de cada
+    linguagem (`--figuras resumo-contribuintes` ou `all`); não recalcula
+    nada. Serve pra decidir corte mínimo de evento: olhar o CSV de origem
+    pra quem tem poucos eventos e `span_dias` grande (poucos eventos bem
+    espalhados no tempo) antes de excluir por um número mínimo cego."""
+    partes = []
+    faltando = []
+    for slug in LINGUAGENS:
+        caminho = TMP_BASE / slug / "csv" / "contribuintes_resumo.csv"
+        if not caminho.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho)
+        df["linguagem"] = slug
+        partes.append(df)
+    if faltando:
+        print(
+            f"aviso: sem contribuintes_resumo.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    if not partes:
+        raise SystemExit(
+            "nenhum contribuintes_resumo.csv encontrado. Rode `--figuras "
+            "resumo-contribuintes` (ou `all`) em cada linguagem antes."
+        )
+    todos = pd.concat(partes, ignore_index=True)
+
+    maior = todos[["n_coding", "n_discussao", "n_total"]].max().max()
+    bins = np.logspace(0, np.log10(maior), 40)
+    paineis = [("n_coding", "coding"), ("n_discussao", "discussão"), ("n_total", "geral")]
+    fig, eixos = plt.subplots(1, 3, figsize=(18, 5.5))
+    for eixo, (coluna, titulo) in zip(eixos, paineis, strict=True):
+        for slug, linguagem in LINGUAGENS.items():
+            valores = todos.loc[todos["linguagem"] == slug, coluna]
+            valores = valores[
+                valores > 0
+            ]  # log não desenha zero; sem evento nessa categoria não entra
+            eixo.hist(
+                valores,
+                bins=bins,
+                histtype="step",
+                linewidth=1.6,
+                color=CORES_LINGUAGEM[slug],
+                label=linguagem.nome,
+            )
+        eixo.set_xscale("log")
+        eixo.set_yscale("log")
+        eixo.set_xlabel(f"eventos de {titulo} por contribuinte")
+        eixo.set_ylabel("contribuidores (frequência absoluta)")
+        eixo.set_title(titulo)
+        eixo.legend(fontsize=8)
+    fig.suptitle("Quantos eventos cada contribuinte tem, 4 linguagens", fontsize=13)
+    caminho = _caminho_geral("geral_histograma_eventos_por_contribuinte.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -1675,6 +1769,7 @@ GERADORES = {
     "abandono": lambda _pl, ev: gera_abandono_por_ano(ev),
     "voltas": lambda _pl, ev: gera_voltas_por_ano(ev),
     "contribuintes": lambda _pl, ev: gera_contribuintes_por_ano(ev),
+    "resumo-contribuintes": lambda _pl, ev: gera_resumo_contribuintes(ev),
 }
 
 # Não usam o pipeline padrão do loop principal: `fantasmas`/`abandono`/`voltas`/
@@ -1687,6 +1782,7 @@ SEM_PIPELINE_PADRAO = {
     "abandono",
     "voltas",
     "contribuintes",
+    "resumo-contribuintes",
     "piramide",
     "piramide-veteranos",
 }
@@ -1696,6 +1792,7 @@ def _executa_geral() -> None:
     gera_geral_contribuintes()
     gera_geral_contribuintes_evolucao()
     gera_geral_ccr_ncr()
+    gera_geral_histograma_eventos()
 
 
 def _executa_comparativa_metricas() -> None:
