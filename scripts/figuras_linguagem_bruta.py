@@ -1533,7 +1533,12 @@ def gera_geral_ccr_ncr() -> None:
 def gera_geral_contribuintes_evolucao() -> None:
     """Contribuintes distintos por ano, as 4 linguagens no mesmo plano, uma
     linha por linguagem. Lê `contribuintes_por_ano.csv`, que `--figuras
-    contribuintes` (ou `all`) já deixa em cada subpasta; não recalcula nada."""
+    contribuintes` (ou `all`) já deixa em cada subpasta; não recalcula nada.
+
+    `drawstyle="steps-mid"`, não reta ligando os pontos: ano é inteiro, não
+    tem "2011,5 contribuinte", e uma reta entre dois anos sugere um valor
+    fracionário no meio que não existe. Degrau (constante dentro do ano,
+    salto na virada) representa o dado discreto sem inventar interpolação."""
     fig, ax = plt.subplots(figsize=(10, 6))
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
@@ -1545,6 +1550,7 @@ def gera_geral_contribuintes_evolucao() -> None:
         ax.plot(
             df["ano"],
             df["contribuintes_distintos"],
+            drawstyle="steps-mid",
             marker="o",
             markersize=4,
             color=CORES_LINGUAGEM[slug],
@@ -1634,7 +1640,12 @@ ANOS_BACKTEST_PADRAO = (2016, 2019, 2024)
 def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADRAO) -> None:
     """Como o erro do backtest (mediana do ABRE, categoria "all") evolui de
     ano-âncora pra ano-âncora, as 4 linguagens num grid 2x2. Lê os CSVs que
-    `--backtest-anos` já deixou em cada subpasta; não recalcula nada."""
+    `--backtest-anos` já deixou em cada subpasta; não recalcula nada.
+
+    Sem linha ligando os pontos: os anos-âncora são esparsos e não
+    consecutivos (2016, 2019, 2024, por padrão), e uma reta entre eles
+    fingiria saber o que aconteceu nos anos vazios no meio, que não foram
+    testados. Só o ponto, no ano exato que tem número de verdade."""
     fig, eixos = plt.subplots(2, 2, figsize=(12, 9))
     for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
         anos_disponiveis, cohort_por_ano, baseline_por_ano = [], [], []
@@ -1651,8 +1662,8 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
             eixo.axis("off")
             eixo.set_title(f"{linguagem.nome} (sem backtest ainda)")
             continue
-        eixo.plot(anos_disponiveis, cohort_por_ano, marker="o", color="#3b6fa0", label="coorte")
-        eixo.plot(anos_disponiveis, baseline_por_ano, marker="o", color="#aaaaaa", label="baseline")
+        eixo.scatter(anos_disponiveis, cohort_por_ano, color="#3b6fa0", s=50, label="coorte")
+        eixo.scatter(anos_disponiveis, baseline_por_ano, color="#aaaaaa", s=50, label="baseline")
         eixo.set_xticks(anos_disponiveis)
         eixo.set_xlabel("ano-âncora")
         eixo.set_ylabel("mediana do ABRE (menor = melhor)")
