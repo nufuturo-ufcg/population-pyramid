@@ -8,9 +8,10 @@ Pipeline para mineração e análise de repositórios no GitHub. Suporta múltip
 ├── .env                              # Token do GitHub (não committar)
 ├── requirements.txt                  # Dependências Python
 ├── setup.sh                          # Configuração do ambiente
-├── run.sh                            # Executa pipeline completo
+├── run.sh                            # Executa etapa 2 (coleta de eventos)
 ├── scripts/
 │   ├── common.py                     # Infraestrutura compartilhada + registro de linguagens
+│   ├── capturar_logs.py              # Wrapper do orchestrator com log em arquivo
 │   ├── etapa_1_coleta.py             # Etapa 1: Filtragem de repositórios
 │   ├── etapa_2A_eventos.py           # Etapa 2A: Coleta via GitHub REST API
 │   ├── etapa_2B_eventos.py           # Etapa 2B: Commits via git clone
@@ -24,6 +25,7 @@ Pipeline para mineração e análise de repositórios no GitHub. Suporta múltip
         ├── eventos_git.csv           # Saída etapa_2B
         ├── eventos_repositorios.csv  # Merge dos dois
         └── reports/
+            ├── etapa_2.log                    # Log da etapa 2
             ├── etapa_2A_progresso.json
             └── etapa_2B_progresso.json
 ```
@@ -73,6 +75,15 @@ Para adicionar uma linguagem nova, edite `LANGUAGE_CONFIGS` em `common.py`.
 
 ### Pipeline completo
 
+A etapa 1 (filtração de repositórios) roda separadamente:
+
+```bash
+source venv/bin/activate
+python scripts/etapa_1_coleta.py runs/my-run --language elixir --limit 10
+```
+
+A etapa 2 (coleta de eventos) roda via `run.sh`:
+
 ```bash
 ./run.sh <NOME_DA_RUN> --language <linguagem>
 ```
@@ -111,6 +122,9 @@ python scripts/etapa_2B_eventos.py runs/my-run --language elixir --limit 10
 
 # Orchestrator: roda 2A + 2B em paralelo
 python scripts/etapa_2_orchestrator.py runs/my-run --language elixir --limit 10
+
+# Captura de logs: wrapper do orchestrator com log em reports/etapa_2.log
+python scripts/capturar_logs.py runs/my-run --language elixir --limit 10
 ```
 
 ## Etapas

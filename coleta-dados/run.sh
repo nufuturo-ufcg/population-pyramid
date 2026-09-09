@@ -1,5 +1,5 @@
 #!/bin/bash
-# Executa as etapas do pipeline em sequência
+# Executa a etapa 2 do pipeline (coleta de eventos)
 
 set -e
 
@@ -28,13 +28,10 @@ mkdir -p "$RUN_DIR/reports"
 
 source "$SCRIPT_DIR/venv/bin/activate"
 
-echo "=== Etapa 1: Coleta de repositórios ==="
-python "$SCRIPT_DIR/scripts/etapa_1_coleta.py" "$RUN_DIR" $LIMIT_FLAG
-
-echo ""
 echo "=== Etapa 2: coleta de eventos ==="
-python "$SCRIPT_DIR/scripts/etapa_2_orchestrator.py" "$RUN_DIR" $LANGUAGE_FLAG $LIMIT_FLAG
+python "$SCRIPT_DIR/scripts/capturar_logs.py" "$RUN_DIR" $LANGUAGE_FLAG $LIMIT_FLAG
 
 echo ""
 echo "=== Pipeline concluído ==="
 echo "Dados salvos em: $RUN_DIR"
+echo "Log em: $RUN_DIR/reports/etapa_2.log"
