@@ -1456,8 +1456,23 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     por_ano = ev.assign(ano=anos_evento).groupby("ano")["contributor_id"].nunique()
     total = ev["contributor_id"].nunique()
 
+    # Novo por ano = quantidade de gente cujo PRIMEIRO evento na vida foi
+    # naquele ano; soma corrida disso é o total distinto de sempre até ali,
+    # sempre crescente. `por_ano` não serve pra isso: conta quem apareceu
+    # NAQUELE ano (veterano que voltou inclusive), somar daria gente repetida.
+    primeiro_ano = ev.groupby("contributor_id")["timestamp"].min().dt.year
+    novos_por_ano = primeiro_ano.value_counts().reindex(por_ano.index, fill_value=0).sort_index()
+    acumulado = novos_por_ano.cumsum()
+
     caminho_csv = _caminho_csv("contribuintes/contribuintes_por_ano.csv")
-    por_ano.rename("contribuintes_distintos").to_csv(caminho_csv, header=True, index_label="ano")
+    tabela = pd.DataFrame(
+        {
+            "contribuintes_distintos": por_ano,
+            "contribuintes_novos": novos_por_ano,
+            "contribuintes_acumulado": acumulado,
+        }
+    )
+    tabela.to_csv(caminho_csv, index_label="ano")
     print(
         f"salvo: {caminho_csv} (total geral, todos os anos: {total} contribuintes distintos)",
         file=sys.stderr,
@@ -1473,6 +1488,14 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     ax.set_ylabel("contribuintes distintos naquele ano")
     ax.set_title(f"{LING.atual.nome}: contribuintes por ano (total geral, todos os anos: {total})")
     _salva_fig(fig, "contribuintes/contribuintes_por_ano.png")
+
+    fig2, ax2 = plt.subplots(figsize=(max(7.0, 0.45 * len(por_ano)), 4))
+    ax2.plot(anos, acumulado.to_numpy(), color="#a6431f", linewidth=1.6, marker="o", markersize=5)
+    ax2.tick_params(axis="x", rotation=90)
+    ax2.set_xlabel("ano")
+    ax2.set_ylabel("contribuintes distintos (acumulado)")
+    ax2.set_title(f"{LING.atual.nome}: contribuintes distintos acumulados (total: {total})")
+    _salva_fig(fig2, "contribuintes/contribuintes_acumulado_por_ano.png")
 
     _registra_total_geral(total)
 
@@ -1725,6 +1748,46 @@ def gera_geral_contribuintes_evolucao() -> None:
     ax.set_title("Contribuintes distintos por ano, 4 linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_contribuintes_evolucao_por_ano.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
+def gera_geral_contribuintes_acumulado_evolucao() -> None:
+    """Contribuintes distintos ACUMULADOS por ano (total de sempre até ali,
+    sempre crescente), as 4 linguagens no mesmo plano. Lê a mesma
+    `contribuintes_por_ano.csv` de `gera_geral_contribuintes_evolucao`, só a
+    coluna muda; não recalcula nada."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / "csv" / "contribuintes" / "contribuintes_por_ano.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv)
+        ax.plot(
+            df["ano"],
+            df["contribuintes_acumulado"],
+            drawstyle="steps-mid",
+            marker="o",
+            markersize=4,
+            color=CORES_LINGUAGEM[slug],
+            label=linguagem.nome,
+        )
+    if faltando:
+        print(
+            f"aviso: sem contribuintes_por_ano.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    from matplotlib.ticker import MaxNLocator
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("ano")
+    ax.set_ylabel("contribuintes distintos acumulados")
+    ax.set_title("Contribuintes distintos acumulados por ano, 4 linguagens")
+    ax.legend(loc="best")
+    caminho = _caminho_geral("geral_contribuintes_acumulado_evolucao_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -2253,6 +2316,7 @@ SEM_PIPELINE_PADRAO = {
 def _executa_geral() -> None:
     gera_geral_contribuintes()
     gera_geral_contribuintes_evolucao()
+    gera_geral_contribuintes_acumulado_evolucao()
     gera_geral_ccr_ncr()
     gera_geral_histograma_eventos()
     gera_geral_curva_retencao()
