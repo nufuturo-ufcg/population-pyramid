@@ -121,6 +121,16 @@ MAPA_TIPO_R2 = {
 # evento de issue) é discussão.
 TIPOS_CODING = {"commits", "pull_requests"}
 
+# Rótulo de legenda só das 3 pirâmides de anos-calendário distintos (não é
+# metodologia auditada, esse texto não tem compromisso com o artigo). Não
+# mexe em `plots.PT_LABEL`: aquele é usado pelas figuras oficiais da
+# replicação, e "non-coding" ali é o termo exato do artigo (IEICE16/ESEM14).
+ROTULO_LEGENDA_ANOS_DISTINTOS = {
+    "non_coding": "discussion",
+    "moved": "moved to coding",
+    "coding": "coding",
+}
+
 
 @dataclass(frozen=True)
 class Linguagem:
@@ -823,7 +833,7 @@ def gera_piramide_anos_distintos(eventos: pd.DataFrame) -> None:
                 facecolor=pl.plots.FILL[c],
                 hatch=pl.plots.HATCH[c],
                 edgecolor="#4D4D4D",
-                label=pl.plots.PT_LABEL[c],
+                label=ROTULO_LEGENDA_ANOS_DISTINTOS[c],
             )
             for c in ("non_coding", "moved", "coding")
         ]
@@ -1727,6 +1737,7 @@ def gera_piramide_comparativa() -> None:
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
     gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
     gera_piramide_anos_distintos_comparativa(eventos_por_lingua, fim_comum)
+    gera_grade_anos_distintos(eventos_por_lingua)
 
 
 def gera_piramide_anos_distintos_comparativa(
@@ -1755,7 +1766,7 @@ def gera_piramide_anos_distintos_comparativa(
                 facecolor=pl.plots.FILL[c],
                 hatch=pl.plots.HATCH[c],
                 edgecolor="#4D4D4D",
-                label=pl.plots.PT_LABEL[c],
+                label=ROTULO_LEGENDA_ANOS_DISTINTOS[c],
             )
             for c in ("non_coding", "moved", "coding")
         ]
@@ -1766,6 +1777,81 @@ def gera_piramide_anos_distintos_comparativa(
         )
         fig.tight_layout(rect=(0, 0.04, 1, 0.96))
         caminho = _caminho_geral("piramides_por_linguagem_anos_distintos_mesmo_corte.png")
+        fig.savefig(caminho, dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"salvo: {caminho}")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+ANOS_GRADE_ANOS_DISTINTOS = (2016, 2019, 2022, 2026)
+
+
+def gera_grade_anos_distintos(
+    eventos_por_lingua: dict[str, pd.DataFrame], anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS
+) -> None:
+    """Evolução da pirâmide de anos-calendário distintos ao longo do tempo,
+    as 4 linguagens juntas: uma linha por linguagem, uma coluna por
+    ano-snapshot (31/dez de cada `anos`). Cada célula é a mesma tabela de
+    `_frame_por_anos_contribuicao`, só que cortada num ano do passado em vez
+    do último dado disponível. Ano anterior à primeira coleta daquela
+    linguagem fica em branco (não existe dado antes disso, não é zero).
+
+    Escala dentro de cada LINHA (linguagem) é compartilhada entre as 4
+    colunas: sem isso, auto-escala faria uma pirâmide de 2016 do tamanho de
+    uma de 2026 mesmo crescendo 10x, e o crescimento real viraria ilusão de
+    ótica (mesmo motivo do parâmetro `xmax`/`ymax` de `draw_pyramid`). Entre
+    linguagens a escala é livre: são ordens de grandeza diferentes."""
+    from matplotlib.patches import Patch
+
+    pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
+    try:
+        fig, eixos = plt.subplots(
+            len(LINGUAGENS), len(anos), figsize=(4.2 * len(anos), 4.2 * len(LINGUAGENS))
+        )
+        for linha, (slug, linguagem) in enumerate(LINGUAGENS.items()):
+            eventos = eventos_por_lingua[slug]
+            tabelas = {}
+            for ano in anos:
+                snapshot = pd.Timestamp(f"{ano}-12-31")
+                tabelas[ano] = (
+                    _frame_por_anos_contribuicao(eventos, snapshot)
+                    if snapshot <= eventos["timestamp"].max()
+                    else None
+                )
+            validas = [t for t in tabelas.values() if t is not None and len(t)]
+            somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
+            xmax = max(somas, default=1.0)
+            ymax = max((int(t["band"].max()) for t in validas), default=0)
+
+            for coluna, ano in enumerate(anos):
+                eixo = eixos[linha][coluna]
+                tabela = tabelas[ano]
+                if tabela is None or tabela.empty:
+                    eixo.axis("off")
+                    eixo.set_title(f"{linguagem.nome}, {ano}\n(sem dado)", fontsize=9)
+                    continue
+                pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax, ymax=ymax)
+                eixo.set_title(f"{linguagem.nome}, {ano}", fontsize=9)
+                eixo.set_xlabel("contribuidores", fontsize=8)
+                if coluna == 0:
+                    eixo.set_ylabel("anos distintos", fontsize=8)
+
+        handles = [
+            Patch(
+                facecolor=pl.plots.FILL[c],
+                hatch=pl.plots.HATCH[c],
+                edgecolor="#4D4D4D",
+                label=ROTULO_LEGENDA_ANOS_DISTINTOS[c],
+            )
+            for c in ("non_coding", "moved", "coding")
+        ]
+        fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False)
+        fig.suptitle(
+            "Pirâmide (anos-calendário distintos) ao longo do tempo, 4 linguagens", fontsize=14
+        )
+        fig.tight_layout(rect=(0, 0.03, 1, 0.96))
+        caminho = _caminho_geral("piramides_anos_distintos_evolucao_por_linguagem.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
