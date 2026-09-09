@@ -744,6 +744,95 @@ def gera_piramide_veteranos(eventos: pd.DataFrame) -> None:
             shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
+def _frame_por_anos_contribuicao(
+    eventos: pd.DataFrame, snapshot: pd.Timestamp, window_meses: int = 3
+) -> pd.DataFrame:
+    """`band` = quantidade de anos-calendário DISTINTOS em que o contribuinte
+    teve pelo menos 1 evento até `snapshot`, não o tempo de calendário desde
+    o primeiro evento. Alguém que contribuiu em 2011, 2014 e 2015 cai em
+    band=2 (3 anos, 0-indexado como as outras pirâmides), não em band=3
+    (2015-2011=4 anos de calendário). Só entra quem está ativo (evento
+    dentro de `window_meses` de `snapshot`, mesma leitura de
+    `plots.pyramid_population = active`). Categoria replica a regra do
+    motor (`snapshots.py`): codou alguma vez = coding, ou moved se discutiu
+    antes do primeiro commit/PR; só discussão = non_coding."""
+    ev = eventos[eventos["timestamp"] <= snapshot]
+    anos = ev.groupby("contributor_id")["timestamp"].apply(lambda s: s.dt.year.nunique())
+    ultimo = ev.groupby("contributor_id")["timestamp"].max()
+    coding_mask = ev["event_type"].isin(TIPOS_CODING)
+    primeiro_coding = ev[coding_mask].groupby("contributor_id")["timestamp"].min()
+    primeiro_discussao = ev[~coding_mask].groupby("contributor_id")["timestamp"].min()
+
+    pessoas = pd.DataFrame({"band": anos - 1, "ultimo": ultimo})
+    pessoas["ativo"] = pessoas["ultimo"] >= (snapshot - pd.DateOffset(months=window_meses))
+    pessoas["primeiro_coding"] = primeiro_coding
+    pessoas["primeiro_discussao"] = primeiro_discussao
+    codou = pessoas["primeiro_coding"].notna()
+    moveu = codou & pessoas["primeiro_discussao"].notna()
+    moveu &= pessoas["primeiro_discussao"] < pessoas["primeiro_coding"]
+    pessoas["categoria"] = "non_coding"
+    pessoas.loc[codou, "categoria"] = "coding"
+    pessoas.loc[moveu, "categoria"] = "moved"
+
+    pessoas = pessoas[pessoas["ativo"]]
+    tabela = pessoas.groupby(["band", "categoria"]).size().unstack(fill_value=0)
+    for coluna in ("non_coding", "moved", "coding"):
+        if coluna not in tabela.columns:
+            tabela[coluna] = 0
+    banda_max = int(pessoas["band"].max()) if len(pessoas) else 0
+    tabela = tabela.reindex(range(banda_max + 1), fill_value=0)
+    tabela.index.name = "band"
+    return tabela[["non_coding", "moved", "coding"]].reset_index()
+
+
+def gera_piramide_anos_distintos(eventos: pd.DataFrame) -> None:
+    """Pirâmide com uma base de idade que o motor auditado não tem: em vez de
+    `calendar_tenure` (tempo de calendário desde o primeiro evento, EM VIGOR
+    em toda outra figura deste script) ou `accumulated_active` (soma de dias
+    de atividade contínua, refutada no motor por esvaziar os tipos C/D), aqui
+    a idade é a CONTAGEM de anos-calendário distintos com evento. Pedido
+    explícito do usuário: "contribuiu em 2011, 2014, 2015 = 3 anos de
+    contribuição", não 4.
+
+    Só a pirâmide muda de base aqui. CCR/NCR, magnetismo/stickiness,
+    projeção e backtest continuam em `calendar_tenure`: são metodologia
+    auditada contra o artigo, e essa idade nova não tem correspondente
+    testado ali (reimplementar cada um deles sob essa base seria escrever
+    metodologia nova sem nada pra validar contra). Por isso esta função não
+    reusa `classify`/`snapshots`: monta a tabela na mão
+    (`_frame_por_anos_contribuicao`) e desenha com `plots.draw_pyramid`, a
+    mesma rotina visual das outras pirâmides, sem o resto do pipeline.
+    `roda_pipeline(band_months=12)` entra só pelo efeito colateral de deixar
+    `config.settings()` e `plots` prontos pro desenho (1 unidade de banda =
+    12 meses, que é exatamente como essa idade já vem contada: em anos)."""
+    snapshot = eventos["timestamp"].max()
+    tabela = _frame_por_anos_contribuicao(eventos, snapshot)
+    pl = roda_pipeline(eventos, band_months=12)
+    try:
+        fig, ax = plt.subplots(figsize=(6.5, max(4.0, 0.32 * len(tabela))))
+        pl.plots.draw_pyramid(ax, tabela.astype({"band": int}))
+        ax.set_xlabel("contribuidores")
+        ax.set_ylabel("anos-calendário distintos de contribuição")
+        ax.set_title(
+            f"{LING.atual.nome}, {snapshot.date()} (idade = anos distintos, não calendário)"
+        )
+        from matplotlib.patches import Patch
+
+        handles = [
+            Patch(
+                facecolor=pl.plots.FILL[c],
+                hatch=pl.plots.HATCH[c],
+                edgecolor="#4D4D4D",
+                label=pl.plots.PT_LABEL[c],
+            )
+            for c in ("non_coding", "moved", "coding")
+        ]
+        ax.legend(handles=handles, loc="lower right", fontsize=8)
+        _salva_fig(fig, f"piramide_{LING.atual.slug}_anos_distintos.png")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
 def gera_linha_tempo(pl: SimpleNamespace) -> None:
     caminho = pl.plots.figure_pyramid_timeline(
         pl.sid, ultimos_anos=ULTIMOS_ANOS, passo_anos=PASSO_ANOS
@@ -1760,6 +1849,7 @@ def gera_comparacao_metricas_linguagens(
 GERADORES = {
     "piramide": lambda _pl, ev: gera_piramide_multi(ev),
     "piramide-veteranos": lambda _pl, ev: gera_piramide_veteranos(ev),
+    "piramide-anos-distintos": lambda _pl, ev: gera_piramide_anos_distintos(ev),
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
     "linha-tempo-4": lambda _pl, ev: gera_linha_tempo_4(ev),
     "projecao": lambda pl, _ev: gera_projecao(pl),
@@ -1785,6 +1875,7 @@ SEM_PIPELINE_PADRAO = {
     "resumo-contribuintes",
     "piramide",
     "piramide-veteranos",
+    "piramide-anos-distintos",
 }
 
 
