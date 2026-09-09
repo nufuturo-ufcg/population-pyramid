@@ -1409,6 +1409,66 @@ def gera_resumo_contribuintes(ev: pd.DataFrame) -> None:
     print(f"salvo: {caminho} ({len(resumo)} contribuintes)", file=sys.stderr)
 
 
+def _curva_retencao(ev: pd.DataFrame) -> pd.DataFrame:
+    """Complemento do abandono: em vez de "quando foi a última vez que essa
+    pessoa apareceu" (uma foto de hoje), aqui é "de quem entrou k anos atrás,
+    que fração ainda aparece k anos depois", agregado sobre TODAS as coortes
+    de entrada (2011 conta, 2015 conta, 2020 conta, todas juntas no mesmo k).
+    "Aparece" é qualquer evento naquele ano-calendário; não exige atividade
+    contínua, quem sumiu e voltou conta como retido no ano em que voltou
+    (mesma leitura permissiva de "voltas").
+
+    Denominador de cada k é só quem TEVE CHANCE de aparecer em
+    primeiro_ano+k dentro da coleta (elegível), não todo mundo: incluir
+    quem entrou ano passado no denominador de k=10 subestimaria a
+    retenção de propósito, porque essas pessoas não tiveram 10 anos pra
+    aparecer ainda."""
+    pares = ev[["contributor_id"]].copy()
+    pares["ano"] = ev["timestamp"].dt.year
+    pares = pares.drop_duplicates()
+    primeiro_ano = pares.groupby("contributor_id")["ano"].min()
+    pares["primeiro_ano"] = pares["contributor_id"].map(primeiro_ano)
+    pares["k"] = pares["ano"] - pares["primeiro_ano"]
+
+    ultimo_ano_dataset = int(ev["timestamp"].dt.year.max())
+    max_k = ultimo_ano_dataset - int(primeiro_ano.min())
+    ativos_por_k = {k: set(g["contributor_id"]) for k, g in pares.groupby("k")}
+
+    linhas = []
+    for k in range(max_k + 1):
+        elegiveis = set(primeiro_ano[primeiro_ano + k <= ultimo_ano_dataset].index)
+        if not elegiveis:
+            continue
+        retidos = len(elegiveis & ativos_por_k.get(k, set()))
+        linhas.append(
+            {
+                "k": k,
+                "retidos": retidos,
+                "elegiveis": len(elegiveis),
+                "taxa": retidos / len(elegiveis),
+            }
+        )
+    return pd.DataFrame(linhas)
+
+
+def gera_curva_retencao(ev: pd.DataFrame) -> None:
+    """Desenha e salva `_curva_retencao`: eixo X = anos desde a primeira
+    contribuição (k), eixo Y = fração da coorte elegível ainda ativa
+    naquele k, agregado sobre todas as coortes de entrada juntas."""
+    curva = _curva_retencao(ev)
+    caminho_csv = _caminho_csv("retencao_por_k.csv")
+    curva.to_csv(caminho_csv, index=False)
+    print(f"salvo: {caminho_csv}", file=sys.stderr)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(curva["k"], curva["taxa"], marker="o", markersize=4, color="black")
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("anos desde a primeira contribuição (k)")
+    ax.set_ylabel("fração da coorte elegível ainda ativa em k")
+    ax.set_title(f"{LING.atual.nome}: retenção por anos desde a entrada, todas as coortes juntas")
+    _salva_fig(fig, f"retencao_{LING.atual.slug}_por_k.png")
+
+
 REGISTRO_GERAL = PASTA_GERAL / "contribuintes_por_linguagem.json"
 
 
@@ -1561,6 +1621,11 @@ def gera_geral_contribuintes_evolucao() -> None:
             f"aviso: sem contribuintes_por_ano.csv ainda para {', '.join(sorted(faltando))}",
             file=sys.stderr,
         )
+    from matplotlib.ticker import MaxNLocator
+
+    # Ano é inteiro: sem isso o matplotlib põe tick fracionário (2010.5)
+    # quando o intervalo é largo, pedido explícito do usuário pra não ter.
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano")
     ax.set_ylabel("contribuintes distintos naquele ano")
     ax.set_title("Contribuintes distintos por ano, 4 linguagens")
@@ -1629,6 +1694,56 @@ def gera_geral_histograma_eventos() -> None:
         eixo.legend(fontsize=8)
     fig.suptitle("Quantos eventos cada contribuinte tem, 4 linguagens", fontsize=13)
     caminho = _caminho_geral("geral_histograma_eventos_por_contribuinte.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
+def gera_geral_curva_retencao() -> None:
+    """`_curva_retencao` das 4 linguagens no mesmo plano. Lê `retencao_por_k.csv`
+    de cada linguagem (`--figuras retencao` ou `all`); não recalcula nada."""
+    partes = []
+    faltando = []
+    for slug in LINGUAGENS:
+        caminho = TMP_BASE / slug / "csv" / "retencao_por_k.csv"
+        if not caminho.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho)
+        df["linguagem"] = slug
+        partes.append(df)
+    if faltando:
+        print(
+            f"aviso: sem retencao_por_k.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    if not partes:
+        raise SystemExit(
+            "nenhum retencao_por_k.csv encontrado. Rode `--figuras retencao` "
+            "(ou `all`) em cada linguagem antes."
+        )
+    todos = pd.concat(partes, ignore_index=True)
+
+    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    for slug, linguagem in LINGUAGENS.items():
+        grupo = todos[todos["linguagem"] == slug].sort_values("k")
+        ax.plot(
+            grupo["k"],
+            grupo["taxa"],
+            marker="o",
+            markersize=4,
+            color=CORES_LINGUAGEM[slug],
+            label=linguagem.nome,
+        )
+    from matplotlib.ticker import MaxNLocator
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))  # k é inteiro, sem tick fracionário
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("anos desde a primeira contribuição (k)")
+    ax.set_ylabel("fração da coorte elegível ainda ativa em k")
+    ax.set_title("Retenção por anos desde a entrada, 4 linguagens")
+    ax.legend(fontsize=9)
+    caminho = _caminho_geral("geral_retencao_por_k.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -2016,6 +2131,7 @@ GERADORES = {
     "voltas": lambda _pl, ev: gera_voltas_por_ano(ev),
     "contribuintes": lambda _pl, ev: gera_contribuintes_por_ano(ev),
     "resumo-contribuintes": lambda _pl, ev: gera_resumo_contribuintes(ev),
+    "retencao": lambda _pl, ev: gera_curva_retencao(ev),
 }
 
 # Não usam o pipeline padrão do loop principal: `fantasmas`/`abandono`/`voltas`/
@@ -2029,6 +2145,7 @@ SEM_PIPELINE_PADRAO = {
     "voltas",
     "contribuintes",
     "resumo-contribuintes",
+    "retencao",
     "piramide",
     "piramide-veteranos",
     "piramide-anos-distintos",
