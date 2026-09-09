@@ -274,7 +274,7 @@ def _salva_fantasmas_por_ano(fantasmas: pd.DataFrame) -> None:
         fantasmas["created_at"], utc=True, format="ISO8601", errors="coerce"
     ).dt.tz_localize(None)
     por_ano = ts.dt.year.value_counts().sort_index()
-    caminho = _caminho_csv("fantasmas_por_ano.csv")
+    caminho = _caminho_csv("fantasmas/fantasmas_por_ano.csv")
     por_ano.rename("eventos_de_conta_apagada").to_csv(caminho, header=True, index_label="ano")
     print(
         f"salvo: {caminho} ({len(fantasmas)} eventos de conta apagada, "
@@ -707,7 +707,9 @@ def gera_piramide_multi(eventos: pd.DataFrame) -> None:
         try:
             caminho = pl.plots.figure_pyramid(pl.sid)
             rotulo = "comquarter" if banda_meses == 3 else "semquarter"
-            nome = f"piramide_{LING.atual.slug}_metodologia_{rotulo}_banda{banda_meses}m.png"
+            nome = (
+                f"piramide/piramide_{LING.atual.slug}_metodologia_{rotulo}_banda{banda_meses}m.png"
+            )
             _salva(caminho, nome)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
@@ -748,7 +750,7 @@ def gera_piramide_veteranos(eventos: pd.DataFrame) -> None:
         pl = roda_pipeline(filtrado, band_months=3)
         try:
             caminho = pl.plots.figure_pyramid(pl.sid)
-            nome = f"piramide_{LING.atual.slug}_veteranos_min{meses_min}m.png"
+            nome = f"piramide-veteranos/piramide_{LING.atual.slug}_veteranos_min{meses_min}m.png"
             _salva(caminho, nome)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
@@ -838,7 +840,7 @@ def gera_piramide_anos_distintos(eventos: pd.DataFrame) -> None:
             for c in ("non_coding", "moved", "coding")
         ]
         ax.legend(handles=handles, loc="lower right", fontsize=8)
-        _salva_fig(fig, f"piramide_{LING.atual.slug}_anos_distintos.png")
+        _salva_fig(fig, f"piramide-anos-distintos/piramide_{LING.atual.slug}_anos_distintos.png")
     finally:
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
@@ -847,7 +849,10 @@ def gera_linha_tempo(pl: SimpleNamespace) -> None:
     caminho = pl.plots.figure_pyramid_timeline(
         pl.sid, ultimos_anos=ULTIMOS_ANOS, passo_anos=PASSO_ANOS
     )
-    nome = f"linha_do_tempo_{LING.atual.slug}_metodologia_{ULTIMOS_ANOS}anos_passo{PASSO_ANOS}.png"
+    nome = (
+        f"linha-tempo/linha_do_tempo_{LING.atual.slug}_metodologia_"
+        f"{ULTIMOS_ANOS}anos_passo{PASSO_ANOS}.png"
+    )
     _salva(caminho, nome)
 
 
@@ -863,7 +868,7 @@ def gera_linha_tempo_4(eventos: pd.DataFrame) -> None:
         caminho = pl.plots.figure_pyramid_timeline(pl.sid, anos=ANOS_ESCOLHIDOS)
         anos_txt = "-".join(str(a) for a in ANOS_ESCOLHIDOS)
         nome = (
-            f"linha_do_tempo_{LING.atual.slug}_4anos_{anos_txt}"
+            f"linha-tempo-4/linha_do_tempo_{LING.atual.slug}_4anos_{anos_txt}"
             f"_banda{BANDA_ANOS_TIMELINE}a_janela{janela}m.png"
         )
         _salva(caminho, nome)
@@ -896,7 +901,7 @@ def gera_projecao(pl: SimpleNamespace) -> None:
     print("\nmediana do ABRE por categoria (menor = melhor; cohort vs baseline):")
     resumo = linha.groupby("category")[["abre_cohort", "abre_baseline"]].median()
     print(resumo.to_string())
-    saida = _caminho_csv(f"projecao_{LING.atual.slug}_metodologia_numeros.csv")
+    saida = _caminho_csv(f"projecao/projecao_{LING.atual.slug}_metodologia_numeros.csv")
     linha.to_csv(saida, index=False)
     print(f"salvo: {saida}")
 
@@ -1155,7 +1160,7 @@ def gera_stickiness_ano(pl: SimpleNamespace) -> None:
     ax.tick_params(axis="x", rotation=90)  # senão o rótulo de ano cola um no outro
     ax.set_ylabel("stickiness")
     ax.set_title(f"{_rotulo(pl)}: stickiness por ano (magnetismo omitido, degenerado em 1,0)")
-    _salva_fig(fig, f"stickiness_por_ano_{LING.atual.slug}_metodologia.png")
+    _salva_fig(fig, f"stickiness-ano/stickiness_por_ano_{LING.atual.slug}_metodologia.png")
 
 
 def gera_ccr_ncr(pl: SimpleNamespace) -> None:
@@ -1179,19 +1184,19 @@ def gera_ccr_ncr(pl: SimpleNamespace) -> None:
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
     ax.set_title(f"{_rotulo(pl)}: CCR x NCR por trimestre")
-    _salva_fig(fig, f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.png")
+    _salva_fig(fig, f"ccr-ncr/tipos_ccr_ncr_{LING.atual.slug}_metodologia.png")
 
     # CSV ao lado do PNG: sem isso, comparar CCR/NCR entre linguagens
     # (`gera_geral_ccr_ncr`) precisaria rodar o pipeline de novo pra cada
     # linguagem só pra reler o que essa figura já calculou.
-    caminho_csv = _caminho_csv(f"tipos_ccr_ncr_{LING.atual.slug}_metodologia.csv")
+    caminho_csv = _caminho_csv(f"ccr-ncr/tipos_ccr_ncr_{LING.atual.slug}_metodologia.csv")
     df[["snapshot", "ccr", "ncr", "type"]].to_csv(caminho_csv, index=False)
     print(f"salvo: {caminho_csv}")
 
 
 def gera_fantasmas(ev: pd.DataFrame) -> None:  # noqa: ARG001
     """Lê o CSV que `carrega_eventos` já gravou e desenha a barra. Não recalcula."""
-    caminho_csv = _caminho_csv("fantasmas_por_ano.csv")
+    caminho_csv = _caminho_csv("fantasmas/fantasmas_por_ano.csv")
     if not caminho_csv.exists():
         print(
             "aviso: fantasmas_por_ano.csv não existe (rode com --figuras incluindo "
@@ -1205,7 +1210,7 @@ def gera_fantasmas(ev: pd.DataFrame) -> None:  # noqa: ARG001
     ax.tick_params(axis="x", rotation=90)  # senão o rótulo de ano cola um no outro
     ax.set_ylabel("eventos de conta apagada ('ghost')")
     ax.set_title(f"{LING.atual.nome}: contas apagadas por ano (fora da pirâmide, só registro)")
-    _salva_fig(fig, "fantasmas_por_ano.png")
+    _salva_fig(fig, "fantasmas/fantasmas_por_ano.png")
 
 
 def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
@@ -1224,7 +1229,7 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     abandonou = ultimo_por_pessoa[ultimo_por_pessoa < limite]
     por_ano = abandonou.dt.year.value_counts().sort_index()
 
-    caminho_csv = _caminho_csv("abandono_por_ano.csv")
+    caminho_csv = _caminho_csv("abandono/abandono_por_ano.csv")
     por_ano.rename("pessoas_que_abandonaram").to_csv(
         caminho_csv, header=True, index_label="ano_da_ultima_contribuicao"
     )
@@ -1269,7 +1274,7 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     linhas2, rotulos2 = eixo2.get_legend_handles_labels()
     ax.legend(linhas1 + linhas2, rotulos1 + rotulos2, loc="upper left")
     fig.tight_layout()
-    _salva_fig(fig, "abandono_por_ano.png")
+    _salva_fig(fig, "abandono/abandono_por_ano.png")
 
     # As duas linhas juntas, numa régua só (sem eixo duplo). O valor por ano
     # fica achatado perto do eixo porque a escala é a do acumulado; assim
@@ -1298,7 +1303,7 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
     ax4.set_ylabel("pessoas")
     ax4.set_title(f"{LING.atual.nome}: abandono por ano e acumulado, mesma escala")
     ax4.legend(loc="upper left")
-    _salva_fig(fig3, "abandono_por_ano_mesma_escala.png")
+    _salva_fig(fig3, "abandono/abandono_por_ano_mesma_escala.png")
 
     # Figura separada só do acumulado, sem o eixo duplo: pra quem quer olhar
     # só a soma corrida, sem o valor por ano competindo por atenção.
@@ -1320,7 +1325,7 @@ def gera_abandono_por_ano(ev: pd.DataFrame) -> None:
         f"{LING.atual.nome}: abandono acumulado por ano "
         f"(total até {anos[-1]}: {int(acumulado.iloc[-1])})"
     )
-    _salva_fig(fig2, "abandono_acumulado_por_ano.png")
+    _salva_fig(fig2, "abandono/abandono_acumulado_por_ano.png")
 
 
 def gera_voltas_por_ano(ev: pd.DataFrame) -> None:
@@ -1337,7 +1342,7 @@ def gera_voltas_por_ano(ev: pd.DataFrame) -> None:
     voltas = perfil[perfil["span_idx"] > 0]  # span 0 é a primeira aparição, não é volta
     por_ano = pd.Series(voltas["span_start"]).dt.year.value_counts().sort_index()
 
-    caminho_csv = _caminho_csv("voltas_por_ano.csv")
+    caminho_csv = _caminho_csv("voltas/voltas_por_ano.csv")
     por_ano.rename("voltas").to_csv(caminho_csv, header=True, index_label="ano_da_volta")
     print(f"salvo: {caminho_csv} ({len(voltas)} voltas no total)", file=sys.stderr)
 
@@ -1350,7 +1355,7 @@ def gera_voltas_por_ano(ev: pd.DataFrame) -> None:
     ax.set_xlabel("ano da volta")
     ax.set_ylabel("quantidade de voltas (pessoa que ficou 3+ meses sumida e contribuiu de novo)")
     ax.set_title(f"{LING.atual.nome}: voltas por ano")
-    _salva_fig(fig, "voltas_por_ano.png")
+    _salva_fig(fig, "voltas/voltas_por_ano.png")
 
 
 def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
@@ -1362,7 +1367,7 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     por_ano = ev.assign(ano=anos_evento).groupby("ano")["contributor_id"].nunique()
     total = ev["contributor_id"].nunique()
 
-    caminho_csv = _caminho_csv("contribuintes_por_ano.csv")
+    caminho_csv = _caminho_csv("contribuintes/contribuintes_por_ano.csv")
     por_ano.rename("contribuintes_distintos").to_csv(caminho_csv, header=True, index_label="ano")
     print(
         f"salvo: {caminho_csv} (total geral, todos os anos: {total} contribuintes distintos)",
@@ -1378,7 +1383,7 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     ax.set_xlabel("ano")
     ax.set_ylabel("contribuintes distintos naquele ano")
     ax.set_title(f"{LING.atual.nome}: contribuintes por ano (total geral, todos os anos: {total})")
-    _salva_fig(fig, "contribuintes_por_ano.png")
+    _salva_fig(fig, "contribuintes/contribuintes_por_ano.png")
 
     _registra_total_geral(total)
 
@@ -1404,7 +1409,7 @@ def gera_resumo_contribuintes(ev: pd.DataFrame) -> None:
     resumo["n_total"] = resumo["n_coding"] + resumo["n_discussao"]
     resumo["span_dias"] = (resumo["ultimo"] - resumo["primeiro"]).dt.days
 
-    caminho = _caminho_csv("contribuintes_resumo.csv")
+    caminho = _caminho_csv("resumo-contribuintes/contribuintes_resumo.csv")
     resumo.rename_axis("contributor_id").reset_index().to_csv(caminho, index=False)
     print(f"salvo: {caminho} ({len(resumo)} contribuintes)", file=sys.stderr)
 
@@ -1456,7 +1461,7 @@ def gera_curva_retencao(ev: pd.DataFrame) -> None:
     contribuição (k), eixo Y = fração da coorte elegível ainda ativa
     naquele k, agregado sobre todas as coortes de entrada juntas."""
     curva = _curva_retencao(ev)
-    caminho_csv = _caminho_csv("retencao_por_k.csv")
+    caminho_csv = _caminho_csv("retencao/retencao_por_k.csv")
     curva.to_csv(caminho_csv, index=False)
     print(f"salvo: {caminho_csv}", file=sys.stderr)
 
@@ -1466,7 +1471,7 @@ def gera_curva_retencao(ev: pd.DataFrame) -> None:
     ax.set_xlabel("anos desde a primeira contribuição (k)")
     ax.set_ylabel("fração da coorte elegível ainda ativa em k")
     ax.set_title(f"{LING.atual.nome}: retenção por anos desde a entrada, todas as coortes juntas")
-    _salva_fig(fig, f"retencao_{LING.atual.slug}_por_k.png")
+    _salva_fig(fig, f"retencao/retencao_{LING.atual.slug}_por_k.png")
 
 
 REGISTRO_GERAL = PASTA_GERAL / "contribuintes_por_linguagem.json"
@@ -1548,7 +1553,7 @@ def gera_geral_ccr_ncr() -> None:
     partes = []
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
-        caminho_csv = TMP_BASE / slug / "csv" / f"tipos_ccr_ncr_{slug}_metodologia.csv"
+        caminho_csv = TMP_BASE / slug / "csv" / "ccr-ncr" / f"tipos_ccr_ncr_{slug}_metodologia.csv"
         if not caminho_csv.exists():
             faltando.append(slug)
             continue
@@ -1602,7 +1607,7 @@ def gera_geral_contribuintes_evolucao() -> None:
     fig, ax = plt.subplots(figsize=(10, 6))
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
-        caminho_csv = TMP_BASE / slug / "csv" / "contribuintes_por_ano.csv"
+        caminho_csv = TMP_BASE / slug / "csv" / "contribuintes" / "contribuintes_por_ano.csv"
         if not caminho_csv.exists():
             faltando.append(slug)
             continue
@@ -1649,7 +1654,7 @@ def gera_geral_histograma_eventos() -> None:
     partes = []
     faltando = []
     for slug in LINGUAGENS:
-        caminho = TMP_BASE / slug / "csv" / "contribuintes_resumo.csv"
+        caminho = TMP_BASE / slug / "csv" / "resumo-contribuintes" / "contribuintes_resumo.csv"
         if not caminho.exists():
             faltando.append(slug)
             continue
@@ -1705,7 +1710,7 @@ def gera_geral_curva_retencao() -> None:
     partes = []
     faltando = []
     for slug in LINGUAGENS:
-        caminho = TMP_BASE / slug / "csv" / "retencao_por_k.csv"
+        caminho = TMP_BASE / slug / "csv" / "retencao" / "retencao_por_k.csv"
         if not caminho.exists():
             faltando.append(slug)
             continue
