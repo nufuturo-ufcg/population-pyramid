@@ -2255,6 +2255,7 @@ def _executa_geral() -> None:
     gera_geral_contribuintes_evolucao()
     gera_geral_ccr_ncr()
     gera_geral_histograma_eventos()
+    gera_geral_curva_retencao()
 
 
 def _executa_comparativa_metricas() -> None:
