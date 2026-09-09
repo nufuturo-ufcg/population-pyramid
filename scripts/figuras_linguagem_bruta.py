@@ -1813,10 +1813,14 @@ def gera_grade_anos_distintos(
             eventos = eventos_por_lingua[slug]
             tabelas = {}
             for ano in anos:
-                snapshot = pd.Timestamp(f"{ano}-12-31")
+                # min(31/dez, último dado real): o último `ano` pedido costuma
+                # ser o ano corrente, sem 31/dez ainda; sem o min(), a coluna
+                # inteira caía em "sem dado" mesmo tendo dado parcial do ano.
+                limite = pd.Timestamp(f"{ano}-12-31")
+                snapshot = min(limite, eventos["timestamp"].max())
                 tabelas[ano] = (
                     _frame_por_anos_contribuicao(eventos, snapshot)
-                    if snapshot <= eventos["timestamp"].max()
+                    if snapshot >= eventos["timestamp"].min()
                     else None
                 )
             validas = [t for t in tabelas.values() if t is not None and len(t)]
