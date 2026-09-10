@@ -1160,8 +1160,8 @@ MORTE_JANELA_MESES = 3
 def _idade_morte_por_ano(
     eventos: pd.DataFrame, janela_meses: int = MORTE_JANELA_MESES
 ) -> pd.DataFrame:
-    """Idade mediana (anos) na última contribuição, por ano da última
-    contribuição: a versão CONTÍNUA de "idade-morte ao longo do tempo",
+    """Idade (anos) na última contribuição, mediana e média, por ano da
+    última contribuição: a versão CONTÍNUA de "idade-morte ao longo do tempo",
     companheira de `gera_abandono_por_ano` (mesma população: sem
     contribuição nos últimos `janela_meses` meses, referência fixa no
     evento mais recente da coleta; mesmo agrupamento por ano da última
@@ -1320,10 +1320,15 @@ def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
     tendencia.to_csv(caminho_csv, index=False)
     print(f"salvo: {caminho_csv}", file=sys.stderr)
 
+    # Média, não mediana: a maioria de quem "morre" fez uma única
+    # contribuição na vida inteira (idade = 0), e essa maioria domina a
+    # mediana em quase todo ano, fixando-a em 0 até ela pular de uma vez
+    # quando finalmente deixa de ser maioria. A média sobe aos poucos, ano a
+    # ano, e mostra a tendência real sem esse efeito de salto.
     fig2, ax2 = plt.subplots(figsize=(max(7.0, 0.45 * len(tendencia)), 4.5))
     ax2.plot(
         tendencia["ano_morte"],
-        tendencia["idade_mediana"],
+        tendencia["idade_media"],
         marker="o",
         markersize=5,
         color="black",
@@ -1332,9 +1337,9 @@ def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
 
     ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax2.set_xlabel("ano da última contribuição")
-    ax2.set_ylabel("idade mediana na última contribuição (anos)")
-    ax2.set_title(f"{LING.atual.nome}: idade na última contribuição, por ano (mediana)")
-    _salva_fig(fig2, f"idade-morte/idade_morte_mediana_{LING.atual.slug}_por_ano.png")
+    ax2.set_ylabel("idade média na última contribuição (anos)")
+    ax2.set_title(f"{LING.atual.nome}: idade na última contribuição, por ano (média)")
+    _salva_fig(fig2, f"idade-morte/idade_morte_media_{LING.atual.slug}_por_ano.png")
 
 
 def gera_geral_idade_morte(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
@@ -2132,15 +2137,22 @@ ANOS_BACKTEST_PADRAO = (2016, 2019, 2024)
 
 
 def _novatos_por_ano(
-    eventos: pd.DataFrame, anos_base: tuple[int, ...] = ANOS_BACKTEST_PADRAO
+    eventos: pd.DataFrame, anos_base: tuple[int, ...] | None = None
 ) -> pd.DataFrame:
     """Quantos contribuintes tinham menos de `NOVATO_JANELA_MESES` de idade
     (desde o primeiro evento) em cada ano, e a fração disso sobre o total de
-    sempre até aquele ponto. Mesmo corte de data do backtest: 31/dez do ano,
-    ou o último dado real quando o ano ainda não fechou (`min` evita marcar o
-    ano corrente como "sem dado" por não ter chegado no fim)."""
+    sempre até aquele ponto. Corte de data: 31/dez do ano, ou o último dado
+    real quando o ano ainda não fechou (`min` evita marcar o ano corrente
+    como "sem dado" por não ter chegado no fim).
+
+    `anos_base=None` (default) cobre todo ano entre a primeira contribuição
+    e o fim da coleta, um ponto por ano, sem pular nenhum: antes esta função
+    só rodava nos 3 anos do backtest (`ANOS_BACKTEST_PADRAO`), o que deixava
+    o gráfico com 6 anos vazios no meio, sem mostrar tendência nenhuma."""
     primeiro = eventos.groupby("contributor_id")["timestamp"].min()
     fim_dataset = eventos["timestamp"].max()
+    if anos_base is None:
+        anos_base = tuple(range(primeiro.min().year, fim_dataset.year + 1))
     linhas = []
     for ano in anos_base:
         snapshot = min(pd.Timestamp(f"{ano}-12-31"), fim_dataset)
@@ -2162,10 +2174,9 @@ def _novatos_por_ano(
 
 
 def gera_novatos_por_ano(ev: pd.DataFrame) -> None:
-    """Desenha e salva `_novatos_por_ano`, nos mesmos anos do backtest
-    (`ANOS_BACKTEST_PADRAO`): pedido explícito do usuário, "gerar com os
-    mesmos anos" logo depois de perguntar quantos novatos (<3 meses)
-    existiam."""
+    """Desenha e salva `_novatos_por_ano`, um ponto por ano (ver docstring de
+    `_novatos_por_ano`: antes rodava só nos 3 anos do backtest, deixando o
+    gráfico com anos vazios no meio)."""
     tabela = _novatos_por_ano(ev)
     caminho_csv = _caminho_csv("novatos-por-ano/novatos_por_ano.csv")
     tabela.to_csv(caminho_csv, index=False)
@@ -2510,8 +2521,11 @@ def gera_geral_abandono_acumulado() -> None:
 
 
 def gera_geral_idade_morte_por_ano() -> None:
-    """`_idade_morte_por_ano` das 4 linguagens no mesmo plano: idade
-    mediana na última contribuição, ano a ano. Lê
+    """`_idade_morte_por_ano` das 4 linguagens no mesmo plano: idade média
+    na última contribuição, ano a ano. Média, não mediana: a maioria de quem
+    "morre" fez uma única contribuição na vida inteira (idade = 0), essa
+    maioria domina a mediana até ela pular de uma vez quando deixa de ser
+    maioria (ver `gera_piramide_idade_morte_evolucao`). Lê
     `idade_morte_por_ano.csv` de cada linguagem (`--figuras
     idade-morte-tempo` ou `all`); não recalcula nada."""
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -2524,7 +2538,7 @@ def gera_geral_idade_morte_por_ano() -> None:
         df = pd.read_csv(caminho_csv)
         ax.plot(
             df["ano_morte"],
-            df["idade_mediana"],
+            df["idade_media"],
             marker="o",
             markersize=4,
             color=CORES_LINGUAGEM[slug],
@@ -2539,8 +2553,8 @@ def gera_geral_idade_morte_por_ano() -> None:
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano da última contribuição")
-    ax.set_ylabel("idade mediana na última contribuição (anos)")
-    ax.set_title(f"Idade na última contribuição, por ano (mediana), {len(LINGUAGENS)} linguagens")
+    ax.set_ylabel("idade média na última contribuição (anos)")
+    ax.set_title(f"Idade na última contribuição, por ano (média), {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_idade_morte_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2549,10 +2563,12 @@ def gera_geral_idade_morte_por_ano() -> None:
 
 
 def gera_geral_novatos_por_ano() -> None:
-    """`_novatos_por_ano` das 4 linguagens, uma cor por linguagem. Sem linha
-    ligando os pontos: os anos são esparsos (mesmo motivo de
-    `gera_geral_backtest_evolucao`). Lê `novatos_por_ano.csv` de cada
-    linguagem (`--figuras novatos-por-ano` ou `all`); não recalcula nada."""
+    """`_novatos_por_ano` das 4 linguagens, uma linha por linguagem, um
+    ponto por ano (ver docstring de `_novatos_por_ano`: antes só cobria os 3
+    anos do backtest, com linha desligada porque os pontos eram esparsos
+    demais pra conectar; ano a ano isso deixou de ser verdade). Lê
+    `novatos_por_ano.csv` de cada linguagem (`--figuras novatos-por-ano` ou
+    `all`); não recalcula nada."""
     partes = []
     faltando = []
     for slug in LINGUAGENS:
@@ -2580,11 +2596,12 @@ def gera_geral_novatos_por_ano() -> None:
         grupo = todos[todos["linguagem"] == slug].sort_values("ano_base")
         if grupo.empty:
             continue
-        ax.scatter(
+        ax.plot(
             grupo["ano_base"],
             grupo["fracao"],
+            marker="o",
+            markersize=4,
             color=CORES_LINGUAGEM[slug],
-            s=60,
             label=linguagem.nome,
         )
     from matplotlib.ticker import MaxNLocator
@@ -2659,6 +2676,17 @@ def _carrega_todas_linguagens(rodada: int = 2) -> dict[str, pd.DataFrame]:
     return eventos_por_lingua
 
 
+def _rotulo_banda(banda_meses: int) -> str:
+    """Banda em meses, em texto legível: "3 meses" (a banda de quarter, não
+    fecha ano redondo) ou "N anos" pra qualquer banda múltipla de 12. Existe
+    porque o título da figura mostrava "banda 36m", que exige fazer a conta
+    de cabeça pra saber que são 3 anos."""
+    if banda_meses % 12 == 0:
+        anos = banda_meses // 12
+        return "1 ano" if anos == 1 else f"{anos} anos"
+    return f"{banda_meses} meses"
+
+
 def gera_piramide_comparativa() -> None:
     """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
     trimestre completo da linguagem mais atrasada (senão a comparação mistura
@@ -2679,11 +2707,11 @@ def gera_piramide_comparativa() -> None:
     )
 
     # 3 e 12: mesma convenção de `gera_piramide_multi` (quarter da metodologia,
-    # e a versão "sem quarter" em ano). 24 e 36: agrupamento de 2 e 3 anos,
-    # pedido explícito do usuário pra essa comparação entre linguagens. Nome
-    # do arquivo só com a banda em meses: "comquarter"/"semquarter"/
+    # e a versão "sem quarter" em ano). 24, 36 e 60: agrupamento de 2, 3 e 5
+    # anos, pedido explícito do usuário pra essa comparação entre linguagens.
+    # Nome do arquivo só com a banda em meses: "comquarter"/"semquarter"/
     # "agrupado2anos" era jargão interno que não ajudava a achar o arquivo.
-    for banda_meses in (3, 12, 24, 36):
+    for banda_meses in (3, 12, 24, 36, 60):
         fig, eixos = _grade_para_linguagens()
         for eixo, slug in zip(eixos, LINGUAGENS, strict=True):
             LING.aplica(slug)
@@ -2701,7 +2729,7 @@ def gera_piramide_comparativa() -> None:
 
         fig.suptitle(
             f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
-            f"banda {banda_meses}m",
+            f"banda de {_rotulo_banda(banda_meses)}",
             fontsize=14,
         )
         fig.tight_layout()
