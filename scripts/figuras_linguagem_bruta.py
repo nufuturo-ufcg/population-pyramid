@@ -95,6 +95,7 @@ import os
 import shutil
 import sys
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -190,9 +191,19 @@ class _EstadoMetricas5Anos:
     ativo: bool = False
 
 
+class _EstadoParalelo:
+    """`--processos N`, mutável (mesmo padrão das outras `_Estado*`).
+    `None` (default) deixa `roda_pipeline_paralelo` decidir sozinho
+    (`os.cpu_count()`); só existe pra quem quer segurar a máquina pra
+    outra coisa ao mesmo tempo, ou testar com menos processos."""
+
+    n_workers: int | None = None
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
+ESTADO_PARALELO = _EstadoParalelo()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -204,9 +215,41 @@ TMP_BASE = Path.home() / "Documents" / "pyramid-tmp"
 PASTA_GERAL = TMP_BASE / "geral"
 
 
+class _EstadoPastaGeral:
+    """Pra onde `_caminho_geral` escreve agora. Default é `PASTA_GERAL`; só
+    muda dentro de `_rodada_sem_linguagem` (ver mais abaixo), pra uma rodada
+    tipo `--geral-exclude-python` não misturar arquivo com o `geral/` de
+    sempre."""
+
+    pasta: Path = PASTA_GERAL
+
+
+ESTADO_PASTA_GERAL = _EstadoPastaGeral()
+
+
 def _caminho_geral(nome: str) -> Path:
-    PASTA_GERAL.mkdir(parents=True, exist_ok=True)
-    return PASTA_GERAL / nome
+    ESTADO_PASTA_GERAL.pasta.mkdir(parents=True, exist_ok=True)
+    return ESTADO_PASTA_GERAL.pasta / nome
+
+
+@contextmanager
+def _rodada_sem_linguagem(slug: str):
+    """Roda um bloco inteiro de geração "geral" sem `slug`. Não precisa
+    tocar em nenhuma das dezenas de `gera_geral_*`/`gera_piramide_comparativa`
+    que iteram `LINGUAGENS.items()`: todas leem o MESMO dict por referência,
+    então tirar `slug` dele antes de chamá-las (e repor depois, mesmo com
+    exceção) já as faz ignorar essa linguagem sozinhas. `_caminho_geral`
+    desvia pra `geral-exclude-<slug>/` no mesmo intervalo, pra não
+    sobrescrever o `geral/` de sempre."""
+    linguagem = LINGUAGENS.pop(slug, None)
+    pasta_anterior = ESTADO_PASTA_GERAL.pasta
+    ESTADO_PASTA_GERAL.pasta = TMP_BASE / f"geral-exclude-{slug}"
+    try:
+        yield
+    finally:
+        if linguagem is not None:
+            LINGUAGENS[slug] = linguagem
+        ESTADO_PASTA_GERAL.pasta = pasta_anterior
 
 
 def _caminhos_padrao(rodada: int) -> tuple[Path, Path]:
@@ -2214,7 +2257,7 @@ def gera_ccr_ncr_projeto(eventos: pd.DataFrame) -> None:
     elegível, não um escopo só por linguagem. Por isso `roda_pipeline_paralelo`
     (fatia os repositórios entre processos, ver a função pra detalhe e
     o porquê) em vez do `roda_pipeline` sequencial padrão."""
-    pl = roda_pipeline_paralelo(eventos, band_months=3)
+    pl = roda_pipeline_paralelo(eventos, band_months=3, n_workers=ESTADO_PARALELO.n_workers)
     try:
         t = pd.Timestamp(pl.snapshots.classification_snapshot())
         todos = pl.metrics.load_all()
@@ -3065,6 +3108,20 @@ def _executa_geral() -> None:
     gera_geral_novatos_por_ano()
 
 
+def _executa_geral_exclude_python() -> None:
+    """Todo o conteúdo de `--geral` mais `--comparativa`, sem Python: mesmas
+    funções, cada uma já lê `LINGUAGENS` (ver `_rodada_sem_linguagem`), só
+    que escrevendo em `geral-exclude-python/` em vez de `geral/`. Pedido
+    explícito do usuário: a coleta de Python está sendo refeita do zero (a
+    caminho de ~400 mil repositórios) enquanto o resto do script roda, e
+    misturar o Python velho, pequeno, com as outras 3 linguagens de sempre
+    não compara nada de verdade até a coleta nova terminar."""
+    with _rodada_sem_linguagem("python"):
+        _executa_geral()
+        gera_geral_ccr_ncr_por_projeto()
+        gera_piramide_comparativa()
+
+
 def _executa_comparativa_metricas() -> None:
     eventos_por_lingua = _carrega_todas_linguagens()
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
@@ -3121,6 +3178,22 @@ def main() -> None:
         "ccr-ncr já deixou atualizado). Sai depois. Ignora --linguagem/--rodada/--figuras.",
     )
     ap.add_argument(
+        "--geral-exclude-python",
+        action="store_true",
+        help="tudo que --geral e --comparativa juntos desenham, sem Python "
+        "(a coleta de Python está sendo refeita do zero, ~400 mil "
+        "repositórios; misturar com a coleta velha não compara nada de "
+        "verdade). Vai em geral-exclude-python/, não em geral/. Sai depois. "
+        "Ignora --linguagem/--rodada/--figuras.",
+    )
+    ap.add_argument(
+        "--processos",
+        type=int,
+        default=None,
+        help="quantos processos usar em --figuras ccr-ncr-projeto (unit=project "
+        "paralelo). Default: os.cpu_count().",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -3162,9 +3235,11 @@ def main() -> None:
     args = ap.parse_args()
     ESTADO_LINHA_TEMPO_4.teto_proprio = args.teto_proprio_timeline
     ESTADO_METRICAS_5ANOS.ativo = args.metricas_5anos
+    ESTADO_PARALELO.n_workers = args.processos
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
+        "geral_exclude_python": _executa_geral_exclude_python,
         "comparativa": gera_piramide_comparativa,
         "comparativa_metricas": _executa_comparativa_metricas,
     }
