@@ -39,7 +39,12 @@ Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
                  nenhuma pra tirar disso). Comparação de verdade fica em
                  `--comparativa`/`--comparativa-metricas`, que rodam as 4
                  linguagens juntas no mesmo pipeline.
-  ccr-ncr        CCR x NCR por trimestre (scatter)
+  ccr-ncr        CCR x NCR por trimestre (scatter), linguagem inteira como
+                 unidade (unit=language)
+  ccr-ncr-projeto  CCR x NCR por repositório de verdade (unit=project), um
+                 ponto por repositório elegível. Fora de `--figuras all`:
+                 reclassifica cada repositório do zero, minutos por
+                 linguagem em vez de segundos
   fantasmas      contas apagadas ('ghost') por ano: não entram na pirâmide,
                  só o registro de quantas existiram ao longo do tempo
   abandono       pessoas com conta de verdade sem contribuição nos últimos 3
@@ -50,6 +55,9 @@ Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
   idade-morte    pirâmide de quem já abandonou (sem contribuição nos últimos
                  3 meses, mesmo corte de `abandono`): não conta ano-calendário,
                  conta a IDADE que a pessoa tinha na última contribuição
+  idade-morte-tempo  a mesma pirâmide de idade-morte, um painel por
+                 ano-snapshot (`ANOS_GRADE_ANOS_DISTINTOS`), só com quem já
+                 tinha abandonado até aquele ano
 
 Variáveis de ambiente (sobrepõem o default de cada uma; caminho sobrepõe o que
 `--linguagem`/`--rodada` escolheriam):
@@ -616,10 +624,11 @@ def escreve_config(
     eventos: pd.DataFrame,
     band_months: int,
     fim_forcado: pd.Timestamp | None = None,
+    unit: str = "language",
 ) -> None:
     alvo = scratch / "config" / "settings.yaml"
     cfg = yaml.safe_load(alvo.read_text(encoding="utf-8"))
-    cfg["analysis"]["unit"] = "language"
+    cfg["analysis"]["unit"] = unit
     cfg["taxonomy"]["variant"] = "table1"
     cfg["plots"]["pyramid_window_months"] = 3
     cfg["periods"]["band_months"] = band_months
@@ -637,17 +646,27 @@ def escreve_config(
 
 
 def roda_pipeline(
-    eventos: pd.DataFrame, band_months: int, fim_forcado: pd.Timestamp | None = None
+    eventos: pd.DataFrame,
+    band_months: int,
+    fim_forcado: pd.Timestamp | None = None,
+    unit: str = "language",
 ) -> SimpleNamespace:
     """Extract/classify/snapshots/metrics numa config de rascunho.
 
     `fim_forcado` sobrepõe o último trimestre da série (ver `gera_piramide_comparativa`,
     que precisa das 4 linguagens no mesmo corte em vez do próprio máximo de cada uma).
+    `unit="project"` (default "language"): cada repositório elegível vira o
+    próprio escopo (`units.scopes_of_unit`), em vez de somar todos os
+    repositórios da linguagem num escopo só. Só assim CCR/NCR sai por
+    projeto de verdade; com `unit="language"`, `extract` já soma tudo antes
+    de classificar, e não sobra escopo de repositório nenhum pra ler depois.
+    `pl.sid` não existe nesse modo (não há "o" projeto); quem chama lê
+    `pl.metrics.load_all()` direto, todos os `scope_id` de uma vez.
     Devolve os módulos e o scope id.
     """
     scratch = Path(tempfile.mkdtemp(prefix="pyr_lang_fig_"))
     shutil.copytree(ROOT / "config", scratch / "config")
-    escreve_config(scratch, eventos, band_months, fim_forcado)
+    escreve_config(scratch, eventos, band_months, fim_forcado, unit=unit)
 
     from pyramid import config
 
@@ -680,7 +699,7 @@ def roda_pipeline(
         if res.get("failed"):
             raise SystemExit(f"{estagio.STAGE} falhou: {res['failed']}")
 
-    sid = units.id_da_linguagem(LING.atual.nome)
+    sid = units.id_da_linguagem(LING.atual.nome) if unit == "language" else None
     return SimpleNamespace(
         config=config,
         plots=plots,
@@ -981,6 +1000,99 @@ def gera_piramide_idade_morte(eventos: pd.DataFrame) -> None:
         _salva_fig(fig, f"idade-morte/piramide_{LING.atual.slug}_idade_morte.png")
     finally:
         shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
+    """`gera_piramide_idade_morte` ao longo do tempo: um painel por
+    ano-snapshot (`ANOS_GRADE_ANOS_DISTINTOS`), cada um só com quem já tinha
+    "morrido" até aquele ano (corta os eventos em 31/dez daquele ano, ou o
+    último dado real, o que vier primeiro; mesmo `min()` de
+    `gera_grade_anos_distintos`, senão o ano corrente aparece sempre "sem
+    dado"). Largura (X) compartilhada entre os painéis, mesmo motivo de
+    `gera_grade_anos_distintos`: honestidade de tamanho de população. Teto
+    de idade (Y) NÃO compartilhado: não é figura auditada, sem compromisso
+    de mostrar "crescimento de altura" tipo ESEM14 Fig.3."""
+    anos = ANOS_GRADE_ANOS_DISTINTOS
+    tabelas: dict[int, pd.DataFrame | None] = {}
+    for ano in anos:
+        limite = pd.Timestamp(f"{ano}-12-31")
+        corte = min(limite, eventos["timestamp"].max())
+        if corte < eventos["timestamp"].min():
+            tabelas[ano] = None
+            continue
+        tabelas[ano] = _frame_idade_morte(eventos[eventos["timestamp"] <= corte])
+
+    validas = [t for t in tabelas.values() if t is not None and len(t)]
+    if not validas:
+        print(
+            f"aviso: nenhum de {anos} tem gente que já abandonou em "
+            f"{LING.atual.nome}; idade-morte-tempo pulada",
+            file=sys.stderr,
+        )
+        return
+    xmax = max(t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas)
+
+    pl = roda_pipeline(eventos, band_months=12)
+    try:
+        fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 4.6))
+        for eixo, ano in zip(eixos, anos, strict=True):
+            eixo.set_title(str(ano), fontsize=10)
+            tabela = tabelas[ano]
+            if tabela is None or tabela.empty:
+                eixo.axis("off")
+                eixo.text(0.5, 0.5, "sem dado", ha="center", va="center", transform=eixo.transAxes)
+                continue
+            pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
+            eixo.set_xlabel("abandonaram", fontsize=8)
+        eixos[0].set_ylabel("idade na última contribuição (anos)", fontsize=9)
+        _legenda_discussion(fig, pl.plots)
+        fig.suptitle(
+            f"{LING.atual.nome}: idade na última contribuição, ao longo do tempo", fontsize=12
+        )
+        fig.tight_layout(rect=(0, 0.1, 1, 0.9))
+        _salva_fig(fig, f"idade-morte/piramide_{LING.atual.slug}_idade_morte_evolucao.png")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+def gera_geral_idade_morte(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
+    """`gera_piramide_idade_morte` das 4 linguagens lado a lado, sem corte de
+    data comum (idade-morte já usa referência fixa própria: o evento mais
+    recente da COLETA daquela linguagem). Largura (X) NÃO compartilhada
+    entre painéis: linguagens têm população de sempre muito diferente
+    (Elixir e Clojure têm ordens de grandeza mais gente que Zig), e um teto
+    comum esmagaria as menores num traço fino."""
+    fig, eixos = plt.subplots(2, 2, figsize=(11, 11))
+    plots_mod = None
+    for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
+        eventos = eventos_por_lingua[slug]
+        tabela = _frame_idade_morte(eventos)
+        if tabela.empty:
+            eixo.axis("off")
+            eixo.text(0.5, 0.5, "sem dado", ha="center", va="center", transform=eixo.transAxes)
+            eixo.set_title(linguagem.nome)
+            continue
+        pl = roda_pipeline(eventos, band_months=12)
+        try:
+            pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}))
+            plots_mod = pl.plots
+        finally:
+            shutil.rmtree(pl.scratch, ignore_errors=True)
+        eixo.set_title(linguagem.nome)
+        eixo.set_xlabel("contribuidores que já abandonaram", fontsize=8)
+        eixo.set_ylabel("idade na última contribuição (anos)", fontsize=8)
+    if plots_mod is not None:
+        _legenda_discussion(fig, plots_mod)
+    fig.suptitle(
+        f"Idade na última contribuição, de quem já não contribui há mais de "
+        f"{MORTE_JANELA_MESES} meses, 4 linguagens",
+        fontsize=13,
+    )
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    caminho = _caminho_geral("piramides_4_linguagens_idade_morte.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
 
 
 def _monta_linha_tempo(
@@ -1480,9 +1592,9 @@ def gera_ccr_ncr(pl: SimpleNamespace) -> None:
     ax.set_title(f"{_rotulo(pl)}: CCR x NCR por trimestre")
     _salva_fig(fig, f"ccr-ncr/tipos_ccr_ncr_{LING.atual.slug}_metodologia.png")
 
-    # CSV ao lado do PNG: sem isso, comparar CCR/NCR entre linguagens
-    # (`gera_geral_ccr_ncr`) precisaria rodar o pipeline de novo pra cada
-    # linguagem só pra reler o que essa figura já calculou.
+    # CSV ao lado do PNG: sem isso, comparar CCR/NCR entre linguagens por ano
+    # (`gera_geral_ccr_ncr_por_ano`) precisaria rodar o pipeline de novo pra
+    # cada linguagem só pra reler o que essa figura já calculou.
     caminho_csv = _caminho_csv(f"ccr-ncr/tipos_ccr_ncr_{LING.atual.slug}_metodologia.csv")
     df[["snapshot", "ccr", "ncr", "type"]].to_csv(caminho_csv, index=False)
     print(f"salvo: {caminho_csv}")
@@ -1690,16 +1802,16 @@ def gera_contribuintes_por_ano(ev: pd.DataFrame) -> None:
     ax.scatter(anos, por_ano.to_numpy(), color="black", s=45, zorder=3)
     ax.tick_params(axis="x", rotation=90)
     ax.set_xlabel("ano")
-    ax.set_ylabel("contribuintes distintos naquele ano")
-    ax.set_title(f"{LING.atual.nome}: contribuintes por ano (total geral, todos os anos: {total})")
+    ax.set_ylabel("ativos NAQUELE ano (pode cair de um ano pro outro)")
+    ax.set_title(f"{LING.atual.nome}: contribuintes ATIVOS por ano (total de sempre: {total})")
     _salva_fig(fig, "contribuintes/contribuintes_por_ano.png")
 
     fig2, ax2 = plt.subplots(figsize=(max(7.0, 0.45 * len(por_ano)), 4))
     ax2.plot(anos, acumulado.to_numpy(), color="#a6431f", linewidth=1.6, marker="o", markersize=5)
     ax2.tick_params(axis="x", rotation=90)
     ax2.set_xlabel("ano")
-    ax2.set_ylabel("contribuintes distintos (acumulado)")
-    ax2.set_title(f"{LING.atual.nome}: contribuintes distintos acumulados (total: {total})")
+    ax2.set_ylabel("total histórico ATÉ aquele ano (nunca cai)")
+    ax2.set_title(f"{LING.atual.nome}: contribuintes ACUMULADOS até cada ano (total: {total})")
     _salva_fig(fig2, "contribuintes/contribuintes_acumulado_por_ano.png")
 
     _registra_total_geral(total)
@@ -1868,14 +1980,53 @@ CORES_LINGUAGEM = {
 ESCALA_METRICA = (-1.05, 1.05)
 
 
-def gera_geral_ccr_ncr() -> None:
-    """CCR x NCR das 4 linguagens no mesmo plano, uma cor por linguagem. Lê o
-    CSV que `--figuras ccr-ncr` (ou `all`) já deixou em cada subpasta; não
-    recalcula nada."""
+def gera_ccr_ncr_projeto(eventos: pd.DataFrame) -> None:
+    """CCR x NCR por PROJETO de verdade (repositório elegível), não pela
+    linguagem inteira: um ponto por repositório, no snapshot de
+    classificação. Substituiu `geral_ccr_ncr_por_linguagem.png` (nuvem de
+    trimestres da linguagem inteira, confundia com nuvem de projetos e não
+    respondia nada de verdade). `unit="project"` faz `extract` NÃO somar os
+    repositórios da linguagem antes de classificar (ver `roda_pipeline`);
+    cada `scope_id` que sobra depois é um repositório real, exatamente a
+    unidade que IEICE16 Fig.5 usa.
+
+    Bem mais pesado que as outras figuras: classifica cada repositório
+    elegível, não um escopo só por linguagem (~2-3 min em vez de segundos,
+    Zig com ~2 mil repositórios). Por isso `roda_pipeline` próprio aqui em
+    vez do padrão do loop principal (`SEM_PIPELINE_PADRAO`)."""
+    pl = roda_pipeline(eventos, band_months=3, unit="project")
+    try:
+        t = pd.Timestamp(pl.snapshots.classification_snapshot())
+        todos = pl.metrics.load_all()
+        cut = todos[todos["snapshot"] == t].dropna(subset=["ccr", "ncr"]).copy()
+        print(f"{len(cut)} projetos classificados em {t.date()}", file=sys.stderr)
+
+        caminho_csv = _caminho_csv(f"ccr-ncr-projeto/ccr_ncr_projeto_{LING.atual.slug}.csv")
+        cut[["scope_id", "ccr", "ncr", "type"]].to_csv(caminho_csv, index=False)
+        print(f"salvo: {caminho_csv}")
+
+        fig, ax = plt.subplots(figsize=(7.5, 6.5))
+        ax.axhline(0, color="#888888", lw=0.7)
+        ax.axvline(0, color="#888888", lw=0.7)
+        ax.scatter(cut["ccr"], cut["ncr"], color="black", s=10, alpha=0.5)
+        ax.set_xlim(-1.05, 1.05)
+        ax.set_ylim(-1.05, 1.05)
+        ax.set_xlabel("CCR")
+        ax.set_ylabel("NCR")
+        ax.set_title(f"{LING.atual.nome}: CCR x NCR por projeto, {t.date()} ({len(cut)} projetos)")
+        _salva_fig(fig, f"ccr-ncr-projeto/ccr_ncr_projeto_{LING.atual.slug}.png")
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
+def gera_geral_ccr_ncr_por_projeto() -> None:
+    """CCR x NCR por projeto, as 4 linguagens no mesmo plano. Lê o CSV que
+    `--figuras ccr-ncr-projeto` já deixou em cada subpasta; não reclassifica
+    nada (isso já custou ~2-3 min por linguagem lá)."""
     partes = []
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
-        caminho_csv = TMP_BASE / slug / "csv" / "ccr-ncr" / f"tipos_ccr_ncr_{slug}_metodologia.csv"
+        caminho_csv = TMP_BASE / slug / "csv" / "ccr-ncr-projeto" / f"ccr_ncr_projeto_{slug}.csv"
         if not caminho_csv.exists():
             faltando.append(slug)
             continue
@@ -1884,34 +2035,29 @@ def gera_geral_ccr_ncr() -> None:
         partes.append(df)
     if faltando:
         print(
-            f"aviso: sem CSV de CCR/NCR ainda para {', '.join(sorted(faltando))}", file=sys.stderr
+            f"aviso: sem CSV de CCR/NCR por projeto ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
         )
     if not partes:
         raise SystemExit(
-            "nenhum tipos_ccr_ncr_*_metodologia.csv encontrado. Rode `--figuras "
-            "ccr-ncr` (ou `all`) em cada linguagem antes."
+            "nenhum ccr_ncr_projeto_*.csv encontrado. Rode `--figuras "
+            "ccr-ncr-projeto` (ou `all`) em cada linguagem antes."
         )
-    todos = pd.concat(partes, ignore_index=True)
+    pontos = pd.concat(partes, ignore_index=True)
 
-    fig, ax = plt.subplots(figsize=(8.0, 7.0))
+    fig, ax = plt.subplots(figsize=(8.5, 7.5))
     ax.axhline(0, color="#888888", lw=0.7)
     ax.axvline(0, color="#888888", lw=0.7)
-    for slug, grupo in todos.groupby("linguagem"):
-        ax.scatter(
-            grupo["ccr"],
-            grupo["ncr"],
-            color=CORES_LINGUAGEM.get(next(k for k, v in LINGUAGENS.items() if v.nome == slug)),
-            s=18,
-            alpha=0.65,
-            label=slug,
-        )
+    for slug, grupo in pontos.groupby("linguagem"):
+        cor = CORES_LINGUAGEM[next(k for k, v in LINGUAGENS.items() if v.nome == slug)]
+        ax.scatter(grupo["ccr"], grupo["ncr"], color=cor, s=10, alpha=0.5, label=slug)
     ax.set_xlim(*ESCALA_METRICA)
     ax.set_ylim(*ESCALA_METRICA)
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
-    ax.set_title("CCR x NCR por trimestre, 4 linguagens")
-    ax.legend(loc="best", fontsize=9)
-    caminho = _caminho_geral("geral_ccr_ncr_por_linguagem.png")
+    ax.set_title("CCR x NCR por projeto, 4 linguagens")
+    ax.legend(loc="best", fontsize=9, markerscale=2)
+    caminho = _caminho_geral("geral_ccr_ncr_por_projeto.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -1954,8 +2100,8 @@ def gera_geral_contribuintes_evolucao() -> None:
     # quando o intervalo é largo, pedido explícito do usuário pra não ter.
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano")
-    ax.set_ylabel("contribuintes distintos naquele ano")
-    ax.set_title("Contribuintes distintos por ano, 4 linguagens")
+    ax.set_ylabel("ativos NAQUELE ano (pode cair de um ano pro outro)")
+    ax.set_title("Contribuintes ATIVOS por ano, 4 linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_contribuintes_evolucao_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -1994,8 +2140,8 @@ def gera_geral_contribuintes_acumulado_evolucao() -> None:
 
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano")
-    ax.set_ylabel("contribuintes distintos acumulados")
-    ax.set_title("Contribuintes distintos acumulados por ano, 4 linguagens")
+    ax.set_ylabel("total histórico ATÉ aquele ano (nunca cai)")
+    ax.set_title("Contribuintes ACUMULADOS até cada ano, 4 linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_contribuintes_acumulado_evolucao_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2133,9 +2279,10 @@ def gera_piramide_comparativa() -> None:
 
     # 3 e 12: mesma convenção de `gera_piramide_multi` (quarter da metodologia,
     # e a versão "sem quarter" em ano). 24 e 36: agrupamento de 2 e 3 anos,
-    # pedido explícito do usuário pra essa comparação entre linguagens.
-    rotulo_por_banda = {3: "comquarter", 12: "semquarter", 24: "agrupado2anos", 36: "agrupado3anos"}
-    for banda_meses, rotulo in rotulo_por_banda.items():
+    # pedido explícito do usuário pra essa comparação entre linguagens. Nome
+    # do arquivo só com a banda em meses: "comquarter"/"semquarter"/
+    # "agrupado2anos" era jargão interno que não ajudava a achar o arquivo.
+    for banda_meses in (3, 12, 24, 36):
         fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
         for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
             LING.aplica(slug)
@@ -2157,9 +2304,7 @@ def gera_piramide_comparativa() -> None:
             fontsize=14,
         )
         fig.tight_layout()
-        caminho = _caminho_geral(
-            f"piramides_por_linguagem_mesmo_corte_{rotulo}_banda{banda_meses}m.png"
-        )
+        caminho = _caminho_geral(f"piramides_4_linguagens_banda{banda_meses}m.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -2169,6 +2314,7 @@ def gera_piramide_comparativa() -> None:
         gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
     gera_piramide_anos_distintos_comparativa(eventos_por_lingua, fim_comum)
     gera_grade_anos_distintos(eventos_por_lingua)
+    gera_geral_idade_morte(eventos_por_lingua)
 
 
 def gera_piramide_anos_distintos_comparativa(
@@ -2207,7 +2353,7 @@ def gera_piramide_anos_distintos_comparativa(
             fontsize=14,
         )
         fig.tight_layout(rect=(0, 0.04, 1, 0.96))
-        caminho = _caminho_geral("piramides_por_linguagem_anos_distintos_mesmo_corte.png")
+        caminho = _caminho_geral("piramides_4_linguagens_anos_distintos.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -2296,7 +2442,7 @@ def gera_grade_anos_distintos(
             "Pirâmide (anos-calendário distintos) ao longo do tempo, 4 linguagens", fontsize=14
         )
         fig.tight_layout(rect=(0, 0.03, 1, 0.96))
-        caminho = _caminho_geral("piramides_anos_distintos_evolucao_por_linguagem.png")
+        caminho = _caminho_geral("piramides_4_linguagens_anos_distintos_ao_longo_do_tempo.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -2307,8 +2453,10 @@ def gera_grade_anos_distintos(
 def gera_geral_ccr_ncr_por_ano() -> None:
     """CCR x NCR por linguagem, um painel por ano (`ANOS_GRADE_ANOS_DISTINTOS`,
     os mesmos anos da grade de anos-distintos). Lê o CSV que `--figuras ccr-ncr`
-    já deixou em cada subpasta (mesmo dado de `gera_geral_ccr_ncr`, aqui
-    recortado num ano por vez em vez de todo trimestre).
+    já deixou em cada subpasta: mesmo CCR/NCR por trimestre da linguagem
+    inteira (`unit="language"`), aqui recortado num ano por vez em vez de
+    todo trimestre. Não é por projeto; pra isso, ver
+    `gera_geral_ccr_ncr_por_projeto` (lê o CSV de `--figuras ccr-ncr-projeto`).
 
     Um painel por ano, não um ponto rotulado "Linguagem - Ano" só no plano
     inteiro: com as 4 linguagens e os 4 anos no mesmo desenho, os rótulos se
@@ -2524,6 +2672,7 @@ GERADORES = {
     "piramide-veteranos": lambda _pl, ev: gera_piramide_veteranos(ev),
     "piramide-anos-distintos": lambda _pl, ev: gera_piramide_anos_distintos(ev),
     "idade-morte": lambda _pl, ev: gera_piramide_idade_morte(ev),
+    "idade-morte-tempo": lambda _pl, ev: gera_piramide_idade_morte_evolucao(ev),
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
     "linha-tempo-4": lambda _pl, ev: (
         gera_linha_tempo_4_teto_proprio(ev)
@@ -2533,6 +2682,7 @@ GERADORES = {
     "projecao": lambda pl, _ev: gera_projecao(pl),
     "stickiness-ano": lambda pl, _ev: gera_stickiness_ano(pl),
     "ccr-ncr": lambda pl, _ev: gera_ccr_ncr(pl),
+    "ccr-ncr-projeto": lambda _pl, ev: gera_ccr_ncr_projeto(ev),
     "fantasmas": lambda _pl, ev: gera_fantasmas(ev),
     "abandono": lambda _pl, ev: gera_abandono_por_ano(ev),
     "voltas": lambda _pl, ev: gera_voltas_por_ano(ev),
@@ -2557,14 +2707,20 @@ SEM_PIPELINE_PADRAO = {
     "piramide-veteranos",
     "piramide-anos-distintos",
     "idade-morte",
+    "idade-morte-tempo",
+    "ccr-ncr-projeto",
 }
+
+# Fora de `--figuras all`: reclassifica cada repositório elegível do zero
+# (`unit="project"`), minutos por linguagem em vez de segundos (Zig, a menor
+# das 4, ~2-3 min sozinha). Só roda com `--figuras ccr-ncr-projeto` explícito.
+FORA_DE_ALL = {"ccr-ncr-projeto"}
 
 
 def _executa_geral() -> None:
     gera_geral_contribuintes()
     gera_geral_contribuintes_evolucao()
     gera_geral_contribuintes_acumulado_evolucao()
-    gera_geral_ccr_ncr()
     gera_geral_ccr_ncr_por_ano()
     gera_geral_novatos_por_ano()
 
@@ -2686,7 +2842,7 @@ def main() -> None:
     CFG.aplica(rodada)  # reaplica com a linguagem/rodada escolhidas; env var ainda vence dentro
 
     pedidas = (
-        list(GERADORES)
+        [f for f in GERADORES if f not in FORA_DE_ALL]
         if args.figuras == "all"
         else [f.strip() for f in args.figuras.split(",") if f.strip()]
     )
