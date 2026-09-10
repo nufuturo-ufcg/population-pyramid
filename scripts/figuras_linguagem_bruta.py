@@ -54,7 +54,13 @@ Figuras disponíveis (`--figuras`, separadas por vírgula; default "all"):
   contribuintes  contribuinte distinto por ano
   idade-morte    pirâmide de quem já abandonou (sem contribuição nos últimos
                  3 meses, mesmo corte de `abandono`): não conta ano-calendário,
-                 conta a IDADE que a pessoa tinha na última contribuição
+                 conta a IDADE que a pessoa tinha na última contribuição.
+                 Cumulativa desde sempre (todo mundo que já abandonou, em
+                 qualquer ano)
+  idade-morte-recente  a mesma pirâmide, só com quem abandonou nos últimos
+                 IDADE_MORTE_RECENTE_MESES meses (default: 12): a versão
+                 cumulativa é dominada por quem saiu há mais tempo, esta
+                 mostra quem está saindo agora
   idade-morte-tempo  a mesma pirâmide de idade-morte, um painel por
                  ano-snapshot (`ANOS_GRADE_ANOS_DISTINTOS`), só com quem já
                  tinha abandonado até aquele ano
@@ -1246,7 +1252,9 @@ def _idade_morte_por_ano(
 
 
 def _frame_idade_morte(
-    eventos: pd.DataFrame, janela_meses: int = MORTE_JANELA_MESES
+    eventos: pd.DataFrame,
+    janela_meses: int = MORTE_JANELA_MESES,
+    recorte_meses: int | None = None,
 ) -> pd.DataFrame:
     """Pra quem já "morreu" (sem contribuição nos últimos `janela_meses`
     meses, mesmo corte de `gera_abandono_por_ano`: referência fixa é o
@@ -1257,12 +1265,23 @@ def _frame_idade_morte(
     // band_months`, aqui com band_months=12: floor de meses sobre 12).
     Categoria replica a regra das outras pirâmides manuais deste script
     (`_frame_por_anos_contribuicao`): codou alguma vez = coding, ou moved se
-    discutiu antes do primeiro commit/PR; só discussão = non_coding."""
+    discutiu antes do primeiro commit/PR; só discussão = non_coding.
+
+    `recorte_meses`, quando dado, restringe ainda mais: só entra quem
+    morreu nos últimos `recorte_meses` meses (mesmo `agora` fixo como
+    referência). Sem isso, a pirâmide acumula quem morreu em QUALQUER ano
+    desde sempre, e o formato final é dominado por quem morreu há mais
+    tempo, já que a população acumulada só cresce: mostra "quem já saiu,
+    alguma vez", não "quem está saindo agora". Pedido do usuário."""
     primeiro = eventos.groupby("contributor_id")["timestamp"].min()
     ultimo = eventos.groupby("contributor_id")["timestamp"].max()
     agora = eventos["timestamp"].max()
     limite = agora - pd.Timedelta(days=janela_meses * DAYS_PER_MONTH)
-    mortos = ultimo[ultimo < limite].index
+    morreu = ultimo < limite
+    if recorte_meses is not None:
+        corte_recente = agora - pd.Timedelta(days=recorte_meses * DAYS_PER_MONTH)
+        morreu &= ultimo >= corte_recente
+    mortos = ultimo[morreu].index
 
     coding_mask = eventos["event_type"].isin(TIPOS_CODING)
     primeiro_coding = eventos[coding_mask].groupby("contributor_id")["timestamp"].min()
@@ -1290,6 +1309,28 @@ def _frame_idade_morte(
     return tabela[["non_coding", "moved", "coding"]].reset_index()
 
 
+def _desenha_piramide_idade_morte(
+    eventos: pd.DataFrame, tabela: pd.DataFrame, nome_arquivo: str, subtitulo: str
+) -> None:
+    """Desenho compartilhado por `gera_piramide_idade_morte` e
+    `gera_piramide_idade_morte_recente`: só a tabela e o texto mudam entre
+    as duas. `roda_pipeline(band_months=12)` só deixa `plots`/`config`
+    prontos pro desenho (`draw_pyramid`), a tabela já vem pronta de
+    `_frame_idade_morte`."""
+    pl = roda_pipeline(eventos, band_months=12)
+    try:
+        fig, ax = plt.subplots(figsize=(6.5, max(4.0, 0.32 * len(tabela))))
+        pl.plots.draw_pyramid(ax, tabela.astype({"band": int}))
+        ax.set_xlabel("contribuidores que já abandonaram")
+        ax.set_ylabel("idade na última contribuição (anos)")
+        ax.set_title(f"{LING.atual.nome}: idade na última contribuição, {subtitulo}")
+        _legenda_discussion(fig, pl.plots)
+        fig.tight_layout(rect=(0, 0.06, 1, 1))
+        _salva_fig(fig, nome_arquivo)
+    finally:
+        shutil.rmtree(pl.scratch, ignore_errors=True)
+
+
 def gera_piramide_idade_morte(eventos: pd.DataFrame) -> None:
     """ "A pirâmide de quando a gente morre", pedido do usuário depois de ver
     um gráfico de idade-na-morte humana: em vez de "quantos contribuidores
@@ -1298,26 +1339,41 @@ def gera_piramide_idade_morte(eventos: pd.DataFrame) -> None:
     última vez". Mesma população de `gera_abandono_por_ano` (sem
     contribuição nos últimos `MORTE_JANELA_MESES` meses); o que muda é o
     eixo: lá é ANO da última contribuição, aqui é IDADE (calendar_tenure) na
-    última contribuição. Monta a tabela na mão (`_frame_idade_morte`) e
-    desenha com `plots.draw_pyramid`, mesma rotina visual das outras
-    pirâmides deste script; `roda_pipeline(band_months=12)` só deixa
-    `plots`/`config` prontos pro desenho."""
+    última contribuição. Cumulativa desde sempre: quem quiser só a
+    dinâmica recente usa `gera_piramide_idade_morte_recente`."""
     tabela = _frame_idade_morte(eventos)
-    pl = roda_pipeline(eventos, band_months=12)
-    try:
-        fig, ax = plt.subplots(figsize=(6.5, max(4.0, 0.32 * len(tabela))))
-        pl.plots.draw_pyramid(ax, tabela.astype({"band": int}))
-        ax.set_xlabel("contribuidores que já abandonaram")
-        ax.set_ylabel("idade na última contribuição (anos)")
-        ax.set_title(
-            f"{LING.atual.nome}: idade na última contribuição, de quem já não "
-            f"contribui há mais de {MORTE_JANELA_MESES} meses"
+    _desenha_piramide_idade_morte(
+        eventos,
+        tabela,
+        f"idade-morte/piramide_{LING.atual.slug}_idade_morte.png",
+        f"de quem já não contribui há mais de {MORTE_JANELA_MESES} meses (histórico completo)",
+    )
+
+
+IDADE_MORTE_RECENTE_MESES = 12
+
+
+def gera_piramide_idade_morte_recente(eventos: pd.DataFrame) -> None:
+    """`gera_piramide_idade_morte` restrita a quem morreu nos últimos
+    `IDADE_MORTE_RECENTE_MESES` meses: pedido explícito do usuário. A
+    versão cumulativa mistura quem saiu em qualquer ano desde sempre,
+    dominada por quem saiu há mais tempo (a população acumulada só
+    cresce); esta responde "quem está saindo agora", não "quem já saiu,
+    alguma vez"."""
+    tabela = _frame_idade_morte(eventos, recorte_meses=IDADE_MORTE_RECENTE_MESES)
+    if tabela[["non_coding", "moved", "coding"]].to_numpy().sum() == 0:
+        print(
+            f"aviso: ninguém morreu nos últimos {IDADE_MORTE_RECENTE_MESES} meses em "
+            f"{LING.atual.nome}; idade-morte-recente pulada",
+            file=sys.stderr,
         )
-        _legenda_discussion(fig, pl.plots)
-        fig.tight_layout(rect=(0, 0.06, 1, 1))
-        _salva_fig(fig, f"idade-morte/piramide_{LING.atual.slug}_idade_morte.png")
-    finally:
-        shutil.rmtree(pl.scratch, ignore_errors=True)
+        return
+    _desenha_piramide_idade_morte(
+        eventos,
+        tabela,
+        f"idade-morte/piramide_{LING.atual.slug}_idade_morte_recente.png",
+        f"de quem morreu nos últimos {IDADE_MORTE_RECENTE_MESES} meses",
+    )
 
 
 def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
@@ -3171,6 +3227,7 @@ GERADORES = {
     "piramide-veteranos": lambda _pl, ev: gera_piramide_veteranos(ev),
     "piramide-anos-distintos": lambda _pl, ev: gera_piramide_anos_distintos(ev),
     "idade-morte": lambda _pl, ev: gera_piramide_idade_morte(ev),
+    "idade-morte-recente": lambda _pl, ev: gera_piramide_idade_morte_recente(ev),
     "idade-morte-tempo": lambda _pl, ev: gera_piramide_idade_morte_evolucao(ev),
     "linha-tempo": lambda pl, _ev: gera_linha_tempo(pl),
     "linha-tempo-4": lambda _pl, ev: (
@@ -3206,6 +3263,7 @@ SEM_PIPELINE_PADRAO = {
     "piramide-veteranos",
     "piramide-anos-distintos",
     "idade-morte",
+    "idade-morte-recente",
     "idade-morte-tempo",
     "ccr-ncr-projeto",
 }
