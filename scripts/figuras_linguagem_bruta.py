@@ -2720,19 +2720,26 @@ def gera_piramide_comparativa() -> None:
                 eventos_por_lingua[slug], band_months=banda_meses, fim_forcado=fim_comum
             )
             try:
-                caminho = pl.plots.figure_pyramid(pl.sid)
-                eixo.imshow(plt.imread(caminho))
-                eixo.axis("off")
+                # Desenha na mão (`pyramid_frame` + `draw_pyramid`) em vez de
+                # embutir o PNG de `pl.plots.figure_pyramid`: aquele PNG já
+                # vem gravado com a legenda do artigo ("non-coding"), sem
+                # Figure pra reabrir e trocar pelo rótulo deste script
+                # (`ROTULO_LEGENDA`: "discussion"). Mesma solução de
+                # `gera_piramide_multi`.
+                t = pd.Timestamp(pl.snapshots.classification_snapshot())
+                frame = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+                pl.plots.draw_pyramid(eixo, frame)
                 eixo.set_title(LING.atual.nome)
             finally:
                 shutil.rmtree(pl.scratch, ignore_errors=True)
 
+        _legenda_discussion(fig, pl.plots)
         fig.suptitle(
             f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
             f"banda de {_rotulo_banda(banda_meses)}",
             fontsize=14,
         )
-        fig.tight_layout()
+        fig.tight_layout(rect=(0, 0.04, 1, 0.96))
         caminho = _caminho_geral(f"piramides_4_linguagens_banda{banda_meses}m.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
