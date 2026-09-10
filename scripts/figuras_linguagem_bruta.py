@@ -2277,13 +2277,20 @@ def gera_grade_anos_distintos(
 
 
 def gera_geral_ccr_ncr_ancora() -> None:
-    """CCR x NCR por linguagem, um ponto por ano-âncora (`ANOS_GRADE_ANOS_DISTINTOS`,
-    os mesmos anos da grade de anos-distintos), rótulo "Linguagem - Ano" em cada
-    ponto. Lê o CSV que `--figuras ccr-ncr` já deixou em cada subpasta (mesmo
-    dado de `gera_geral_ccr_ncr`, aqui recortado num ano por vez em vez de todo
-    trimestre). Eixos travados em `ESCALA_METRICA`, simétrica em torno de zero:
-    os quatro quadrantes de CCR/NCR aparecem sempre, mesmo que um deles fique
-    vazio para as 4 linguagens."""
+    """CCR x NCR por linguagem, um painel por ano-âncora (`ANOS_GRADE_ANOS_DISTINTOS`,
+    os mesmos anos da grade de anos-distintos). Lê o CSV que `--figuras ccr-ncr`
+    já deixou em cada subpasta (mesmo dado de `gera_geral_ccr_ncr`, aqui
+    recortado num ano por vez em vez de todo trimestre).
+
+    Um painel por ano, não um ponto rotulado "Linguagem - Ano" só no plano
+    inteiro: com as 4 linguagens e os 4 anos no mesmo desenho, os rótulos se
+    empilham e ficam ilegíveis (pontos de anos e linguagens diferentes caem
+    perto o bastante no plano CCR/NCR pra colidir o texto). Cada painel só
+    tem 4 pontos, um por linguagem, com espaço de sobra pro rótulo.
+
+    Eixos travados em `ESCALA_METRICA`, simétrica em torno de zero, em TODOS
+    os painéis: os quatro quadrantes de CCR/NCR aparecem sempre, mesmo que um
+    deles fique vazio para as 4 linguagens naquele ano."""
     linhas = []
     faltando = []
     for slug, linguagem in LINGUAGENS.items():
@@ -2318,32 +2325,42 @@ def gera_geral_ccr_ncr_ancora() -> None:
         )
     pontos = pd.DataFrame(linhas)
 
-    fig, ax = plt.subplots(figsize=(9.0, 8.0))
-    ax.axhline(0, color="#888888", lw=0.7)
-    ax.axvline(0, color="#888888", lw=0.7)
-    for _, row in pontos.iterrows():
-        ax.scatter(row["ccr"], row["ncr"], color=CORES_LINGUAGEM[row["slug"]], s=60, zorder=3)
-        ax.annotate(
-            f"{row['linguagem']} - {row['ano']}",
-            (row["ccr"], row["ncr"]),
-            fontsize=7.5,
-            xytext=(5, 4),
-            textcoords="offset points",
-        )
-    ax.set_xlim(*ESCALA_METRICA)
-    ax.set_ylim(*ESCALA_METRICA)
-    ax.set_xlabel("CCR")
-    ax.set_ylabel("NCR")
-    ax.set_title("CCR x NCR por linguagem, nos anos-âncora da grade de anos-distintos")
+    fig, eixos = plt.subplots(
+        1, len(ANOS_GRADE_ANOS_DISTINTOS), figsize=(4.4 * len(ANOS_GRADE_ANOS_DISTINTOS), 4.6)
+    )
+    for ax, ano in zip(eixos, ANOS_GRADE_ANOS_DISTINTOS, strict=True):
+        ax.axhline(0, color="#888888", lw=0.7)
+        ax.axvline(0, color="#888888", lw=0.7)
+        do_ano = pontos[pontos["ano"] == ano]
+        for _, row in do_ano.iterrows():
+            ax.scatter(row["ccr"], row["ncr"], color=CORES_LINGUAGEM[row["slug"]], s=70, zorder=3)
+            ax.annotate(
+                row["linguagem"],
+                (row["ccr"], row["ncr"]),
+                fontsize=8,
+                xytext=(6, 5),
+                textcoords="offset points",
+            )
+        ax.set_xlim(*ESCALA_METRICA)
+        ax.set_ylim(*ESCALA_METRICA)
+        ax.set_xlabel("CCR")
+        ax.set_title(str(ano))
+    eixos[0].set_ylabel("NCR")
     handles = [
         plt.Line2D(
             [0], [0], marker="o", linestyle="none", color=CORES_LINGUAGEM[slug], markersize=8
         )
         for slug in LINGUAGENS
     ]
-    ax.legend(
-        handles, [linguagem.nome for linguagem in LINGUAGENS.values()], loc="best", fontsize=9
+    fig.legend(
+        handles,
+        [linguagem.nome for linguagem in LINGUAGENS.values()],
+        loc="lower center",
+        ncol=4,
+        frameon=False,
     )
+    fig.suptitle("CCR x NCR por linguagem, nos anos-âncora da grade de anos-distintos")
+    fig.tight_layout(rect=(0, 0.06, 1, 0.95))
     caminho = _caminho_geral("geral_ccr_ncr_ancora_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
