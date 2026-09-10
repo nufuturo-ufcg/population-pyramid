@@ -234,13 +234,16 @@ def _caminho_geral(nome: str) -> Path:
 
 @contextmanager
 def _rodada_sem_linguagem(slug: str):
-    """Roda um bloco inteiro de geração "geral" sem `slug`. Não precisa
-    tocar em nenhuma das dezenas de `gera_geral_*`/`gera_piramide_comparativa`
-    que iteram `LINGUAGENS.items()`: todas leem o MESMO dict por referência,
-    então tirar `slug` dele antes de chamá-las (e repor depois, mesmo com
-    exceção) já as faz ignorar essa linguagem sozinhas. `_caminho_geral`
-    desvia pra `geral-exclude-<slug>/` no mesmo intervalo, pra não
-    sobrescrever o `geral/` de sempre."""
+    """Roda um bloco inteiro de geração "geral" sem `slug`. A maioria das
+    `gera_geral_*`/`gera_piramide_comparativa` não precisa mudar nenhuma
+    linha: todas leem `LINGUAGENS.items()` por referência, então tirar
+    `slug` dele antes de chamá-las (e repor depois, mesmo com exceção) já
+    as faz ignorar essa linguagem sozinhas. Exceção: quem monta a grade de
+    painéis com `plt.subplots(2, 2, ...)` fixo (ver `_grade_para_linguagens`)
+    quebrava com 3 linguagens em vez de 4; corrigido pra dimensionar pelo
+    `len(LINGUAGENS)` do momento. `_caminho_geral` desvia pra
+    `geral-exclude-<slug>/` no mesmo intervalo, pra não sobrescrever o
+    `geral/` de sempre."""
     linguagem = LINGUAGENS.pop(slug, None)
     pasta_anterior = ESTADO_PASTA_GERAL.pasta
     ESTADO_PASTA_GERAL.pasta = TMP_BASE / f"geral-exclude-{slug}"
@@ -250,6 +253,22 @@ def _rodada_sem_linguagem(slug: str):
         if linguagem is not None:
             LINGUAGENS[slug] = linguagem
         ESTADO_PASTA_GERAL.pasta = pasta_anterior
+
+
+def _grade_para_linguagens() -> tuple[plt.Figure, list]:
+    """`(fig, eixos)` com 2 colunas e linhas o bastante pro `len(LINGUAGENS)`
+    do momento (4 de costume, 3 num `--geral-exclude-<slug>`). Sem isso, todo
+    `plt.subplots(2, 2, ...)` fixo quebrava (`zip(..., strict=True)` contra
+    um número de linguagens menor que 4) assim que uma rodada excluía
+    alguma. Painel sobrando (grade ímpar) sai desligado, não em branco cru."""
+    n = len(LINGUAGENS)
+    colunas = min(2, n) or 1
+    linhas = -(-n // colunas)
+    fig, matriz = plt.subplots(linhas, colunas, figsize=(7 * colunas, 7 * linhas), squeeze=False)
+    eixos = list(matriz.flat)
+    for sobra in eixos[n:]:
+        sobra.axis("off")
+    return fig, eixos[:n]
 
 
 def _caminhos_padrao(rodada: int) -> tuple[Path, Path]:
@@ -1325,9 +1344,9 @@ def gera_geral_idade_morte(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
     entre painéis: linguagens têm população de sempre muito diferente
     (Elixir e Clojure têm ordens de grandeza mais gente que Zig), e um teto
     comum esmagaria as menores num traço fino."""
-    fig, eixos = plt.subplots(2, 2, figsize=(11, 11))
+    fig, eixos = _grade_para_linguagens()
     plots_mod = None
-    for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
+    for eixo, (slug, linguagem) in zip(eixos, LINGUAGENS.items(), strict=True):
         eventos = eventos_por_lingua[slug]
         tabela = _frame_idade_morte(eventos)
         if tabela.empty:
@@ -2591,8 +2610,8 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
     consecutivos (2016, 2019, 2024, por padrão), e uma reta entre eles
     fingiria saber o que aconteceu nos anos vazios no meio, que não foram
     testados. Só o ponto, no ano exato que tem número de verdade."""
-    fig, eixos = plt.subplots(2, 2, figsize=(12, 9))
-    for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
+    fig, eixos = _grade_para_linguagens()
+    for eixo, (slug, linguagem) in zip(eixos, LINGUAGENS.items(), strict=True):
         anos_disponiveis, cohort_por_ano, baseline_por_ano = [], [], []
         for ano in anos_base:
             caminho = TMP_BASE / slug / "csv" / "backtest" / f"projecao_{slug}_backtest_{ano}.csv"
@@ -2663,8 +2682,8 @@ def gera_piramide_comparativa() -> None:
     # do arquivo só com a banda em meses: "comquarter"/"semquarter"/
     # "agrupado2anos" era jargão interno que não ajudava a achar o arquivo.
     for banda_meses in (3, 12, 24, 36):
-        fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
-        for eixo, slug in zip(eixos.flat, LINGUAGENS, strict=True):
+        fig, eixos = _grade_para_linguagens()
+        for eixo, slug in zip(eixos, LINGUAGENS, strict=True):
             LING.aplica(slug)
             CFG.aplica(2)
             pl = roda_pipeline(
@@ -2710,8 +2729,8 @@ def gera_piramide_anos_distintos_comparativa(
 
     pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
     try:
-        fig, eixos = plt.subplots(2, 2, figsize=(14, 14))
-        for eixo, (slug, linguagem) in zip(eixos.flat, LINGUAGENS.items(), strict=True):
+        fig, eixos = _grade_para_linguagens()
+        for eixo, (slug, linguagem) in zip(eixos, LINGUAGENS.items(), strict=True):
             tabela = _frame_por_anos_contribuicao(eventos_por_lingua[slug], fim_comum)
             pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}))
             eixo.set_xlabel("contribuidores")
