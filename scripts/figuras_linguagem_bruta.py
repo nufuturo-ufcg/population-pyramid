@@ -170,8 +170,18 @@ class _EstadoLinhaTempo4:
     teto_proprio: bool = False
 
 
+class _EstadoMetricas5Anos:
+    """`--metricas-5anos`, mutável (mesmo padrão de `_EstadoLinhaTempo4`).
+    Default não desenha a versão de 5 anos (mediana, suaviza oscilação de
+    curto prazo): pedido explícito do usuário, "não quero isso por agora",
+    depois de perguntar pra que serve. Só desenha quando pedida."""
+
+    ativo: bool = False
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
+ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -2074,7 +2084,8 @@ def gera_piramide_comparativa() -> None:
         print(f"salvo: {caminho}")
 
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
-    gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
+    if ESTADO_METRICAS_5ANOS.ativo:
+        gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
     gera_piramide_anos_distintos_comparativa(eventos_por_lingua, fim_comum)
     gera_grade_anos_distintos(eventos_por_lingua)
 
@@ -2478,7 +2489,8 @@ def _executa_geral() -> None:
 def _executa_comparativa_metricas() -> None:
     eventos_por_lingua = _carrega_todas_linguagens()
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
-    gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
+    if ESTADO_METRICAS_5ANOS.ativo:
+        gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
 
 
 def main() -> None:
@@ -2512,6 +2524,14 @@ def main() -> None:
         "daquele ano em vez do teto comum (o motor auditado usa teto comum "
         "de propósito, igual ESEM14 Fig.3, pra mostrar a pirâmide crescendo "
         "de altura; sem essa flag o comportamento não muda).",
+    )
+    ap.add_argument(
+        "--metricas-5anos",
+        action="store_true",
+        help="em --comparativa/--comparativa-metricas, desenha também a "
+        "versão de CCR/NCR/magnetismo/stickiness com mediana dos últimos 5 "
+        "anos (suaviza oscilação de curto prazo). Default não desenha; só "
+        "com essa flag.",
     )
     ap.add_argument(
         "--geral",
@@ -2562,6 +2582,7 @@ def main() -> None:
     )
     args = ap.parse_args()
     ESTADO_LINHA_TEMPO_4.teto_proprio = args.teto_proprio_timeline
+    ESTADO_METRICAS_5ANOS.ativo = args.metricas_5anos
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
