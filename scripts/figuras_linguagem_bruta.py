@@ -712,6 +712,174 @@ def roda_pipeline(
     )
 
 
+# --- unit=project em paralelo -------------------------------------------------
+#
+# extract/classify/snapshots/metrics.run() já aceitam `scopes=<lista de ids>`
+# (ver src/pyramid/*.py): cada escopo lê e escreve só o próprio parquet, sem
+# tocar no arquivo de nenhum outro. Com unit="project" (cada repositório
+# elegível é o próprio escopo, `roda_pipeline` acima), isso é
+# embaraçosamente paralelo por repositório. É exatamente o "for sid in
+# targets" sequencial, um repositório de cada vez, que fez ccr-ncr-projeto
+# levar minutos por linguagem hoje.
+#
+# threading padrão não ajuda aqui: profile()/pyramid_frame()/from_pyramids()
+# são laço Python + pandas em cima, presos no GIL. Por isso
+# ProcessPoolExecutor (processo, não thread) via concurrent.futures.
+#
+# ProcessPoolExecutor usa spawn no macOS (default desde Python 3.8): o
+# processo filho NÃO herda o monkeypatch de `extract.source` feito no pai
+# (aquilo é estado do processo pai, um lambda fechando sobre um dict local,
+# nem pickla). Cada worker recebe só a fatia de `eventos` dos repositórios
+# dele e monta a própria fonte, do zero, via `monta_fonte` (função pública
+# do módulo, essa sim pickla por referência).
+#
+# Cada worker grava num OUTPUT_DIR PRÓPRIO, não no compartilhado: os
+# parquets em si não colidiriam (um arquivo por escopo), mas o
+# `_manifest.json` do estágio é UM arquivo por estágio sem lock nenhum, e
+# `estagio.run()` regrava ele a cada escopo processado. N workers escrevendo
+# concorrente nesse mesmo arquivo corrompe a leitura de qualquer um deles no
+# meio do caminho (visto na prática: `JSONDecodeError` num worker lendo o
+# manifesto que outro estava com o `write_text` pela metade). Isolar o
+# OUTPUT_DIR por worker elimina o compartilhamento por completo; o
+# orquestrador copia os parquets pro destino comum depois que a fatia termina.
+def _worker_estagio(
+    nome_estagio: str,
+    scratch_dir: str,
+    worker_id: int,
+    eventos_fatia: pd.DataFrame,
+    scopes: list[int],
+) -> tuple[dict, str]:
+    """Roda UM estágio (extract/classify/snapshots/metrics) só pra `scopes`,
+    num processo e num OUTPUT_DIR próprios. Devolve (manifesto da fatia,
+    caminho do artifact_dir desse estágio dentro do OUTPUT_DIR do worker)."""
+    from pyramid import config
+
+    saida_worker = Path(scratch_dir) / "workers" / str(worker_id) / "output"
+    config.CONFIG_DIR = Path(scratch_dir) / "config"
+    config.OUTPUT_DIR = saida_worker
+    config.LOG_DIR = Path(scratch_dir) / "workers" / str(worker_id) / "logs"
+    config.settings.cache_clear()
+    config.checkpoints.cache_clear()
+
+    from pyramid import classify, extract, metrics, snapshots
+
+    fonte_cls = monta_fonte(eventos_fatia)
+    fabrica = lambda: fonte_cls(config.settings())  # noqa: E731
+    extract.source = fabrica
+    classify.source = fabrica
+    snapshots.source = fabrica
+    metrics.source = fabrica
+
+    modulo = {"extract": extract, "classify": classify, "snapshots": snapshots, "metrics": metrics}
+    man = modulo[nome_estagio].run(scopes=scopes, force=True, fail_fast=True)
+    return man, str(config.artifact_dir(nome_estagio))
+
+
+def roda_pipeline_paralelo(
+    eventos: pd.DataFrame,
+    band_months: int,
+    n_workers: int | None = None,
+    fim_forcado: pd.Timestamp | None = None,
+) -> SimpleNamespace:
+    """Mesma saída de `roda_pipeline(unit="project")`, mas fatiando os
+    repositórios elegíveis em `n_workers` pedaços e rodando cada estágio
+    (extract, depois classify, depois snapshots, depois metrics) num
+    `ProcessPoolExecutor`, uma fatia por processo. Os 4 estágios continuam
+    em SÉRIE entre si (classify lê o parquet que extract escreveu pro mesmo
+    escopo, snapshots lê o de classify, e por aí vai); só o `for sid in
+    scopes` DENTRO de cada estágio vira paralelo.
+
+    `n_workers=None` usa `os.cpu_count()`.
+
+    `_manifest.json` de cada estágio é UM arquivo por estágio, sem lock; se
+    cada worker gravasse o próprio direto (como `estagio.run` faz sozinho),
+    quem salvasse por último apagava as fatias dos outros, e
+    `metrics.load_all()` (que lê só o que o manifesto lista, não escaneia o
+    diretório) devolvia 1/N dos resultados sem erro nenhum: bug real, visto
+    no benchmark (12030 linhas sequencial contra 3063 em paralelo). Por
+    isso o merge explícito abaixo: cada worker devolve o próprio manifesto,
+    o processo pai junta os `ok`/`failed` das N fatias num só e grava ele
+    de volta antes do próximo estágio começar."""
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    from pyramid import config as _cfg
+    from pyramid import logging_config as runlog
+
+    scratch = Path(tempfile.mkdtemp(prefix="pyr_lang_fig_par_"))
+    shutil.copytree(ROOT / "config", scratch / "config")
+    escreve_config(scratch, eventos, band_months, fim_forcado, unit="project")
+
+    _cfg.CONFIG_DIR = scratch / "config"
+    _cfg.OUTPUT_DIR = scratch / "output"
+    _cfg.LOG_DIR = scratch / "logs"
+    _cfg.settings.cache_clear()
+    _cfg.checkpoints.cache_clear()
+    runlog.LOG_DIR = _cfg.LOG_DIR
+
+    scope_ids = sorted(eventos["scope_id"].unique().tolist())
+    n_workers = n_workers or os.cpu_count() or 1
+    n_workers = max(1, min(n_workers, len(scope_ids)))
+    fatias = [scope_ids[i::n_workers] for i in range(n_workers)]
+
+    for nome_estagio in ("extract", "classify", "snapshots", "metrics"):
+        destino = _cfg.artifact_dir(nome_estagio)
+        destino.mkdir(parents=True, exist_ok=True)
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            futuros = [
+                pool.submit(
+                    _worker_estagio,
+                    nome_estagio,
+                    str(scratch),
+                    i,
+                    eventos[eventos["scope_id"].isin(fatia)],
+                    fatia,
+                )
+                for i, fatia in enumerate(fatias)
+            ]
+            resultados = [fut.result() for fut in as_completed(futuros)]
+
+        manifestos = [man for man, _ in resultados]
+        falhas = {k: v for m in manifestos for k, v in m.get("failed", {}).items()}
+        if falhas:
+            raise SystemExit(f"{nome_estagio} falhou: {falhas}")
+
+        # Cada worker gravou no PRÓPRIO output_dir (ver `_worker_estagio`);
+        # junta os parquets no destino comum antes do próximo estágio ler.
+        for _, origem_dir in resultados:
+            origem = Path(origem_dir)
+            if not origem.is_dir():
+                continue
+            for arquivo in origem.iterdir():
+                if arquivo.name == "_manifest.json":
+                    continue  # é o manifesto da FATIA; o merge abaixo grava o de verdade
+                shutil.copy2(arquivo, destino / arquivo.name)
+
+        merge = {"stage": nome_estagio, "ok": {}, "failed": {}}
+        for m in manifestos:
+            merge["ok"].update(m.get("ok", {}))
+        runlog.save(nome_estagio, merge)
+
+    from pyramid import attractiveness as attr
+    from pyramid import metrics, plots, projection, snapshots
+
+    fonte_cls = monta_fonte(eventos)
+    fabrica = lambda: fonte_cls(_cfg.settings())  # noqa: E731
+    snapshots.source = fabrica
+    metrics.source = fabrica
+    attr.source = fabrica
+
+    return SimpleNamespace(
+        config=_cfg,
+        plots=plots,
+        snapshots=snapshots,
+        metrics=metrics,
+        projection=projection,
+        attractiveness=attr,
+        scratch=scratch,
+        sid=None,
+    )
+
+
 def _salva_fig(fig: object, nome: str) -> None:
     """`nome` pode ter subpasta (`"backtest/foo.png"`): cria o que faltar."""
     caminho = CFG.saida / nome
@@ -2043,10 +2211,10 @@ def gera_ccr_ncr_projeto(eventos: pd.DataFrame) -> None:
     unidade que IEICE16 Fig.5 usa.
 
     Bem mais pesado que as outras figuras: classifica cada repositório
-    elegível, não um escopo só por linguagem (~2-3 min em vez de segundos,
-    Zig com ~2 mil repositórios). Por isso `roda_pipeline` próprio aqui em
-    vez do padrão do loop principal (`SEM_PIPELINE_PADRAO`)."""
-    pl = roda_pipeline(eventos, band_months=3, unit="project")
+    elegível, não um escopo só por linguagem. Por isso `roda_pipeline_paralelo`
+    (fatia os repositórios entre processos, ver a função pra detalhe e
+    o porquê) em vez do `roda_pipeline` sequencial padrão."""
+    pl = roda_pipeline_paralelo(eventos, band_months=3)
     try:
         t = pd.Timestamp(pl.snapshots.classification_snapshot())
         todos = pl.metrics.load_all()
