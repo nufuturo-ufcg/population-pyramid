@@ -2149,6 +2149,84 @@ def gera_geral_contribuintes_acumulado_evolucao() -> None:
     print(f"salvo: {caminho}")
 
 
+def gera_geral_abandono_por_ano() -> None:
+    """Quantas pessoas abandonaram por ano da última contribuição, as 4
+    linguagens no mesmo plano. Lê `abandono_por_ano.csv` de cada linguagem
+    (`--figuras abandono` ou `all`); não recalcula nada."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / "csv" / "abandono" / "abandono_por_ano.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv)
+        ax.plot(
+            df["ano_da_ultima_contribuicao"],
+            df["pessoas_que_abandonaram"],
+            drawstyle="steps-mid",
+            marker="o",
+            markersize=4,
+            color=CORES_LINGUAGEM[slug],
+            label=linguagem.nome,
+        )
+    if faltando:
+        print(
+            f"aviso: sem abandono_por_ano.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    from matplotlib.ticker import MaxNLocator
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("ano da última contribuição")
+    ax.set_ylabel("pessoas naquele ano")
+    ax.set_title("Abandono por ano da última contribuição, 4 linguagens")
+    ax.legend(loc="best")
+    caminho = _caminho_geral("geral_abandono_por_ano.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
+def gera_geral_abandono_acumulado() -> None:
+    """Abandono ACUMULADO por ano (nunca cai), as 4 linguagens no mesmo
+    plano. Lê a mesma `abandono_por_ano.csv` de `gera_geral_abandono_por_ano`,
+    soma corrida calculada na hora; não recalcula nada da coleta."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / "csv" / "abandono" / "abandono_por_ano.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv).sort_values("ano_da_ultima_contribuicao")
+        ax.plot(
+            df["ano_da_ultima_contribuicao"],
+            df["pessoas_que_abandonaram"].cumsum(),
+            drawstyle="steps-mid",
+            marker="o",
+            markersize=4,
+            color=CORES_LINGUAGEM[slug],
+            label=linguagem.nome,
+        )
+    if faltando:
+        print(
+            f"aviso: sem abandono_por_ano.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    from matplotlib.ticker import MaxNLocator
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("ano da última contribuição")
+    ax.set_ylabel("total histórico ATÉ aquele ano (nunca cai)")
+    ax.set_title("Abandono ACUMULADO até cada ano, 4 linguagens")
+    ax.legend(loc="best")
+    caminho = _caminho_geral("geral_abandono_acumulado_por_ano.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def gera_geral_novatos_por_ano() -> None:
     """`_novatos_por_ano` das 4 linguagens, uma cor por linguagem. Sem linha
     ligando os pontos: os anos são esparsos (mesmo motivo de
@@ -2721,6 +2799,8 @@ def _executa_geral() -> None:
     gera_geral_contribuintes()
     gera_geral_contribuintes_evolucao()
     gera_geral_contribuintes_acumulado_evolucao()
+    gera_geral_abandono_por_ano()
+    gera_geral_abandono_acumulado()
     gera_geral_ccr_ncr_por_ano()
     gera_geral_novatos_por_ano()
 
