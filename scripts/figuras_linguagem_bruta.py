@@ -659,14 +659,20 @@ def _stats_erros_coleta() -> None:
     quebrado, disco cheio no clone); o repositório costuma continuar no
     `repositorios_*_alvo.csv` final mesmo assim, só que com o pedaço que
     falhou faltando (achado em Clojure: os 4 erros da etapa 2A estão todos
-    no alvo.csv final)."""
+    no alvo.csv final). `repos_erro_uniao` é a união dos `repo_id` com erro
+    nas duas etapas, não a soma: um repositório pode errar nas duas ao
+    mesmo tempo (achado em Zig), e somar contaria ele 2 vezes."""
+    ids_com_erro: set[str] = set()
     for etapa in ("etapa_2A", "etapa_2B"):
         caminho = CFG.dados / "reports" / f"{etapa}_progresso.json"
         if not caminho.exists():
             continue
         repos = json.loads(caminho.read_text()).get("repositories", {})
+        erros = {rid for rid, r in repos.items() if r.get("status") == "error"}
         _stats()[f"{etapa}_total"] = len(repos)
-        _stats()[f"{etapa}_erros"] = sum(1 for r in repos.values() if r.get("status") == "error")
+        _stats()[f"{etapa}_erros"] = len(erros)
+        ids_com_erro |= erros
+    _stats()["repos_erro_uniao"] = len(ids_com_erro)
 
 
 def carrega_eventos(rodada: int = RODADA) -> pd.DataFrame:
@@ -3221,97 +3227,120 @@ def _executa_geral() -> None:
     gera_geral_novatos_por_ano()
 
 
+def _fmt_milhar(n: int) -> str:
+    return f"{n:,}".replace(",", ".")
+
+
+# (rótulo da linha, chave em ESTATISTICAS_CARGA, nota de rodapé se a soma
+# não é uma contagem exata). Uma linha por etapa do filtro de
+# `carrega_eventos`, na mesma ordem em que os cortes acontecem no código.
+_LINHAS_CARACTERIZACAO = [
+    ("Repositórios candidatos (alvo bruto da coleta)", "repos_total", None),
+    ("Repositórios avaliados, etapa 2A da coleta (metadados via API)", "etapa_2A_total", None),
+    ("Repositórios com erro, etapa 2A da coleta", "etapa_2A_erros", None),
+    ("Repositórios avaliados, etapa 2B da coleta (git clone/log)", "etapa_2B_total", None),
+    ("Repositórios com erro, etapa 2B da coleta", "etapa_2B_erros", None),
+    ("Repositórios coletados de fato (sem erro em nenhuma etapa)", "_coletados_de_fato", None),
+    (
+        f"Repositórios excluídos (<= {LIMIAR_SHARE_LINGUAGEM:.0%} do código na linguagem)",
+        "repos_excluidos_share",
+        None,
+    ),
+    ("Repositórios elegíveis", "repos_elegiveis", None),
+    ("Eventos de API brutos no arquivo", "eventos_api_bruto", None),
+    ("Eventos de API com autor válido e linguagem confirmada", "eventos_api_desta_linguagem", None),
+    ("Commits git brutos no arquivo", "eventos_git_bruto", None),
+    (
+        "Commits git com autor válido, tocando arquivo da linguagem",
+        "eventos_git_desta_linguagem",
+        None,
+    ),
+    (
+        "Commits descartados (cópia de histórico já contado, fork/clone empurrado)",
+        "commits_duplicados_descartados",
+        None,
+    ),
+    (
+        "Eventos descartados (anteriores ao primeiro commit real da linguagem)",
+        "eventos_antes_do_piso_descartados",
+        None,
+    ),
+    (
+        "Eventos restantes após restringir a repositórios elegíveis",
+        "eventos_apos_elegibilidade",
+        None,
+    ),
+    (
+        "Eventos de conta apagada descartados (guardados à parte, num CSV próprio)",
+        "eventos_fantasma_descartados",
+        None,
+    ),
+    ("Eventos de bot descartados", "eventos_bot_descartados", None),
+    ("Eventos com data ilegível descartados", "eventos_data_ilegivel_descartados", None),
+    ("Eventos com data no futuro descartados", "eventos_futuro_descartados", None),
+    ("Eventos antes de 2008-01-01 descartados", "eventos_antes_2008_descartados", None),
+    ("**Eventos finais, na pirâmide**", "eventos_finais", None),
+    ("**Repositórios finais, na pirâmide**", "repos_finais", None),
+    (
+        "**Contribuidores únicos finais, na pirâmide**",
+        "contribuidores_finais",
+        "*",
+    ),
+]
+
+
 def gera_caracterizacao_dados() -> None:
-    """Quantidade de dado em cada etapa do filtro de `carrega_eventos`, por
-    linguagem: pedido explícito do usuário, quantidade antes e depois de
-    cada corte, não só o resultado final. Lê `ESTATISTICAS_CARGA`, que
-    `carrega_eventos` já povoa como efeito colateral da carga normal; não
-    chama `carrega_eventos` de novo aqui (por isso só faz sentido chamar
-    esta função depois de alguma outra que já carregou as linguagens
-    correntes, como `gera_piramide_comparativa`)."""
-    linhas = ["# Caracterização dos dados", ""]
-    linhas.append(
+    """Quantidade de dado em cada etapa do filtro de `carrega_eventos`,
+    numa tabela com uma coluna por linguagem e uma coluna Total à direita
+    (pedido explícito do usuário): pedido explícito também de quantidade
+    antes e depois de cada corte, não só o resultado final. Lê
+    `ESTATISTICAS_CARGA`, que `carrega_eventos` já povoa como efeito
+    colateral da carga normal; não chama `carrega_eventos` de novo aqui
+    (por isso só faz sentido chamar esta função depois de alguma outra que
+    já carregou as linguagens correntes, como `gera_piramide_comparativa`).
+
+    A coluna Total é soma simples entre linguagens pra toda linha, exceto
+    "Repositórios coletados de fato" (união de `repo_id` com erro, não soma:
+    ver `_stats_erros_coleta`). Pra "Contribuidores únicos", a soma simples
+    conta 2 vezes quem contribui em mais de uma linguagem: nota de rodapé
+    avisa disso, não existe deduplicação entre linguagens aqui."""
+    slugs = list(LINGUAGENS)
+    valores: dict[str, dict[str, int]] = {}
+    for slug in slugs:
+        s = dict(ESTATISTICAS_CARGA.get(slug, {}))
+        s["_coletados_de_fato"] = s.get("repos_total", 0) - s.get("repos_erro_uniao", 0)
+        valores[slug] = s
+
+    cabecalho = ["Etapa"] + [LINGUAGENS[s].nome for s in slugs] + ["Total"]
+    linhas = [
+        "# Caracterização dos dados",
+        "",
         "Quantidade de dado em cada etapa do filtro de `carrega_eventos`, "
-        "por linguagem. Cada linha é uma etapa do filtro; o número mostra "
-        "quantos elementos restam depois dela. A explicação de cada corte "
-        "está no código, junto da função que faz o corte (`scripts/"
-        "figuras_linguagem_bruta.py`)."
-    )
-    linhas.append("")
-    for slug, linguagem in LINGUAGENS.items():
-        s = ESTATISTICAS_CARGA.get(slug, {})
-        linhas.append(f"## {linguagem.nome}")
+        "por linguagem, com o total à direita. Cada linha é uma etapa do "
+        "filtro; o número mostra quantos elementos restam depois dela. A "
+        "explicação de cada corte está no código, junto da função que faz "
+        "o corte (`scripts/figuras_linguagem_bruta.py`).",
+        "",
+        "| " + " | ".join(cabecalho) + " |",
+        "|" + "---|" * len(cabecalho),
+    ]
+    notas: list[str] = []
+    for rotulo, chave, nota in _LINHAS_CARACTERIZACAO:
+        celulas = [valores[slug].get(chave, 0) for slug in slugs]
+        total = _fmt_milhar(sum(celulas))
+        if nota:
+            total += f" {nota}"
+            if nota not in notas:
+                notas.append(nota)
+        linha = [rotulo] + [_fmt_milhar(v) for v in celulas] + [total]
+        linhas.append("| " + " | ".join(linha) + " |")
+    if "*" in notas:
         linhas.append("")
-        linhas.append(f"- Repositórios candidatos na coleta bruta: {s.get('repos_total', 0)}")
         linhas.append(
-            f"- Repositórios excluídos, <= {LIMIAR_SHARE_LINGUAGEM:.0%} do código na "
-            f"linguagem: {s.get('repos_excluidos_share', 0)}"
+            "*Soma simples entre linguagens: quem contribui em mais de uma "
+            "linguagem é contado uma vez em cada uma. Não há deduplicação "
+            "de `contributor_id` entre linguagens neste total."
         )
-        linhas.append(f"- Repositórios elegíveis: {s.get('repos_elegiveis', 0)}")
-        if "etapa_2A_total" in s:
-            linhas.append(
-                f"- Repositórios com erro na etapa 2A da coleta (metadados via API): "
-                f"{s.get('etapa_2A_erros', 0)} de {s['etapa_2A_total']}"
-            )
-        if "etapa_2B_total" in s:
-            linhas.append(
-                f"- Repositórios com erro na etapa 2B da coleta (git clone/log): "
-                f"{s.get('etapa_2B_erros', 0)} de {s['etapa_2B_total']}"
-            )
-        if "etapa_2A_total" in s or "etapa_2B_total" in s:
-            linhas.append(
-                "  (o repositório com erro costuma continuar no dataset final, só "
-                "com o pedaço que falhou faltando: ver docstring de "
-                "`_stats_erros_coleta`)"
-            )
-        linhas.append("")
-        linhas.append(f"- Eventos de API brutos no arquivo: {s.get('eventos_api_bruto', 0)}")
-        linhas.append(
-            "- Eventos de API com autor válido e linguagem confirmada: "
-            f"{s.get('eventos_api_desta_linguagem', 0)}"
-        )
-        linhas.append(f"- Commits git brutos no arquivo: {s.get('eventos_git_bruto', 0)}")
-        linhas.append(
-            "- Commits git com autor válido, tocando arquivo da linguagem: "
-            f"{s.get('eventos_git_desta_linguagem', 0)}"
-        )
-        linhas.append(
-            "- Commits descartados por serem cópia de histórico já contado (fork "
-            f"completo ou clone empurrado pra um repositório novo): "
-            f"{s.get('commits_duplicados_descartados', 0)}"
-        )
-        linhas.append(
-            "- Eventos descartados por serem anteriores ao primeiro commit real da "
-            f"linguagem no repositório: {s.get('eventos_antes_do_piso_descartados', 0)}"
-        )
-        linhas.append(
-            "- Eventos restantes após restringir a repositórios elegíveis: "
-            f"{s.get('eventos_apos_elegibilidade', 0)}"
-        )
-        linhas.append(
-            "- Eventos de conta apagada descartados da pirâmide, guardados à parte "
-            f"num CSV próprio: {s.get('eventos_fantasma_descartados', 0)}"
-        )
-        linhas.append(f"- Eventos de bot descartados: {s.get('eventos_bot_descartados', 0)}")
-        if s.get("eventos_data_ilegivel_descartados", 0):
-            linhas.append(
-                f"- Eventos com data ilegível descartados: {s['eventos_data_ilegivel_descartados']}"
-            )
-        if s.get("eventos_futuro_descartados", 0):
-            linhas.append(
-                f"- Eventos com data no futuro descartados: {s['eventos_futuro_descartados']}"
-            )
-        if s.get("eventos_antes_2008_descartados", 0):
-            linhas.append(
-                f"- Eventos antes de 2008-01-01 descartados: {s['eventos_antes_2008_descartados']}"
-            )
-        linhas.append("")
-        linhas.append(f"- **Eventos finais, na pirâmide: {s.get('eventos_finais', 0)}**")
-        linhas.append(f"- **Repositórios finais, na pirâmide: {s.get('repos_finais', 0)}**")
-        linhas.append(
-            f"- **Contribuidores únicos finais, na pirâmide: {s.get('contribuidores_finais', 0)}**"
-        )
-        linhas.append("")
 
     caminho = _caminho_geral("caracterizacao_dados.md")
     caminho.write_text("\n".join(linhas), encoding="utf-8")
