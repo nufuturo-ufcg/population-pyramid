@@ -423,8 +423,10 @@ def get_response_with_retry(url, params=None, max_retries=5):
                 time.sleep(min(2 ** attempt, 30))
                 continue
 
+            auth_header = get_thread_session().headers.get("Authorization", "")
+            token_suffix = auth_header[-4:] if len(auth_header) > 4 else ""
             last_error = RuntimeError(
-                f"GitHub API retornou {response.status_code} para "
+                f"Token ...{token_suffix} retornou {response.status_code} para "
                 f"{response.url}: {response.text[:500]}"
             )
             break
