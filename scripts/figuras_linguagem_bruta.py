@@ -2378,9 +2378,14 @@ def _desenha_pontos_por_linguagem(
     titulo: str,
     *,
     linhas_zero: bool = False,
+    escala: tuple[float, float] = ESCALA_METRICA,
 ) -> None:
-    """Um ponto rotulado por linguagem, eixos na `ESCALA_METRICA` comum.
-    Compartilhado pelos dois painéis de `gera_comparacao_metricas_linguagens`."""
+    """Um ponto rotulado por linguagem, eixos em `escala` (default:
+    `ESCALA_METRICA`, comum aos dois painéis de
+    `gera_comparacao_metricas_linguagens`). CCR/NCR vivem em [-1, 1] e usam a
+    escala comum de propósito, pra comparar os 3 plots de relance; magnetismo
+    e stickiness vivem só em [0, 1] e usam `escala` própria, senão os 4
+    pontos ficam espremidos num quarto do desenho com o resto vazio."""
     if linhas_zero:
         ax.axhline(0, color="#888888", lw=0.7)
         ax.axvline(0, color="#888888", lw=0.7)
@@ -2390,8 +2395,8 @@ def _desenha_pontos_por_linguagem(
         x, y = x_por_sid[sid], y_por_sid[sid]
         ax.scatter(x, y, color=cores[nome], s=70, zorder=3)
         ax.annotate(nome, (x, y), fontsize=9, xytext=(6, 6), textcoords="offset points")
-    ax.set_xlim(*ESCALA_METRICA)
-    ax.set_ylim(*ESCALA_METRICA)
+    ax.set_xlim(*escala)
+    ax.set_ylim(*escala)
     ax.set_xlabel(rotulo_x)
     ax.set_ylabel(rotulo_y)
     ax.set_title(titulo)
@@ -2475,6 +2480,7 @@ def gera_comparacao_metricas_linguagens(
             "stickiness",
             "magnetismo",
             f"magnetismo x stickiness por linguagem {titulo_extra}",
+            escala=(-0.05, 1.05),
         )
         fig.suptitle("As 4 linguagens como unidade de análise, competindo entre si", fontsize=13)
         caminho = _caminho_geral(f"geral_ccr_ncr_magnetismo_stickiness_por_linguagem{sufixo}.png")
