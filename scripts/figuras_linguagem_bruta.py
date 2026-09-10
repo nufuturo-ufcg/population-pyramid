@@ -1367,7 +1367,7 @@ def gera_geral_idade_morte(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
         _legenda_discussion(fig, plots_mod)
     fig.suptitle(
         f"Idade na última contribuição, de quem já não contribui há mais de "
-        f"{MORTE_JANELA_MESES} meses, 4 linguagens",
+        f"{MORTE_JANELA_MESES} meses, {len(LINGUAGENS)} linguagens",
         fontsize=13,
     )
     fig.tight_layout(rect=(0, 0.05, 1, 1))
@@ -2337,7 +2337,7 @@ def gera_geral_ccr_ncr_por_projeto() -> None:
     ax.set_ylim(*ESCALA_METRICA)
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
-    ax.set_title("CCR x NCR por projeto, 4 linguagens")
+    ax.set_title(f"CCR x NCR por projeto, {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best", fontsize=9, markerscale=2)
     caminho = _caminho_geral("geral_ccr_ncr_por_projeto.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2383,7 +2383,7 @@ def gera_geral_contribuintes_evolucao() -> None:
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano")
     ax.set_ylabel("ativos NAQUELE ano (pode cair de um ano pro outro)")
-    ax.set_title("Contribuintes ATIVOS por ano, 4 linguagens")
+    ax.set_title(f"Contribuintes ATIVOS por ano, {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_contribuintes_evolucao_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2423,7 +2423,7 @@ def gera_geral_contribuintes_acumulado_evolucao() -> None:
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano")
     ax.set_ylabel("total histórico ATÉ aquele ano (nunca cai)")
-    ax.set_title("Contribuintes ACUMULADOS até cada ano, 4 linguagens")
+    ax.set_title(f"Contribuintes ACUMULADOS até cada ano, {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_contribuintes_acumulado_evolucao_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2462,7 +2462,7 @@ def gera_geral_abandono_por_ano() -> None:
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano da última contribuição")
     ax.set_ylabel("pessoas naquele ano")
-    ax.set_title("Abandono por ano da última contribuição, 4 linguagens")
+    ax.set_title(f"Abandono por ano da última contribuição, {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_abandono_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2501,7 +2501,7 @@ def gera_geral_abandono_acumulado() -> None:
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano da última contribuição")
     ax.set_ylabel("total histórico ATÉ aquele ano (nunca cai)")
-    ax.set_title("Abandono ACUMULADO até cada ano, 4 linguagens")
+    ax.set_title(f"Abandono ACUMULADO até cada ano, {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_abandono_acumulado_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2540,7 +2540,7 @@ def gera_geral_idade_morte_por_ano() -> None:
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlabel("ano da última contribuição")
     ax.set_ylabel("idade mediana na última contribuição (anos)")
-    ax.set_title("Idade na última contribuição, por ano (mediana), 4 linguagens")
+    ax.set_title(f"Idade na última contribuição, por ano (mediana), {len(LINGUAGENS)} linguagens")
     ax.legend(loc="best")
     caminho = _caminho_geral("geral_idade_morte_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2593,7 +2593,7 @@ def gera_geral_novatos_por_ano() -> None:
     ax.set_ylim(0, None)
     ax.set_xlabel("ano")
     ax.set_ylabel(f"% com <{NOVATO_JANELA_MESES} meses de idade, do total até ali")
-    ax.set_title("Novatos por ano, 4 linguagens")
+    ax.set_title(f"Novatos por ano, {len(LINGUAGENS)} linguagens")
     ax.legend(fontsize=9)
     caminho = _caminho_geral("geral_novatos_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2633,7 +2633,9 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
         eixo.set_ylabel("mediana do ABRE (menor = melhor)")
         eixo.set_title(linguagem.nome)
         eixo.legend(fontsize=8)
-    fig.suptitle("Backtest da projeção: erro por ano-âncora, 4 linguagens", fontsize=13)
+    fig.suptitle(
+        f"Backtest da projeção: erro por ano-âncora, {len(LINGUAGENS)} linguagens", fontsize=13
+    )
     fig.tight_layout()
     caminho = _caminho_geral("geral_backtest_evolucao_por_linguagem.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -2838,7 +2840,8 @@ def gera_grade_anos_distintos(
         ]
         fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False)
         fig.suptitle(
-            "Pirâmide (anos-calendário distintos) ao longo do tempo, 4 linguagens", fontsize=14
+            f"Pirâmide (anos-calendário distintos) ao longo do tempo, {len(LINGUAGENS)} linguagens",
+            fontsize=14,
         )
         fig.tight_layout(rect=(0, 0.03, 1, 0.96))
         caminho = _caminho_geral("piramides_4_linguagens_anos_distintos_ao_longo_do_tempo.png")
@@ -3057,7 +3060,10 @@ def gera_comparacao_metricas_linguagens(
             f"magnetismo x stickiness por linguagem {titulo_extra}",
             escala=(-0.05, 1.05),
         )
-        fig.suptitle("As 4 linguagens como unidade de análise, competindo entre si", fontsize=13)
+        fig.suptitle(
+            f"As {len(eventos_por_lingua)} linguagens como unidade de análise, competindo entre si",
+            fontsize=13,
+        )
         caminho = _caminho_geral(f"geral_ccr_ncr_magnetismo_stickiness_por_linguagem{sufixo}.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
