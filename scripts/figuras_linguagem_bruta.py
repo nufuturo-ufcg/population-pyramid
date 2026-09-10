@@ -649,8 +649,29 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
     )
 
 
+def _stats_erros_coleta() -> None:
+    """Quantos repositórios ficaram com status "error" durante a coleta, por
+    etapa. Quem escreve `reports/etapa_2A_progresso.json` e
+    `etapa_2B_progresso.json` é o coletor, fora deste script e fora do
+    motor auditado; aqui só lê o que já está gravado em `CFG.dados`, não
+    refaz a coleta nem reinterpreta o status. "error" marca uma chamada de
+    rede ou de git que falhou (timeout, GitHub devolvendo 422, encoding
+    quebrado, disco cheio no clone); o repositório costuma continuar no
+    `repositorios_*_alvo.csv` final mesmo assim, só que com o pedaço que
+    falhou faltando (achado em Clojure: os 4 erros da etapa 2A estão todos
+    no alvo.csv final)."""
+    for etapa in ("etapa_2A", "etapa_2B"):
+        caminho = CFG.dados / "reports" / f"{etapa}_progresso.json"
+        if not caminho.exists():
+            continue
+        repos = json.loads(caminho.read_text()).get("repositories", {})
+        _stats()[f"{etapa}_total"] = len(repos)
+        _stats()[f"{etapa}_erros"] = sum(1 for r in repos.values() if r.get("status") == "error")
+
+
 def carrega_eventos(rodada: int = RODADA) -> pd.DataFrame:
     ESTATISTICAS_CARGA.pop(LING.atual.slug, None)
+    _stats_erros_coleta()
     elegiveis = _repos_elegiveis(rodada)
     if rodada == 1:
         bruto, mapa_tipo = _carrega_r1(), MAPA_TIPO_R1
@@ -661,6 +682,7 @@ def carrega_eventos(rodada: int = RODADA) -> pd.DataFrame:
     resultado = _finaliza_eventos(bruto, mapa_tipo)
     _stats()["eventos_finais"] = len(resultado)
     _stats()["repos_finais"] = int(resultado["repo_id"].nunique())
+    _stats()["contribuidores_finais"] = int(resultado["contributor_id"].nunique())
     return resultado
 
 
@@ -3226,6 +3248,22 @@ def gera_caracterizacao_dados() -> None:
             f"linguagem: {s.get('repos_excluidos_share', 0)}"
         )
         linhas.append(f"- Repositórios elegíveis: {s.get('repos_elegiveis', 0)}")
+        if "etapa_2A_total" in s:
+            linhas.append(
+                f"- Repositórios com erro na etapa 2A da coleta (metadados via API): "
+                f"{s.get('etapa_2A_erros', 0)} de {s['etapa_2A_total']}"
+            )
+        if "etapa_2B_total" in s:
+            linhas.append(
+                f"- Repositórios com erro na etapa 2B da coleta (git clone/log): "
+                f"{s.get('etapa_2B_erros', 0)} de {s['etapa_2B_total']}"
+            )
+        if "etapa_2A_total" in s or "etapa_2B_total" in s:
+            linhas.append(
+                "  (o repositório com erro costuma continuar no dataset final, só "
+                "com o pedaço que falhou faltando: ver docstring de "
+                "`_stats_erros_coleta`)"
+            )
         linhas.append("")
         linhas.append(f"- Eventos de API brutos no arquivo: {s.get('eventos_api_bruto', 0)}")
         linhas.append(
@@ -3270,6 +3308,9 @@ def gera_caracterizacao_dados() -> None:
         linhas.append("")
         linhas.append(f"- **Eventos finais, na pirâmide: {s.get('eventos_finais', 0)}**")
         linhas.append(f"- **Repositórios finais, na pirâmide: {s.get('repos_finais', 0)}**")
+        linhas.append(
+            f"- **Contribuidores únicos finais, na pirâmide: {s.get('contribuidores_finais', 0)}**"
+        )
         linhas.append("")
 
     caminho = _caminho_geral("caracterizacao_dados.md")
