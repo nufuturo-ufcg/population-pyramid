@@ -120,11 +120,13 @@ MAPA_TIPO_R2 = {
 # evento de issue) é discussão.
 TIPOS_CODING = {"commits", "pull_requests"}
 
-# Rótulo de legenda só das 3 pirâmides de anos-calendário distintos (não é
-# metodologia auditada, esse texto não tem compromisso com o artigo). Não
-# mexe em `plots.PT_LABEL`: aquele é usado pelas figuras oficiais da
-# replicação, e "non-coding" ali é o termo exato do artigo (IEICE16/ESEM14).
-ROTULO_LEGENDA_ANOS_DISTINTOS = {
+# Rótulo de legenda das pirâmides deste script (não é metodologia auditada,
+# esse texto não tem compromisso com o artigo). Não mexe em `plots.PT_LABEL`:
+# aquele é usado pelas figuras oficiais da replicação (`pyramid plot` sobre
+# dado real do ghapi), e "non-coding" ali é o termo exato do artigo
+# (IEICE16/ESEM14). Pedido do usuário: "non-coding" confunde nesse contexto,
+# vira "discussion" em toda pirâmide que este script desenha.
+ROTULO_LEGENDA = {
     "non_coding": "discussion",
     "moved": "moved to coding",
     "coding": "coding",
@@ -678,14 +680,6 @@ def roda_pipeline(
     )
 
 
-def _salva(caminho: Path, nome: str) -> None:
-    """`nome` pode ter subpasta (`"backtest/foo.png"`): cria o que faltar."""
-    destino = CFG.saida / nome
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(caminho, destino)
-    print(f"salvo: {destino}")
-
-
 def _salva_fig(fig: object, nome: str) -> None:
     """`nome` pode ter subpasta (`"backtest/foo.png"`): cria o que faltar."""
     caminho = CFG.saida / nome
@@ -705,20 +699,55 @@ def _caminho_csv(nome: str) -> Path:
     return caminho
 
 
+def _legenda_discussion(fig: object, plots_mod: object) -> None:
+    """Mesma legenda de `plots._legend` (Patch com FILL/HATCH do motor
+    auditado), com rótulo próprio deste script (`ROTULO_LEGENDA`: "discussion"
+    em vez de "non-coding"). Não reusa `plots._legend` porque aquela função é
+    privada do módulo auditado e trava no `PT_LABEL` exato do artigo."""
+    from matplotlib.patches import Patch
+
+    handles = [
+        Patch(
+            facecolor=plots_mod.FILL[c],
+            hatch=plots_mod.HATCH[c],
+            edgecolor="#4D4D4D",
+            label=ROTULO_LEGENDA[c],
+        )
+        for c in ("non_coding", "moved", "coding")
+    ]
+    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=8)
+
+
 def gera_piramide_multi(eventos: pd.DataFrame) -> None:
     """Uma pirâmide por valor de `BANDAS_MESES_PIRAMIDE` (default: 3 e 12 meses
     de banda). 3 meses é a divisão em quarter da metodologia; qualquer outro
     valor não é. O nome do arquivo carrega os dois: se é quarter ou não, e a
-    largura de banda exata, pra nenhuma versão pisar na outra."""
+    largura de banda exata, pra nenhuma versão pisar na outra.
+
+    Monta a figura na mão (`pyramid_frame` + `draw_pyramid`, as mesmas peças
+    públicas que `plots.figure_pyramid` usa por dentro) em vez de chamar
+    `pl.plots.figure_pyramid` direto: aquela função já salva com a legenda do
+    artigo ("non-coding"), e o PNG que ela devolve já está gravado, sem
+    Figure pra reabrir e trocar o texto. Não toca em `plots.figure_pyramid`
+    (usada pela replicação real sobre dado ghapi, precisa do termo exato do
+    artigo)."""
     for banda_meses in BANDAS_MESES_PIRAMIDE:
         pl = roda_pipeline(eventos, band_months=banda_meses)
         try:
-            caminho = pl.plots.figure_pyramid(pl.sid)
+            t = pd.Timestamp(pl.snapshots.classification_snapshot())
+            frame = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+            fig, ax = plt.subplots(figsize=(4.2, 3.4))
+            pl.plots.draw_pyramid(ax, frame)
+            ax.set_title(f"{LING.atual.nome}, {t.date()}", fontsize=9)
+            ax.set_xlabel("contribuidores", fontsize=8)
+            ax.set_ylabel(pl.plots.rotulo_da_idade(), fontsize=8)
+            _legenda_discussion(fig, pl.plots)
             rotulo = "comquarter" if banda_meses == 3 else "semquarter"
             nome = (
                 f"piramide/piramide_{LING.atual.slug}_metodologia_{rotulo}_banda{banda_meses}m.png"
             )
-            _salva(caminho, nome)
+            fig.tight_layout(rect=(0, 0.06, 1, 1))
+            _salva_fig(fig, nome)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
 
@@ -757,9 +786,19 @@ def gera_piramide_veteranos(eventos: pd.DataFrame) -> None:
         )
         pl = roda_pipeline(filtrado, band_months=3)
         try:
-            caminho = pl.plots.figure_pyramid(pl.sid)
+            t = pd.Timestamp(pl.snapshots.classification_snapshot())
+            frame = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+            fig, ax = plt.subplots(figsize=(4.2, 3.4))
+            pl.plots.draw_pyramid(ax, frame)
+            ax.set_title(
+                f"{LING.atual.nome}, {t.date()} (>= {meses_min} meses de idade)", fontsize=9
+            )
+            ax.set_xlabel("contribuidores", fontsize=8)
+            ax.set_ylabel(pl.plots.rotulo_da_idade(), fontsize=8)
+            _legenda_discussion(fig, pl.plots)
+            fig.tight_layout(rect=(0, 0.06, 1, 1))
             nome = f"piramide-veteranos/piramide_{LING.atual.slug}_veteranos_min{meses_min}m.png"
-            _salva(caminho, nome)
+            _salva_fig(fig, nome)
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
 
@@ -843,7 +882,7 @@ def gera_piramide_anos_distintos(eventos: pd.DataFrame) -> None:
                 facecolor=pl.plots.FILL[c],
                 hatch=pl.plots.HATCH[c],
                 edgecolor="#4D4D4D",
-                label=ROTULO_LEGENDA_ANOS_DISTINTOS[c],
+                label=ROTULO_LEGENDA[c],
             )
             for c in ("non_coding", "moved", "coding")
         ]
@@ -853,15 +892,79 @@ def gera_piramide_anos_distintos(eventos: pd.DataFrame) -> None:
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
+def _monta_linha_tempo(
+    pl: SimpleNamespace,
+    *,
+    anos: list[int] | None = None,
+    ultimos_anos: int | None = None,
+    passo_anos: int = 1,
+) -> object | None:
+    """Mesma lógica de `plots.figure_pyramid_timeline` (teto comum entre os
+    anos, de propósito: mostra a pirâmide crescendo de altura, ver comentário
+    em `plots.figure_fig3`), sem a legenda travada no termo do artigo. Monta
+    a Figure na mão com as mesmas peças públicas (`snapshots.snapshot_dates`,
+    `snapshots.load`, `plots.pyramid_frame`, `plots.draw_pyramid`) em vez de
+    chamar `figure_pyramid_timeline` direto, pelo mesmo motivo de
+    `gera_piramide_multi`: aquela função já salva com "non-coding" na
+    legenda, sem Figure pra reabrir depois. Não toca em
+    `figure_pyramid_timeline`/`figure_fig3`. Devolve `None` se nenhum ano
+    pedido tem contribuidor ativo; quem chama decide o aviso."""
+    serie = pl.snapshots.snapshot_dates()
+    if anos is not None:
+        alvo = set(anos)
+        candidatas = [d for d in serie if d.year in alvo]
+    else:
+        limite = serie[-1] - pd.DateOffset(years=ultimos_anos)
+        candidatas = [d for d in serie if d >= limite]
+    por_ano: dict[int, pd.Timestamp] = {}
+    for d in candidatas:
+        por_ano[d.year] = d  # serie é crescente: fica a última data de cada ano
+    if passo_anos > 1 and por_ano:
+        ultimo_ano = max(por_ano)
+        por_ano = {a: d for a, d in por_ano.items() if (ultimo_ano - a) % passo_anos == 0}
+    historico = pl.snapshots.load(pl.sid)
+    quadros = {d: pl.plots.pyramid_frame(historico, d) for d in sorted(por_ano.values())}
+    datas = [
+        d
+        for d, f in quadros.items()
+        if not f.empty and (f["non_coding"].sum() + f["moved"].sum() + f["coding"].sum()) > 0
+    ]
+    if not datas:
+        return None
+
+    vivos = [quadros[d] for d in datas]
+    xmax = max(max(f["non_coding"].max(), (f["moved"] + f["coding"]).max()) for f in vivos)
+    ymax = max(int(f["band"].max()) for f in vivos)
+    fig, axes = plt.subplots(1, len(datas), figsize=(3.0 * len(datas), 4.2), squeeze=False)
+    for j, d in enumerate(datas):
+        ax = axes[0][j]
+        pl.plots.draw_pyramid(ax, quadros[d], xmax=float(xmax), ymax=ymax)
+        ax.set_title(str(d.date()), fontsize=9)
+        if j == 0:
+            ax.set_ylabel(f"{LING.atual.nome}\n{pl.plots.rotulo_da_idade()}", fontsize=8)
+        else:
+            ax.tick_params(axis="y", labelleft=False)
+        ax.set_xlabel("contribuidores", fontsize=8)
+    _legenda_discussion(fig, pl.plots)
+    fig.suptitle(f"{LING.atual.nome}: pirâmide ao longo do tempo", fontsize=10)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.92))
+    return fig
+
+
 def gera_linha_tempo(pl: SimpleNamespace) -> None:
-    caminho = pl.plots.figure_pyramid_timeline(
-        pl.sid, ultimos_anos=ULTIMOS_ANOS, passo_anos=PASSO_ANOS
-    )
+    fig = _monta_linha_tempo(pl, ultimos_anos=ULTIMOS_ANOS, passo_anos=PASSO_ANOS)
+    if fig is None:
+        print(
+            f"aviso: nenhum dos últimos {ULTIMOS_ANOS} anos tem contribuidor ativo em "
+            f"{LING.atual.nome}; linha-tempo pulada",
+            file=sys.stderr,
+        )
+        return
     nome = (
         f"linha-tempo/linha_do_tempo_{LING.atual.slug}_metodologia_"
         f"{ULTIMOS_ANOS}anos_passo{PASSO_ANOS}.png"
     )
-    _salva(caminho, nome)
+    _salva_fig(fig, nome)
 
 
 def gera_linha_tempo_4(eventos: pd.DataFrame) -> None:
@@ -873,13 +976,20 @@ def gera_linha_tempo_4(eventos: pd.DataFrame) -> None:
         cfg["plots"]["pyramid_window_months"] = janela
         alvo.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
         pl.config.settings.cache_clear()
-        caminho = pl.plots.figure_pyramid_timeline(pl.sid, anos=ANOS_ESCOLHIDOS)
+        fig = _monta_linha_tempo(pl, anos=ANOS_ESCOLHIDOS)
+        if fig is None:
+            print(
+                f"aviso: nenhum de {ANOS_ESCOLHIDOS} tem contribuidor ativo em "
+                f"{LING.atual.nome} (janela {janela}m); painel pulado",
+                file=sys.stderr,
+            )
+            continue
         anos_txt = "-".join(str(a) for a in ANOS_ESCOLHIDOS)
         nome = (
             f"linha-tempo-4/linha_do_tempo_{LING.atual.slug}_4anos_{anos_txt}"
             f"_banda{BANDA_ANOS_TIMELINE}a_janela{janela}m.png"
         )
-        _salva(caminho, nome)
+        _salva_fig(fig, nome)
     shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
@@ -1530,66 +1640,6 @@ def gera_resumo_contribuintes(ev: pd.DataFrame) -> None:
     print(f"salvo: {caminho} ({len(resumo)} contribuintes)", file=sys.stderr)
 
 
-def _curva_retencao(ev: pd.DataFrame) -> pd.DataFrame:
-    """Complemento do abandono: em vez de "quando foi a última vez que essa
-    pessoa apareceu" (uma foto de hoje), aqui é "de quem entrou k anos atrás,
-    que fração ainda aparece k anos depois", agregado sobre TODAS as coortes
-    de entrada (2011 conta, 2015 conta, 2020 conta, todas juntas no mesmo k).
-    "Aparece" é qualquer evento naquele ano-calendário; não exige atividade
-    contínua, quem sumiu e voltou conta como retido no ano em que voltou
-    (mesma leitura permissiva de "voltas").
-
-    Denominador de cada k é só quem TEVE CHANCE de aparecer em
-    primeiro_ano+k dentro da coleta (elegível), não todo mundo: incluir
-    quem entrou ano passado no denominador de k=10 subestimaria a
-    retenção de propósito, porque essas pessoas não tiveram 10 anos pra
-    aparecer ainda."""
-    pares = ev[["contributor_id"]].copy()
-    pares["ano"] = ev["timestamp"].dt.year
-    pares = pares.drop_duplicates()
-    primeiro_ano = pares.groupby("contributor_id")["ano"].min()
-    pares["primeiro_ano"] = pares["contributor_id"].map(primeiro_ano)
-    pares["k"] = pares["ano"] - pares["primeiro_ano"]
-
-    ultimo_ano_dataset = int(ev["timestamp"].dt.year.max())
-    max_k = ultimo_ano_dataset - int(primeiro_ano.min())
-    ativos_por_k = {k: set(g["contributor_id"]) for k, g in pares.groupby("k")}
-
-    linhas = []
-    for k in range(max_k + 1):
-        elegiveis = set(primeiro_ano[primeiro_ano + k <= ultimo_ano_dataset].index)
-        if not elegiveis:
-            continue
-        retidos = len(elegiveis & ativos_por_k.get(k, set()))
-        linhas.append(
-            {
-                "k": k,
-                "retidos": retidos,
-                "elegiveis": len(elegiveis),
-                "taxa": retidos / len(elegiveis),
-            }
-        )
-    return pd.DataFrame(linhas)
-
-
-def gera_curva_retencao(ev: pd.DataFrame) -> None:
-    """Desenha e salva `_curva_retencao`: eixo X = anos desde a primeira
-    contribuição (k), eixo Y = fração da coorte elegível ainda ativa
-    naquele k, agregado sobre todas as coortes de entrada juntas."""
-    curva = _curva_retencao(ev)
-    caminho_csv = _caminho_csv("retencao/retencao_por_k.csv")
-    curva.to_csv(caminho_csv, index=False)
-    print(f"salvo: {caminho_csv}", file=sys.stderr)
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(curva["k"], curva["taxa"], marker="o", markersize=4, color="black")
-    ax.set_ylim(0, 1.02)
-    ax.set_xlabel("anos desde a primeira contribuição (k)")
-    ax.set_ylabel("fração da coorte elegível ainda ativa em k")
-    ax.set_title(f"{LING.atual.nome}: retenção por anos desde a entrada, todas as coortes juntas")
-    _salva_fig(fig, f"retencao/retencao_{LING.atual.slug}_por_k.png")
-
-
 NOVATO_JANELA_MESES = 3
 
 # Também usada por `gera_geral_backtest_evolucao`, mais abaixo no arquivo.
@@ -1862,56 +1912,6 @@ def gera_geral_contribuintes_acumulado_evolucao() -> None:
     print(f"salvo: {caminho}")
 
 
-def gera_geral_curva_retencao() -> None:
-    """`_curva_retencao` das 4 linguagens no mesmo plano. Lê `retencao_por_k.csv`
-    de cada linguagem (`--figuras retencao` ou `all`); não recalcula nada."""
-    partes = []
-    faltando = []
-    for slug in LINGUAGENS:
-        caminho = TMP_BASE / slug / "csv" / "retencao" / "retencao_por_k.csv"
-        if not caminho.exists():
-            faltando.append(slug)
-            continue
-        df = pd.read_csv(caminho)
-        df["linguagem"] = slug
-        partes.append(df)
-    if faltando:
-        print(
-            f"aviso: sem retencao_por_k.csv ainda para {', '.join(sorted(faltando))}",
-            file=sys.stderr,
-        )
-    if not partes:
-        raise SystemExit(
-            "nenhum retencao_por_k.csv encontrado. Rode `--figuras retencao` "
-            "(ou `all`) em cada linguagem antes."
-        )
-    todos = pd.concat(partes, ignore_index=True)
-
-    fig, ax = plt.subplots(figsize=(8.5, 5.5))
-    for slug, linguagem in LINGUAGENS.items():
-        grupo = todos[todos["linguagem"] == slug].sort_values("k")
-        ax.plot(
-            grupo["k"],
-            grupo["taxa"],
-            marker="o",
-            markersize=4,
-            color=CORES_LINGUAGEM[slug],
-            label=linguagem.nome,
-        )
-    from matplotlib.ticker import MaxNLocator
-
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))  # k é inteiro, sem tick fracionário
-    ax.set_ylim(0, 1.02)
-    ax.set_xlabel("anos desde a primeira contribuição (k)")
-    ax.set_ylabel("fração da coorte elegível ainda ativa em k")
-    ax.set_title("Retenção por anos desde a entrada, 4 linguagens")
-    ax.legend(fontsize=9)
-    caminho = _caminho_geral("geral_retencao_por_k.png")
-    fig.savefig(caminho, dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    print(f"salvo: {caminho}")
-
-
 def gera_geral_novatos_por_ano() -> None:
     """`_novatos_por_ano` das 4 linguagens, uma cor por linguagem. Sem linha
     ligando os pontos: os anos são esparsos (mesmo motivo de
@@ -2105,7 +2105,7 @@ def gera_piramide_anos_distintos_comparativa(
                 facecolor=pl.plots.FILL[c],
                 hatch=pl.plots.HATCH[c],
                 edgecolor="#4D4D4D",
-                label=ROTULO_LEGENDA_ANOS_DISTINTOS[c],
+                label=ROTULO_LEGENDA[c],
             )
             for c in ("non_coding", "moved", "coding")
         ]
@@ -2195,7 +2195,7 @@ def gera_grade_anos_distintos(
                 facecolor=pl.plots.FILL[c],
                 hatch=pl.plots.HATCH[c],
                 edgecolor="#4D4D4D",
-                label=ROTULO_LEGENDA_ANOS_DISTINTOS[c],
+                label=ROTULO_LEGENDA[c],
             )
             for c in ("non_coding", "moved", "coding")
         ]
@@ -2445,7 +2445,6 @@ GERADORES = {
     "voltas": lambda _pl, ev: gera_voltas_por_ano(ev),
     "contribuintes": lambda _pl, ev: gera_contribuintes_por_ano(ev),
     "resumo-contribuintes": lambda _pl, ev: gera_resumo_contribuintes(ev),
-    "retencao": lambda _pl, ev: gera_curva_retencao(ev),
     "novatos-por-ano": lambda _pl, ev: gera_novatos_por_ano(ev),
 }
 
@@ -2460,7 +2459,6 @@ SEM_PIPELINE_PADRAO = {
     "voltas",
     "contribuintes",
     "resumo-contribuintes",
-    "retencao",
     "novatos-por-ano",
     "piramide",
     "piramide-veteranos",
@@ -2474,7 +2472,6 @@ def _executa_geral() -> None:
     gera_geral_contribuintes_acumulado_evolucao()
     gera_geral_ccr_ncr()
     gera_geral_ccr_ncr_por_ano()
-    gera_geral_curva_retencao()
     gera_geral_novatos_por_ano()
 
 
