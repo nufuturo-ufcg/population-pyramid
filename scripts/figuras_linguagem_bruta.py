@@ -927,6 +927,35 @@ def gera_piramide_anos_distintos(eventos: pd.DataFrame) -> None:
 MORTE_JANELA_MESES = 3
 
 
+def _idade_morte_por_ano(
+    eventos: pd.DataFrame, janela_meses: int = MORTE_JANELA_MESES
+) -> pd.DataFrame:
+    """Idade mediana (anos) na última contribuição, por ano da última
+    contribuição: a versão CONTÍNUA de "idade-morte ao longo do tempo",
+    companheira de `gera_abandono_por_ano` (mesma população: sem
+    contribuição nos últimos `janela_meses` meses, referência fixa no
+    evento mais recente da coleta; mesmo agrupamento por ano da última
+    contribuição). `gera_piramide_idade_morte_evolucao` já cobre "ao longo
+    do tempo" como grade de pirâmides-snapshot (2016/2019/2022/2026);
+    esta é o par contínuo, ano a ano, sem pular nenhum: abandono conta
+    QUANTOS morreram por ano, esta conta COM QUE IDADE (o equivalente de
+    "expectativa de vida por ano" ao lado da pirâmide de idade de morte)."""
+    primeiro = eventos.groupby("contributor_id")["timestamp"].min()
+    ultimo = eventos.groupby("contributor_id")["timestamp"].max()
+    agora = eventos["timestamp"].max()
+    limite = agora - pd.Timedelta(days=janela_meses * DAYS_PER_MONTH)
+    mortos = ultimo[ultimo < limite].index
+
+    pessoas = pd.DataFrame({"primeiro": primeiro, "ultimo": ultimo}).loc[mortos]
+    pessoas["idade_anos"] = (pessoas["ultimo"] - pessoas["primeiro"]).dt.days / DAYS_PER_MONTH / 12
+    pessoas["ano_morte"] = pessoas["ultimo"].dt.year
+    return (
+        pessoas.groupby("ano_morte")["idade_anos"]
+        .agg(idade_mediana="median", idade_media="mean", n="count")
+        .reset_index()
+    )
+
+
 def _frame_idade_morte(
     eventos: pd.DataFrame, janela_meses: int = MORTE_JANELA_MESES
 ) -> pd.DataFrame:
@@ -1053,6 +1082,29 @@ def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
         _salva_fig(fig, f"idade-morte/piramide_{LING.atual.slug}_idade_morte_evolucao.png")
     finally:
         shutil.rmtree(pl.scratch, ignore_errors=True)
+
+    # Par contínuo da grade acima: ano a ano, sem pular, em vez de só 4
+    # anos-snapshot. Ver `_idade_morte_por_ano`.
+    tendencia = _idade_morte_por_ano(eventos)
+    caminho_csv = _caminho_csv("idade-morte/idade_morte_por_ano.csv")
+    tendencia.to_csv(caminho_csv, index=False)
+    print(f"salvo: {caminho_csv}", file=sys.stderr)
+
+    fig2, ax2 = plt.subplots(figsize=(max(7.0, 0.45 * len(tendencia)), 4.5))
+    ax2.plot(
+        tendencia["ano_morte"],
+        tendencia["idade_mediana"],
+        marker="o",
+        markersize=5,
+        color="black",
+    )
+    from matplotlib.ticker import MaxNLocator
+
+    ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax2.set_xlabel("ano da última contribuição")
+    ax2.set_ylabel("idade mediana na última contribuição (anos)")
+    ax2.set_title(f"{LING.atual.nome}: idade na última contribuição, por ano (mediana)")
+    _salva_fig(fig2, f"idade-morte/idade_morte_mediana_{LING.atual.slug}_por_ano.png")
 
 
 def gera_geral_idade_morte(eventos_por_lingua: dict[str, pd.DataFrame]) -> None:
@@ -2227,6 +2279,45 @@ def gera_geral_abandono_acumulado() -> None:
     print(f"salvo: {caminho}")
 
 
+def gera_geral_idade_morte_por_ano() -> None:
+    """`_idade_morte_por_ano` das 4 linguagens no mesmo plano: idade
+    mediana na última contribuição, ano a ano. Lê
+    `idade_morte_por_ano.csv` de cada linguagem (`--figuras
+    idade-morte-tempo` ou `all`); não recalcula nada."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / "csv" / "idade-morte" / "idade_morte_por_ano.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv)
+        ax.plot(
+            df["ano_morte"],
+            df["idade_mediana"],
+            marker="o",
+            markersize=4,
+            color=CORES_LINGUAGEM[slug],
+            label=linguagem.nome,
+        )
+    if faltando:
+        print(
+            f"aviso: sem idade_morte_por_ano.csv ainda para {', '.join(sorted(faltando))}",
+            file=sys.stderr,
+        )
+    from matplotlib.ticker import MaxNLocator
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("ano da última contribuição")
+    ax.set_ylabel("idade mediana na última contribuição (anos)")
+    ax.set_title("Idade na última contribuição, por ano (mediana), 4 linguagens")
+    ax.legend(loc="best")
+    caminho = _caminho_geral("geral_idade_morte_por_ano.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def gera_geral_novatos_por_ano() -> None:
     """`_novatos_por_ano` das 4 linguagens, uma cor por linguagem. Sem linha
     ligando os pontos: os anos são esparsos (mesmo motivo de
@@ -2801,6 +2892,7 @@ def _executa_geral() -> None:
     gera_geral_contribuintes_acumulado_evolucao()
     gera_geral_abandono_por_ano()
     gera_geral_abandono_acumulado()
+    gera_geral_idade_morte_por_ano()
     gera_geral_ccr_ncr_por_ano()
     gera_geral_novatos_por_ano()
 
