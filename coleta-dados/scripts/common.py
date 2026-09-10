@@ -237,6 +237,19 @@ LANGUAGE_CONFIGS = {
             ".hrl": "Erlang",
             },
     },
+    "zig": {
+        "extensions": {".zig"},
+        "extension_to_language": {".zig": "Zig"},
+    },
+    "ocaml": {
+        "extensions": {".ml", ".mli", ".re", ".rei"},
+        "extension_to_language": {
+            ".ml": "OCaml",
+            ".mli": "OCaml",
+            ".re": "Reason",
+            ".rei": "Reason",
+        },
+    },
 }
 
 
