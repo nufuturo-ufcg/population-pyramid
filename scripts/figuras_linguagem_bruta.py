@@ -401,6 +401,17 @@ def _linguagem_principal() -> dict[str, str]:
 # tem que ser da linguagem escolhida.
 LIMIAR_SHARE_LINGUAGEM = 0.5
 
+# Caracterização dos dados: quanto sobra em cada etapa do filtro de
+# `carrega_eventos`, por linguagem. Populado como efeito colateral da carga
+# normal (cada função de filtro grava o próprio número); `gera_
+# caracterizacao_dados` só lê no final. Pedido do usuário: quantidade de
+# dado antes e depois de cada filtro, não só o resultado final.
+ESTATISTICAS_CARGA: dict[str, dict[str, int]] = {}
+
+
+def _stats() -> dict[str, int]:
+    return ESTATISTICAS_CARGA.setdefault(LING.atual.slug, {})
+
 
 def _repos_elegiveis(rodada: int) -> set[str]:
     """`repo_id` cujo repositório tem mais de `LIMIAR_SHARE_LINGUAGEM` do
@@ -426,6 +437,9 @@ def _repos_elegiveis(rodada: int) -> set[str]:
 
     mascara = participacao > LIMIAR_SHARE_LINGUAGEM
     excluidos = int((~mascara).sum())
+    _stats()["repos_total"] = len(alvo)
+    _stats()["repos_excluidos_share"] = excluidos
+    _stats()["repos_elegiveis"] = len(alvo) - excluidos
     if excluidos:
         print(
             f"aviso: {excluidos} repositórios excluídos por terem <= "
@@ -470,9 +484,11 @@ def _carrega_api(main_lang: dict[str, str]) -> pd.DataFrame:
     preenchidos (lacuna do lado da coleta); aplicamos o mesmo fallback aqui.
     """
     df = pd.read_csv(CFG.dados / "eventos_api.csv", sep="|", dtype={"repo_id": str})
+    _stats()["eventos_api_bruto"] = len(df)
     df = df[df["author_login"].notna()].copy()
     df["language"] = df["language"].fillna(df["repo_id"].map(main_lang))
     df = df[df["language"] == LING.atual.nome]
+    _stats()["eventos_api_desta_linguagem"] = len(df)
     df = df.rename(columns={"author_login": "identidade"})
     return df[["repo_id", "event_type", "identidade", "created_at"]]
 
@@ -499,13 +515,16 @@ def _carrega_git() -> pd.DataFrame:
     2015 aparece "ativo" em repositórios criados anos depois. Ver
     `_repo_created_at`."""
     df = pd.read_csv(CFG.dados / "eventos_git.csv", sep="|", dtype={"repo_id": str})
+    _stats()["eventos_git_bruto"] = len(df)
     df = df[df["author"].notna()].copy()
     df = df[df["files"].map(_e_arquivo_da_linguagem)]
+    _stats()["eventos_git_desta_linguagem"] = len(df)
 
     df["_criado"] = df["repo_id"].map(_repo_created_at())
     chave = ["author", "created_at", "files"]
     mais_antigo = df.groupby(chave)["_criado"].transform("min")
     duplicado = df["_criado"] > mais_antigo
+    _stats()["commits_duplicados_descartados"] = int(duplicado.sum())
     if duplicado.any():
         print(
             f"aviso: {int(duplicado.sum())} commits descartados por serem cópia de "
@@ -546,6 +565,7 @@ def _carrega_r2() -> pd.DataFrame:
     ).dt.tz_localize(None)
     piso = todos["repo_id"].map(piso_por_repo)
     antes_do_piso = piso.notna() & (timestamp < piso)
+    _stats()["eventos_antes_do_piso_descartados"] = int(antes_do_piso.sum())
     if antes_do_piso.any():
         print(
             f"aviso: {int(antes_do_piso.sum())} eventos descartados por serem anteriores "
@@ -576,6 +596,8 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
     bot = df["identidade"].astype(str).str.contains(r"\[bot\]$", regex=True)
     df = df[~bot]
 
+    _stats()["eventos_fantasma_descartados"] = int(fantasma.sum())
+    _stats()["eventos_bot_descartados"] = int(bot.sum())
     print(
         f"aviso: {fantasma.sum()} eventos de conta apagada descartados da pirâmide "
         f"(registrados à parte); {bot.sum()} eventos de bot descartados",
@@ -602,6 +624,7 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
     # (comparação com `NaT` é sempre falsa).
     timestamp = pd.to_datetime(df["created_at"], utc=True, format="ISO8601", errors="coerce")
     descartados = timestamp.isna().sum()
+    _stats()["eventos_data_ilegivel_descartados"] = int(descartados)
     if descartados:
         print(f"aviso: {descartados} eventos com data ilegível descartados", file=sys.stderr)
     df["timestamp"] = timestamp.dt.tz_localize(None)
@@ -613,8 +636,11 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
     # passa a ser um ano no futuro em vez do último dado de verdade.
     agora = pd.Timestamp.now()
     futuros = int((df["timestamp"] > agora).sum())
+    _stats()["eventos_futuro_descartados"] = futuros
     if futuros:
         print(f"aviso: {futuros} eventos com data no futuro descartados", file=sys.stderr)
+    antes_2008 = int((df["timestamp"] < pd.Timestamp("2008-01-01")).sum())
+    _stats()["eventos_antes_2008_descartados"] = antes_2008
     df = df[(df["timestamp"] >= "2008-01-01") & (df["timestamp"] <= agora)]
     df["contributor_id"] = df["identidade"].map(_id_estavel)
     df["scope_id"] = df["repo_id"].map(_id_estavel)
@@ -624,13 +650,18 @@ def _finaliza_eventos(bruto: pd.DataFrame, mapa_tipo: dict[str, str]) -> pd.Data
 
 
 def carrega_eventos(rodada: int = RODADA) -> pd.DataFrame:
+    ESTATISTICAS_CARGA.pop(LING.atual.slug, None)
     elegiveis = _repos_elegiveis(rodada)
     if rodada == 1:
         bruto, mapa_tipo = _carrega_r1(), MAPA_TIPO_R1
     else:
         bruto, mapa_tipo = _carrega_r2(), MAPA_TIPO_R2
     bruto = bruto[bruto["repo_id"].isin(elegiveis)]
-    return _finaliza_eventos(bruto, mapa_tipo)
+    _stats()["eventos_apos_elegibilidade"] = len(bruto)
+    resultado = _finaliza_eventos(bruto, mapa_tipo)
+    _stats()["eventos_finais"] = len(resultado)
+    _stats()["repos_finais"] = int(resultado["repo_id"].nunique())
+    return resultado
 
 
 def monta_fonte(eventos: pd.DataFrame) -> type:
@@ -3168,6 +3199,84 @@ def _executa_geral() -> None:
     gera_geral_novatos_por_ano()
 
 
+def gera_caracterizacao_dados() -> None:
+    """Quantidade de dado em cada etapa do filtro de `carrega_eventos`, por
+    linguagem: pedido explícito do usuário, quantidade antes e depois de
+    cada corte, não só o resultado final. Lê `ESTATISTICAS_CARGA`, que
+    `carrega_eventos` já povoa como efeito colateral da carga normal; não
+    chama `carrega_eventos` de novo aqui (por isso só faz sentido chamar
+    esta função depois de alguma outra que já carregou as linguagens
+    correntes, como `gera_piramide_comparativa`)."""
+    linhas = ["# Caracterização dos dados", ""]
+    linhas.append(
+        "Quantidade de dado em cada etapa do filtro de `carrega_eventos`, "
+        "por linguagem. Cada linha é uma etapa do filtro; o número mostra "
+        "quantos elementos restam depois dela. A explicação de cada corte "
+        "está no código, junto da função que faz o corte (`scripts/"
+        "figuras_linguagem_bruta.py`)."
+    )
+    linhas.append("")
+    for slug, linguagem in LINGUAGENS.items():
+        s = ESTATISTICAS_CARGA.get(slug, {})
+        linhas.append(f"## {linguagem.nome}")
+        linhas.append("")
+        linhas.append(f"- Repositórios candidatos na coleta bruta: {s.get('repos_total', 0)}")
+        linhas.append(
+            f"- Repositórios excluídos, <= {LIMIAR_SHARE_LINGUAGEM:.0%} do código na "
+            f"linguagem: {s.get('repos_excluidos_share', 0)}"
+        )
+        linhas.append(f"- Repositórios elegíveis: {s.get('repos_elegiveis', 0)}")
+        linhas.append("")
+        linhas.append(f"- Eventos de API brutos no arquivo: {s.get('eventos_api_bruto', 0)}")
+        linhas.append(
+            "- Eventos de API com autor válido e linguagem confirmada: "
+            f"{s.get('eventos_api_desta_linguagem', 0)}"
+        )
+        linhas.append(f"- Commits git brutos no arquivo: {s.get('eventos_git_bruto', 0)}")
+        linhas.append(
+            "- Commits git com autor válido, tocando arquivo da linguagem: "
+            f"{s.get('eventos_git_desta_linguagem', 0)}"
+        )
+        linhas.append(
+            "- Commits descartados por serem cópia de histórico já contado (fork "
+            f"completo ou clone empurrado pra um repositório novo): "
+            f"{s.get('commits_duplicados_descartados', 0)}"
+        )
+        linhas.append(
+            "- Eventos descartados por serem anteriores ao primeiro commit real da "
+            f"linguagem no repositório: {s.get('eventos_antes_do_piso_descartados', 0)}"
+        )
+        linhas.append(
+            "- Eventos restantes após restringir a repositórios elegíveis: "
+            f"{s.get('eventos_apos_elegibilidade', 0)}"
+        )
+        linhas.append(
+            "- Eventos de conta apagada descartados da pirâmide, guardados à parte "
+            f"num CSV próprio: {s.get('eventos_fantasma_descartados', 0)}"
+        )
+        linhas.append(f"- Eventos de bot descartados: {s.get('eventos_bot_descartados', 0)}")
+        if s.get("eventos_data_ilegivel_descartados", 0):
+            linhas.append(
+                f"- Eventos com data ilegível descartados: {s['eventos_data_ilegivel_descartados']}"
+            )
+        if s.get("eventos_futuro_descartados", 0):
+            linhas.append(
+                f"- Eventos com data no futuro descartados: {s['eventos_futuro_descartados']}"
+            )
+        if s.get("eventos_antes_2008_descartados", 0):
+            linhas.append(
+                f"- Eventos antes de 2008-01-01 descartados: {s['eventos_antes_2008_descartados']}"
+            )
+        linhas.append("")
+        linhas.append(f"- **Eventos finais, na pirâmide: {s.get('eventos_finais', 0)}**")
+        linhas.append(f"- **Repositórios finais, na pirâmide: {s.get('repos_finais', 0)}**")
+        linhas.append("")
+
+    caminho = _caminho_geral("caracterizacao_dados.md")
+    caminho.write_text("\n".join(linhas), encoding="utf-8")
+    print(f"salvo: {caminho}", file=sys.stderr)
+
+
 def _executa_geral_exclude_python() -> None:
     """Todo o conteúdo de `--geral` mais `--comparativa`, sem Python: mesmas
     funções, cada uma já lê `LINGUAGENS` (ver `_rodada_sem_linguagem`), só
@@ -3180,6 +3289,7 @@ def _executa_geral_exclude_python() -> None:
         _executa_geral()
         gera_geral_ccr_ncr_por_projeto()
         gera_piramide_comparativa()
+        gera_caracterizacao_dados()
 
 
 def _executa_comparativa_metricas() -> None:
