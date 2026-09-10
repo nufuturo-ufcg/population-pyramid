@@ -1270,6 +1270,11 @@ def gera_ccr_ncr(pl: SimpleNamespace) -> None:
             textcoords="offset points",
             xytext=(5, 5),
         )
+    # Eixos travados na escala simétrica: sem isso, autoescala corta pro
+    # quadrante onde os dados caem, e um quadrante inteiro sem trimestre
+    # nenhum desaparece do desenho em vez de aparecer vazio.
+    ax.set_xlim(-1.05, 1.05)
+    ax.set_ylim(-1.05, 1.05)
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
     ax.set_title(f"{_rotulo(pl)}: CCR x NCR por trimestre")
@@ -2271,6 +2276,80 @@ def gera_grade_anos_distintos(
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
+def gera_geral_ccr_ncr_ancora() -> None:
+    """CCR x NCR por linguagem, um ponto por ano-âncora (`ANOS_GRADE_ANOS_DISTINTOS`,
+    os mesmos anos da grade de anos-distintos), rótulo "Linguagem - Ano" em cada
+    ponto. Lê o CSV que `--figuras ccr-ncr` já deixou em cada subpasta (mesmo
+    dado de `gera_geral_ccr_ncr`, aqui recortado num ano por vez em vez de todo
+    trimestre). Eixos travados em `ESCALA_METRICA`, simétrica em torno de zero:
+    os quatro quadrantes de CCR/NCR aparecem sempre, mesmo que um deles fique
+    vazio para as 4 linguagens."""
+    linhas = []
+    faltando = []
+    for slug, linguagem in LINGUAGENS.items():
+        caminho_csv = TMP_BASE / slug / "csv" / "ccr-ncr" / f"tipos_ccr_ncr_{slug}_metodologia.csv"
+        if not caminho_csv.exists():
+            faltando.append(slug)
+            continue
+        df = pd.read_csv(caminho_csv, parse_dates=["snapshot"]).sort_values("snapshot")
+        for ano in ANOS_GRADE_ANOS_DISTINTOS:
+            limite = min(pd.Timestamp(f"{ano}-12-31"), df["snapshot"].max())
+            candidatos = df[df["snapshot"] <= limite]
+            if candidatos.empty:
+                continue  # ano-âncora anterior à primeira coleta desta linguagem
+            escolhido = candidatos.iloc[-1]
+            linhas.append(
+                {
+                    "linguagem": linguagem.nome,
+                    "slug": slug,
+                    "ano": ano,
+                    "ccr": escolhido["ccr"],
+                    "ncr": escolhido["ncr"],
+                }
+            )
+    if faltando:
+        print(
+            f"aviso: sem CSV de CCR/NCR ainda para {', '.join(sorted(faltando))}", file=sys.stderr
+        )
+    if not linhas:
+        raise SystemExit(
+            "nenhum tipos_ccr_ncr_*_metodologia.csv encontrado. Rode `--figuras "
+            "ccr-ncr` (ou `all`) em cada linguagem antes."
+        )
+    pontos = pd.DataFrame(linhas)
+
+    fig, ax = plt.subplots(figsize=(9.0, 8.0))
+    ax.axhline(0, color="#888888", lw=0.7)
+    ax.axvline(0, color="#888888", lw=0.7)
+    for _, row in pontos.iterrows():
+        ax.scatter(row["ccr"], row["ncr"], color=CORES_LINGUAGEM[row["slug"]], s=60, zorder=3)
+        ax.annotate(
+            f"{row['linguagem']} - {row['ano']}",
+            (row["ccr"], row["ncr"]),
+            fontsize=7.5,
+            xytext=(5, 4),
+            textcoords="offset points",
+        )
+    ax.set_xlim(*ESCALA_METRICA)
+    ax.set_ylim(*ESCALA_METRICA)
+    ax.set_xlabel("CCR")
+    ax.set_ylabel("NCR")
+    ax.set_title("CCR x NCR por linguagem, nos anos-âncora da grade de anos-distintos")
+    handles = [
+        plt.Line2D(
+            [0], [0], marker="o", linestyle="none", color=CORES_LINGUAGEM[slug], markersize=8
+        )
+        for slug in LINGUAGENS
+    ]
+    ax.legend(
+        handles, [linguagem.nome for linguagem in LINGUAGENS.values()], loc="best", fontsize=9
+    )
+    caminho = _caminho_geral("geral_ccr_ncr_ancora_por_ano.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def _desenha_pontos_por_linguagem(
     ax: plt.Axes,
     ids_por_nome: dict[str, int],
@@ -2435,6 +2514,7 @@ def _executa_geral() -> None:
     gera_geral_contribuintes_evolucao()
     gera_geral_contribuintes_acumulado_evolucao()
     gera_geral_ccr_ncr()
+    gera_geral_ccr_ncr_ancora()
     gera_geral_histograma_eventos()
     gera_geral_curva_retencao()
     gera_geral_novatos_por_ano_ancora()
