@@ -323,6 +323,13 @@ def run_git(args, cwd=None, timeout=300):
     vez) por horas. Com timeout, subprocess.run mata o processo e o
     repositório é marcado como erro e retentado na próxima execução, em vez
     de travar o pipeline inteiro indefinidamente.
+
+    GIT_TERMINAL_PROMPT=0 evita outra forma do mesmo problema: um repositório
+    bloqueado ou apagado no GitHub responde 401 em vez de 404 no protocolo
+    git, e sem essa variável o git tenta pedir usuário/senha no terminal.
+    Rodando numa sessão tmux com terminal de verdade, isso trava o clone até
+    o timeout (em vez de falhar na hora) e imprime o prompt no meio do log.
+    Com a variável, git falha imediatamente como se não houvesse terminal.
     """
     try:
         result = subprocess.run(
@@ -332,6 +339,7 @@ def run_git(args, cwd=None, timeout=300):
             capture_output=True,
             check=False,
             timeout=timeout,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
         )
     except FileNotFoundError as exc:
         raise RuntimeError(
