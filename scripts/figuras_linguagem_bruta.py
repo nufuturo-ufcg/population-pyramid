@@ -3338,6 +3338,13 @@ _LINHAS_CARACTERIZACAO = [
     ("Eventos com data no futuro descartados", "eventos_futuro_descartados", None),
     ("Eventos antes de 2008-01-01 descartados", "eventos_antes_2008_descartados", None),
     ("**Eventos finais, na pirâmide**", "eventos_finais", None),
+    (
+        "Repositórios elegíveis sem nenhum evento sobrevivente "
+        "(extensão da linguagem nunca bate, todo commit era duplicata de "
+        "fork, ou zero dado coletado pro repositório)",
+        "_repos_elegiveis_sem_evento",
+        None,
+    ),
     ("**Repositórios finais, na pirâmide**", "repos_finais", None),
     (
         "**Contribuidores únicos finais, na pirâmide**",
@@ -3367,6 +3374,7 @@ def gera_caracterizacao_dados() -> None:
     for slug in slugs:
         s = dict(ESTATISTICAS_CARGA.get(slug, {}))
         s["_coletados_de_fato"] = s.get("repos_total", 0) - s.get("repos_erro_uniao", 0)
+        s["_repos_elegiveis_sem_evento"] = s.get("repos_elegiveis", 0) - s.get("repos_finais", 0)
         valores[slug] = s
 
     cabecalho = ["Etapa"] + [LINGUAGENS[s].nome for s in slugs] + ["Total"]
