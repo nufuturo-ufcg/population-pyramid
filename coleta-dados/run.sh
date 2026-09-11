@@ -26,6 +26,10 @@ done
 
 mkdir -p "$RUN_DIR/reports"
 
+# /tmp e tmpfs pequeno (3.7G, com quota) e os clones bare do etapa_2B
+# esgotam a quota com paralelismo. /mnt/data e disco real de 200G.
+export TMPDIR=/mnt/data/tmp/etapa2-git
+
 source "$SCRIPT_DIR/venv/bin/activate"
 
 echo "=== Etapa 2: coleta de eventos ==="
