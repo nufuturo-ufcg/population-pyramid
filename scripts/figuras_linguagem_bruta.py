@@ -1764,20 +1764,21 @@ def _avalia_direcao(todos: pd.DataFrame) -> pd.DataFrame:
     return t.loc[t["band"] > 0, ["band", "actual", "cohort_pred", "acertou"]]
 
 
-def _projecao_piramide_linha(pl: SimpleNamespace, linha: pd.DataFrame, ano_base: int) -> None:
-    """Mesmo desenho de `plots.figure_projection_overlay` (IEICE16 Fig.8):
-    pirâmide real em barra, linha vermelha tracejada sobreposta com o
-    previsto (coorte). Aqui pra 1 linguagem/1 ano-âncora só, fora do conjunto
-    fixo de projetos auditados que a Fig.8 original usa."""
-    real = pl.plots._projection_frame(linha, "actual")
-    pred = pl.plots._projection_frame(linha, "cohort_pred")
-    fig, ax = plt.subplots(figsize=(7.0, 5.5))
-    lim, _ = pl.plots.draw_pyramid(ax, real.astype({"band": int}))
+def _desenha_projecao_piramide_linha(
+    eixo: object, plots_mod: object, real: pd.DataFrame, pred: pd.DataFrame
+) -> None:
+    """Pirâmide real em barra, linha vermelha tracejada sobreposta com o
+    previsto (coorte), num eixo já existente. Mesmo desenho de
+    `plots.figure_projection_overlay` (IEICE16 Fig.8), aqui reutilizável:
+    `_projecao_piramide_linha` desenha 1 linguagem/1 ano-âncora numa figura
+    própria, `gera_geral_projecao_backtest_piramide` desenha várias
+    linguagens lado a lado na mesma figura, mesmo ano-âncora."""
+    lim, _ = plots_mod.draw_pyramid(eixo, real.astype({"band": int}))
     y = pred["band"].to_numpy()
     esq = -pred["non_coding"].to_numpy()
     dirr = (pred["moved"] + pred["coding"]).to_numpy()
     for serie in (esq, dirr):
-        ax.plot(
+        eixo.plot(
             serie,
             y,
             color="#B03A2E",
@@ -1789,7 +1790,17 @@ def _projecao_piramide_linha(pl: SimpleNamespace, linha: pd.DataFrame, ano_base:
         )
     pico = float(max(abs(esq).max(initial=0.0), dirr.max(initial=0.0)))
     if pico > lim:
-        ax.set_xlim(-pico * 1.08, pico * 1.08)
+        eixo.set_xlim(-pico * 1.08, pico * 1.08)
+
+
+def _projecao_piramide_linha(pl: SimpleNamespace, linha: pd.DataFrame, ano_base: int) -> None:
+    """Fora do conjunto fixo de projetos auditados que a Fig.8 original usa:
+    1 linguagem, 1 ano-âncora, gravado em PNG próprio. Ver
+    `_desenha_projecao_piramide_linha` pro desenho."""
+    real = pl.plots._projection_frame(linha, "actual")
+    pred = pl.plots._projection_frame(linha, "cohort_pred")
+    fig, ax = plt.subplots(figsize=(7.0, 5.5))
+    _desenha_projecao_piramide_linha(ax, pl.plots, real, pred)
     ax.set_xlabel("contribuidores")
     ax.set_ylabel(pl.plots.rotulo_da_idade())
     ax.set_title(f"{LING.atual.nome}: backtest {ano_base} (barra=real, linha vermelha=previsto)")
@@ -2775,6 +2786,54 @@ def gera_geral_backtest_evolucao(anos_base: tuple[int, ...] = ANOS_BACKTEST_PADR
     print(f"salvo: {caminho}")
 
 
+def gera_geral_projecao_backtest_piramide(
+    eventos_por_lingua: dict[str, pd.DataFrame], ano_base: int
+) -> None:
+    """`_projecao_piramide_linha` (a pirâmide com a linha vermelha
+    tracejada de previsão) das linguagens correntes lado a lado, pro mesmo
+    ano-âncora: pedido explícito do usuário. Antes só existia por
+    linguagem (`--backtest-anos`), nunca numa grade comparativa."""
+    fig, eixos = _grade_para_linguagens()
+    plots_mod = None
+    for eixo, slug in zip(eixos, LINGUAGENS, strict=True):
+        LING.aplica(slug)
+        CFG.aplica(2)
+        alvo_forcado = pd.Timestamp(f"{ano_base + 1}-03-31")
+        pl = roda_pipeline(eventos_por_lingua[slug], band_months=3, fim_forcado=alvo_forcado)
+        try:
+            df = pl.projection.compute()
+            linha = df[df["scope_id"] == pl.sid]
+            if linha.empty:
+                eixo.axis("off")
+                eixo.text(
+                    0.5, 0.5, "sem backtest", ha="center", va="center", transform=eixo.transAxes
+                )
+                eixo.set_title(LING.atual.nome)
+                continue
+            real = pl.plots._projection_frame(linha, "actual")
+            pred = pl.plots._projection_frame(linha, "cohort_pred")
+            _desenha_projecao_piramide_linha(eixo, pl.plots, real, pred)
+            eixo.set_xlabel("contribuidores")
+            eixo.set_ylabel(pl.plots.rotulo_da_idade())
+            eixo.set_title(LING.atual.nome)
+            plots_mod = pl.plots
+        finally:
+            shutil.rmtree(pl.scratch, ignore_errors=True)
+
+    fig.suptitle(
+        f"Pirâmide prevista (linha vermelha) x real, backtest {ano_base}, "
+        f"{len(LINGUAGENS)} linguagens",
+        fontsize=13,
+    )
+    if plots_mod is not None:
+        _legenda_discussion(fig, plots_mod)
+    fig.tight_layout(rect=(0, 0.06, 1, 0.94))
+    caminho = _caminho_geral(f"piramides_4_linguagens_backtest_{ano_base}_piramide.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def _carrega_todas_linguagens(rodada: int = 2) -> dict[str, pd.DataFrame]:
     """As 4 coletas carregadas e filtradas (`carrega_eventos`), cada uma com a
     própria coluna `idioma` (ver `monta_fonte`). Ponto único de carga pras
@@ -3002,6 +3061,84 @@ def gera_grade_anos_distintos(
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
+def gera_grade_piramide_real_anos(
+    eventos_por_lingua: dict[str, pd.DataFrame], anos: tuple[int, int] = (2016, 2026)
+) -> None:
+    """Pirâmide REAL (sem previsão nenhuma) em anos diferentes, linguagens
+    em linha, anos em coluna: o retrato do que realmente aconteceu entre um
+    ano e outro. Pedido do usuário depois de perguntar se dava pra prever
+    em 2016 o estado de 2026: a resposta direta é mostrar os dois retratos
+    reais lado a lado, em vez de simular uma previsão de 10 anos que este
+    projeto nunca validou nesse horizonte (o método de projeção só prevê 1
+    trimestre à frente, ver `gera_geral_projecao_backtest_piramide`).
+
+    Cada célula roda o pipeline de verdade (`roda_pipeline` + classificação
+    via `pyramid_frame`), cortado nos eventos até 31/dez daquele ano (ou o
+    último dado real, se o ano ainda não fechou): diferente das outras
+    grades deste script (`gera_grade_anos_distintos`,
+    `gera_piramide_idade_morte_evolucao`), que calculam a tabela na mão,
+    porque a categoria coding/moved/non-coding num ponto do passado exige o
+    motor auditado, não dá pra derivar só com groupby.
+
+    Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
+    `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
+    fig, matriz = plt.subplots(
+        len(LINGUAGENS), len(anos), figsize=(4.2 * len(anos), 4.2 * len(LINGUAGENS)), squeeze=False
+    )
+    plots_mod = None
+    for linha, (slug, linguagem) in enumerate(LINGUAGENS.items()):
+        eventos = eventos_por_lingua[slug]
+        LING.aplica(slug)
+        CFG.aplica(2)
+        quadros: dict[int, pd.DataFrame | None] = {}
+        for ano in anos:
+            corte = pd.Timestamp(f"{ano}-12-31")
+            snapshot = min(corte, eventos["timestamp"].max())
+            if snapshot < eventos["timestamp"].min():
+                quadros[ano] = None
+                continue
+            pl = roda_pipeline(eventos[eventos["timestamp"] <= snapshot], band_months=3)
+            try:
+                t = pd.Timestamp(pl.snapshots.classification_snapshot())
+                quadros[ano] = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+                plots_mod = pl.plots
+            finally:
+                shutil.rmtree(pl.scratch, ignore_errors=True)
+
+        validas = [t for t in quadros.values() if t is not None and len(t)]
+        somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
+        xmax = max(somas, default=1.0)
+
+        for coluna, ano in enumerate(anos):
+            eixo = matriz[linha][coluna]
+            if linha == 0:
+                eixo.set_title(str(ano), fontsize=11)
+            tabela = quadros[ano]
+            if tabela is None or tabela.empty:
+                eixo.axis("off")
+                eixo.text(0.5, 0.5, "sem dado", ha="center", va="center", transform=eixo.transAxes)
+                continue
+            plots_mod.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
+            if linha == len(LINGUAGENS) - 1:
+                eixo.set_xlabel("contribuidores", fontsize=8)
+            if coluna == 0:
+                eixo.set_ylabel(f"{linguagem.nome}\n{plots_mod.rotulo_da_idade()}", fontsize=9)
+
+    if plots_mod is not None:
+        _legenda_discussion(fig, plots_mod)
+    fig.suptitle(
+        f"Pirâmide real, {' vs '.join(str(a) for a in anos)} (sem previsão, "
+        f"retrato do que aconteceu), {len(LINGUAGENS)} linguagens",
+        fontsize=13,
+    )
+    fig.tight_layout(rect=(0, 0.04, 1, 0.94))
+    sufixo = "_".join(str(a) for a in anos)
+    caminho = _caminho_geral(f"piramides_4_linguagens_real_{sufixo}.png")
+    fig.savefig(caminho, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    print(f"salvo: {caminho}")
+
+
 def gera_geral_ccr_ncr_por_ano() -> None:
     """CCR x NCR por linguagem, um painel por ano (`ANOS_GRADE_ANOS_DISTINTOS`,
     os mesmos anos da grade de anos-distintos). Lê o CSV que `--figuras ccr-ncr`
@@ -3061,19 +3198,19 @@ def gera_geral_ccr_ncr_por_ano() -> None:
         ax.axvline(0, color="#888888", lw=0.7)
         do_ano = pontos[pontos["ano"] == ano]
         for _, row in do_ano.iterrows():
-            ax.scatter(row["ccr"], row["ncr"], color=CORES_LINGUAGEM[row["slug"]], s=70, zorder=3)
+            ax.scatter(row["ncr"], row["ccr"], color=CORES_LINGUAGEM[row["slug"]], s=70, zorder=3)
             ax.annotate(
                 row["linguagem"],
-                (row["ccr"], row["ncr"]),
+                (row["ncr"], row["ccr"]),
                 fontsize=8,
                 xytext=(6, 5),
                 textcoords="offset points",
             )
         ax.set_xlim(*ESCALA_METRICA)
         ax.set_ylim(*ESCALA_METRICA)
-        ax.set_xlabel("CCR")
+        ax.set_xlabel("NCR")
         ax.set_title(str(ano))
-    eixos[0].set_ylabel("NCR")
+    eixos[0].set_ylabel("CCR")
     handles = [
         plt.Line2D(
             [0], [0], marker="o", linestyle="none", color=CORES_LINGUAGEM[slug], markersize=8
@@ -3087,7 +3224,7 @@ def gera_geral_ccr_ncr_por_ano() -> None:
         ncol=4,
         frameon=False,
     )
-    fig.suptitle("CCR x NCR por linguagem, nos anos da grade de anos-distintos")
+    fig.suptitle("NCR x CCR por linguagem, nos anos da grade de anos-distintos")
     fig.tight_layout(rect=(0, 0.06, 1, 0.95))
     caminho = _caminho_geral("geral_ccr_ncr_por_ano.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
@@ -3371,7 +3508,9 @@ def gera_caracterizacao_dados() -> None:
 
 def _executa_geral_exclude_python() -> None:
     """Todo o conteúdo de `--geral` mais `--comparativa` mais
-    `--backtest-geral`, sem Python: mesmas funções, cada uma já lê
+    `--backtest-geral` mais a pirâmide de backtest com linha vermelha
+    (`gera_geral_projecao_backtest_piramide`, um arquivo por ano-âncora de
+    `ANOS_BACKTEST_PADRAO`), sem Python: mesmas funções, cada uma já lê
     `LINGUAGENS` (ver `_rodada_sem_linguagem`), só que escrevendo em
     `geral-exclude-python/` em vez de `geral/`. Pedido
     explícito do usuário: a coleta de Python está sendo refeita do zero (a
@@ -3383,6 +3522,10 @@ def _executa_geral_exclude_python() -> None:
         gera_geral_ccr_ncr_por_projeto()
         gera_piramide_comparativa()
         gera_geral_backtest_evolucao()
+        eventos_por_lingua = _carrega_todas_linguagens()
+        for ano in ANOS_BACKTEST_PADRAO:
+            gera_geral_projecao_backtest_piramide(eventos_por_lingua, ano)
+        gera_grade_piramide_real_anos(eventos_por_lingua)
         gera_caracterizacao_dados()
 
 
