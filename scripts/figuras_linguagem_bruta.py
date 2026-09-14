@@ -3293,95 +3293,38 @@ def _fmt_milhar(n: int) -> str:
 # não é uma contagem exata). Uma linha por etapa do filtro de
 # `carrega_eventos`, na mesma ordem em que os cortes acontecem no código.
 _LINHAS_CARACTERIZACAO = [
-    ("Repositórios candidatos (alvo bruto da coleta)", "repos_total", None),
-    ("Repositórios avaliados, etapa 2A da coleta (metadados via API)", "etapa_2A_total", None),
-    ("Repositórios com erro, etapa 2A da coleta", "etapa_2A_erros", None),
-    ("Repositórios avaliados, etapa 2B da coleta (git clone/log)", "etapa_2B_total", None),
-    ("Repositórios com erro, etapa 2B da coleta", "etapa_2B_erros", None),
-    ("Repositórios coletados de fato (sem erro em nenhuma etapa)", "_coletados_de_fato", None),
-    (
-        f"Repositórios excluídos (<= {LIMIAR_SHARE_LINGUAGEM:.0%} do código na linguagem)",
-        "repos_excluidos_share",
-        None,
-    ),
-    ("Repositórios elegíveis", "repos_elegiveis", None),
-    ("Eventos de API coletados", "eventos_api_bruto", None),
-    (
-        "Eventos de API inválidos (autor nulo ou linguagem não confere)",
-        "_eventos_api_invalidos",
-        None,
-    ),
-    ("Eventos de API elegíveis pra análise", "eventos_api_desta_linguagem", None),
-    ("Commits git brutos no arquivo", "eventos_git_bruto", None),
-    (
-        "Commits git com autor válido, tocando arquivo da linguagem",
-        "eventos_git_desta_linguagem",
-        None,
-    ),
-    (
-        "Commits descartados (cópia de histórico já contado, fork/clone empurrado)",
-        "commits_duplicados_descartados",
-        None,
-    ),
-    (
-        "Eventos descartados (anteriores ao primeiro commit real da linguagem)",
-        "eventos_antes_do_piso_descartados",
-        None,
-    ),
-    (
-        "Eventos restantes após restringir a repositórios elegíveis",
-        "eventos_apos_elegibilidade",
-        None,
-    ),
-    (
-        "Eventos de conta apagada descartados (guardados à parte, num CSV próprio)",
-        "eventos_fantasma_descartados",
-        None,
-    ),
-    ("Eventos de bot descartados", "eventos_bot_descartados", None),
-    ("Eventos com data ilegível descartados", "eventos_data_ilegivel_descartados", None),
-    ("Eventos com data no futuro descartados", "eventos_futuro_descartados", None),
-    ("Eventos antes de 2008-01-01 descartados", "eventos_antes_2008_descartados", None),
-    ("**Eventos finais, na pirâmide**", "eventos_finais", None),
-    (
-        "Repositórios elegíveis sem nenhum evento sobrevivente "
-        "(extensão da linguagem nunca bate, todo commit era duplicata de "
-        "fork, ou zero dado coletado pro repositório)",
-        "_repos_elegiveis_sem_evento",
-        None,
-    ),
-    ("**Repositórios finais, na pirâmide**", "repos_finais", None),
-    (
-        "**Contribuidores únicos finais, na pirâmide**",
-        "contribuidores_finais",
-        "*",
-    ),
+    ("Eventos coletados", "eventos_api_bruto", None),
+    ("Eventos inválidos (autor nulo ou linguagem não confere)", "_eventos_api_invalidos", None),
+    ("Eventos válidos", "eventos_api_desta_linguagem", None),
+    ("Commits coletados", "eventos_git_bruto", None),
+    ("Commits inválidos (autor nulo ou linguagem não confere)", "_commits_invalidos", None),
+    ("Commits válidos", "eventos_git_desta_linguagem", None),
 ]
 
 
 def gera_caracterizacao_dados() -> None:
-    """Quantidade de dado em cada etapa do filtro de `carrega_eventos`,
+    """Coletado vs inválido vs válido, pra eventos de API e pra commits git,
     numa tabela com uma coluna por linguagem e uma coluna Total à direita
-    (pedido explícito do usuário): pedido explícito também de quantidade
-    antes e depois de cada corte, não só o resultado final. Lê
-    `ESTATISTICAS_CARGA`, que `carrega_eventos` já povoa como efeito
+    (pedido explícito do usuário, cortando o resto da caracterização
+    anterior por ser irrelevante pro que ele queria ver). "Inválido" é
+    autor nulo ou linguagem que não confere, o mesmo filtro que já
+    acontecia dentro de `_carrega_api`/`_carrega_git`; esta função só lê o
+    que já foi contado, não refiltra nada.
+
+    Lê `ESTATISTICAS_CARGA`, que `carrega_eventos` já povoa como efeito
     colateral da carga normal; não chama `carrega_eventos` de novo aqui
     (por isso só faz sentido chamar esta função depois de alguma outra que
     já carregou as linguagens correntes, como `gera_piramide_comparativa`).
-
-    A coluna Total é soma simples entre linguagens pra toda linha, exceto
-    "Repositórios coletados de fato" (união de `repo_id` com erro, não soma:
-    ver `_stats_erros_coleta`). Pra "Contribuidores únicos", a soma simples
-    conta 2 vezes quem contribui em mais de uma linguagem: nota de rodapé
-    avisa disso, não existe deduplicação entre linguagens aqui."""
+    A coluna Total é soma simples entre linguagens."""
     slugs = list(LINGUAGENS)
     valores: dict[str, dict[str, int]] = {}
     for slug in slugs:
         s = dict(ESTATISTICAS_CARGA.get(slug, {}))
-        s["_coletados_de_fato"] = s.get("repos_total", 0) - s.get("repos_erro_uniao", 0)
-        s["_repos_elegiveis_sem_evento"] = s.get("repos_elegiveis", 0) - s.get("repos_finais", 0)
         s["_eventos_api_invalidos"] = s.get("eventos_api_bruto", 0) - s.get(
             "eventos_api_desta_linguagem", 0
+        )
+        s["_commits_invalidos"] = s.get("eventos_git_bruto", 0) - s.get(
+            "eventos_git_desta_linguagem", 0
         )
         valores[slug] = s
 
