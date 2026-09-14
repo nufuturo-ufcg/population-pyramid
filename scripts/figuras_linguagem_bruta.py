@@ -3370,9 +3370,10 @@ def gera_caracterizacao_dados() -> None:
 
 
 def _executa_geral_exclude_python() -> None:
-    """Todo o conteúdo de `--geral` mais `--comparativa`, sem Python: mesmas
-    funções, cada uma já lê `LINGUAGENS` (ver `_rodada_sem_linguagem`), só
-    que escrevendo em `geral-exclude-python/` em vez de `geral/`. Pedido
+    """Todo o conteúdo de `--geral` mais `--comparativa` mais
+    `--backtest-geral`, sem Python: mesmas funções, cada uma já lê
+    `LINGUAGENS` (ver `_rodada_sem_linguagem`), só que escrevendo em
+    `geral-exclude-python/` em vez de `geral/`. Pedido
     explícito do usuário: a coleta de Python está sendo refeita do zero (a
     caminho de ~400 mil repositórios) enquanto o resto do script roda, e
     misturar o Python velho, pequeno, com as outras 3 linguagens de sempre
@@ -3381,6 +3382,7 @@ def _executa_geral_exclude_python() -> None:
         _executa_geral()
         gera_geral_ccr_ncr_por_projeto()
         gera_piramide_comparativa()
+        gera_geral_backtest_evolucao()
         gera_caracterizacao_dados()
 
 
