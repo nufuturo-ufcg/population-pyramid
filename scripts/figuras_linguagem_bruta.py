@@ -3305,8 +3305,13 @@ _LINHAS_CARACTERIZACAO = [
         None,
     ),
     ("Repositórios elegíveis", "repos_elegiveis", None),
-    ("Eventos de API brutos no arquivo", "eventos_api_bruto", None),
-    ("Eventos de API com autor válido e linguagem confirmada", "eventos_api_desta_linguagem", None),
+    ("Eventos de API coletados", "eventos_api_bruto", None),
+    (
+        "Eventos de API inválidos (autor nulo ou linguagem não confere)",
+        "_eventos_api_invalidos",
+        None,
+    ),
+    ("Eventos de API elegíveis pra análise", "eventos_api_desta_linguagem", None),
     ("Commits git brutos no arquivo", "eventos_git_bruto", None),
     (
         "Commits git com autor válido, tocando arquivo da linguagem",
@@ -3375,6 +3380,9 @@ def gera_caracterizacao_dados() -> None:
         s = dict(ESTATISTICAS_CARGA.get(slug, {}))
         s["_coletados_de_fato"] = s.get("repos_total", 0) - s.get("repos_erro_uniao", 0)
         s["_repos_elegiveis_sem_evento"] = s.get("repos_elegiveis", 0) - s.get("repos_finais", 0)
+        s["_eventos_api_invalidos"] = s.get("eventos_api_bruto", 0) - s.get(
+            "eventos_api_desta_linguagem", 0
+        )
         valores[slug] = s
 
     cabecalho = ["Etapa"] + [LINGUAGENS[s].nome for s in slugs] + ["Total"]
