@@ -261,13 +261,9 @@ def _rodada_sem_linguagem(slug: str):
         ESTADO_PASTA_GERAL.pasta = pasta_anterior
 
 
-def _grade_para_linguagens() -> tuple[plt.Figure, list]:
-    """`(fig, eixos)` com 2 colunas e linhas o bastante pro `len(LINGUAGENS)`
-    do momento (4 de costume, 3 num `--geral-exclude-<slug>`). Sem isso, todo
-    `plt.subplots(2, 2, ...)` fixo quebrava (`zip(..., strict=True)` contra
-    um número de linguagens menor que 4) assim que uma rodada excluía
-    alguma. Painel sobrando (grade ímpar) sai desligado, não em branco cru."""
-    n = len(LINGUAGENS)
+def _grade(n: int) -> tuple[plt.Figure, list]:
+    """`(fig, eixos)` com 2 colunas e linhas o bastante pra `n` painéis.
+    Painel sobrando (grade ímpar) sai desligado, não em branco cru."""
     colunas = min(2, n) or 1
     linhas = -(-n // colunas)
     fig, matriz = plt.subplots(linhas, colunas, figsize=(7 * colunas, 7 * linhas), squeeze=False)
@@ -275,6 +271,14 @@ def _grade_para_linguagens() -> tuple[plt.Figure, list]:
     for sobra in eixos[n:]:
         sobra.axis("off")
     return fig, eixos[:n]
+
+
+def _grade_para_linguagens() -> tuple[plt.Figure, list]:
+    """`_grade` pro `len(LINGUAGENS)` do momento (4 de costume, 3 num
+    `--geral-exclude-<slug>`). Sem isso, todo `plt.subplots(2, 2, ...)`
+    fixo quebrava (`zip(..., strict=True)` contra um número de linguagens
+    menor que 4) assim que uma rodada excluía alguma."""
+    return _grade(len(LINGUAGENS))
 
 
 def _caminhos_padrao(rodada: int) -> tuple[Path, Path]:
@@ -3190,10 +3194,11 @@ def gera_geral_ccr_ncr_por_ano() -> None:
         )
     pontos = pd.DataFrame(linhas)
 
-    fig, eixos = plt.subplots(
-        1, len(ANOS_GRADE_ANOS_DISTINTOS), figsize=(4.4 * len(ANOS_GRADE_ANOS_DISTINTOS), 4.6)
-    )
-    for ax, ano in zip(eixos, ANOS_GRADE_ANOS_DISTINTOS, strict=True):
+    n = len(ANOS_GRADE_ANOS_DISTINTOS)
+    fig, eixos = _grade(n)
+    colunas = min(2, n) or 1
+    linha_final = (n - 1) // colunas
+    for i, (ax, ano) in enumerate(zip(eixos, ANOS_GRADE_ANOS_DISTINTOS, strict=True)):
         ax.axhline(0, color="#888888", lw=0.7)
         ax.axvline(0, color="#888888", lw=0.7)
         do_ano = pontos[pontos["ano"] == ano]
@@ -3208,9 +3213,11 @@ def gera_geral_ccr_ncr_por_ano() -> None:
             )
         ax.set_xlim(*ESCALA_METRICA)
         ax.set_ylim(*ESCALA_METRICA)
-        ax.set_xlabel("NCR")
+        if i // colunas == linha_final:
+            ax.set_xlabel("NCR")
+        if i % colunas == 0:
+            ax.set_ylabel("CCR")
         ax.set_title(str(ano))
-    eixos[0].set_ylabel("CCR")
     handles = [
         plt.Line2D(
             [0], [0], marker="o", linestyle="none", color=CORES_LINGUAGEM[slug], markersize=8
