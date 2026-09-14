@@ -3295,10 +3295,12 @@ def _fmt_milhar(n: int) -> str:
 _LINHAS_CARACTERIZACAO = [
     ("Eventos coletados", "eventos_api_bruto", None),
     ("Eventos inválidos (autor nulo ou linguagem não confere)", "_eventos_api_invalidos", None),
-    ("Eventos válidos", "eventos_api_desta_linguagem", None),
     ("Commits coletados", "eventos_git_bruto", None),
     ("Commits inválidos (autor nulo ou linguagem não confere)", "_commits_invalidos", None),
     ("Commits válidos", "eventos_git_desta_linguagem", None),
+    ("**Total analisado (eventos + commits válidos)**", "_total_analisado", None),
+    ("**Repositórios finais, na pirâmide**", "repos_finais", None),
+    ("**Contribuidores únicos finais, na pirâmide**", "contribuidores_finais", "*"),
 ]
 
 
@@ -3324,6 +3326,9 @@ def gera_caracterizacao_dados() -> None:
             "eventos_api_desta_linguagem", 0
         )
         s["_commits_invalidos"] = s.get("eventos_git_bruto", 0) - s.get(
+            "eventos_git_desta_linguagem", 0
+        )
+        s["_total_analisado"] = s.get("eventos_api_desta_linguagem", 0) + s.get(
             "eventos_git_desta_linguagem", 0
         )
         valores[slug] = s
