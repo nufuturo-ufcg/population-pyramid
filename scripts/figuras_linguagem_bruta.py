@@ -227,12 +227,23 @@ class _EstadoMaturacaoPiramideReal:
     meses: int = 0
 
 
+class _EstadoAmostraPequena:
+    """`--limiar-amostra-pequena N`, mutável (mesmo padrão das outras
+    `_Estado*`). Controla o aviso "amostra pequena" de
+    `gera_grade_piramide_real_anos`: o número (default 10, mesmo de
+    `attractiveness.min_active_devs`) e se aparece ou não (0 desliga, já
+    que população nunca é negativa)."""
+
+    limiar: int = 10
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
 ESTADO_PARALELO = _EstadoParalelo()
 ESTADO_BANDA_PIRAMIDE_REAL = _EstadoBandaPiramideReal()
 ESTADO_MATURACAO_PIRAMIDE_REAL = _EstadoMaturacaoPiramideReal()
+ESTADO_AMOSTRA_PEQUENA = _EstadoAmostraPequena()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -3174,6 +3185,7 @@ def gera_grade_piramide_real_anos(
     frequencia: str = "absoluta",
     band_months: int = 3,
     maturacao_meses: int = 0,
+    limiar_amostra_pequena: int = LIMIAR_AMOSTRA_PEQUENA,
 ) -> None:
     """Pirâmide REAL (sem previsão nenhuma) em anos diferentes, linguagens
     em linha, anos em coluna: o retrato do que realmente aconteceu entre um
@@ -3212,12 +3224,15 @@ def gera_grade_piramide_real_anos(
     do mesmo jeito, via `--maturacao-piramide-real-meses`
     (`ESTADO_MATURACAO_PIRAMIDE_REAL`).
 
-    Célula com população menor que `LIMIAR_AMOSTRA_PEQUENA` ganha aviso
-    "amostra pequena" no canto: mesmo número (10) que
-    `attractiveness.min_active_devs` usa no motor auditado, citando o
-    próprio ESEM14 ("mais de 10 desenvolvedores ativos"). Só anotação, não
-    exclusão: aqui é retrato, não métrica resumo, tirar a célula esconderia
-    dado que existe de verdade (ex.: Zig 2016, população pequena mas real).
+    `limiar_amostra_pequena` (default `LIMIAR_AMOSTRA_PEQUENA` = 10, mesmo
+    número que `attractiveness.min_active_devs` usa no motor auditado,
+    citando o próprio ESEM14 "mais de 10 desenvolvedores ativos"): célula
+    com população abaixo disso ganha aviso "amostra pequena" no canto. 0
+    desliga o aviso inteiro (população nunca é negativa). Modular do mesmo
+    jeito das outras: `--limiar-amostra-pequena` na CLI
+    (`ESTADO_AMOSTRA_PEQUENA`) controla tanto o número quanto se aparece.
+    Só anotação, não exclusão: aqui é retrato, não métrica resumo, tirar a
+    célula esconderia dado que existe de verdade (ex.: Zig 2016).
 
     Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
     `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
@@ -3251,7 +3266,7 @@ def gera_grade_piramide_real_anos(
                 continue
             plots_mod.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
             n = populacoes[ano]
-            if n < LIMIAR_AMOSTRA_PEQUENA:
+            if limiar_amostra_pequena > 0 and n < limiar_amostra_pequena:
                 eixo.text(
                     0.02,
                     0.97,
@@ -3684,11 +3699,19 @@ def _executa_geral_exclude_python() -> None:
             gera_geral_projecao_backtest_piramide(eventos_por_lingua, ano)
         banda = ESTADO_BANDA_PIRAMIDE_REAL.banda_meses
         maturacao = ESTADO_MATURACAO_PIRAMIDE_REAL.meses
+        limiar_pequena = ESTADO_AMOSTRA_PEQUENA.limiar
         gera_grade_piramide_real_anos(
-            eventos_por_lingua, band_months=banda, maturacao_meses=maturacao
+            eventos_por_lingua,
+            band_months=banda,
+            maturacao_meses=maturacao,
+            limiar_amostra_pequena=limiar_pequena,
         )
         gera_grade_piramide_real_anos(
-            eventos_por_lingua, frequencia="relativa", band_months=banda, maturacao_meses=maturacao
+            eventos_por_lingua,
+            frequencia="relativa",
+            band_months=banda,
+            maturacao_meses=maturacao,
+            limiar_amostra_pequena=limiar_pequena,
         )
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
@@ -3696,6 +3719,7 @@ def _executa_geral_exclude_python() -> None:
             frequencia="relativa",
             band_months=banda,
             maturacao_meses=maturacao,
+            limiar_amostra_pequena=limiar_pequena,
         )
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
@@ -3703,6 +3727,7 @@ def _executa_geral_exclude_python() -> None:
             frequencia="relativa",
             band_months=banda,
             maturacao_meses=maturacao,
+            limiar_amostra_pequena=limiar_pequena,
         )
         gera_caracterizacao_dados()
 
@@ -3796,6 +3821,15 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
         "excluído).",
     )
     ap.add_argument(
+        "--limiar-amostra-pequena",
+        type=int,
+        default=10,
+        help="na pirâmide real de --geral-exclude-python, célula com "
+        "população abaixo desse número ganha aviso 'amostra pequena'. "
+        "Default: 10 (mesmo de attractiveness.min_active_devs); 0 desliga "
+        "o aviso.",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -3840,6 +3874,7 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ESTADO_PARALELO.n_workers = args.processos
     ESTADO_BANDA_PIRAMIDE_REAL.banda_meses = args.banda_piramide_real_meses
     ESTADO_MATURACAO_PIRAMIDE_REAL.meses = args.maturacao_piramide_real_meses
+    ESTADO_AMOSTRA_PEQUENA.limiar = args.limiar_amostra_pequena
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
