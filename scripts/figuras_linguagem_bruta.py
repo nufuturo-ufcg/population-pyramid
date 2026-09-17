@@ -3150,18 +3150,26 @@ def _quadros_reais_por_ano(
     de lá) e `plots_mod` (o módulo `plots` de qualquer um dos
     `roda_pipeline`, todos a mesma instância).
 
-    `maturacao_meses` > 0 tira, ANTES de rodar o pipeline, quem tem menos
-    dessa idade no snapshot daquele ano: mesmo mecanismo de
-    `gera_piramide_veteranos`/`MESES_MIN_VETERANO`, aqui aplicado por ano
-    em vez de só no snapshot atual. Motivo: banda 0 mistura quem acabou de
-    chegar (idade ainda não confirmou nada) com quem já tem quase 1 ano;
-    medido em Elixir 2026, 29% da banda 0 tem menos de 3 meses. Excluir
-    esse pedaço responde "como fica a pirâmide sem quem ainda não deu
-    tempo de provar que fica", não borra a pirâmide normal."""
+    `maturacao_meses` > 0 recua a data de classificação daquele ano em
+    `maturacao_meses` meses (via `fim_forcado`), então quem só chegou depois
+    desse ponto nunca é contado: nenhum filtro de contribuidor por fora, é o
+    mesmo `fim_forcado` que o resto do script usa pra forçar corte de data
+    (ver `gera_piramide_comparativa`). Motivo: banda 0 mistura quem acabou
+    de chegar (idade ainda não confirmou nada) com quem já tem quase 1 ano;
+    medido em Elixir 2026, 29% da banda 0 tem menos de 3 meses. Excluir esse
+    pedaço responde "como fica a pirâmide sem quem ainda não deu tempo de
+    provar que fica", não borra a pirâmide normal.
+
+    Sem `fim_forcado` (`maturacao_meses=0`), `roda_pipeline` já recua 1
+    trimestre (3 meses) sozinho antes de classificar (`_serie_trimestral`,
+    pra nunca classificar em cima de trimestre incompleto): filtrar
+    contribuidor por fora com `maturacao_meses=3` é redundante com isso e
+    fica invisível (medido: população idêntica com e sem o filtro). Por
+    causa desse recuo automático, `maturacao_meses=3` também sai idêntico
+    ao `maturacao_meses=0`; só valores acima de 3 mostram diferença real."""
     quadros: dict[int, pd.DataFrame | None] = {}
     populacoes: dict[int, int] = {}
     plots_mod = None
-    primeiro = eventos.groupby("contributor_id")["timestamp"].min()
     for ano in anos:
         corte = pd.Timestamp(f"{ano}-12-31")
         snapshot = min(corte, eventos["timestamp"].max())
@@ -3169,11 +3177,19 @@ def _quadros_reais_por_ano(
             quadros[ano] = None
             continue
         fatia = eventos[eventos["timestamp"] <= snapshot]
-        if maturacao_meses > 0:
-            corte_maturacao = snapshot - pd.DateOffset(months=maturacao_meses)
-            maduros = primeiro[primeiro <= corte_maturacao].index
-            fatia = fatia[fatia["contributor_id"].isin(maduros)]
-        pl = roda_pipeline(fatia, band_months=band_months)
+        # `fim_forcado`, não filtro de contribuidor por fora: sem isso, sem
+        # `fim_forcado`, `roda_pipeline`/`_serie_trimestral` já recua 1
+        # trimestre (3 meses) sozinho antes de classificar, pra nunca
+        # classificar em cima de trimestre incompleto (linha 786 deste
+        # arquivo). `maturacao_meses=3` filtrando por fora não tinha efeito
+        # nenhum: 3 meses é exatamente o que o motor já descarta por
+        # padrão, redundante e invisível (achado medindo: população idêntica
+        # com e sem o filtro). `fim_forcado` é o mecanismo que o resto do
+        # script já usa pra recuar a data de classificação de verdade.
+        fim_forcado = (
+            snapshot - pd.DateOffset(months=maturacao_meses) if maturacao_meses > 0 else None
+        )
+        pl = roda_pipeline(fatia, band_months=band_months, fim_forcado=fim_forcado)
         try:
             t = pd.Timestamp(pl.snapshots.classification_snapshot())
             quadro = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
