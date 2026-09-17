@@ -206,10 +206,21 @@ class _EstadoParalelo:
     n_workers: int | None = None
 
 
+class _EstadoBandaPiramideReal:
+    """`--banda-piramide-real-meses N`, mutável (mesmo padrão das outras
+    `_Estado*`). Controla `band_months` em `gera_grade_piramide_real_anos`
+    sem precisar mexer no código: pedido explícito do usuário, banda de 3
+    meses (quarter da metodologia) é granularidade fina demais pra esse
+    recorte específico, banda de 12 meses agrupa num ponto por ano."""
+
+    banda_meses: int = 3
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
 ESTADO_PARALELO = _EstadoParalelo()
+ESTADO_BANDA_PIRAMIDE_REAL = _EstadoBandaPiramideReal()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -2977,6 +2988,12 @@ def gera_piramide_anos_distintos_comparativa(
 
 ANOS_GRADE_ANOS_DISTINTOS = (2016, 2019, 2022, 2026)
 
+# Evolução ao longo do tempo pra `gera_grade_piramide_real_anos`: passo de 2
+# anos (pedido explícito do usuário), não os anos esparsos de
+# ANOS_GRADE_ANOS_DISTINTOS (aquele passo existe por outro motivo: casar com
+# os anos-âncora do backtest).
+ANOS_EVOLUCAO_PIRAMIDE_REAL = tuple(range(2016, 2027, 2))
+
 
 def gera_grade_anos_distintos(
     eventos_por_lingua: dict[str, pd.DataFrame], anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS
@@ -3081,7 +3098,7 @@ def _normaliza_frame_pct(
 
 
 def _quadros_reais_por_ano(
-    eventos: pd.DataFrame, anos: tuple[int, int], frequencia: str
+    eventos: pd.DataFrame, anos: tuple[int, ...], frequencia: str, band_months: int
 ) -> tuple[dict[int, pd.DataFrame | None], object]:
     """Uma `pyramid_frame` real por ano em `anos`, cortada nos eventos até
     31/dez daquele ano (ou o último dado real, se ainda não fechou); `None`
@@ -3097,7 +3114,7 @@ def _quadros_reais_por_ano(
         if snapshot < eventos["timestamp"].min():
             quadros[ano] = None
             continue
-        pl = roda_pipeline(eventos[eventos["timestamp"] <= snapshot], band_months=3)
+        pl = roda_pipeline(eventos[eventos["timestamp"] <= snapshot], band_months=band_months)
         try:
             t = pd.Timestamp(pl.snapshots.classification_snapshot())
             quadro = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
@@ -3110,8 +3127,9 @@ def _quadros_reais_por_ano(
 
 def gera_grade_piramide_real_anos(
     eventos_por_lingua: dict[str, pd.DataFrame],
-    anos: tuple[int, int] = (2016, 2026),
+    anos: tuple[int, ...] = (2016, 2026),
     frequencia: str = "absoluta",
+    band_months: int = 3,
 ) -> None:
     """Pirâmide REAL (sem previsão nenhuma) em anos diferentes, linguagens
     em linha, anos em coluna: o retrato do que realmente aconteceu entre um
@@ -3120,6 +3138,8 @@ def gera_grade_piramide_real_anos(
     reais lado a lado, em vez de simular uma previsão de 10 anos que este
     projeto nunca validou nesse horizonte (o método de projeção só prevê 1
     trimestre à frente, ver `gera_geral_projecao_backtest_piramide`).
+    `anos` aceita qualquer quantidade: 1 (recorte de um ano só) ou vários
+    (evolução ao longo do tempo), não só o par 2016/2026 original.
 
     Cada célula roda o pipeline de verdade (`roda_pipeline` + classificação
     via `pyramid_frame`), cortado nos eventos até 31/dez daquele ano (ou o
@@ -3136,6 +3156,13 @@ def gera_grade_piramide_real_anos(
     gerar uma ou outra sem duplicar o desenho. As duas variantes ficam em
     arquivos diferentes, nenhuma sobrescreve a outra.
 
+    `band_months`: largura da banda de idade (default 3, o quarter da
+    metodologia). Pedido do usuário: banda de 3 meses pra medir "vida" é
+    granularidade fina demais pra esse recorte; banda de 12 meses agrupa
+    num ponto por ano. Também modular, mesmo motivo de `frequencia`: o
+    valor vem de `--banda-piramide-real-meses` na CLI (`ESTADO_BANDA_
+    PIRAMIDE_REAL`), sem precisar mexer no código pra trocar.
+
     Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
     `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
     if frequencia not in ("absoluta", "relativa"):
@@ -3148,7 +3175,7 @@ def gera_grade_piramide_real_anos(
         eventos = eventos_por_lingua[slug]
         LING.aplica(slug)
         CFG.aplica(2)
-        quadros, plots_mod_linha = _quadros_reais_por_ano(eventos, anos, frequencia)
+        quadros, plots_mod_linha = _quadros_reais_por_ano(eventos, anos, frequencia, band_months)
         plots_mod = plots_mod_linha or plots_mod
 
         validas = [t for t in quadros.values() if t is not None and len(t)]
@@ -3174,15 +3201,19 @@ def gera_grade_piramide_real_anos(
     if plots_mod is not None:
         _legenda_discussion(fig, plots_mod)
     nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
+    nota_banda = "" if band_months == 3 else f", banda de {_rotulo_banda(band_months)}"
     fig.suptitle(
         f"Pirâmide real, {' vs '.join(str(a) for a in anos)} (sem previsão, "
-        f"retrato do que aconteceu){nota_frequencia}, {len(LINGUAGENS)} linguagens",
+        f"retrato do que aconteceu){nota_frequencia}{nota_banda}, {len(LINGUAGENS)} linguagens",
         fontsize=13,
     )
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     sufixo = "_".join(str(a) for a in anos)
     sufixo_frequencia = "" if frequencia == "absoluta" else "_relativa"
-    caminho = _caminho_geral(f"piramides_4_linguagens_real_{sufixo}{sufixo_frequencia}.png")
+    sufixo_banda = "" if band_months == 3 else f"_banda{band_months}m"
+    caminho = _caminho_geral(
+        f"piramides_4_linguagens_real_{sufixo}{sufixo_frequencia}{sufixo_banda}.png"
+    )
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -3577,8 +3608,18 @@ def _executa_geral_exclude_python() -> None:
         eventos_por_lingua = _carrega_todas_linguagens()
         for ano in ANOS_BACKTEST_PADRAO:
             gera_geral_projecao_backtest_piramide(eventos_por_lingua, ano)
-        gera_grade_piramide_real_anos(eventos_por_lingua)
-        gera_grade_piramide_real_anos(eventos_por_lingua, frequencia="relativa")
+        banda = ESTADO_BANDA_PIRAMIDE_REAL.banda_meses
+        gera_grade_piramide_real_anos(eventos_por_lingua, band_months=banda)
+        gera_grade_piramide_real_anos(eventos_por_lingua, frequencia="relativa", band_months=banda)
+        gera_grade_piramide_real_anos(
+            eventos_por_lingua, anos=(2026,), frequencia="relativa", band_months=banda
+        )
+        gera_grade_piramide_real_anos(
+            eventos_por_lingua,
+            anos=ANOS_EVOLUCAO_PIRAMIDE_REAL,
+            frequencia="relativa",
+            band_months=banda,
+        )
         gera_caracterizacao_dados()
 
 
@@ -3589,7 +3630,7 @@ def _executa_comparativa_metricas() -> None:
         gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por flag)
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -3654,6 +3695,14 @@ def main() -> None:
         "paralelo). Default: os.cpu_count().",
     )
     ap.add_argument(
+        "--banda-piramide-real-meses",
+        type=int,
+        default=3,
+        help="largura da banda de idade (meses) na pirâmide real de "
+        "--geral-exclude-python (gera_grade_piramide_real_anos). Default: 3 "
+        "(o quarter da metodologia); 12 agrupa num ponto por ano.",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -3696,6 +3745,7 @@ def main() -> None:
     ESTADO_LINHA_TEMPO_4.teto_proprio = args.teto_proprio_timeline
     ESTADO_METRICAS_5ANOS.ativo = args.metricas_5anos
     ESTADO_PARALELO.n_workers = args.processos
+    ESTADO_BANDA_PIRAMIDE_REAL.banda_meses = args.banda_piramide_real_meses
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
