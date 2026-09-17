@@ -268,8 +268,12 @@ ESTADO_PASTA_GERAL = _EstadoPastaGeral()
 
 
 def _caminho_geral(nome: str) -> Path:
-    ESTADO_PASTA_GERAL.pasta.mkdir(parents=True, exist_ok=True)
-    return ESTADO_PASTA_GERAL.pasta / nome
+    """`nome` pode ter subpasta (`"piramide-real/foo.png"`): cria o que
+    faltar, mesmo padrão de `_salva_fig` pro lado das figuras por
+    linguagem."""
+    caminho = ESTADO_PASTA_GERAL.pasta / nome
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    return caminho
 
 
 @contextmanager
@@ -3307,7 +3311,8 @@ def gera_grade_piramide_real_anos(
     sufixo_banda = "" if band_months == 3 else f"_banda{band_months}m"
     sufixo_maturacao = "" if maturacao_meses <= 0 else f"_maturacao{maturacao_meses}m"
     caminho = _caminho_geral(
-        f"piramide_real_{sufixo_anos}{sufixo_frequencia}{sufixo_banda}{sufixo_maturacao}.png"
+        f"piramide-real/piramide_real_{sufixo_anos}{sufixo_frequencia}"
+        f"{sufixo_banda}{sufixo_maturacao}.png"
     )
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
