@@ -230,11 +230,11 @@ class _EstadoMaturacaoPiramideReal:
 class _EstadoAmostraPequena:
     """`--limiar-amostra-pequena N`, mutável (mesmo padrão das outras
     `_Estado*`). Controla o aviso "amostra pequena" de
-    `gera_grade_piramide_real_anos`: o número (default 10, mesmo de
-    `attractiveness.min_active_devs`) e se aparece ou não (0 desliga, já
-    que população nunca é negativa)."""
+    `gera_grade_piramide_real_anos`: o número e se aparece ou não. 0
+    (default, desligado) por pedido explícito do usuário; 10 é o mesmo de
+    `attractiveness.min_active_devs`, pra quem quiser ligar."""
 
-    limiar: int = 10
+    limiar: int = 0
 
 
 LING = _EstadoLinguagem()
@@ -3017,12 +3017,14 @@ ANOS_GRADE_ANOS_DISTINTOS = (2016, 2019, 2022, 2026)
 # os anos-âncora do backtest).
 ANOS_EVOLUCAO_PIRAMIDE_REAL = tuple(range(2016, 2027, 2))
 
-# Mesmo número que `attractiveness.min_active_devs` usa no motor auditado
-# (config/settings.yaml), citando o ESEM14 ("mais de 10 desenvolvedores
-# ativos"): abaixo disso, um único contribuidor já muda a % da célula em
-# vários pontos percentuais. Usado só como aviso em
-# `gera_grade_piramide_real_anos`, não como exclusão.
-LIMIAR_AMOSTRA_PEQUENA = 10
+# Desligado por padrão (0): pedido explícito do usuário. Ligar com
+# --limiar-amostra-pequena N; 10 é o mesmo número que
+# `attractiveness.min_active_devs` usa no motor auditado (config/
+# settings.yaml), citando o ESEM14 ("mais de 10 desenvolvedores ativos").
+# Abaixo disso, um único contribuidor já muda a % da célula em vários
+# pontos percentuais. Usado só como aviso em `gera_grade_piramide_real_anos`,
+# não como exclusão.
+LIMIAR_AMOSTRA_PEQUENA = 0
 
 
 def gera_grade_anos_distintos(
@@ -3224,11 +3226,11 @@ def gera_grade_piramide_real_anos(
     do mesmo jeito, via `--maturacao-piramide-real-meses`
     (`ESTADO_MATURACAO_PIRAMIDE_REAL`).
 
-    `limiar_amostra_pequena` (default `LIMIAR_AMOSTRA_PEQUENA` = 10, mesmo
-    número que `attractiveness.min_active_devs` usa no motor auditado,
-    citando o próprio ESEM14 "mais de 10 desenvolvedores ativos"): célula
-    com população abaixo disso ganha aviso "amostra pequena" no canto. 0
-    desliga o aviso inteiro (população nunca é negativa). Modular do mesmo
+    `limiar_amostra_pequena` (default `LIMIAR_AMOSTRA_PEQUENA` = 0,
+    desligado): célula com população abaixo desse número ganha aviso
+    "amostra pequena" no canto. 10 é o mesmo número que `attractiveness.
+    min_active_devs` usa no motor auditado, citando o próprio ESEM14 "mais
+    de 10 desenvolvedores ativos", pra quem quiser ligar. Modular do mesmo
     jeito das outras: `--limiar-amostra-pequena` na CLI
     (`ESTADO_AMOSTRA_PEQUENA`) controla tanto o número quanto se aparece.
     Só anotação, não exclusão: aqui é retrato, não métrica resumo, tirar a
@@ -3296,12 +3298,16 @@ def gera_grade_piramide_real_anos(
         fontsize=13,
     )
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
-    sufixo = "_".join(str(a) for a in anos)
-    sufixo_frequencia = "" if frequencia == "absoluta" else "_relativa"
+    # Anos logo depois do prefixo comum, separados por "-": é o que muda de
+    # arquivo pra arquivo, tem que ser a primeira coisa legível numa lista
+    # ordenada por nome. Pedido explícito do usuário: "piramides_4_
+    # linguagens_real_" repetido em toda linha deixava a lista ilegível.
+    sufixo_anos = "-".join(str(a) for a in anos)
+    sufixo_frequencia = "" if frequencia == "absoluta" else "_pct"
     sufixo_banda = "" if band_months == 3 else f"_banda{band_months}m"
     sufixo_maturacao = "" if maturacao_meses <= 0 else f"_maturacao{maturacao_meses}m"
     caminho = _caminho_geral(
-        f"piramides_4_linguagens_real_{sufixo}{sufixo_frequencia}{sufixo_banda}{sufixo_maturacao}.png"
+        f"piramide_real_{sufixo_anos}{sufixo_frequencia}{sufixo_banda}{sufixo_maturacao}.png"
     )
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
@@ -3823,11 +3829,11 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ap.add_argument(
         "--limiar-amostra-pequena",
         type=int,
-        default=10,
+        default=0,
         help="na pirâmide real de --geral-exclude-python, célula com "
         "população abaixo desse número ganha aviso 'amostra pequena'. "
-        "Default: 10 (mesmo de attractiveness.min_active_devs); 0 desliga "
-        "o aviso.",
+        "Default: 0 (desligado); 10 é o mesmo de "
+        "attractiveness.min_active_devs.",
     )
     ap.add_argument(
         "--comparativa",
