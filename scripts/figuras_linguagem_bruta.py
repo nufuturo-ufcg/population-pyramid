@@ -216,11 +216,23 @@ class _EstadoBandaPiramideReal:
     banda_meses: int = 3
 
 
+class _EstadoMaturacaoPiramideReal:
+    """`--maturacao-piramide-real-meses N`, mutável (mesmo padrão das
+    outras `_Estado*`). 0 (default) desliga: pedido explícito do usuário,
+    tirar quem tem menos de N meses de idade no snapshot de cada ano,
+    porque essa gente ainda não teve tempo de mostrar se fica ou some
+    (mesmo mecanismo de `gera_piramide_veteranos`/`MESES_MIN_VETERANO`,
+    aqui aplicado ano a ano)."""
+
+    meses: int = 0
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
 ESTADO_PARALELO = _EstadoParalelo()
 ESTADO_BANDA_PIRAMIDE_REAL = _EstadoBandaPiramideReal()
+ESTADO_MATURACAO_PIRAMIDE_REAL = _EstadoMaturacaoPiramideReal()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -3098,23 +3110,42 @@ def _normaliza_frame_pct(
 
 
 def _quadros_reais_por_ano(
-    eventos: pd.DataFrame, anos: tuple[int, ...], frequencia: str, band_months: int
+    eventos: pd.DataFrame,
+    anos: tuple[int, ...],
+    frequencia: str,
+    band_months: int,
+    maturacao_meses: int = 0,
 ) -> tuple[dict[int, pd.DataFrame | None], object]:
     """Uma `pyramid_frame` real por ano em `anos`, cortada nos eventos até
     31/dez daquele ano (ou o último dado real, se ainda não fechou); `None`
     quando o ano é anterior à primeira coleta. Roda o pipeline de verdade
     uma vez por ano, não tabela na mão: ver docstring de
     `gera_grade_piramide_real_anos`. Devolve também `plots_mod` (o módulo
-    `plots` de qualquer um dos `roda_pipeline`, todos a mesma instância)."""
+    `plots` de qualquer um dos `roda_pipeline`, todos a mesma instância).
+
+    `maturacao_meses` > 0 tira, ANTES de rodar o pipeline, quem tem menos
+    dessa idade no snapshot daquele ano: mesmo mecanismo de
+    `gera_piramide_veteranos`/`MESES_MIN_VETERANO`, aqui aplicado por ano
+    em vez de só no snapshot atual. Motivo: banda 0 mistura quem acabou de
+    chegar (idade ainda não confirmou nada) com quem já tem quase 1 ano;
+    medido em Elixir 2026, 29% da banda 0 tem menos de 3 meses. Excluir
+    esse pedaço responde "como fica a pirâmide sem quem ainda não deu
+    tempo de provar que fica", não borra a pirâmide normal."""
     quadros: dict[int, pd.DataFrame | None] = {}
     plots_mod = None
+    primeiro = eventos.groupby("contributor_id")["timestamp"].min()
     for ano in anos:
         corte = pd.Timestamp(f"{ano}-12-31")
         snapshot = min(corte, eventos["timestamp"].max())
         if snapshot < eventos["timestamp"].min():
             quadros[ano] = None
             continue
-        pl = roda_pipeline(eventos[eventos["timestamp"] <= snapshot], band_months=band_months)
+        fatia = eventos[eventos["timestamp"] <= snapshot]
+        if maturacao_meses > 0:
+            corte_maturacao = snapshot - pd.DateOffset(months=maturacao_meses)
+            maduros = primeiro[primeiro <= corte_maturacao].index
+            fatia = fatia[fatia["contributor_id"].isin(maduros)]
+        pl = roda_pipeline(fatia, band_months=band_months)
         try:
             t = pd.Timestamp(pl.snapshots.classification_snapshot())
             quadro = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
@@ -3130,6 +3161,7 @@ def gera_grade_piramide_real_anos(
     anos: tuple[int, ...] = (2016, 2026),
     frequencia: str = "absoluta",
     band_months: int = 3,
+    maturacao_meses: int = 0,
 ) -> None:
     """Pirâmide REAL (sem previsão nenhuma) em anos diferentes, linguagens
     em linha, anos em coluna: o retrato do que realmente aconteceu entre um
@@ -3163,6 +3195,11 @@ def gera_grade_piramide_real_anos(
     valor vem de `--banda-piramide-real-meses` na CLI (`ESTADO_BANDA_
     PIRAMIDE_REAL`), sem precisar mexer no código pra trocar.
 
+    `maturacao_meses` (default 0, desligado): tira quem tem menos dessa
+    idade no snapshot de cada ano, ver `_quadros_reais_por_ano`. Modular
+    do mesmo jeito, via `--maturacao-piramide-real-meses`
+    (`ESTADO_MATURACAO_PIRAMIDE_REAL`).
+
     Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
     `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
     if frequencia not in ("absoluta", "relativa"):
@@ -3175,7 +3212,9 @@ def gera_grade_piramide_real_anos(
         eventos = eventos_por_lingua[slug]
         LING.aplica(slug)
         CFG.aplica(2)
-        quadros, plots_mod_linha = _quadros_reais_por_ano(eventos, anos, frequencia, band_months)
+        quadros, plots_mod_linha = _quadros_reais_por_ano(
+            eventos, anos, frequencia, band_months, maturacao_meses
+        )
         plots_mod = plots_mod_linha or plots_mod
 
         validas = [t for t in quadros.values() if t is not None and len(t)]
@@ -3202,17 +3241,22 @@ def gera_grade_piramide_real_anos(
         _legenda_discussion(fig, plots_mod)
     nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
     nota_banda = "" if band_months == 3 else f", banda de {_rotulo_banda(band_months)}"
+    nota_maturacao = (
+        "" if maturacao_meses <= 0 else f", só quem tem {maturacao_meses}+ meses de idade"
+    )
     fig.suptitle(
         f"Pirâmide real, {' vs '.join(str(a) for a in anos)} (sem previsão, "
-        f"retrato do que aconteceu){nota_frequencia}{nota_banda}, {len(LINGUAGENS)} linguagens",
+        f"retrato do que aconteceu){nota_frequencia}{nota_banda}{nota_maturacao}, "
+        f"{len(LINGUAGENS)} linguagens",
         fontsize=13,
     )
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     sufixo = "_".join(str(a) for a in anos)
     sufixo_frequencia = "" if frequencia == "absoluta" else "_relativa"
     sufixo_banda = "" if band_months == 3 else f"_banda{band_months}m"
+    sufixo_maturacao = "" if maturacao_meses <= 0 else f"_maturacao{maturacao_meses}m"
     caminho = _caminho_geral(
-        f"piramides_4_linguagens_real_{sufixo}{sufixo_frequencia}{sufixo_banda}.png"
+        f"piramides_4_linguagens_real_{sufixo}{sufixo_frequencia}{sufixo_banda}{sufixo_maturacao}.png"
     )
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
@@ -3609,16 +3653,26 @@ def _executa_geral_exclude_python() -> None:
         for ano in ANOS_BACKTEST_PADRAO:
             gera_geral_projecao_backtest_piramide(eventos_por_lingua, ano)
         banda = ESTADO_BANDA_PIRAMIDE_REAL.banda_meses
-        gera_grade_piramide_real_anos(eventos_por_lingua, band_months=banda)
-        gera_grade_piramide_real_anos(eventos_por_lingua, frequencia="relativa", band_months=banda)
+        maturacao = ESTADO_MATURACAO_PIRAMIDE_REAL.meses
         gera_grade_piramide_real_anos(
-            eventos_por_lingua, anos=(2026,), frequencia="relativa", band_months=banda
+            eventos_por_lingua, band_months=banda, maturacao_meses=maturacao
+        )
+        gera_grade_piramide_real_anos(
+            eventos_por_lingua, frequencia="relativa", band_months=banda, maturacao_meses=maturacao
+        )
+        gera_grade_piramide_real_anos(
+            eventos_por_lingua,
+            anos=(2026,),
+            frequencia="relativa",
+            band_months=banda,
+            maturacao_meses=maturacao,
         )
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
             anos=ANOS_EVOLUCAO_PIRAMIDE_REAL,
             frequencia="relativa",
             band_months=banda,
+            maturacao_meses=maturacao,
         )
         gera_caracterizacao_dados()
 
@@ -3703,6 +3757,15 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
         "(o quarter da metodologia); 12 agrupa num ponto por ano.",
     )
     ap.add_argument(
+        "--maturacao-piramide-real-meses",
+        type=int,
+        default=0,
+        help="tira, da pirâmide real de --geral-exclude-python, quem tem "
+        "menos dessa idade (meses) no snapshot de cada ano: ainda não teve "
+        "tempo de mostrar se fica ou some. Default: 0 (desligado, ninguém "
+        "excluído).",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -3746,6 +3809,7 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ESTADO_METRICAS_5ANOS.ativo = args.metricas_5anos
     ESTADO_PARALELO.n_workers = args.processos
     ESTADO_BANDA_PIRAMIDE_REAL.banda_meses = args.banda_piramide_real_meses
+    ESTADO_MATURACAO_PIRAMIDE_REAL.meses = args.maturacao_piramide_real_meses
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
