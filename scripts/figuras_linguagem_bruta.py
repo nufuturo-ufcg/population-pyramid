@@ -3006,6 +3006,13 @@ ANOS_GRADE_ANOS_DISTINTOS = (2016, 2019, 2022, 2026)
 # os anos-âncora do backtest).
 ANOS_EVOLUCAO_PIRAMIDE_REAL = tuple(range(2016, 2027, 2))
 
+# Mesmo número que `attractiveness.min_active_devs` usa no motor auditado
+# (config/settings.yaml), citando o ESEM14 ("mais de 10 desenvolvedores
+# ativos"): abaixo disso, um único contribuidor já muda a % da célula em
+# vários pontos percentuais. Usado só como aviso em
+# `gera_grade_piramide_real_anos`, não como exclusão.
+LIMIAR_AMOSTRA_PEQUENA = 10
+
 
 def gera_grade_anos_distintos(
     eventos_por_lingua: dict[str, pd.DataFrame], anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS
@@ -3115,13 +3122,16 @@ def _quadros_reais_por_ano(
     frequencia: str,
     band_months: int,
     maturacao_meses: int = 0,
-) -> tuple[dict[int, pd.DataFrame | None], object]:
+) -> tuple[dict[int, pd.DataFrame | None], dict[int, int], object]:
     """Uma `pyramid_frame` real por ano em `anos`, cortada nos eventos até
     31/dez daquele ano (ou o último dado real, se ainda não fechou); `None`
     quando o ano é anterior à primeira coleta. Roda o pipeline de verdade
     uma vez por ano, não tabela na mão: ver docstring de
-    `gera_grade_piramide_real_anos`. Devolve também `plots_mod` (o módulo
-    `plots` de qualquer um dos `roda_pipeline`, todos a mesma instância).
+    `gera_grade_piramide_real_anos`. Devolve também `populacoes` (N bruto
+    de cada ano, capturado ANTES de `_normaliza_frame_pct`: em modo
+    relativo a tabela normalizada some com o total, o N bruto não pode vir
+    de lá) e `plots_mod` (o módulo `plots` de qualquer um dos
+    `roda_pipeline`, todos a mesma instância).
 
     `maturacao_meses` > 0 tira, ANTES de rodar o pipeline, quem tem menos
     dessa idade no snapshot daquele ano: mesmo mecanismo de
@@ -3132,6 +3142,7 @@ def _quadros_reais_por_ano(
     esse pedaço responde "como fica a pirâmide sem quem ainda não deu
     tempo de provar que fica", não borra a pirâmide normal."""
     quadros: dict[int, pd.DataFrame | None] = {}
+    populacoes: dict[int, int] = {}
     plots_mod = None
     primeiro = eventos.groupby("contributor_id")["timestamp"].min()
     for ano in anos:
@@ -3149,11 +3160,12 @@ def _quadros_reais_por_ano(
         try:
             t = pd.Timestamp(pl.snapshots.classification_snapshot())
             quadro = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+            populacoes[ano] = int(quadro[["non_coding", "moved", "coding"]].to_numpy().sum())
             quadros[ano] = _normaliza_frame_pct(quadro) if frequencia == "relativa" else quadro
             plots_mod = pl.plots
         finally:
             shutil.rmtree(pl.scratch, ignore_errors=True)
-    return quadros, plots_mod
+    return quadros, populacoes, plots_mod
 
 
 def gera_grade_piramide_real_anos(
@@ -3200,6 +3212,13 @@ def gera_grade_piramide_real_anos(
     do mesmo jeito, via `--maturacao-piramide-real-meses`
     (`ESTADO_MATURACAO_PIRAMIDE_REAL`).
 
+    Célula com população menor que `LIMIAR_AMOSTRA_PEQUENA` ganha aviso
+    "amostra pequena" no canto: mesmo número (10) que
+    `attractiveness.min_active_devs` usa no motor auditado, citando o
+    próprio ESEM14 ("mais de 10 desenvolvedores ativos"). Só anotação, não
+    exclusão: aqui é retrato, não métrica resumo, tirar a célula esconderia
+    dado que existe de verdade (ex.: Zig 2016, população pequena mas real).
+
     Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
     `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
     if frequencia not in ("absoluta", "relativa"):
@@ -3212,7 +3231,7 @@ def gera_grade_piramide_real_anos(
         eventos = eventos_por_lingua[slug]
         LING.aplica(slug)
         CFG.aplica(2)
-        quadros, plots_mod_linha = _quadros_reais_por_ano(
+        quadros, populacoes, plots_mod_linha = _quadros_reais_por_ano(
             eventos, anos, frequencia, band_months, maturacao_meses
         )
         plots_mod = plots_mod_linha or plots_mod
@@ -3231,6 +3250,17 @@ def gera_grade_piramide_real_anos(
                 eixo.text(0.5, 0.5, "sem dado", ha="center", va="center", transform=eixo.transAxes)
                 continue
             plots_mod.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
+            n = populacoes[ano]
+            if n < LIMIAR_AMOSTRA_PEQUENA:
+                eixo.text(
+                    0.02,
+                    0.97,
+                    f"amostra pequena (n={n})",
+                    transform=eixo.transAxes,
+                    fontsize=7,
+                    color="#B03A2E",
+                    va="top",
+                )
             if linha == len(LINGUAGENS) - 1:
                 rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
                 eixo.set_xlabel(rotulo_x, fontsize=8)
