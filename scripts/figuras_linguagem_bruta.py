@@ -3065,8 +3065,53 @@ def gera_grade_anos_distintos(
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
+def _normaliza_frame_pct(
+    frame: pd.DataFrame, colunas: tuple[str, ...] = ("non_coding", "moved", "coding")
+) -> pd.DataFrame:
+    """Cada célula de `colunas` vira % do total da própria tabela (soma de
+    toda banda e categoria = 100%). Usado pra comparar o FORMATO de duas
+    pirâmides com população total bem diferente (ex.: 2016 vs 2026), sem o
+    tamanho absoluto dominar a leitura."""
+    frame = frame.copy()
+    total = frame[list(colunas)].to_numpy().sum()
+    if total > 0:
+        for c in colunas:
+            frame[c] = frame[c] / total * 100
+    return frame
+
+
+def _quadros_reais_por_ano(
+    eventos: pd.DataFrame, anos: tuple[int, int], frequencia: str
+) -> tuple[dict[int, pd.DataFrame | None], object]:
+    """Uma `pyramid_frame` real por ano em `anos`, cortada nos eventos até
+    31/dez daquele ano (ou o último dado real, se ainda não fechou); `None`
+    quando o ano é anterior à primeira coleta. Roda o pipeline de verdade
+    uma vez por ano, não tabela na mão: ver docstring de
+    `gera_grade_piramide_real_anos`. Devolve também `plots_mod` (o módulo
+    `plots` de qualquer um dos `roda_pipeline`, todos a mesma instância)."""
+    quadros: dict[int, pd.DataFrame | None] = {}
+    plots_mod = None
+    for ano in anos:
+        corte = pd.Timestamp(f"{ano}-12-31")
+        snapshot = min(corte, eventos["timestamp"].max())
+        if snapshot < eventos["timestamp"].min():
+            quadros[ano] = None
+            continue
+        pl = roda_pipeline(eventos[eventos["timestamp"] <= snapshot], band_months=3)
+        try:
+            t = pd.Timestamp(pl.snapshots.classification_snapshot())
+            quadro = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+            quadros[ano] = _normaliza_frame_pct(quadro) if frequencia == "relativa" else quadro
+            plots_mod = pl.plots
+        finally:
+            shutil.rmtree(pl.scratch, ignore_errors=True)
+    return quadros, plots_mod
+
+
 def gera_grade_piramide_real_anos(
-    eventos_por_lingua: dict[str, pd.DataFrame], anos: tuple[int, int] = (2016, 2026)
+    eventos_por_lingua: dict[str, pd.DataFrame],
+    anos: tuple[int, int] = (2016, 2026),
+    frequencia: str = "absoluta",
 ) -> None:
     """Pirâmide REAL (sem previsão nenhuma) em anos diferentes, linguagens
     em linha, anos em coluna: o retrato do que realmente aconteceu entre um
@@ -3084,8 +3129,17 @@ def gera_grade_piramide_real_anos(
     porque a categoria coding/moved/non-coding num ponto do passado exige o
     motor auditado, não dá pra derivar só com groupby.
 
+    `frequencia`: "absoluta" (contagem bruta, default) ou "relativa" (%
+    dos contribuidores DAQUELA pirâmide, via `_normaliza_frame_pct`, cada
+    célula normalizada pelo próprio total). Parâmetro em vez de duas
+    funções separadas, pedido explícito do usuário: modular, pra poder
+    gerar uma ou outra sem duplicar o desenho. As duas variantes ficam em
+    arquivos diferentes, nenhuma sobrescreve a outra.
+
     Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
     `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
+    if frequencia not in ("absoluta", "relativa"):
+        raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     fig, matriz = plt.subplots(
         len(LINGUAGENS), len(anos), figsize=(4.2 * len(anos), 4.2 * len(LINGUAGENS)), squeeze=False
     )
@@ -3094,20 +3148,8 @@ def gera_grade_piramide_real_anos(
         eventos = eventos_por_lingua[slug]
         LING.aplica(slug)
         CFG.aplica(2)
-        quadros: dict[int, pd.DataFrame | None] = {}
-        for ano in anos:
-            corte = pd.Timestamp(f"{ano}-12-31")
-            snapshot = min(corte, eventos["timestamp"].max())
-            if snapshot < eventos["timestamp"].min():
-                quadros[ano] = None
-                continue
-            pl = roda_pipeline(eventos[eventos["timestamp"] <= snapshot], band_months=3)
-            try:
-                t = pd.Timestamp(pl.snapshots.classification_snapshot())
-                quadros[ano] = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
-                plots_mod = pl.plots
-            finally:
-                shutil.rmtree(pl.scratch, ignore_errors=True)
+        quadros, plots_mod_linha = _quadros_reais_por_ano(eventos, anos, frequencia)
+        plots_mod = plots_mod_linha or plots_mod
 
         validas = [t for t in quadros.values() if t is not None and len(t)]
         somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
@@ -3124,20 +3166,23 @@ def gera_grade_piramide_real_anos(
                 continue
             plots_mod.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
             if linha == len(LINGUAGENS) - 1:
-                eixo.set_xlabel("contribuidores", fontsize=8)
+                rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
+                eixo.set_xlabel(rotulo_x, fontsize=8)
             if coluna == 0:
                 eixo.set_ylabel(f"{linguagem.nome}\n{plots_mod.rotulo_da_idade()}", fontsize=9)
 
     if plots_mod is not None:
         _legenda_discussion(fig, plots_mod)
+    nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
     fig.suptitle(
         f"Pirâmide real, {' vs '.join(str(a) for a in anos)} (sem previsão, "
-        f"retrato do que aconteceu), {len(LINGUAGENS)} linguagens",
+        f"retrato do que aconteceu){nota_frequencia}, {len(LINGUAGENS)} linguagens",
         fontsize=13,
     )
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     sufixo = "_".join(str(a) for a in anos)
-    caminho = _caminho_geral(f"piramides_4_linguagens_real_{sufixo}.png")
+    sufixo_frequencia = "" if frequencia == "absoluta" else "_relativa"
+    caminho = _caminho_geral(f"piramides_4_linguagens_real_{sufixo}{sufixo_frequencia}.png")
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"salvo: {caminho}")
@@ -3533,6 +3578,7 @@ def _executa_geral_exclude_python() -> None:
         for ano in ANOS_BACKTEST_PADRAO:
             gera_geral_projecao_backtest_piramide(eventos_por_lingua, ano)
         gera_grade_piramide_real_anos(eventos_por_lingua)
+        gera_grade_piramide_real_anos(eventos_por_lingua, frequencia="relativa")
         gera_caracterizacao_dados()
 
 
