@@ -2913,14 +2913,25 @@ def _rotulo_banda(banda_meses: int) -> str:
     return f"{banda_meses} meses"
 
 
-def gera_piramide_comparativa() -> None:
+def gera_piramide_comparativa(minimo_eventos_totais: int = 0) -> None:
     """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
     trimestre completo da linguagem mais atrasada (senão a comparação mistura
     uma pirâmide "hoje" com outra de meses atrás, e a diferença de forma pode
     ser só isso). Mesma metodologia da pirâmide avulsa; o corte final é comum
     às 4, e roda uma vez por valor de `BANDAS_MESES_PIRAMIDE` (default: 3 meses
     "com quarter" e 12 meses "sem quarter", mesma convenção de
-    `gera_piramide_multi`). Vai na raiz de `TMP_BASE`, como qualquer geral."""
+    `gera_piramide_multi`). Vai na raiz de `TMP_BASE`, como qualquer geral.
+
+    `minimo_eventos_totais` (default 0, desligado): tira quem tem menos
+    desse número de eventos na vida inteira, via `filtra_por_volume_minimo`,
+    antes de rodar o pipeline. Pedido explícito do usuário, mesma
+    investigação de `gera_grade_piramide_real_anos`. Só afeta os 5 PNGs de
+    banda desta função: com o filtro ligado, as chamadas de
+    `gera_comparacao_metricas_linguagens`/`gera_piramide_anos_distintos_
+    comparativa`/`gera_grade_anos_distintos`/`gera_geral_idade_morte` (que
+    não tratam esse filtro) ficam de fora, pra não reprocessar sem filtro
+    e sobrescrever os arquivos de sempre à toa. Vai pra `volume-minimo/`
+    em vez da raiz, filtro ligado não é a rodada padrão."""
     eventos_por_lingua = _carrega_todas_linguagens()
     fim_natural = {slug: _serie_trimestral(ev)[-1] for slug, ev in eventos_por_lingua.items()}
 
@@ -2942,9 +2953,10 @@ def gera_piramide_comparativa() -> None:
         for eixo, slug in zip(eixos, LINGUAGENS, strict=True):
             LING.aplica(slug)
             CFG.aplica(2)
-            pl = roda_pipeline(
-                eventos_por_lingua[slug], band_months=banda_meses, fim_forcado=fim_comum
+            eventos_filtrados = filtra_por_volume_minimo(
+                eventos_por_lingua[slug], minimo_eventos_totais
             )
+            pl = roda_pipeline(eventos_filtrados, band_months=banda_meses, fim_forcado=fim_comum)
             try:
                 # Desenha na mão (`pyramid_frame` + `draw_pyramid`) em vez de
                 # embutir o PNG de `pl.plots.figure_pyramid`: aquele PNG já
@@ -2960,17 +2972,28 @@ def gera_piramide_comparativa() -> None:
                 shutil.rmtree(pl.scratch, ignore_errors=True)
 
         _legenda_discussion(fig, pl.plots)
+        nota_volume = (
+            ""
+            if minimo_eventos_totais <= 0
+            else f", só quem tem {minimo_eventos_totais}+ eventos na vida"
+        )
         fig.suptitle(
             f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
-            f"banda de {_rotulo_banda(banda_meses)}",
+            f"banda de {_rotulo_banda(banda_meses)}{nota_volume}",
             fontsize=14,
         )
         fig.tight_layout(rect=(0, 0.04, 1, 0.96))
-        caminho = _caminho_geral(f"piramides_4_linguagens_banda{banda_meses}m.png")
+        if minimo_eventos_totais <= 0:
+            caminho = _caminho_geral(f"piramides_4_linguagens_banda{banda_meses}m.png")
+        else:
+            nome = f"comparativa_banda{banda_meses}m_min{minimo_eventos_totais}eventos.png"
+            caminho = _caminho_geral(f"volume-minimo/{nome}")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
 
+    if minimo_eventos_totais > 0:
+        return
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
     if ESTADO_METRICAS_5ANOS.ativo:
         gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
