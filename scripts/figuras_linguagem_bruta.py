@@ -2970,14 +2970,22 @@ def gera_piramide_comparativa() -> None:
 
 
 def gera_piramide_anos_distintos_comparativa(
-    eventos_por_lingua: dict[str, pd.DataFrame], fim_comum: pd.Timestamp
+    eventos_por_lingua: dict[str, pd.DataFrame],
+    fim_comum: pd.Timestamp,
+    frequencia: str = "absoluta",
 ) -> None:
     """`gera_piramide_anos_distintos` das 4 linguagens lado a lado, no mesmo
     corte de data que as outras pirâmides de `gera_piramide_comparativa`
     (recebido pronto, não recalcula). `roda_pipeline` entra só pelo efeito
     colateral de deixar `plots`/`config` prontos pro desenho (band_months=12,
     igual à versão avulsa); os dados de cada painel vêm de
-    `_frame_por_anos_contribuicao`, não do pipeline."""
+    `_frame_por_anos_contribuicao`, não do pipeline.
+
+    `frequencia`: "absoluta" (contagem bruta, default) ou "relativa" (%
+    dos contribuidores DAQUELA pirâmide, via `_normaliza_frame_pct`), mesmo
+    padrão de `gera_grade_piramide_real_anos`."""
+    if frequencia not in ("absoluta", "relativa"):
+        raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     from matplotlib.patches import Patch
 
     pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
@@ -2985,8 +2993,10 @@ def gera_piramide_anos_distintos_comparativa(
         fig, eixos = _grade_para_linguagens()
         for eixo, (slug, linguagem) in zip(eixos, LINGUAGENS.items(), strict=True):
             tabela = _frame_por_anos_contribuicao(eventos_por_lingua[slug], fim_comum)
+            if frequencia == "relativa":
+                tabela = _normaliza_frame_pct(tabela)
             pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}))
-            eixo.set_xlabel("contribuidores")
+            eixo.set_xlabel("contribuidores" if frequencia == "absoluta" else "% desta pirâmide")
             eixo.set_ylabel("anos-calendário distintos")
             eixo.set_title(linguagem.nome)
 
@@ -3000,12 +3010,15 @@ def gera_piramide_anos_distintos_comparativa(
             for c in ("non_coding", "moved", "coding")
         ]
         fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False)
+        nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
         fig.suptitle(
-            f"Pirâmide por linguagem, anos-calendário distintos, mesmo corte ({fim_comum.date()})",
+            f"Pirâmide por linguagem, anos-calendário distintos, mesmo corte "
+            f"({fim_comum.date()}){nota_frequencia}",
             fontsize=14,
         )
         fig.tight_layout(rect=(0, 0.04, 1, 0.96))
-        caminho = _caminho_geral("piramides_4_linguagens_anos_distintos.png")
+        sufixo = "" if frequencia == "absoluta" else "_pct"
+        caminho = _caminho_geral(f"piramides_4_linguagens_anos_distintos{sufixo}.png")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -3032,7 +3045,9 @@ LIMIAR_AMOSTRA_PEQUENA = 0
 
 
 def gera_grade_anos_distintos(
-    eventos_por_lingua: dict[str, pd.DataFrame], anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS
+    eventos_por_lingua: dict[str, pd.DataFrame],
+    anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS,
+    frequencia: str = "absoluta",
 ) -> None:
     """Evolução da pirâmide de anos-calendário distintos ao longo do tempo,
     as 4 linguagens juntas: uma linha por linguagem, uma coluna por
@@ -3049,9 +3064,17 @@ def gera_grade_anos_distintos(
     ano. Uma pirâmide de 2016 não pode ter teto de 19 anos só porque a de
     2026 tem: em 2016 esse teto fisicamente não existia ainda.
 
+    `frequencia`: "absoluta" (contagem bruta, default) ou "relativa" (%
+    dos contribuidores DAQUELA pirâmide, via `_normaliza_frame_pct`, cada
+    célula normalizada pelo próprio total), mesmo padrão de
+    `gera_grade_piramide_real_anos`. Largura ainda compartilhada por
+    linha, agora em % em vez de contagem.
+
     Título e rótulo não se repetem célula a célula: o ano vira cabeçalho de
     coluna (só na linha de cima) e a linguagem vira rótulo de linha (só na
     coluna da esquerda), em vez de "Linguagem, Ano" escrito nas 16 células."""
+    if frequencia not in ("absoluta", "relativa"):
+        raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     from matplotlib.patches import Patch
 
     pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
@@ -3068,11 +3091,14 @@ def gera_grade_anos_distintos(
                 # inteira caía em "sem dado" mesmo tendo dado parcial do ano.
                 limite = pd.Timestamp(f"{ano}-12-31")
                 snapshot = min(limite, eventos["timestamp"].max())
-                tabelas[ano] = (
+                tabela = (
                     _frame_por_anos_contribuicao(eventos, snapshot)
                     if snapshot >= eventos["timestamp"].min()
                     else None
                 )
+                if tabela is not None and frequencia == "relativa":
+                    tabela = _normaliza_frame_pct(tabela)
+                tabelas[ano] = tabela
             validas = [t for t in tabelas.values() if t is not None and len(t)]
             somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
             xmax = max(somas, default=1.0)
@@ -3091,7 +3117,8 @@ def gera_grade_anos_distintos(
                 # ymax=None (default): cada coluna usa o próprio teto, não o da linha.
                 pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
                 if linha == len(LINGUAGENS) - 1:
-                    eixo.set_xlabel("contribuidores", fontsize=8)
+                    rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
+                    eixo.set_xlabel(rotulo_x, fontsize=8)
                 if coluna == 0:
                     eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=9)
 
@@ -3105,12 +3132,17 @@ def gera_grade_anos_distintos(
             for c in ("non_coding", "moved", "coding")
         ]
         fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False)
+        nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
         fig.suptitle(
-            f"Pirâmide (anos-calendário distintos) ao longo do tempo, {len(LINGUAGENS)} linguagens",
+            f"Pirâmide (anos-calendário distintos) ao longo do tempo{nota_frequencia}, "
+            f"{len(LINGUAGENS)} linguagens",
             fontsize=14,
         )
         fig.tight_layout(rect=(0, 0.03, 1, 0.96))
-        caminho = _caminho_geral("piramides_4_linguagens_anos_distintos_ao_longo_do_tempo.png")
+        sufixo = "" if frequencia == "absoluta" else "_pct"
+        caminho = _caminho_geral(
+            f"piramides_4_linguagens_anos_distintos_ao_longo_do_tempo{sufixo}.png"
+        )
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
@@ -3756,6 +3788,16 @@ def _executa_geral_exclude_python() -> None:
             maturacao_meses=maturacao,
             limiar_amostra_pequena=limiar_pequena,
         )
+        # Versão relativa (%) de anos-distintos: gera_piramide_comparativa
+        # (chamada acima) já desenha a absoluta; fim_comum recalculado do
+        # mesmo jeito que aquela função usa, não dá pra reaproveitar o dela
+        # porque é uma variável local sem retorno.
+        fim_natural = {slug: _serie_trimestral(ev)[-1] for slug, ev in eventos_por_lingua.items()}
+        fim_comum = min(fim_natural.values())
+        gera_piramide_anos_distintos_comparativa(
+            eventos_por_lingua, fim_comum, frequencia="relativa"
+        )
+        gera_grade_anos_distintos(eventos_por_lingua, frequencia="relativa")
         gera_caracterizacao_dados()
 
 
