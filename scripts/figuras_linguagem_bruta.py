@@ -2913,7 +2913,7 @@ def _rotulo_banda(banda_meses: int) -> str:
     return f"{banda_meses} meses"
 
 
-def gera_piramide_comparativa(minimo_eventos_totais: int = 0) -> None:
+def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = "absoluta") -> None:
     """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
     trimestre completo da linguagem mais atrasada (senão a comparação mistura
     uma pirâmide "hoje" com outra de meses atrás, e a diferença de forma pode
@@ -2931,7 +2931,17 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0) -> None:
     comparativa`/`gera_grade_anos_distintos`/`gera_geral_idade_morte` (que
     não tratam esse filtro) ficam de fora, pra não reprocessar sem filtro
     e sobrescrever os arquivos de sempre à toa. Vai pra `volume-minimo/`
-    em vez da raiz, filtro ligado não é a rodada padrão."""
+    em vez da raiz, filtro ligado não é a rodada padrão.
+
+    `frequencia` (default "absoluta"): "relativa" desenha em % da própria
+    pirâmide, via `_normaliza_frame_pct`, mesmo padrão de
+    `gera_grade_piramide_real_anos`. Pedido do usuário: o mesmo "estilo
+    quadrado" (`_grade_para_linguagens`) desta função, só que em
+    percentual, pra ver melhor o formato sem o tamanho populacional
+    dominando a leitura. Também pula o resto da função (mesmo motivo de
+    `minimo_eventos_totais`): rodar em % não é a rodada padrão."""
+    if frequencia not in ("absoluta", "relativa"):
+        raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     eventos_por_lingua = _carrega_todas_linguagens()
     fim_natural = {slug: _serie_trimestral(ev)[-1] for slug, ev in eventos_por_lingua.items()}
 
@@ -2966,7 +2976,11 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0) -> None:
                 # `gera_piramide_multi`.
                 t = pd.Timestamp(pl.snapshots.classification_snapshot())
                 frame = pl.plots.pyramid_frame(pl.snapshots.load(pl.sid), t)
+                if frequencia == "relativa":
+                    frame = _normaliza_frame_pct(frame)
                 pl.plots.draw_pyramid(eixo, frame)
+                rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
+                eixo.set_xlabel(rotulo_x)
                 eixo.set_title(LING.atual.nome)
             finally:
                 shutil.rmtree(pl.scratch, ignore_errors=True)
@@ -2977,22 +2991,28 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0) -> None:
             if minimo_eventos_totais <= 0
             else f", só quem tem {minimo_eventos_totais}+ eventos na vida"
         )
+        nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
         fig.suptitle(
             f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
-            f"banda de {_rotulo_banda(banda_meses)}{nota_volume}",
+            f"banda de {_rotulo_banda(banda_meses)}{nota_volume}{nota_frequencia}",
             fontsize=14,
         )
         fig.tight_layout(rect=(0, 0.04, 1, 0.96))
+        sufixo_frequencia = "" if frequencia == "absoluta" else "_pct"
         if minimo_eventos_totais <= 0:
-            caminho = _caminho_geral(f"piramides_4_linguagens_banda{banda_meses}m.png")
+            nome = f"piramides_4_linguagens_banda{banda_meses}m{sufixo_frequencia}.png"
+            caminho = _caminho_geral(nome)
         else:
-            nome = f"comparativa_banda{banda_meses}m_min{minimo_eventos_totais}eventos.png"
+            nome = (
+                f"comparativa_banda{banda_meses}m{sufixo_frequencia}"
+                f"_min{minimo_eventos_totais}eventos.png"
+            )
             caminho = _caminho_geral(f"volume-minimo/{nome}")
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"salvo: {caminho}")
 
-    if minimo_eventos_totais > 0:
+    if minimo_eventos_totais > 0 or frequencia != "absoluta":
         return
     gera_comparacao_metricas_linguagens(eventos_por_lingua)
     if ESTADO_METRICAS_5ANOS.ativo:
