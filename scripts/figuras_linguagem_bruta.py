@@ -237,6 +237,15 @@ class _EstadoAmostraPequena:
     limiar: int = 0
 
 
+class _EstadoMinimoEventosPiramideReal:
+    """`--minimo-eventos-piramide-real N`, mutável (mesmo padrão das
+    outras `_Estado*`). Controla `filtra_por_volume_minimo` em
+    `gera_grade_piramide_real_anos`: 0 (default, desligado) não tira
+    ninguém; N tira quem tem menos de N eventos na vida inteira."""
+
+    minimo: int = 0
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
@@ -244,6 +253,7 @@ ESTADO_PARALELO = _EstadoParalelo()
 ESTADO_BANDA_PIRAMIDE_REAL = _EstadoBandaPiramideReal()
 ESTADO_MATURACAO_PIRAMIDE_REAL = _EstadoMaturacaoPiramideReal()
 ESTADO_AMOSTRA_PEQUENA = _EstadoAmostraPequena()
+ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL = _EstadoMinimoEventosPiramideReal()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -3150,6 +3160,25 @@ def gera_grade_anos_distintos(
         shutil.rmtree(pl.scratch, ignore_errors=True)
 
 
+def filtra_por_volume_minimo(eventos: pd.DataFrame, minimo_eventos_totais: int) -> pd.DataFrame:
+    """Remove todo evento de quem tem menos de `minimo_eventos_totais`
+    eventos no total: conta a vida inteira da pessoa nesta linguagem
+    (qualquer tipo, commit/PR/issue/comentário), não só até um snapshot.
+    `minimo_eventos_totais <= 0` devolve `eventos` sem tirar ninguém,
+    mesmo padrão "0 desliga" de `maturacao_meses`/`limiar_amostra_pequena`.
+
+    Pedido explícito do usuário, pra responder "e se a gente tirar quem só
+    passou uma vez (ou duas)?" na pirâmide real: medido nesta mesma
+    conversa que 23-31% dos contribuidores das 3 linguagens tem
+    exatamente 1 evento na vida inteira."""
+    if minimo_eventos_totais <= 0:
+        return eventos
+
+    total_por_pessoa = eventos.groupby("contributor_id").size()
+    ids_que_ficam = total_por_pessoa[total_por_pessoa >= minimo_eventos_totais].index
+    return eventos[eventos["contributor_id"].isin(ids_que_ficam)]
+
+
 def _normaliza_frame_pct(
     frame: pd.DataFrame, colunas: tuple[str, ...] = ("non_coding", "moved", "coding")
 ) -> pd.DataFrame:
@@ -3240,6 +3269,7 @@ def gera_grade_piramide_real_anos(
     band_months: int = 3,
     maturacao_meses: int = 0,
     limiar_amostra_pequena: int = LIMIAR_AMOSTRA_PEQUENA,
+    minimo_eventos_totais: int = 0,
 ) -> None:
     """Pirâmide REAL (sem previsão nenhuma) em anos diferentes, linguagens
     em linha, anos em coluna: o retrato do que realmente aconteceu entre um
@@ -3288,6 +3318,14 @@ def gera_grade_piramide_real_anos(
     Só anotação, não exclusão: aqui é retrato, não métrica resumo, tirar a
     célula esconderia dado que existe de verdade (ex.: Zig 2016).
 
+    `minimo_eventos_totais` (default 0, desligado): tira quem tem menos
+    desse número de eventos na vida inteira, via `filtra_por_volume_minimo`,
+    ANTES de cortar por ano. Pedido explícito do usuário: comparar "sem
+    exclusão" x "excluir quem tem só 1 evento" (`minimo_eventos_totais=2`)
+    x "excluir quem tem 2 ou menos" (`minimo_eventos_totais=3`). Modular
+    via `--minimo-eventos-piramide-real` na CLI
+    (`ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL`).
+
     Largura (X) compartilhada por LINHA (linguagem), mesmo motivo de
     `gera_grade_anos_distintos`. Altura (Y) não compartilhada."""
     if frequencia not in ("absoluta", "relativa"):
@@ -3298,6 +3336,7 @@ def gera_grade_piramide_real_anos(
     plots_mod = None
     for linha, (slug, linguagem) in enumerate(LINGUAGENS.items()):
         eventos = eventos_por_lingua[slug]
+        eventos = filtra_por_volume_minimo(eventos, minimo_eventos_totais)
         LING.aplica(slug)
         CFG.aplica(2)
         quadros, populacoes, plots_mod_linha = _quadros_reais_por_ano(
@@ -3343,10 +3382,15 @@ def gera_grade_piramide_real_anos(
     nota_maturacao = (
         "" if maturacao_meses <= 0 else f", só quem tem {maturacao_meses}+ meses de idade"
     )
+    nota_volume = (
+        ""
+        if minimo_eventos_totais <= 0
+        else f", só quem tem {minimo_eventos_totais}+ eventos na vida"
+    )
     fig.suptitle(
         f"Pirâmide real, {' vs '.join(str(a) for a in anos)} (sem previsão, "
-        f"retrato do que aconteceu){nota_frequencia}{nota_banda}{nota_maturacao}, "
-        f"{len(LINGUAGENS)} linguagens",
+        f"retrato do que aconteceu){nota_frequencia}{nota_banda}{nota_maturacao}"
+        f"{nota_volume}, {len(LINGUAGENS)} linguagens",
         fontsize=13,
     )
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
@@ -3358,9 +3402,10 @@ def gera_grade_piramide_real_anos(
     sufixo_frequencia = "" if frequencia == "absoluta" else "_pct"
     sufixo_banda = "" if band_months == 3 else f"_banda{band_months}m"
     sufixo_maturacao = "" if maturacao_meses <= 0 else f"_maturacao{maturacao_meses}m"
+    sufixo_volume = "" if minimo_eventos_totais <= 0 else f"_min{minimo_eventos_totais}eventos"
     caminho = _caminho_geral(
         f"piramide-real/piramide_real_{sufixo_anos}{sufixo_frequencia}"
-        f"{sufixo_banda}{sufixo_maturacao}.png"
+        f"{sufixo_banda}{sufixo_maturacao}{sufixo_volume}.png"
     )
     fig.savefig(caminho, dpi=200, bbox_inches="tight")
     plt.close(fig)
@@ -3759,11 +3804,13 @@ def _executa_geral_exclude_python() -> None:
         banda = ESTADO_BANDA_PIRAMIDE_REAL.banda_meses
         maturacao = ESTADO_MATURACAO_PIRAMIDE_REAL.meses
         limiar_pequena = ESTADO_AMOSTRA_PEQUENA.limiar
+        minimo_eventos = ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL.minimo
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
             band_months=banda,
             maturacao_meses=maturacao,
             limiar_amostra_pequena=limiar_pequena,
+            minimo_eventos_totais=minimo_eventos,
         )
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
@@ -3771,6 +3818,7 @@ def _executa_geral_exclude_python() -> None:
             band_months=banda,
             maturacao_meses=maturacao,
             limiar_amostra_pequena=limiar_pequena,
+            minimo_eventos_totais=minimo_eventos,
         )
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
@@ -3779,6 +3827,7 @@ def _executa_geral_exclude_python() -> None:
             band_months=banda,
             maturacao_meses=maturacao,
             limiar_amostra_pequena=limiar_pequena,
+            minimo_eventos_totais=minimo_eventos,
         )
         gera_grade_piramide_real_anos(
             eventos_por_lingua,
@@ -3787,6 +3836,7 @@ def _executa_geral_exclude_python() -> None:
             band_months=banda,
             maturacao_meses=maturacao,
             limiar_amostra_pequena=limiar_pequena,
+            minimo_eventos_totais=minimo_eventos,
         )
         # Versão relativa (%) de anos-distintos: gera_piramide_comparativa
         # (chamada acima) já desenha a absoluta; fim_comum recalculado do
@@ -3899,6 +3949,14 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
         "attractiveness.min_active_devs.",
     )
     ap.add_argument(
+        "--minimo-eventos-piramide-real",
+        type=int,
+        default=0,
+        help="na pirâmide real de --geral-exclude-python, tira quem tem "
+        "menos que esse número de eventos na vida inteira (qualquer tipo). "
+        "Default: 0 (desligado, ninguém excluído).",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -3944,6 +4002,7 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ESTADO_BANDA_PIRAMIDE_REAL.banda_meses = args.banda_piramide_real_meses
     ESTADO_MATURACAO_PIRAMIDE_REAL.meses = args.maturacao_piramide_real_meses
     ESTADO_AMOSTRA_PEQUENA.limiar = args.limiar_amostra_pequena
+    ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL.minimo = args.minimo_eventos_piramide_real
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
