@@ -268,6 +268,20 @@ class _EstadoFonteAnosDistintos:
     escala: float = 1.0
 
 
+class _EstadoFontePiramideComparativa:
+    """Tamanho de fonte de `gera_piramide_comparativa`, mesmo padrão de
+    `_EstadoFonteAnosDistintos`: default do yaml, `--fonte-*-comparativa`
+    sobrepõe um de cada vez, `--escala-fonte-comparativa` multiplica todos
+    por cima."""
+
+    titulo_painel: float = ESTILO["piramide_comparativa"]["titulo_painel"]
+    tick: float = ESTILO["piramide_comparativa"]["tick"]
+    rotulo_x: float = ESTILO["piramide_comparativa"]["rotulo_x"]
+    titulo_geral: float = ESTILO["piramide_comparativa"]["titulo_geral"]
+    legenda: float = ESTILO["piramide_comparativa"]["legenda"]
+    escala: float = 1.0
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
@@ -277,6 +291,7 @@ ESTADO_MATURACAO_PIRAMIDE_REAL = _EstadoMaturacaoPiramideReal()
 ESTADO_AMOSTRA_PEQUENA = _EstadoAmostraPequena()
 ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL = _EstadoMinimoEventosPiramideReal()
 ESTADO_FONTE_ANOS_DISTINTOS = _EstadoFonteAnosDistintos()
+ESTADO_FONTE_PIRAMIDE_COMPARATIVA = _EstadoFontePiramideComparativa()
 
 
 def _kwargs_fonte_anos_distintos() -> dict[str, float]:
@@ -290,6 +305,21 @@ def _kwargs_fonte_anos_distintos() -> dict[str, float]:
         "fonte_tick": estado.tick,
         "fonte_rotulo_x": estado.rotulo_x,
         "fonte_rotulo_y": estado.rotulo_y,
+        "fonte_titulo_geral": estado.titulo_geral,
+        "fonte_legenda": estado.legenda,
+        "escala_fonte": estado.escala,
+    }
+
+
+def _kwargs_fonte_piramide_comparativa() -> dict[str, float]:
+    """Os 6 argumentos de fonte de `gera_piramide_comparativa`, lidos de
+    `ESTADO_FONTE_PIRAMIDE_COMPARATIVA`, mesmo padrão de
+    `_kwargs_fonte_anos_distintos`."""
+    estado = ESTADO_FONTE_PIRAMIDE_COMPARATIVA
+    return {
+        "fonte_titulo_painel": estado.titulo_painel,
+        "fonte_tick": estado.tick,
+        "fonte_rotulo_x": estado.rotulo_x,
         "fonte_titulo_geral": estado.titulo_geral,
         "fonte_legenda": estado.legenda,
         "escala_fonte": estado.escala,
@@ -1120,11 +1150,15 @@ def _caminho_csv(nome: str) -> Path:
     return caminho
 
 
-def _legenda_discussion(fig: object, plots_mod: object) -> None:
+def _legenda_discussion(fig: object, plots_mod: object, fontsize: float = 8) -> None:
     """Mesma legenda de `plots._legend` (Patch com FILL/HATCH do motor
     auditado), com rótulo próprio deste script (`ROTULO_LEGENDA`: "discussion"
     em vez de "non-coding"). Não reusa `plots._legend` porque aquela função é
-    privada do módulo auditado e trava no `PT_LABEL` exato do artigo."""
+    privada do módulo auditado e trava no `PT_LABEL` exato do artigo.
+
+    `fontsize` (default 8, o tamanho de sempre): parâmetro pra quem já tem
+    controle de fonte modular (`gera_piramide_comparativa`) poder passar o
+    próprio tamanho sem mudar o default dos outros chamadores."""
     from matplotlib.patches import Patch
 
     handles = [
@@ -1136,7 +1170,7 @@ def _legenda_discussion(fig: object, plots_mod: object) -> None:
         )
         for c in ("non_coding", "moved", "coding")
     ]
-    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=8)
+    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=fontsize)
 
 
 def gera_piramide_multi(eventos: pd.DataFrame) -> None:
@@ -2974,7 +3008,16 @@ def _rotulo_banda(banda_meses: int) -> str:
     return f"{banda_meses} meses"
 
 
-def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = "absoluta") -> None:
+def gera_piramide_comparativa(
+    minimo_eventos_totais: int = 0,
+    frequencia: str = "absoluta",
+    fonte_titulo_painel: float = ESTILO["piramide_comparativa"]["titulo_painel"],
+    fonte_tick: float = ESTILO["piramide_comparativa"]["tick"],
+    fonte_rotulo_x: float = ESTILO["piramide_comparativa"]["rotulo_x"],
+    fonte_titulo_geral: float = ESTILO["piramide_comparativa"]["titulo_geral"],
+    fonte_legenda: float = ESTILO["piramide_comparativa"]["legenda"],
+    escala_fonte: float = 1.0,
+) -> None:
     """As 4 pirâmides lado a lado, todas cortadas no mesmo trimestre: o último
     trimestre completo da linguagem mais atrasada (senão a comparação mistura
     uma pirâmide "hoje" com outra de meses atrás, e a diferença de forma pode
@@ -3000,7 +3043,11 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = 
     quadrado" (`_grade_para_linguagens`) desta função, só que em
     percentual, pra ver melhor o formato sem o tamanho populacional
     dominando a leitura. Também pula o resto da função (mesmo motivo de
-    `minimo_eventos_totais`): rodar em % não é a rodada padrão."""
+    `minimo_eventos_totais`): rodar em % não é a rodada padrão.
+
+    `fonte_*`: tamanho (pontos) de cada elemento visual, default lido de
+    `scripts/figuras_estilo.yaml`, mesmo padrão de `gera_grade_anos_
+    distintos` (yaml -> flag por elemento -> `escala_fonte` por cima)."""
     if frequencia not in ("absoluta", "relativa"):
         raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     eventos_por_lingua = _carrega_todas_linguagens()
@@ -3040,13 +3087,14 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = 
                 if frequencia == "relativa":
                     frame = _normaliza_frame_pct(frame)
                 pl.plots.draw_pyramid(eixo, frame)
+                eixo.tick_params(axis="both", labelsize=fonte_tick * escala_fonte)
                 rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
-                eixo.set_xlabel(rotulo_x)
-                eixo.set_title(LING.atual.nome)
+                eixo.set_xlabel(rotulo_x, fontsize=fonte_rotulo_x * escala_fonte)
+                eixo.set_title(LING.atual.nome, fontsize=fonte_titulo_painel * escala_fonte)
             finally:
                 shutil.rmtree(pl.scratch, ignore_errors=True)
 
-        _legenda_discussion(fig, pl.plots)
+        _legenda_discussion(fig, pl.plots, fontsize=fonte_legenda * escala_fonte)
         nota_volume = (
             ""
             if minimo_eventos_totais <= 0
@@ -3056,16 +3104,19 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = 
         fig.suptitle(
             f"Pirâmide por linguagem, mesmo corte de data ({fim_comum.date()}), "
             f"banda de {_rotulo_banda(banda_meses)}{nota_volume}{nota_frequencia}",
-            fontsize=14,
+            fontsize=fonte_titulo_geral * escala_fonte,
         )
         fig.tight_layout(rect=(0, 0.04, 1, 0.96))
         sufixo_frequencia = "" if frequencia == "absoluta" else "_pct"
+        sufixo_escala = "" if escala_fonte == 1.0 else f"_escala{escala_fonte:g}"
         if minimo_eventos_totais <= 0:
-            nome = f"piramides_4_linguagens_banda{banda_meses}m{sufixo_frequencia}.png"
+            nome = (
+                f"piramides_4_linguagens_banda{banda_meses}m{sufixo_frequencia}{sufixo_escala}.png"
+            )
             caminho = _caminho_geral(nome)
         else:
             nome = (
-                f"comparativa_banda{banda_meses}m{sufixo_frequencia}"
+                f"comparativa_banda{banda_meses}m{sufixo_frequencia}{sufixo_escala}"
                 f"_min{minimo_eventos_totais}eventos.png"
             )
             caminho = _caminho_geral(f"volume-minimo/{nome}")
@@ -3933,7 +3984,7 @@ def _executa_geral_exclude_python() -> None:
     with _rodada_sem_linguagem("python"):
         _executa_geral()
         gera_geral_ccr_ncr_por_projeto()
-        gera_piramide_comparativa()
+        gera_piramide_comparativa(**_kwargs_fonte_piramide_comparativa())
         gera_geral_backtest_evolucao()
         eventos_por_lingua = _carrega_todas_linguagens()
         for ano in ANOS_BACKTEST_PADRAO:
@@ -4148,6 +4199,51 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
         "sem precisar redefinir os 6 números um por um.",
     )
     ap.add_argument(
+        "--fonte-titulo-painel-comparativa",
+        type=float,
+        default=ESTADO_FONTE_PIRAMIDE_COMPARATIVA.titulo_painel,
+        help="tamanho (pontos) do nome da linguagem no topo de cada painel, "
+        "na grade 2x2 de --comparativa. Default vem de "
+        "scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-tick-comparativa",
+        type=float,
+        default=ESTADO_FONTE_PIRAMIDE_COMPARATIVA.tick,
+        help="tamanho dos números dos eixos, na mesma figura. Default vem "
+        "de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-rotulo-x-comparativa",
+        type=float,
+        default=ESTADO_FONTE_PIRAMIDE_COMPARATIVA.rotulo_x,
+        help='tamanho do rótulo "contribuidores"/"% desta pirâmide", na '
+        "mesma figura. Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-titulo-geral-comparativa",
+        type=float,
+        default=ESTADO_FONTE_PIRAMIDE_COMPARATIVA.titulo_geral,
+        help="tamanho do título da figura inteira, na mesma figura. "
+        "Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-legenda-comparativa",
+        type=float,
+        default=ESTADO_FONTE_PIRAMIDE_COMPARATIVA.legenda,
+        help="tamanho da legenda (discussion/moved to coding/coding), na "
+        "mesma figura. Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--escala-fonte-comparativa",
+        type=float,
+        default=1.0,
+        help="multiplica TODOS os 5 tamanhos de fonte acima (e o tamanho "
+        "da figura) de uma vez, por cima do que estiver valendo (yaml ou "
+        "flag). Default: 1.0 (sem mudança); use >1 (ex.: 1.5) pra slide, "
+        "sem precisar redefinir os 5 números um por um.",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -4201,11 +4297,17 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ESTADO_FONTE_ANOS_DISTINTOS.titulo_geral = args.fonte_titulo_geral_anos_distintos
     ESTADO_FONTE_ANOS_DISTINTOS.legenda = args.fonte_legenda_anos_distintos
     ESTADO_FONTE_ANOS_DISTINTOS.escala = args.escala_fonte_anos_distintos
+    ESTADO_FONTE_PIRAMIDE_COMPARATIVA.titulo_painel = args.fonte_titulo_painel_comparativa
+    ESTADO_FONTE_PIRAMIDE_COMPARATIVA.tick = args.fonte_tick_comparativa
+    ESTADO_FONTE_PIRAMIDE_COMPARATIVA.rotulo_x = args.fonte_rotulo_x_comparativa
+    ESTADO_FONTE_PIRAMIDE_COMPARATIVA.titulo_geral = args.fonte_titulo_geral_comparativa
+    ESTADO_FONTE_PIRAMIDE_COMPARATIVA.legenda = args.fonte_legenda_comparativa
+    ESTADO_FONTE_PIRAMIDE_COMPARATIVA.escala = args.escala_fonte_comparativa
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
         "geral_exclude_python": _executa_geral_exclude_python,
-        "comparativa": gera_piramide_comparativa,
+        "comparativa": lambda: gera_piramide_comparativa(**_kwargs_fonte_piramide_comparativa()),
         "comparativa_metricas": _executa_comparativa_metricas,
     }
     for flag, roda in modos_sem_linguagem.items():

@@ -15,3 +15,10 @@ anos_distintos_ao_longo_do_tempo:
   rotulo_y: 9 # nome da linguagem + "anos distintos"
   titulo_geral: 14 # título da figura inteira
   legenda: 10 # discussion / moved to coding / coding
+
+piramide_comparativa:
+  titulo_painel: 12 # nome da linguagem no topo de cada painel (Clojure, Elixir, ...)
+  tick: 10 # números dos eixos (idade, contribuidores)
+  rotulo_x: 10 # "contribuidores" / "% desta pirâmide"
+  titulo_geral: 14 # título da figura inteira
+  legenda: 8 # discussion / moved to coding / coding
