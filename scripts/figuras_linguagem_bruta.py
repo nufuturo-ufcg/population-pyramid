@@ -246,6 +246,16 @@ class _EstadoMinimoEventosPiramideReal:
     minimo: int = 0
 
 
+class _EstadoEscalaFonteAnosDistintos:
+    """`--escala-fonte-anos-distintos N`, mutável (mesmo padrão das outras
+    `_Estado*`). Controla `escala_fonte` em `gera_grade_anos_distintos`:
+    1.0 (default) reproduz o tamanho de sempre (pensado pro artigo); um
+    valor maior (ex.: 1.5) amplia fonte e figura pra ficar legível
+    projetado num slide."""
+
+    escala: float = 1.0
+
+
 LING = _EstadoLinguagem()
 ESTADO_LINHA_TEMPO_4 = _EstadoLinhaTempo4()
 ESTADO_METRICAS_5ANOS = _EstadoMetricas5Anos()
@@ -254,6 +264,7 @@ ESTADO_BANDA_PIRAMIDE_REAL = _EstadoBandaPiramideReal()
 ESTADO_MATURACAO_PIRAMIDE_REAL = _EstadoMaturacaoPiramideReal()
 ESTADO_AMOSTRA_PEQUENA = _EstadoAmostraPequena()
 ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL = _EstadoMinimoEventosPiramideReal()
+ESTADO_ESCALA_FONTE_ANOS_DISTINTOS = _EstadoEscalaFonteAnosDistintos()
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -3018,7 +3029,9 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = 
     if ESTADO_METRICAS_5ANOS.ativo:
         gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
     gera_piramide_anos_distintos_comparativa(eventos_por_lingua, fim_comum)
-    gera_grade_anos_distintos(eventos_por_lingua)
+    gera_grade_anos_distintos(
+        eventos_por_lingua, escala_fonte=ESTADO_ESCALA_FONTE_ANOS_DISTINTOS.escala
+    )
     gera_geral_idade_morte(eventos_por_lingua)
 
 
@@ -3101,6 +3114,7 @@ def gera_grade_anos_distintos(
     eventos_por_lingua: dict[str, pd.DataFrame],
     anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS,
     frequencia: str = "absoluta",
+    escala_fonte: float = 1.0,
 ) -> None:
     """Evolução da pirâmide de anos-calendário distintos ao longo do tempo,
     as 4 linguagens juntas: uma linha por linguagem, uma coluna por
@@ -3125,7 +3139,14 @@ def gera_grade_anos_distintos(
 
     Título e rótulo não se repetem célula a célula: o ano vira cabeçalho de
     coluna (só na linha de cima) e a linguagem vira rótulo de linha (só na
-    coluna da esquerda), em vez de "Linguagem, Ano" escrito nas 16 células."""
+    coluna da esquerda), em vez de "Linguagem, Ano" escrito nas 16 células.
+
+    `escala_fonte` (default 1.0, sem mudança nenhuma): multiplica todo
+    tamanho de fonte e o tamanho da figura por esse fator. Pedido explícito
+    do usuário: o tamanho pensado pro artigo fica ilegível projetado num
+    slide. Modular via `--escala-fonte-anos-distintos` na CLI
+    (`ESTADO_ESCALA_FONTE_ANOS_DISTINTOS`), nunca hardcoded: 1.0 continua
+    reproduzindo exatamente o tamanho de sempre."""
     if frequencia not in ("absoluta", "relativa"):
         raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     from matplotlib.patches import Patch
@@ -3133,7 +3154,9 @@ def gera_grade_anos_distintos(
     pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
     try:
         fig, eixos = plt.subplots(
-            len(LINGUAGENS), len(anos), figsize=(4.8 * len(anos), 4.8 * len(LINGUAGENS))
+            len(LINGUAGENS),
+            len(anos),
+            figsize=(4.2 * escala_fonte * len(anos), 4.2 * escala_fonte * len(LINGUAGENS)),
         )
         for linha, (slug, linguagem) in enumerate(LINGUAGENS.items()):
             eventos = eventos_por_lingua[slug]
@@ -3160,7 +3183,7 @@ def gera_grade_anos_distintos(
                 eixo = eixos[linha][coluna]
                 tabela = tabelas[ano]
                 if linha == 0:
-                    eixo.set_title(str(ano), fontsize=15)
+                    eixo.set_title(str(ano), fontsize=11 * escala_fonte)
                 if tabela is None or tabela.empty:
                     eixo.axis("off")
                     eixo.text(
@@ -3170,17 +3193,17 @@ def gera_grade_anos_distintos(
                         ha="center",
                         va="center",
                         transform=eixo.transAxes,
-                        fontsize=11,
+                        fontsize=10 * escala_fonte,
                     )
                     continue
                 # ymax=None (default): cada coluna usa o próprio teto, não o da linha.
                 pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
-                eixo.tick_params(axis="both", labelsize=11)
+                eixo.tick_params(axis="both", labelsize=10 * escala_fonte)
                 if linha == len(LINGUAGENS) - 1:
                     rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
-                    eixo.set_xlabel(rotulo_x, fontsize=11)
+                    eixo.set_xlabel(rotulo_x, fontsize=8 * escala_fonte)
                 if coluna == 0:
-                    eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=12)
+                    eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=9 * escala_fonte)
 
         handles = [
             Patch(
@@ -3191,17 +3214,24 @@ def gera_grade_anos_distintos(
             )
             for c in ("non_coding", "moved", "coding")
         ]
-        fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=13)
+        fig.legend(
+            handles=handles,
+            loc="lower center",
+            ncol=3,
+            frameon=False,
+            fontsize=10 * escala_fonte,
+        )
         nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
         fig.suptitle(
             f"Pirâmide (anos-calendário distintos) ao longo do tempo{nota_frequencia}, "
             f"{len(LINGUAGENS)} linguagens",
-            fontsize=18,
+            fontsize=14 * escala_fonte,
         )
         fig.tight_layout(rect=(0, 0.03, 1, 0.96))
         sufixo = "" if frequencia == "absoluta" else "_pct"
+        sufixo_escala = "" if escala_fonte == 1.0 else f"_escala{escala_fonte:g}"
         caminho = _caminho_geral(
-            f"piramides_4_linguagens_anos_distintos_ao_longo_do_tempo{sufixo}.png"
+            f"piramides_4_linguagens_anos_distintos_ao_longo_do_tempo{sufixo}{sufixo_escala}.png"
         )
         fig.savefig(caminho, dpi=200, bbox_inches="tight")
         plt.close(fig)
@@ -3897,7 +3927,11 @@ def _executa_geral_exclude_python() -> None:
         gera_piramide_anos_distintos_comparativa(
             eventos_por_lingua, fim_comum, frequencia="relativa"
         )
-        gera_grade_anos_distintos(eventos_por_lingua, frequencia="relativa")
+        gera_grade_anos_distintos(
+            eventos_por_lingua,
+            frequencia="relativa",
+            escala_fonte=ESTADO_ESCALA_FONTE_ANOS_DISTINTOS.escala,
+        )
         gera_caracterizacao_dados()
 
 
@@ -4007,6 +4041,14 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
         "Default: 0 (desligado, ninguém excluído).",
     )
     ap.add_argument(
+        "--escala-fonte-anos-distintos",
+        type=float,
+        default=1.0,
+        help="multiplica a fonte e o tamanho da figura de "
+        "piramides_4_linguagens_anos_distintos_ao_longo_do_tempo.png. "
+        "Default: 1.0 (tamanho de artigo); use >1 (ex.: 1.5) pra slide.",
+    )
+    ap.add_argument(
         "--comparativa",
         action="store_true",
         help="desenha as 4 pirâmides lado a lado (todas cortadas no mesmo "
@@ -4053,6 +4095,7 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ESTADO_MATURACAO_PIRAMIDE_REAL.meses = args.maturacao_piramide_real_meses
     ESTADO_AMOSTRA_PEQUENA.limiar = args.limiar_amostra_pequena
     ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL.minimo = args.minimo_eventos_piramide_real
+    ESTADO_ESCALA_FONTE_ANOS_DISTINTOS.escala = args.escala_fonte_anos_distintos
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
