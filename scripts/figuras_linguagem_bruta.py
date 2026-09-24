@@ -3133,7 +3133,7 @@ def gera_grade_anos_distintos(
     pl = roda_pipeline(next(iter(eventos_por_lingua.values())), band_months=12)
     try:
         fig, eixos = plt.subplots(
-            len(LINGUAGENS), len(anos), figsize=(4.2 * len(anos), 4.2 * len(LINGUAGENS))
+            len(LINGUAGENS), len(anos), figsize=(4.8 * len(anos), 4.8 * len(LINGUAGENS))
         )
         for linha, (slug, linguagem) in enumerate(LINGUAGENS.items()):
             eventos = eventos_por_lingua[slug]
@@ -3160,20 +3160,27 @@ def gera_grade_anos_distintos(
                 eixo = eixos[linha][coluna]
                 tabela = tabelas[ano]
                 if linha == 0:
-                    eixo.set_title(str(ano), fontsize=11)
+                    eixo.set_title(str(ano), fontsize=15)
                 if tabela is None or tabela.empty:
                     eixo.axis("off")
                     eixo.text(
-                        0.5, 0.5, "sem dado", ha="center", va="center", transform=eixo.transAxes
+                        0.5,
+                        0.5,
+                        "sem dado",
+                        ha="center",
+                        va="center",
+                        transform=eixo.transAxes,
+                        fontsize=11,
                     )
                     continue
                 # ymax=None (default): cada coluna usa o próprio teto, não o da linha.
                 pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
+                eixo.tick_params(axis="both", labelsize=11)
                 if linha == len(LINGUAGENS) - 1:
                     rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
-                    eixo.set_xlabel(rotulo_x, fontsize=8)
+                    eixo.set_xlabel(rotulo_x, fontsize=11)
                 if coluna == 0:
-                    eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=9)
+                    eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=12)
 
         handles = [
             Patch(
@@ -3184,12 +3191,12 @@ def gera_grade_anos_distintos(
             )
             for c in ("non_coding", "moved", "coding")
         ]
-        fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False)
+        fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=13)
         nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
         fig.suptitle(
             f"Pirâmide (anos-calendário distintos) ao longo do tempo{nota_frequencia}, "
             f"{len(LINGUAGENS)} linguagens",
-            fontsize=14,
+            fontsize=18,
         )
         fig.tight_layout(rect=(0, 0.03, 1, 0.96))
         sufixo = "" if frequencia == "absoluta" else "_pct"
