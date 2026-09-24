@@ -116,6 +116,11 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+# Tamanho de fonte default de cada figura que aceita controle por flag, ver
+# scripts/figuras_estilo.yaml (fora de config/, que é só do motor auditado).
+# Editar o número no yaml muda o default sem tocar em código.
+ESTILO = yaml.safe_load((Path(__file__).parent / "figuras_estilo.yaml").read_text())
+
 DAYS_PER_MONTH = 30.4375
 
 # Cada rodada de coleta tem o próprio enum de tipo bruto -> canônico. A rodada
@@ -246,13 +251,20 @@ class _EstadoMinimoEventosPiramideReal:
     minimo: int = 0
 
 
-class _EstadoEscalaFonteAnosDistintos:
-    """`--escala-fonte-anos-distintos N`, mutável (mesmo padrão das outras
-    `_Estado*`). Controla `escala_fonte` em `gera_grade_anos_distintos`:
-    1.0 (default) reproduz o tamanho de sempre (pensado pro artigo); um
-    valor maior (ex.: 1.5) amplia fonte e figura pra ficar legível
-    projetado num slide."""
+class _EstadoFonteAnosDistintos:
+    """Tamanho de fonte de `gera_grade_anos_distintos`, mutável (mesmo
+    padrão das outras `_Estado*`). Cada campo começa com o default de
+    `scripts/figuras_estilo.yaml`; `--fonte-*-anos-distintos` sobrepõe um
+    de cada vez (ajuste pontual, sem editar o yaml); `--escala-fonte-
+    anos-distintos` (default 1.0) multiplica todos por cima, pra um
+    ajuste rápido tipo slide sem redefinir os 6 números um por um."""
 
+    titulo_coluna: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["titulo_coluna"]
+    tick: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["tick"]
+    rotulo_x: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["rotulo_x"]
+    rotulo_y: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["rotulo_y"]
+    titulo_geral: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["titulo_geral"]
+    legenda: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["legenda"]
     escala: float = 1.0
 
 
@@ -264,7 +276,26 @@ ESTADO_BANDA_PIRAMIDE_REAL = _EstadoBandaPiramideReal()
 ESTADO_MATURACAO_PIRAMIDE_REAL = _EstadoMaturacaoPiramideReal()
 ESTADO_AMOSTRA_PEQUENA = _EstadoAmostraPequena()
 ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL = _EstadoMinimoEventosPiramideReal()
-ESTADO_ESCALA_FONTE_ANOS_DISTINTOS = _EstadoEscalaFonteAnosDistintos()
+ESTADO_FONTE_ANOS_DISTINTOS = _EstadoFonteAnosDistintos()
+
+
+def _kwargs_fonte_anos_distintos() -> dict[str, float]:
+    """Os 7 argumentos de fonte de `gera_grade_anos_distintos`, lidos de
+    `ESTADO_FONTE_ANOS_DISTINTOS`: evita repetir os mesmos 7 nomes nos 2
+    lugares que chamam essa função (dentro de `gera_piramide_comparativa`
+    e em `_executa_geral_exclude_python`)."""
+    estado = ESTADO_FONTE_ANOS_DISTINTOS
+    return {
+        "fonte_titulo_coluna": estado.titulo_coluna,
+        "fonte_tick": estado.tick,
+        "fonte_rotulo_x": estado.rotulo_x,
+        "fonte_rotulo_y": estado.rotulo_y,
+        "fonte_titulo_geral": estado.titulo_geral,
+        "fonte_legenda": estado.legenda,
+        "escala_fonte": estado.escala,
+    }
+
+
 LING.aplica(os.environ.get("LINGUAGEM", "clojure"))
 
 # Pasta temporária única do projeto, não do dataset: cada linguagem tem a
@@ -3029,9 +3060,7 @@ def gera_piramide_comparativa(minimo_eventos_totais: int = 0, frequencia: str = 
     if ESTADO_METRICAS_5ANOS.ativo:
         gera_comparacao_metricas_linguagens(eventos_por_lingua, janela_anos=5)
     gera_piramide_anos_distintos_comparativa(eventos_por_lingua, fim_comum)
-    gera_grade_anos_distintos(
-        eventos_por_lingua, escala_fonte=ESTADO_ESCALA_FONTE_ANOS_DISTINTOS.escala
-    )
+    gera_grade_anos_distintos(eventos_por_lingua, **_kwargs_fonte_anos_distintos())
     gera_geral_idade_morte(eventos_por_lingua)
 
 
@@ -3114,6 +3143,12 @@ def gera_grade_anos_distintos(
     eventos_por_lingua: dict[str, pd.DataFrame],
     anos: tuple[int, ...] = ANOS_GRADE_ANOS_DISTINTOS,
     frequencia: str = "absoluta",
+    fonte_titulo_coluna: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["titulo_coluna"],
+    fonte_tick: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["tick"],
+    fonte_rotulo_x: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["rotulo_x"],
+    fonte_rotulo_y: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["rotulo_y"],
+    fonte_titulo_geral: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["titulo_geral"],
+    fonte_legenda: float = ESTILO["anos_distintos_ao_longo_do_tempo"]["legenda"],
     escala_fonte: float = 1.0,
 ) -> None:
     """Evolução da pirâmide de anos-calendário distintos ao longo do tempo,
@@ -3141,12 +3176,15 @@ def gera_grade_anos_distintos(
     coluna (só na linha de cima) e a linguagem vira rótulo de linha (só na
     coluna da esquerda), em vez de "Linguagem, Ano" escrito nas 16 células.
 
-    `escala_fonte` (default 1.0, sem mudança nenhuma): multiplica todo
-    tamanho de fonte e o tamanho da figura por esse fator. Pedido explícito
-    do usuário: o tamanho pensado pro artigo fica ilegível projetado num
-    slide. Modular via `--escala-fonte-anos-distintos` na CLI
-    (`ESTADO_ESCALA_FONTE_ANOS_DISTINTOS`), nunca hardcoded: 1.0 continua
-    reproduzindo exatamente o tamanho de sempre."""
+    `fonte_*`: tamanho (pontos) de cada elemento visual, default lido de
+    `scripts/figuras_estilo.yaml` (editar o número lá muda o default sem
+    tocar em código). Cada um também vira flag de CLI própria
+    (`--fonte-titulo-coluna-anos-distintos` etc.), pra ajuste pontual numa
+    execução sem editar o yaml. `escala_fonte` (default 1.0) multiplica o
+    resultado de TODOS por cima (yaml ou flag, o que valer): pedido
+    explícito do usuário pra um ajuste rápido tipo slide sem redefinir os
+    6 números um por um. O tamanho de figura também escala com
+    `escala_fonte`, pra manter a proporção fonte/painel."""
     if frequencia not in ("absoluta", "relativa"):
         raise ValueError(f"frequencia inválida: {frequencia!r} (use 'absoluta' ou 'relativa')")
     from matplotlib.patches import Patch
@@ -3183,7 +3221,7 @@ def gera_grade_anos_distintos(
                 eixo = eixos[linha][coluna]
                 tabela = tabelas[ano]
                 if linha == 0:
-                    eixo.set_title(str(ano), fontsize=11 * escala_fonte)
+                    eixo.set_title(str(ano), fontsize=fonte_titulo_coluna * escala_fonte)
                 if tabela is None or tabela.empty:
                     eixo.axis("off")
                     eixo.text(
@@ -3193,17 +3231,19 @@ def gera_grade_anos_distintos(
                         ha="center",
                         va="center",
                         transform=eixo.transAxes,
-                        fontsize=10 * escala_fonte,
+                        fontsize=fonte_tick * escala_fonte,
                     )
                     continue
                 # ymax=None (default): cada coluna usa o próprio teto, não o da linha.
                 pl.plots.draw_pyramid(eixo, tabela.astype({"band": int}), xmax=xmax)
-                eixo.tick_params(axis="both", labelsize=10 * escala_fonte)
+                eixo.tick_params(axis="both", labelsize=fonte_tick * escala_fonte)
                 if linha == len(LINGUAGENS) - 1:
                     rotulo_x = "contribuidores" if frequencia == "absoluta" else "% desta pirâmide"
-                    eixo.set_xlabel(rotulo_x, fontsize=8 * escala_fonte)
+                    eixo.set_xlabel(rotulo_x, fontsize=fonte_rotulo_x * escala_fonte)
                 if coluna == 0:
-                    eixo.set_ylabel(f"{linguagem.nome}\nanos distintos", fontsize=9 * escala_fonte)
+                    eixo.set_ylabel(
+                        f"{linguagem.nome}\nanos distintos", fontsize=fonte_rotulo_y * escala_fonte
+                    )
 
         handles = [
             Patch(
@@ -3219,13 +3259,13 @@ def gera_grade_anos_distintos(
             loc="lower center",
             ncol=3,
             frameon=False,
-            fontsize=10 * escala_fonte,
+            fontsize=fonte_legenda * escala_fonte,
         )
         nota_frequencia = "" if frequencia == "absoluta" else ", frequência relativa (%)"
         fig.suptitle(
             f"Pirâmide (anos-calendário distintos) ao longo do tempo{nota_frequencia}, "
             f"{len(LINGUAGENS)} linguagens",
-            fontsize=14 * escala_fonte,
+            fontsize=fonte_titulo_geral * escala_fonte,
         )
         fig.tight_layout(rect=(0, 0.03, 1, 0.96))
         sufixo = "" if frequencia == "absoluta" else "_pct"
@@ -3928,9 +3968,7 @@ def _executa_geral_exclude_python() -> None:
             eventos_por_lingua, fim_comum, frequencia="relativa"
         )
         gera_grade_anos_distintos(
-            eventos_por_lingua,
-            frequencia="relativa",
-            escala_fonte=ESTADO_ESCALA_FONTE_ANOS_DISTINTOS.escala,
+            eventos_por_lingua, frequencia="relativa", **_kwargs_fonte_anos_distintos()
         )
         gera_caracterizacao_dados()
 
@@ -4041,12 +4079,56 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
         "Default: 0 (desligado, ninguém excluído).",
     )
     ap.add_argument(
+        "--fonte-titulo-coluna-anos-distintos",
+        type=float,
+        default=ESTADO_FONTE_ANOS_DISTINTOS.titulo_coluna,
+        help="tamanho (pontos) do ano no topo de cada coluna, na grade de "
+        "anos-distintos ao longo do tempo. Default vem de "
+        "scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-tick-anos-distintos",
+        type=float,
+        default=ESTADO_FONTE_ANOS_DISTINTOS.tick,
+        help="tamanho dos números dos eixos, na mesma figura. Default vem "
+        "de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-rotulo-x-anos-distintos",
+        type=float,
+        default=ESTADO_FONTE_ANOS_DISTINTOS.rotulo_x,
+        help='tamanho do rótulo "contribuidores"/"% desta pirâmide", na '
+        "mesma figura. Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-rotulo-y-anos-distintos",
+        type=float,
+        default=ESTADO_FONTE_ANOS_DISTINTOS.rotulo_y,
+        help="tamanho do rótulo de linguagem no eixo y, na mesma figura. "
+        "Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-titulo-geral-anos-distintos",
+        type=float,
+        default=ESTADO_FONTE_ANOS_DISTINTOS.titulo_geral,
+        help="tamanho do título da figura inteira, na mesma figura. "
+        "Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
+        "--fonte-legenda-anos-distintos",
+        type=float,
+        default=ESTADO_FONTE_ANOS_DISTINTOS.legenda,
+        help="tamanho da legenda (discussion/moved to coding/coding), na "
+        "mesma figura. Default vem de scripts/figuras_estilo.yaml.",
+    )
+    ap.add_argument(
         "--escala-fonte-anos-distintos",
         type=float,
         default=1.0,
-        help="multiplica a fonte e o tamanho da figura de "
-        "piramides_4_linguagens_anos_distintos_ao_longo_do_tempo.png. "
-        "Default: 1.0 (tamanho de artigo); use >1 (ex.: 1.5) pra slide.",
+        help="multiplica TODOS os 6 tamanhos de fonte acima (e o tamanho "
+        "da figura) de uma vez, por cima do que estiver valendo (yaml ou "
+        "flag). Default: 1.0 (sem mudança); use >1 (ex.: 1.5) pra slide, "
+        "sem precisar redefinir os 6 números um por um.",
     )
     ap.add_argument(
         "--comparativa",
@@ -4095,7 +4177,13 @@ def main() -> None:  # noqa: PLR0915 (dispatcher de CLI, um add_argument por fla
     ESTADO_MATURACAO_PIRAMIDE_REAL.meses = args.maturacao_piramide_real_meses
     ESTADO_AMOSTRA_PEQUENA.limiar = args.limiar_amostra_pequena
     ESTADO_MINIMO_EVENTOS_PIRAMIDE_REAL.minimo = args.minimo_eventos_piramide_real
-    ESTADO_ESCALA_FONTE_ANOS_DISTINTOS.escala = args.escala_fonte_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.titulo_coluna = args.fonte_titulo_coluna_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.tick = args.fonte_tick_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.rotulo_x = args.fonte_rotulo_x_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.rotulo_y = args.fonte_rotulo_y_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.titulo_geral = args.fonte_titulo_geral_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.legenda = args.fonte_legenda_anos_distintos
+    ESTADO_FONTE_ANOS_DISTINTOS.escala = args.escala_fonte_anos_distintos
     modos_sem_linguagem = {
         "backtest_geral": gera_geral_backtest_evolucao,
         "geral": _executa_geral,
