@@ -1470,6 +1470,25 @@ def gera_piramide_idade_morte_recente(eventos: pd.DataFrame) -> None:
     )
 
 
+def _xmax_compartilhado(tabelas: list[pd.DataFrame]) -> float:
+    """Limite do eixo X pra um conjunto de painéis de pirâmide que vão
+    compartilhar a mesma escala. `draw_pyramid` desenha `non_coding` pra
+    esquerda do zero e `moved`+`coding` pra direita: são dois lados opostos,
+    nunca a mesma barra. O limite tem que ser o maior lado sozinho, não a
+    soma dos dois, senão nenhuma barra alcança o número que o eixo promete
+    (bug encontrado numa das chamadas, corrigido aqui pras 4)."""
+    maior_esquerda = 0.0
+    maior_direita = 0.0
+    for tabela in tabelas:
+        if tabela is None or tabela.empty:
+            continue
+        esquerda = tabela["non_coding"].max()
+        direita = (tabela["moved"] + tabela["coding"]).max()
+        maior_esquerda = max(maior_esquerda, esquerda)
+        maior_direita = max(maior_direita, direita)
+    return max(maior_esquerda, maior_direita, 1.0)
+
+
 def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
     """`gera_piramide_idade_morte` ao longo do tempo: um painel por
     ano-snapshot (`ANOS_GRADE_ANOS_DISTINTOS`), cada um só com quem já tinha
@@ -1498,7 +1517,7 @@ def gera_piramide_idade_morte_evolucao(eventos: pd.DataFrame) -> None:
             file=sys.stderr,
         )
         return
-    xmax = max(t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas)
+    xmax = _xmax_compartilhado(validas)
 
     pl = roda_pipeline(eventos, band_months=12)
     try:
@@ -1632,7 +1651,7 @@ def _monta_linha_tempo(
         return None
 
     vivos = [quadros[d] for d in datas]
-    xmax = max(max(f["non_coding"].max(), (f["moved"] + f["coding"]).max()) for f in vivos)
+    xmax = _xmax_compartilhado(vivos)
     ymax = max(int(f["band"].max()) for f in vivos)
     fig, axes = plt.subplots(1, len(datas), figsize=(3.0 * len(datas), 4.2), squeeze=False)
     for j, d in enumerate(datas):
@@ -3214,8 +3233,7 @@ def gera_grade_anos_distintos(
                     tabela = _normaliza_frame_pct(tabela)
                 tabelas[ano] = tabela
             validas = [t for t in tabelas.values() if t is not None and len(t)]
-            somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
-            xmax = max(somas, default=1.0)
+            xmax = _xmax_compartilhado(validas)
 
             for coluna, ano in enumerate(anos):
                 eixo = eixos[linha][coluna]
@@ -3465,8 +3483,7 @@ def gera_grade_piramide_real_anos(
         plots_mod = plots_mod_linha or plots_mod
 
         validas = [t for t in quadros.values() if t is not None and len(t)]
-        somas = [t[["non_coding", "moved", "coding"]].sum(axis=1).max() for t in validas]
-        xmax = max(somas, default=1.0)
+        xmax = _xmax_compartilhado(validas)
 
         for coluna, ano in enumerate(anos):
             eixo = matriz[linha][coluna]
