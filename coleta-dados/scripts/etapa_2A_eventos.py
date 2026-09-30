@@ -423,6 +423,8 @@ def main():
     input_csv = common.input_csv_path(data_dir, language)
     output_csv = data_dir / "eventos_api.csv"
     progress_file = data_dir / "reports" / "etapa_2A_progresso.json"
+    common.dead_tokens_file = data_dir / "reports" / "tokens_mortos.txt"
+    common.dead_tokens_file.write_text("")
 
     if not input_csv.exists():
         print(f"CSV de entrada não encontrado: {input_csv}")

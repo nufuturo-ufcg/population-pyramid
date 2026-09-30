@@ -157,6 +157,40 @@ def _init_worker_session():
     _thread_local.session = None  # força get_thread_session() a reconstruir
 
 
+# Token revogado ou expirado (401 "Bad credentials"): sem tratamento, a thread
+# dona dele transforma cada repositório da fila em erro em ~2s (já aconteceu:
+# ~4 mil repositórios queimados em 3h). Aqui o token é aposentado e a thread
+# passa a usar um token vivo; o repositório em andamento segue normal.
+_dead_tokens = set()
+# etapa_2A aponta pra reports/tokens_mortos.txt; o bot do Slack lê esse arquivo
+# (uma linha por token aposentado na execução atual) pra avisar.
+dead_tokens_file = None
+
+
+def _retire_assigned_token():
+    """Aposenta o token da thread atual e dá a ela um token vivo.
+
+    Devolve True se trocou (a requisição pode ser repetida), False se não
+    sobrou nenhum token vivo.
+    """
+    dead = _thread_local.assigned_token
+    with _token_assignment_lock:
+        if dead not in _dead_tokens:
+            _dead_tokens.add(dead)
+            log(f"TOKEN MORTO: ...{dead[-4:]} retornou 401 (Bad credentials), aposentado.")
+            if dead_tokens_file is not None:
+                with dead_tokens_file.open("a", encoding="utf-8") as f:
+                    f.write(f"...{dead[-4:]}\n")
+
+        for _ in range(token_pool.count):
+            candidate = next(_token_cycle)
+            if candidate not in _dead_tokens:
+                _thread_local.assigned_token = candidate
+                _thread_local.session = None  # get_thread_session() reconstrói
+                return True
+    return False
+
+
 def get_thread_session():
     """Devolve a requests.Session da thread atual, criando-a sob demanda.
 
@@ -421,6 +455,14 @@ def get_response_with_retry(url, params=None, max_retries=5):
 
             if response.status_code == 404:
                 return None
+
+            if (
+                response.status_code == 401
+                and has_dedicated_token
+                and "Bad credentials" in response.text
+                and _retire_assigned_token()
+            ):
+                continue
 
             if response.status_code == 202:
                 time.sleep(min(2 * attempt, 10))
