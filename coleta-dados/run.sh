@@ -28,7 +28,15 @@ mkdir -p "$RUN_DIR/reports"
 
 # /tmp e tmpfs pequeno (3.7G, com quota) e os clones bare do etapa_2B
 # esgotam a quota com paralelismo. /mnt/data e disco real de 200G.
-export TMPDIR=/mnt/data/tmp/etapa2-git
+# No batuta nao existe /mnt/data e o /tmp (2,7G) e compartilhado com outros
+# usuarios: os clones enchiam ele. Ali usa uma pasta so deste usuario.
+if [ -d /mnt/data ]; then
+    TMPDIR=/mnt/data/tmp/etapa2-git
+else
+    TMPDIR="$HOME/tmp-etapa2"
+fi
+mkdir -p "$TMPDIR"
+export TMPDIR
 
 source "$SCRIPT_DIR/venv/bin/activate"
 

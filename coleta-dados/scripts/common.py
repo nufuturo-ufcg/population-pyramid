@@ -941,6 +941,23 @@ def collect_repositories(repositories, repo_status, writer, output_file,
                 break
 
 
+def _prioritize_dead_token_errors(pending, repo_status):
+    """Poe na frente da fila os repositorios cujo erro anterior foi 401 (token
+    morto). Eles falharam sem culpa do repositorio; os outros erros persistentes
+    gastam muita cota de API antes de falhar de novo e atrasariam esses.
+    A ordem relativa dentro de cada grupo e mantida.
+    """
+    dead_token_first = []
+    others = []
+    for item in pending:
+        previous_error = repo_status.get(str(item[1]["repo_id"]), {}).get("error", "")
+        if "retornou 401" in previous_error:
+            dead_token_first.append(item)
+        else:
+            others.append(item)
+    return dead_token_first + others
+
+
 def collect_repositories_threaded(repositories, repo_status, writer, output_file,
                                   collection_started_at, process_repo_fn, print_counts_fn,
                                   progress_file, max_workers, limit=None,
@@ -973,6 +990,8 @@ def collect_repositories_threaded(repositories, repo_status, writer, output_file
         for index, repo_info in enumerate(repositories, start=1)
         if repo_status.get(str(repo_info["repo_id"]), {}).get("status") != "complete"
     ]
+
+    pending = _prioritize_dead_token_errors(pending, repo_status)
 
     if limit is not None:
         pending = pending[:limit]
