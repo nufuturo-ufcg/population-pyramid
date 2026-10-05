@@ -369,7 +369,12 @@ def run_git(args, cwd=None, timeout=300):
         result = subprocess.run(
             ["git", *args],
             cwd=cwd,
-            text=True,
+            # Mensagem de commit e nome de autor podem vir em outra codificação
+            # (latin-1, cp1252...). Com decodificação estrita um byte inválido
+            # derrubava o repositório inteiro com UnicodeDecodeError; agora vira
+            # U+FFFD e o resto do histórico é coletado.
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
             timeout=timeout,
