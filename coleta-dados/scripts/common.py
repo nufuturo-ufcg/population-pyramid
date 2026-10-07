@@ -440,6 +440,35 @@ def _wait_for_rate_limit(response: requests.Response) -> bool:
     return True
 
 
+# Cota que cada token deixa livre para o dono usar a própria conta: o limite da
+# API vale por conta (5000 por hora), então ao chegar em 1% do limite (50 de
+# 5000) a thread espera a janela resetar em vez de gastar até zero.
+RATE_LIMIT_RESERVE_FRACTION = 0.01
+
+
+def _wait_if_quota_reserve_reached(response):
+    """Espera o reset da janela quando o token chegou na reserva do dono.
+
+    A mensagem começa igual à de rate limit de propósito: o bot do Slack conta
+    essa espera como atividade e não como travamento.
+    """
+    try:
+        remaining = int(response.headers.get("X-RateLimit-Remaining"))
+        limit = int(response.headers.get("X-RateLimit-Limit"))
+        reset = float(response.headers.get("X-RateLimit-Reset"))
+    except (TypeError, ValueError):
+        return
+    reserve = max(int(limit * RATE_LIMIT_RESERVE_FRACTION), 1)
+    if remaining > reserve:
+        return
+    sleep_time = max(reset - time.time(), 0.0) + 1.0
+    print(
+        f"Rate limit atingido. Aguardando {sleep_time:.1f}s... "
+        f"(reserva de {reserve} requisições mantida livre para o dono do token)"
+    )
+    time.sleep(sleep_time)
+
+
 def get_response_with_retry(url, params=None, max_retries=5):
     global api_calls
     last_error = None
@@ -455,10 +484,16 @@ def get_response_with_retry(url, params=None, max_retries=5):
             with _api_calls_lock:
                 api_calls += 1
 
+            # ponytail: reserva só nas threads com token dedicado (o caminho
+            # sequencial rotaciona token e não é usado nos runs de produção).
             if response.status_code == 200:
+                if has_dedicated_token:
+                    _wait_if_quota_reserve_reached(response)
                 return response
 
             if response.status_code == 404:
+                if has_dedicated_token:
+                    _wait_if_quota_reserve_reached(response)
                 return None
 
             if (
