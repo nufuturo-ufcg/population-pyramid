@@ -21,8 +21,13 @@ import json
 import os
 import subprocess
 import sys
+import glob
+import shutil
+import tempfile
+import weakref
 import threading
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
@@ -712,6 +717,62 @@ def input_csv_path(run_dir, language):
     return run_dir / f"repositorios_{language}_alvo.csv"
 
 
+# linhas de um repositório em disco
+
+def _remove_quietly(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+class RowSpool:
+    """Linhas de um repositório gravadas em disco à medida que chegam.
+
+    Repositório gigante (pandas: dezenas de milhares de PRs e centenas de mil
+    comentários e eventos) estourava a RAM quando todas as linhas ficavam em
+    listas até o fim: a VM2, com 7,4 GB e sem swap, foi morta pelo kernel 13
+    vezes em 24 h. Aqui cada linha vai para um arquivo temporário no mesmo
+    formato do CSV final (mesmo DictWriter e mesmo delimitador), e o conteúdo é
+    copiado byte a byte para o CSV de saída, então o resultado é idêntico ao de
+    quando as linhas ficavam numa lista.
+
+    O arquivo some sozinho quando o objeto é descartado (weakref.finalize).
+    """
+
+    def __init__(self, fieldnames, delimiter="|"):
+        self.counts = Counter()
+        handle, self.path = tempfile.mkstemp(prefix=f"spool2a_{os.getpid()}_", suffix=".csv")
+        os.close(handle)
+        self._file = open(self.path, "w", newline="", encoding="utf-8")
+        self._writer = csv.DictWriter(self._file, fieldnames=fieldnames, delimiter=delimiter)
+        self._finalizer = weakref.finalize(self, _remove_quietly, self.path)
+
+    def extend(self, rows):
+        for row in rows:
+            self._writer.writerow(row)
+            self.counts[row["event_type"]] += 1
+
+    def close(self):
+        self._file.close()
+
+    def discard(self):
+        self._file.close()
+        self._finalizer()
+
+    def copy_to(self, destination):
+        with open(self.path, newline="", encoding="utf-8") as source:
+            shutil.copyfileobj(source, destination)
+
+
+def remove_orphan_spools():
+    """Apaga spools de execuções que morreram (kill, queda) sem limpar."""
+    for path in glob.glob(os.path.join(tempfile.gettempdir(), "spool2a_*_*.csv")):
+        pid = os.path.basename(path).split("_")[1]
+        if pid.isdigit() and not os.path.exists(f"/proc/{pid}"):
+            _remove_quietly(path)
+
+
 # controle do progresso
 
 def load_progress(progress_file):
@@ -931,8 +992,11 @@ def _process_single_repo(index, total, repo_info, repo_status, writer, output_fi
     # writer/output_file/repo_status são compartilhados entre threads em
     # collect_repositories_threaded; serializa a gravação do lote do repositório.
     with _io_lock:
-        for row in rows:
-            writer.writerow(row)
+        if hasattr(rows, "copy_to"):
+            rows.copy_to(output_file)
+        else:
+            for row in rows:
+                writer.writerow(row)
 
         # Persiste o lote inteiro do repositório antes de marcá-lo complete.
         output_file.flush()

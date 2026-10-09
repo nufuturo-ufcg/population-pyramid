@@ -187,6 +187,9 @@ def normalize_issue_event(repo_id, repo_name, event, lang, collection_started_at
 
 
 # coletores
+#
+# Cada coletor é um gerador: devolve as linhas uma a uma para process_repo
+# gravar em disco (common.RowSpool), sem manter o repositório inteiro na RAM.
 
 def collect_issues(repo_id, repo_name, owner, repo, collection_started_at):
     """
@@ -196,7 +199,6 @@ def collect_issues(repo_id, repo_name, owner, repo, collection_started_at):
     são descartados aqui porque PR é outro tipo de evento.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/issues"
-    rows = []
 
     for item in common.get_paginated(
         url,
@@ -207,9 +209,7 @@ def collect_issues(repo_id, repo_name, owner, repo, collection_started_at):
         },
     ):
         if "pull_request" not in item:
-            rows.append(normalize_issue(repo_id, repo_name, item, collection_started_at))
-
-    return rows
+            yield normalize_issue(repo_id, repo_name, item, collection_started_at)
 
 
 def collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language):
@@ -220,7 +220,6 @@ def collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language
     Apenas PRs com ao menos um arquivo da linguagem são incluídos.
     """
     prs_url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
-    rows = []
 
     for pr in common.get_paginated(
         prs_url,
@@ -248,17 +247,13 @@ def collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language
                 has_target = True
 
         if has_target:
-            rows.append(
-                normalize_pr(
-                    repo_id=repo_id,
-                    repo_name=repo_name,
-                    pr=pr,
-                    pr_files=all_files,
-                    collection_started_at=collection_started_at,
-                )
+            yield normalize_pr(
+                repo_id=repo_id,
+                repo_name=repo_name,
+                pr=pr,
+                pr_files=all_files,
+                collection_started_at=collection_started_at,
             )
-
-    return rows
 
 
 def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at, language):
@@ -270,7 +265,6 @@ def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_
     determina a linguagem do evento.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/comments"
-    rows = []
     count = 0
 
     for item in common.get_paginated(url):
@@ -278,9 +272,7 @@ def collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_
         if count == 1 or count % 500 == 0:
             common.log(f"    Commit comments: {count}...")
         lang = common.language_from_path(item.get("path") or "", language)
-        rows.append(normalize_commit_comment(repo_id, repo_name, item, lang, collection_started_at))
-
-    return rows
+        yield normalize_commit_comment(repo_id, repo_name, item, lang, collection_started_at)
 
 
 def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, language):
@@ -292,7 +284,6 @@ def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, 
     determina a linguagem do evento.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments"
-    rows = []
     count = 0
 
     for item in common.get_paginated(url):
@@ -300,9 +291,7 @@ def collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, 
         if count == 1 or count % 500 == 0:
             common.log(f"    PR comments: {count}...")
         lang = common.language_from_path(item.get("path") or "", language)
-        rows.append(normalize_pr_comment(repo_id, repo_name, item, lang, collection_started_at))
-
-    return rows
+        yield normalize_pr_comment(repo_id, repo_name, item, lang, collection_started_at)
 
 
 def collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, collection_started_at):
@@ -314,16 +303,13 @@ def collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, colle
     repositório.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/comments"
-    rows = []
     count = 0
 
     for item in common.get_paginated(url):
         count += 1
         if count == 1 or count % 500 == 0:
             common.log(f"    Issue comments: {count}...")
-        rows.append(normalize_issue_comment(repo_id, repo_name, item, repo_language, collection_started_at))
-
-    return rows
+        yield normalize_issue_comment(repo_id, repo_name, item, repo_language, collection_started_at)
 
 
 def collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collection_started_at):
@@ -336,16 +322,13 @@ def collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collect
     repositório.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/events"
-    rows = []
     count = 0
 
     for item in common.get_paginated(url):
         count += 1
         if count == 1 or count % 500 == 0:
             common.log(f"    Issue events: {count}...")
-        rows.append(normalize_issue_event(repo_id, repo_name, item, repo_language, collection_started_at))
-
-    return rows
+        yield normalize_issue_event(repo_id, repo_name, item, repo_language, collection_started_at)
 
 
 # orquestração
@@ -361,41 +344,44 @@ def process_repo(repo_id, repo_name, branch, collection_started_at, language):
         collect_pr_comments()
         collect_issue_comments()
         collect_issue_events()
+
+    Devolve um common.RowSpool com as linhas já em disco, na mesma ordem de
+    antes (issues, PRs, comentários de commit, de PR, de issue e eventos).
+    Se um coletor falha, o spool é descartado e nenhuma linha é gravada.
     """
     owner, repo = repo_name.split("/", 1)
 
     repo_language = common.get_repo_language(owner, repo)
 
-    common.log("  Coletando issues...")
-    issue_rows = collect_issues(repo_id, repo_name, owner, repo, collection_started_at)
+    spool = common.RowSpool(common.OUTPUT_FIELDS)
+    try:
+        common.log("  Coletando issues...")
+        spool.extend(collect_issues(repo_id, repo_name, owner, repo, collection_started_at))
 
-    common.log(f"  Coletando PRs que tocam {language}...")
-    pr_rows = collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language)
+        common.log(f"  Coletando PRs que tocam {language}...")
+        spool.extend(collect_prs(repo_id, repo_name, owner, repo, collection_started_at, language))
 
-    common.log("  Coletando commit comments...")
-    commit_comment_rows = collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at, language)
+        common.log("  Coletando commit comments...")
+        spool.extend(collect_commit_comments(repo_id, repo_name, owner, repo, collection_started_at, language))
 
-    common.log("  Coletando PR comments...")
-    pr_comment_rows = collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, language)
+        common.log("  Coletando PR comments...")
+        spool.extend(collect_pr_comments(repo_id, repo_name, owner, repo, collection_started_at, language))
 
-    common.log("  Coletando issue comments...")
-    issue_comment_rows = collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, collection_started_at)
+        common.log("  Coletando issue comments...")
+        spool.extend(collect_issue_comments(repo_id, repo_name, owner, repo, repo_language, collection_started_at))
 
-    common.log("  Coletando issue events...")
-    issue_event_rows = collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collection_started_at)
+        common.log("  Coletando issue events...")
+        spool.extend(collect_issue_events(repo_id, repo_name, owner, repo, repo_language, collection_started_at))
+    except BaseException:
+        spool.discard()
+        raise
 
-    return (
-        issue_rows
-        + pr_rows
-        + commit_comment_rows
-        + pr_comment_rows
-        + issue_comment_rows
-        + issue_event_rows
-    )
+    spool.close()
+    return spool
 
 
 def print_repo_event_counts(rows):
-    counts = Counter(row["event_type"] for row in rows)
+    counts = rows.counts if hasattr(rows, "counts") else Counter(row["event_type"] for row in rows)
     common.log(
         f"  Concluído: {counts['issue']} issues, "
         f"{counts['pr']} PRs, "
@@ -418,6 +404,7 @@ def main():
 
     limit = common.parse_limit(sys.argv[1:])
     common.warn_if_github_token_missing()
+    common.remove_orphan_spools()
 
     data_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
     input_csv = common.input_csv_path(data_dir, language)
