@@ -25,6 +25,7 @@ import glob
 import shutil
 import tempfile
 import weakref
+import re
 import threading
 import time
 from collections import Counter
@@ -1045,21 +1046,32 @@ def collect_repositories(repositories, repo_status, writer, output_file,
                 break
 
 
+_PERMANENT_ERROR = re.compile(r"retornou (422|403|451)")
+
+
 def _prioritize_dead_token_errors(pending, repo_status):
-    """Poe na frente da fila os repositorios cujo erro anterior foi 401 (token
-    morto). Eles falharam sem culpa do repositorio; os outros erros persistentes
-    gastam muita cota de API antes de falhar de novo e atrasariam esses.
-    A ordem relativa dentro de cada grupo e mantida.
+    """Ordena a fila de pendentes em três grupos, mantendo a ordem dentro de cada um.
+
+    1. Erro anterior 401 (token morto): falharam sem culpa do repositório.
+    2. Todo o resto: nunca tentados e erros transitórios.
+    3. Erro permanente (422, 403, 451: diff grande demais, bloqueio): por último.
+       Cada retentativa percorre os PRs, gasta centenas a milhares de chamadas e
+       falha no mesmo ponto (só ~0,6% voltou a funcionar numa passada completa),
+       e a cada restart elas eram refeitas antes do trabalho útil. No fim da fila
+       continuam sendo retentadas uma vez, então nada deixa de ser tentado.
     """
     dead_token_first = []
     others = []
+    permanent_last = []
     for item in pending:
         previous_error = repo_status.get(str(item[1]["repo_id"]), {}).get("error", "")
         if "retornou 401" in previous_error:
             dead_token_first.append(item)
+        elif _PERMANENT_ERROR.search(previous_error):
+            permanent_last.append(item)
         else:
             others.append(item)
-    return dead_token_first + others
+    return dead_token_first + others + permanent_last
 
 
 def collect_repositories_threaded(repositories, repo_status, writer, output_file,

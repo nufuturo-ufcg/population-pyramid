@@ -68,7 +68,19 @@ def test_fila_poe_erro_401_na_frente():
     }
     pending = [(i, {"repo_id": i}) for i in (1, 2, 3, 4)]
     ordered = common._prioritize_dead_token_errors(pending, repo_status)
-    assert [item[0] for item in ordered] == [2, 4, 1, 3]
+    # 401 na frente (2, 4), nunca tentado no meio (3), erro permanente 422 por último (1)
+    assert [item[0] for item in ordered] == [2, 4, 3, 1]
+
+    repo_status = {
+        "1": {"status": "error", "error": "Token ...x retornou 403 para u"},
+        "2": {"status": "error", "error": "Token ...x retornou 451 para u"},
+        "3": {"status": "error", "error": "git clone: timeout"},  # transitório: não vai para o fim
+        "4": {},
+        "5": {"status": "error", "error": "Token ...x retornou 401 para u"},
+    }
+    pending = [(i, {"repo_id": i}) for i in (1, 2, 3, 4, 5)]
+    ordered = common._prioritize_dead_token_errors(pending, repo_status)
+    assert [item[0] for item in ordered] == [5, 3, 4, 1, 2]
 
 
 if __name__ == "__main__":
