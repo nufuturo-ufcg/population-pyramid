@@ -77,3 +77,10 @@ piramide_em_pct: true
 # Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
 ano_comparacao: 2024
 ano_base_indice: 2019
+
+# Saída é definitiva: a última contribuição da vida, seguida de 12 meses sem nada até o fim da
+# coleta. Quem parou há pouco ainda pode voltar, então a saída dos últimos anos é provisória
+# (em todas as linguagens, 3/4 das pausas terminam em até 3 anos). Os gráficos de saída,
+# mortalidade e crescimento só mostram os anos com pelo menos `carencia_anos` de coleta depois.
+# 1 mostra tudo o que a regra de 12 meses já decide.
+carencia_anos: 3

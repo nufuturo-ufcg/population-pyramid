@@ -76,6 +76,11 @@ CHAVES_DE_ESTILO = {
 }
 
 
+def _ate_o_ano_decidido(ctx: Any) -> int:
+    """Último ano com saída confiável: o da coleta menos `carencia_anos`."""
+    return int(ctx.fim.year - ctx.p.carencia_anos)
+
+
 def _nome() -> str:
     """Nome da linguagem atual, com a população se não for a de todos."""
     return fb.LING.atual.nome + ESTADO.sufixo
@@ -366,12 +371,20 @@ def figura_anual(ctx: Any, d: Dados) -> None:
     series = [
         ("ativos", "ativos"),
         ("novatos", "novatos"),
-        ("saidas", "saídas"),
+        ("saidas", "saídas definitivas"),
         ("voltas", "voltas"),
     ]
+    decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     for (coluna, rotulo), cor in zip(series, categorica(), strict=False):
+        base = decidido if coluna == "saidas" else t
         ax1.plot(
-            t["ano"], t[coluna], color=cor, linewidth=2, marker="o", markersize=4, label=rotulo
+            base["ano"],
+            base[coluna],
+            color=cor,
+            linewidth=2,
+            marker="o",
+            markersize=4,
+            label=rotulo,
         )
     ax1.set_ylabel("pessoas")
     ax1.set_title(f"{nome}: entradas e saídas por ano (saída = 12 meses sem contribuir)")
@@ -379,27 +392,27 @@ def figura_anual(ctx: Any, d: Dados) -> None:
 
     ax2.axhline(0, color="#888888", linewidth=0.8)
     ax2.plot(
-        t["ano"],
-        t["crescimento_natural_pct"],
+        decidido["ano"],
+        decidido["crescimento_natural_pct"],
         color="black",
         linewidth=2,
         marker="o",
         markersize=4,
-        label="natural: (novatos - saídas) / ativos",
+        label="natural: (novatos - saídas definitivas) / ativos",
     )
     if "crescimento_liquido_pct" in t:
         ax2.plot(
-            t["ano"],
-            t["crescimento_liquido_pct"],
+            decidido["ano"],
+            decidido["crescimento_liquido_pct"],
             color=categorica()[0],
             linewidth=2,
             marker="o",
             markersize=4,
-            label="líquido: (novatos + voltas - saídas) / ativos",
+            label="líquido: (novatos + voltas - saídas - pausas) / ativos",
         )
     ax2.set_ylabel("% dos ativos")
     ax2.set_xlabel("ano")
-    ax2.set_title("crescimento (anos sem saída decidida ficam de fora)")
+    ax2.set_title("crescimento (só os anos com saída decidida, ver `carencia_anos`)")
     ax2.legend(loc="lower left", frameon=False)
     for ax in (ax1, ax2):
         plots._theme(ax)
@@ -451,6 +464,43 @@ def figura_piramides_contagem(ctx: Any, d: Dados) -> None:
     _desenha_piramides(ctx, d, False)
 
 
+@figura("composicao", "piramides_trimestrais", padrao=True)
+def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
+    """Pirâmides como as do artigo: idade em bandas de 3 meses, no fim dos `anos_piramide`.
+
+    Em % dos ativos do ano quando `piramide_em_pct`. Só para olhar; as métricas usam as faixas
+    de 1 ano.
+    """
+    comp = d["composicao_trimestral"]
+    em_pct = ctx.p.piramide_em_pct
+    anos = [a for a in ctx.p.anos_piramide if a in set(comp["ano"])]
+    lados = ["non_coding", "moved", "coding"]
+    quadros = []
+    for ano in anos:
+        q = comp[comp["ano"] == ano].copy()
+        if em_pct:
+            q[lados] = 100 * q[lados] / q[lados].to_numpy().sum()
+        quadros.append(q)
+    xmax = 1.0
+    ymax = 0
+    for q in quadros:
+        xmax = max(xmax, float(q["non_coding"].max()), float((q["moved"] + q["coding"]).max()))
+        ymax = max(ymax, int(q["band"].max()))
+    fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 5), sharey=True)
+    for ax, ano, q in zip(eixos, anos, quadros, strict=True):
+        plots.draw_pyramid(ax, q, xmax=xmax, ymax=ymax)
+        ax.set_title(str(ano))
+        ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
+    unidade = "% dos ativos" if em_pct else "ativos"
+    fig.suptitle(
+        f"{_nome()}: {unidade} por tempo de casa, bandas de 3 meses "
+        "(esquerda discussão, direita código)"
+    )
+    fb._legenda_discussion(fig, plots)
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    salva(fig, "piramides_trimestrais.png")
+
+
 @figura("composicao", "indice", padrao=True)
 def figura_indice(ctx: Any, d: Dados) -> None:
     """Índice de envelhecimento por ano."""
@@ -468,6 +518,7 @@ def figura_indice(ctx: Any, d: Dados) -> None:
 def figura_taxa_saida(ctx: Any, d: Dados) -> None:
     """Uma linha por faixa; ponto vazado marca célula com poucas saídas."""
     taxa = d["taxa_saida_faixa"]
+    taxa = taxa[taxa["ano"] <= _ate_o_ano_decidido(ctx)]
     saidas_estavel = ctx.p.saidas_estavel
     fig, ax = plt.subplots(figsize=(9, 4.5))
     for faixa, cor in zip(vitalidade.FAIXAS, rampa(len(vitalidade.FAIXAS)), strict=True):
@@ -602,14 +653,17 @@ def figura_futuro(
     salva(fig, f"{pasta}/projecao_futuro.png")
 
 
-def _figura_transicao(f: pd.DataFrame, nome: str) -> None:
-    """Natalidade e mortalidade com a área entre elas; população ao fundo, eixo da direita."""
-    fechado = f[f["obitos"].notna()]
+def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int) -> None:
+    """Natalidade e mortalidade com a área entre elas; população ao fundo, eixo da direita.
+
+    Só os períodos até `ate_ano`, com óbito decidido: os anos finais não têm como mostrar a
+    mortalidade ainda, e ficam fora inteiros, também a natalidade.
+    """
+    f = f[f["obitos"].notna() & (f["periodo"].dt.year <= ate_ano)]
     # Cada ponto e cada barra no meio do seu período.
     meio = f["periodo"].dt.start_time + (f["periodo"].dt.end_time - f["periodo"].dt.start_time) / 2
-    x = meio[f["obitos"].notna()]
-    nat = fechado["natalidade_pct"]
-    mort = fechado["mortalidade_pct"]
+    nat = f["natalidade_pct"]
+    mort = f["mortalidade_pct"]
     fig, ax = plt.subplots(figsize=(10, 5.5))
     plots._theme(ax)
 
@@ -617,7 +671,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str) -> None:
     fundo = ax.twinx()
     largura = 300 if nome == "anual" else 75
     fundo.bar(meio, f["populacao"], width=largura, color="#9a9a9a", alpha=0.35, label="população")
-    fundo.set_ylabel("população (barras)")
+    fundo.set_ylabel("população viva (barras)")
     fundo.grid(False)
     # Linhas na frente das barras: o fundo pega a cor do tema e o eixo das linhas fica vazado.
     fundo.set_facecolor(ax.get_facecolor())
@@ -625,7 +679,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str) -> None:
     ax.patch.set_visible(False)
 
     ax.fill_between(
-        x,
+        meio,
         nat,
         mort,
         where=nat >= mort,
@@ -635,7 +689,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str) -> None:
         label="crescimento natural",
     )
     ax.fill_between(
-        x,
+        meio,
         nat,
         mort,
         where=nat < mort,
@@ -644,26 +698,20 @@ def _figura_transicao(f: pd.DataFrame, nome: str) -> None:
         alpha=0.2,
         label="queda natural",
     )
-    # A natalidade já é conhecida até o último período completo; a mortalidade, só onde fechou.
     ax.plot(
         meio,
-        f["natalidade_pct"],
+        nat,
         color=categorica()[0],
         linewidth=2,
         label="natalidade (novatos / população)",
     )
-    aberto = f[f["obitos"].isna()]
-    if not aberto.empty:
-        ax.axvspan(
-            aberto["periodo"].iloc[0].start_time,
-            aberto["periodo"].iloc[-1].end_time,
-            facecolor="none",
-            edgecolor="#9a9a9a",
-            hatch="//",
-            linewidth=0,
-            label="saídas ainda indecididas (12 meses de espera)",
-        )
-    ax.plot(x, mort, color=categorica()[1], linewidth=2, label="mortalidade (saídas / população)")
+    ax.plot(
+        meio,
+        mort,
+        color=categorica()[1],
+        linewidth=2,
+        label="mortalidade (saídas definitivas / população)",
+    )
     passo = "ano" if nome == "anual" else "trimestre"
     ax.set_ylabel(f"% da população no {passo} (linhas)")
     ax.set_xlabel("ano")
@@ -791,13 +839,13 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
 @figura("tamanho", "transicao_anual", padrao=True)
 def figura_transicao_anual(ctx: Any, d: Dados) -> None:
     """Natalidade e mortalidade por ano, população ao fundo."""
-    _figura_transicao(d["transicao_anual"], "anual")
+    _figura_transicao(d["transicao_anual"], "anual", _ate_o_ano_decidido(ctx))
 
 
 @figura("tamanho", "transicao_trimestral", padrao=True)
 def figura_transicao_trimestral(ctx: Any, d: Dados) -> None:
     """Natalidade e mortalidade por trimestre, população ao fundo."""
-    _figura_transicao(d["transicao_trimestral"], "trimestral")
+    _figura_transicao(d["transicao_trimestral"], "trimestral", _ate_o_ano_decidido(ctx))
 
 
 @figura("tamanho", "fluxo")
@@ -864,6 +912,7 @@ def figura_esperanca(ctx: Any, d: Dados) -> None:
 def figura_calor(ctx: Any, d: Dados) -> None:
     """Mapa de calor: faixa nas linhas, ano nas colunas, cor = taxa de saída."""
     taxa = d["taxa_saida_faixa"]
+    taxa = taxa[taxa["ano"] <= _ate_o_ano_decidido(ctx)]
     m = taxa.pivot(index="faixa", columns="ano", values="taxa_saida").reindex(vitalidade.FAIXAS)
     fig, ax = plt.subplots(figsize=(10, 3.8))
     imagem = ax.imshow(m.to_numpy(dtype=float), aspect="auto", cmap="Blues", vmin=0, vmax=1)
@@ -1054,9 +1103,13 @@ def figura_magnetismo_dispersao(ctx: Any, d: Dados) -> None:
 # --- Comparação de trajetória entre linguagens -----------------------------------
 
 
-def _linhas_por_linguagem(ax: Any, t: pd.DataFrame, coluna: str, desde: int) -> None:
+def _linhas_por_linguagem(
+    ax: Any, t: pd.DataFrame, coluna: str, desde: int, so_decididos: bool = False
+) -> None:
     for slug in t["slug"].drop_duplicates():
         f = t[(t["slug"] == slug) & (t["ano"] >= desde) & t[coluna].notna()]
+        if so_decididos:
+            f = f[f["decidido"]]
         nome = carga_fonte.LINGUAGENS[slug].nome
         ax.plot(
             f["ano"],
@@ -1089,7 +1142,9 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
 def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
     """Crescimento líquido por ano, (novatos + voltas - saídas) / ativos, em %."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    _linhas_por_linguagem(ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice)
+    _linhas_por_linguagem(
+        ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice, so_decididos=True
+    )
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.set_ylabel("crescimento líquido, % dos ativos")
     ax.set_xlabel("ano")
@@ -1102,7 +1157,9 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
 def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
     """Saídas e voltas de cada ano, em % dos ativos, em dois painéis."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-    _linhas_por_linguagem(ax1, d["trajetoria"], "saida_pct", ctx.p.ano_base_indice)
+    _linhas_por_linguagem(
+        ax1, d["trajetoria"], "saida_pct", ctx.p.ano_base_indice, so_decididos=True
+    )
     _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", ctx.p.ano_base_indice)
     ax1.set_ylabel("saídas, % dos ativos")
     ax2.set_ylabel("voltas, % dos ativos")

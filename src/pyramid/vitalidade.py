@@ -14,8 +14,10 @@ Definições (cada uma é uma escolha registrada em docs/linguagem/vitalidade.md
 
   ativo do ano Y   teve pelo menos um evento em Y
   novato de Y      primeiro evento da vida caiu em Y
-  saída de Y       último evento de um período de atividade caiu em Y, e depois
-                   dele vieram mais de 12 meses sem nada
+  saída de Y       o último evento da vida da pessoa caiu em Y, e depois dele vieram
+                   mais de 12 meses sem nada até o fim da coleta. Saída é definitiva
+  pausa de Y       um período de atividade terminou em Y, e a pessoa voltou depois de
+                   mais de 12 meses. Quem volta não saiu
   volta de Y       começo de período de atividade depois do primeiro caiu em Y
   moved de Y       primeiro commit/PR caiu em Y, depois de já ter discutido
 
@@ -157,6 +159,8 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     # Idade em anos de calendário: cada faixa de 1 ano é exatamente uma coorte
     # de entrada, que é o que a projeção por coorte precisa para envelhecer 1 por ano.
     pa["idade_anos"] = pa["ano"] - pa["primeiro"].dt.year
+    # Idade em dias no fim do ano, para a pirâmide em faixas de trimestre (como no artigo).
+    pa["idade_dias"] = (fim_ano.clip(upper=fim) - pa["primeiro"]).dt.days
     pa["faixa"] = faixa_de(pa["idade_anos"])
     pa["novato"] = pa["primeiro"].dt.year == pa["ano"]
 
@@ -168,17 +172,27 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
 
     # Todo período que não é o último já termina com mais de 12 meses de silêncio
     # (é o que o separou do seguinte), então basta medir a distância até `fim`.
+    # Saída é o fim do último período, o da vida inteira: quem para e depois volta
+    # não saiu, só fez uma pausa.
     parou = (fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS)
-    saidas = spans.loc[parou, ["contributor_id"]].assign(
-        ano=spans.loc[parou, "span_end"].dt.year, saida=True
+    ultimo = spans["span_idx"] == spans.groupby("contributor_id")["span_idx"].transform("max")
+    definitiva = parou & ultimo
+    pausa = parou & ~ultimo
+    saidas = spans.loc[definitiva, ["contributor_id"]].assign(
+        ano=spans.loc[definitiva, "span_end"].dt.year, saida=True
+    )
+    pausas = spans.loc[pausa, ["contributor_id"]].assign(
+        ano=spans.loc[pausa, "span_end"].dt.year, pausa=True
     )
     voltou = spans["span_idx"] > 0
     voltas = spans.loc[voltou, ["contributor_id"]].assign(
         ano=spans.loc[voltou, "span_start"].dt.year, volta=True
     )
     pa = pa.merge(saidas, on=["contributor_id", "ano"], how="left")
+    pa = pa.merge(pausas, on=["contributor_id", "ano"], how="left")
     pa = pa.merge(voltas, on=["contributor_id", "ano"], how="left")
     pa["saida"] = pa["saida"].eq(True)
+    pa["pausa"] = pa["pausa"].eq(True)
     pa["volta"] = pa["volta"].eq(True)
 
     # Dois períodos separados por 12 meses não terminam (nem começam) no mesmo ano.
@@ -188,10 +202,16 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Ativos, novatos, saídas, voltas, moved e crescimento natural, por ano.
+    """Ativos, novatos, saídas, pausas, voltas, moved e crescimento, por ano.
 
-    Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saídas(Y) +
-    novatos(Y+1) + voltas(Y+1), para todo Y com saída decidida.
+    Saída é definitiva (a última contribuição da vida). Quem para por mais de 12 meses e volta
+    tem uma pausa no ano em que parou e uma volta no ano em que voltou, e deixa de ser ativo
+    só entre os dois. Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saídas(Y) -
+    pausas(Y) + novatos(Y+1) + voltas(Y+1), para todo Y com saída decidida.
+
+    crescimento_natural_pct = (novatos - saídas) / ativos: nascimentos menos óbitos, como na
+    demografia. crescimento_liquido_pct soma o que fecha a conta de ativos:
+    (novatos + voltas - saídas - pausas) / ativos.
     """
     g = pa.groupby("ano")
     t = pd.DataFrame(
@@ -199,6 +219,7 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
             "ativos": g.size(),
             "novatos": g["novato"].sum(),
             "saidas": g["saida"].sum().astype(float),
+            "pausas": g["pausa"].sum(),
             "voltas": g["volta"].sum(),
             "moved": g["moved_no_ano"].sum(),
         }
@@ -207,10 +228,9 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
         if not ano_fechado(ano, fim):
             t.loc[ano, "saidas"] = np.nan
     t["crescimento_natural_pct"] = 100 * (t["novatos"] - t["saidas"]) / t["ativos"]
-    # Com as voltas, que fecham a conta de ativos: quem sai e volta depois de 12 meses
-    # conta como saída num ano e como volta em outro. Sem elas, a comunidade que cresce
-    # por reentrada aparece em queda.
-    t["crescimento_liquido_pct"] = 100 * (t["novatos"] + t["voltas"] - t["saidas"]) / t["ativos"]
+    t["crescimento_liquido_pct"] = (
+        100 * (t["novatos"] + t["voltas"] - t["saidas"] - t["pausas"]) / t["ativos"]
+    )
 
     for ano in t.index:
         if ano + 1 not in t.index or pd.isna(t.loc[ano, "saidas"]):
@@ -218,6 +238,7 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
         esperado = (
             t.loc[ano, "ativos"]
             - t.loc[ano, "saidas"]
+            - t.loc[ano, "pausas"]
             + t.loc[ano + 1, "novatos"]
             + t.loc[ano + 1, "voltas"]
         )
@@ -230,23 +251,32 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
     return t.reset_index()
 
 
-def fluxos(eventos: pd.DataFrame, fim: pd.Timestamp, freq: str = "Y") -> pd.DataFrame:
+def fluxos(
+    eventos: pd.DataFrame, fim: pd.Timestamp, freq: str = "Y", vida_unica: bool = True
+) -> pd.DataFrame:
     """População, nascimentos, óbitos e voltas por período: ano (`"Y"`) ou trimestre (`"Q"`).
 
-    População de P: pessoas com um período de atividade que cobre P, do primeiro
-    ao último evento dele, contando os meses sem evento no meio. No passo anual
-    isso dá os mesmos ativos de `tabela_anual`, porque dois eventos do mesmo
-    período de atividade nunca ficam com um ano inteiro vazio entre eles.
+    Com `vida_unica` (o padrão) a pessoa está viva do primeiro ao último evento da vida, inclusive
+    nas pausas: a população é a dos vivos, nascimento é o primeiro evento, óbito é o último,
+    seguido de 12 meses sem nada, e não existe volta. A conta de demografia fecha sem ela:
+    pop(P+1) = pop(P) - óbitos(P) + nascimentos(P+1).
 
-    Nascimento é o primeiro evento da vida; óbito, o último evento de um período
-    de atividade seguido de 12 meses sem nada; volta, o começo de um período
-    depois do primeiro. O período em que a coleta termina fica de fora, e o
-    óbito de P fica `NaN` enquanto a coleta não cobre 12 meses depois de P.
-
-    Falha alto se a conta não fecha: pop(P+1) = pop(P) - óbitos(P) +
+    Sem `vida_unica`, cada período de atividade conta como uma vida: quem pausa por 12 meses
+    morre e reaparece como volta. A conta fecha com ela: pop(P+1) = pop(P) - óbitos(P) +
     nascimentos(P+1) + voltas(P+1).
+
+    O período em que a coleta termina fica de fora, e o óbito de P fica `NaN` enquanto a coleta
+    não cobre 12 meses depois de P.
     """
     spans = periodos(eventos[["contributor_id", "event_type", "timestamp"]])
+    if vida_unica:
+        # A pessoa está viva do primeiro ao último evento, mesmo nas pausas: morte é definitiva.
+        spans = (
+            spans.groupby("contributor_id", sort=False)
+            .agg(span_start=("span_start", "min"), span_end=("span_end", "max"))
+            .reset_index()
+            .assign(span_idx=0)
+        )
     inicio = pd.PeriodIndex(spans["span_start"], freq=freq).asi8
     termino = pd.PeriodIndex(spans["span_end"], freq=freq).asi8
     primeiro = int(inicio.min())
@@ -287,6 +317,35 @@ def fluxos(eventos: pd.DataFrame, fim: pd.Timestamp, freq: str = "Y") -> pd.Data
     t["natalidade_pct"] = 100 * t["nascimentos"] / t["populacao"]
     t["mortalidade_pct"] = 100 * t["obitos"] / t["populacao"]
     return t
+
+
+BAND_DIAS = 90  # trimestre de 90 dias, como o `band_days` da replicação do IEICE16
+
+
+def composicao_trimestral(pa: pd.DataFrame, band_dias: int = BAND_DIAS) -> pd.DataFrame:
+    """Ativos por (ano, banda de 3 meses de idade) em cada lado da pirâmide, como no artigo.
+
+    A idade é o tempo desde a primeira contribuição até o fim do ano, em bandas de `band_dias`
+    dias; a banda 0 vai de 0 a 90 dias. Os lados são os de `composicao`.
+    """
+    lados = ["non_coding", "moved", "coding"]
+    banda = (np.ceil((pa["idade_dias"] / band_dias).round(9)) - 1).clip(lower=0).astype(int)
+    t = pa.assign(band=banda).groupby(["ano", "band", "categoria"]).size().unstack(fill_value=0)
+    for lado in lados:
+        if lado not in t:
+            t[lado] = 0
+    return t[lados].reset_index()
+
+
+def tira_pessoas_de_um_dia(eventos: pd.DataFrame) -> pd.DataFrame:
+    """Os eventos de quem teve atividade em mais de um dia. Tira quem entrou e sumiu no mesmo dia.
+
+    O corte olha o futuro da pessoa: ela só entra se voltou em outro dia. Por isso derruba a
+    saída dos novatos e infla a retenção, e serve de sensibilidade, não de população principal.
+    """
+    por_pessoa = eventos.groupby("contributor_id")["timestamp"]
+    mais_de_um = por_pessoa.max().dt.normalize() > por_pessoa.min().dt.normalize()
+    return eventos[eventos["contributor_id"].isin(mais_de_um[mais_de_um].index)]
 
 
 def composicao(pa: pd.DataFrame) -> pd.DataFrame:

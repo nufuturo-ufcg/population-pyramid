@@ -38,9 +38,12 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - `populacao: todos` conta quem teve qualquer evento. `populacao: codigo` conta só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Em cada linguagem, entre 52% e 64% das pessoas só abriram issue ou comentaram. Cada população grava em pasta própria (`python`, `python-codigo`, `geral-codigo`), e o cache dos eventos é um só.
 - Rodar a segunda população não relê os CSV: `--set populacao=codigo` usa o cache. A população `codigo` olha o que a pessoa fez em algum momento da vida, não se ela voltou, então não carrega o viés de condicionar no futuro que um corte de "pelo menos 2 dias de atividade" teria.
 - Quase metade das pessoas de toda linguagem tem vida de um dia só (Clojure 44%, Elixir 43%, Python 42%) e cerca de dois terços saem a cada ano. O público de evento único existe em todas igualmente, e é por isso que as curvas de retenção ficam próximas.
-- `crescimento_liquido_pct` = (novatos + voltas - saídas) / ativos. Fecha a conta de ativos. O crescimento natural do plano, sem as voltas, dá negativo em todas as linguagens, até no Python, porque quem sai por 12 meses e volta conta como saída e depois como novo ativo.
+- Com a saída definitiva, o crescimento natural deixa de contar como morte quem só pausou. Com a saída por período de atividade (a regra anterior), dava negativo em todas as linguagens, até no Python.
 - A métrica `trajetoria` (comparativa) tira o tamanho da comparação: índice de ativos (100 em `ano_base_indice`), crescimento líquido, taxas de saída e de volta em % dos ativos, e as pirâmides de cada linguagem em % no mesmo ano (`ano_comparacao`).
 - A pirâmide por faixa sai em % dos ativos do ano (`piramide_em_pct`). A de contagem fica em `composicao.piramides_contagem`.
+- `composicao.piramides_trimestrais` desenha como o artigo: idade em bandas de 90 dias no fim do ano, só para olhar. As métricas usam as faixas de 1 ano.
+- `populacao: mais_de_um_dia` tira quem teve atividade num dia só. O corte olha o futuro da pessoa (só fica quem voltou em outro dia), então derruba a saída dos novatos e infla a retenção: serve de sensibilidade, não de população principal.
+- `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade definitiva. Só os anos até `carencia_anos` do fim da coleta.
 
 ## Gráficos
 
@@ -132,10 +135,13 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 - Ativo de Y: teve pelo menos um evento em Y.
 - Novato de Y: primeiro evento da vida caiu em Y. Entra na faixa 0-1.
-- Saída de Y: o último evento de um período de atividade caiu em Y, e depois dele vieram mais de 12 meses sem nada.
+- Saída de Y: o último evento da vida da pessoa caiu em Y, e depois dele vieram mais de 12 meses sem nada até o fim da coleta. Saída é definitiva, como a morte na demografia, e é o que o plano diz ("pessoas cuja última contribuição foi naquele ano").
+- Pausa de Y: um período de atividade terminou em Y e a pessoa voltou depois de mais de 12 meses. Quem volta não saiu: a pausa não entra na mortalidade e a pessoa segue viva.
 - Volta de Y: um período de atividade que não é o primeiro começou em Y.
 - Moved de Y: o primeiro commit ou PR caiu em Y, depois de a pessoa já ter discutido.
-- A conta fecha: ativos(Y+1) = ativos(Y) - saídas(Y) + novatos(Y+1) + voltas(Y+1). `tabela_anual` falha se não fechar.
+- A conta fecha: ativos(Y+1) = ativos(Y) - saídas(Y) - pausas(Y) + novatos(Y+1) + voltas(Y+1). `tabela_anual` falha se não fechar.
+- `crescimento_natural_pct` = (novatos - saídas) / ativos, nascimentos menos mortes. `crescimento_liquido_pct` = (novatos + voltas - saídas - pausas) / ativos, a variação real dos ativos.
+- Hindsight: saber que a pessoa volta no futuro tira a saída dela. O custo é que a saída dos anos finais é provisória, porque quem parou há pouco ainda pode voltar. Das pausas que terminam, 54% a 67% duram até 2 anos, 75% a 86% até 3 e 90% a 98% até 5, nas cinco linguagens. `carencia_anos` (3) tira dos gráficos de saída, mortalidade e crescimento os anos finais; as tabelas ficam inteiras.
 
 ## Escolhas feitas com o usuário (2026-10-09)
 

@@ -54,25 +54,39 @@ def test_tabela_anual():
     assert list(t["novatos"]) == [2, 1, 0, 1, 0]
     assert list(t["voltas"]) == [0, 0, 1, 0, 1]
     assert list(t["moved"]) == [0, 0, 1, 0, 0]
-    assert list(t.loc[[2020, 2021, 2022], "saidas"]) == [1, 2, 1]
+    # Saída é definitiva: B para em 2020 e volta em 2022, então 2020 é pausa, e C para em 2021
+    # e volta em 2024, então 2021 também. Só A sai em 2021 e B em 2022.
+    assert list(t.loc[[2020, 2021, 2022], "saidas"]) == [0, 1, 1]
+    assert list(t["pausas"]) == [1, 1, 0, 0, 0]
     assert t.loc[[2023, 2024], "saidas"].isna().all()
-    assert list(t.loc[[2020, 2021, 2022], "crescimento_natural_pct"]) == [50, -50, -100]
+    assert list(t.loc[[2020, 2021, 2022], "crescimento_natural_pct"]) == [100, 0, -100]
 
 
-def test_fluxos_anual_bate_com_tabela_anual():
-    f = vitalidade.fluxos(_eventos(), FIM, "Y")
+def test_fluxos_por_periodo_de_atividade_bate_com_tabela_anual():
+    f = vitalidade.fluxos(_eventos(), FIM, "Y", vida_unica=False)
     t = vitalidade.tabela_anual(vitalidade.pessoa_ano(_eventos(), FIM), FIM)
     t = t[t["ano"] <= 2023]
     assert [p.year for p in f["periodo"]] == [2020, 2021, 2022, 2023]
     assert f["populacao"].tolist() == t["ativos"].tolist()
     assert f["nascimentos"].tolist() == t["novatos"].tolist()
     assert f["voltas"].tolist() == t["voltas"].tolist()
-    assert f["obitos"].iloc[:3].tolist() == t["saidas"].iloc[:3].tolist()
+    # Cada período de atividade é uma vida: a pausa conta como óbito.
+    assert f["obitos"].iloc[:3].tolist() == (t["saidas"] + t["pausas"]).iloc[:3].tolist()
+
+
+def test_fluxos_de_vida_unica_nao_tem_volta_e_conta_os_vivos_nas_pausas():
+    f = vitalidade.fluxos(_eventos(), FIM, "Y")
+    # B está viva em 2021 (pausa) e C em 2022 e 2023: a população é a dos vivos.
+    assert f["populacao"].tolist() == [2, 3, 2, 2]
+    assert f["nascimentos"].tolist() == [2, 1, 0, 1]
+    assert (f["voltas"] == 0).all()
+    assert f["obitos"].iloc[:3].tolist() == [0, 1, 1]
+    assert np.isnan(f["obitos"].iloc[3])
 
 
 def test_fluxos_trimestral_conta_quem_esta_no_intervalo():
     """A conta em 2020Q2 e 2020Q3 sem evento neles: o período de atividade dela cobre."""
-    f = vitalidade.fluxos(_eventos(), FIM, "Q").set_index("periodo")
+    f = vitalidade.fluxos(_eventos(), FIM, "Q", vida_unica=False).set_index("periodo")
     seis = f.loc[pd.Period("2020Q1") : pd.Period("2021Q2")]
     assert seis["populacao"].tolist() == [1, 2, 1, 1, 2, 1]
     assert seis["nascimentos"].tolist() == [1, 1, 0, 0, 1, 0]
@@ -91,7 +105,7 @@ def test_taxa_saida_por_faixa():
     t = vitalidade.taxa_saida_por_faixa(vitalidade.pessoa_ano(_eventos(), FIM), FIM)
     t = t.set_index(["ano", "faixa"])
     assert t.loc[(2021, "0-1"), "ativos"] == 1
-    assert t.loc[(2021, "0-1"), "taxa_saida"] == 1.0
+    assert t.loc[(2021, "0-1"), "taxa_saida"] == 0.0  # C parou em 2021, mas voltou: pausa
     assert t.loc[(2021, "1-2"), "ativos"] == 1
     assert t.loc[(2021, "1-2"), "taxa_saida"] == 1.0
     assert np.isnan(t.loc[(2024, "3-5"), "taxa_saida"])
@@ -320,10 +334,12 @@ def test_dois_eventos_no_mesmo_ano_bissexto_sao_um_periodo_so():
 
 def test_crescimento_liquido_conta_as_voltas():
     t = vitalidade.tabela_anual(vitalidade.pessoa_ano(_eventos(), FIM), FIM).set_index("ano")
-    # Em 2022: 1 ativo (a pessoa 2, volta), 0 novatos, 1 saída, 1 volta.
+    # Em 2022: 1 ativo (a pessoa 2, que volta e sai), 0 novatos, 1 saída, 1 volta, 0 pausas.
     assert t.loc[2022, "crescimento_natural_pct"] == -100
     assert t.loc[2022, "crescimento_liquido_pct"] == 0
-    assert t.loc[2020, "crescimento_liquido_pct"] == t.loc[2020, "crescimento_natural_pct"]
+    # Em 2020 a pessoa 2 pausa: o natural não vê, o líquido sim.
+    assert t.loc[2020, "crescimento_natural_pct"] == 100
+    assert t.loc[2020, "crescimento_liquido_pct"] == 50
 
 
 def test_so_quem_codou_guarda_os_eventos_de_discussao_de_quem_codou():
@@ -332,3 +348,35 @@ def test_so_quem_codou_guarda_os_eventos_de_discussao_de_quem_codou():
     # A pessoa 4 só abriu issue e sai. A 2 discutiu e depois commitou: fica com os dois.
     assert set(so_codigo["contributor_id"]) == {1, 2, 3}
     assert (so_codigo["contributor_id"] == 2).sum() == 2
+
+
+def test_composicao_trimestral_poe_cada_pessoa_na_banda_de_90_dias():
+    ev = pd.DataFrame(
+        [
+            (1, "commits", "2023-12-20"),  # entrou há 12 dias do fim de 2023: banda 0
+            (2, "commits", "2023-06-01"),  # 214 dias: banda 2
+            (3, "issues", "2020-01-01"),  # 1461 dias: banda 16
+            (3, "issues", "2023-11-01"),
+        ],
+        columns=["contributor_id", "event_type", "timestamp"],
+    )
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    pa = vitalidade.pessoa_ano(ev, pd.Timestamp("2026-01-01"))
+    t = vitalidade.composicao_trimestral(pa).set_index(["ano", "band"])
+    assert t.loc[(2023, 0), "coding"] == 1
+    assert t.loc[(2023, 2), "coding"] == 1
+    assert t.loc[(2023, 16), "non_coding"] == 1
+
+
+def test_tira_pessoas_de_um_dia():
+    ev = pd.DataFrame(
+        [
+            (1, "commits", "2023-05-01 09:00"),
+            (1, "commits", "2023-05-01 18:00"),  # dois eventos no mesmo dia: fica de fora
+            (2, "commits", "2023-05-01 23:59"),
+            (2, "commits", "2023-05-02 00:01"),  # dois dias, a poucos minutos: fica
+        ],
+        columns=["contributor_id", "event_type", "timestamp"],
+    )
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    assert set(vitalidade.tira_pessoas_de_um_dia(ev)["contributor_id"]) == {2}

@@ -157,6 +157,7 @@ class Parametros:
     piramide_em_pct: bool
     ano_comparacao: int
     ano_base_indice: int
+    carencia_anos: int
 
 
 @dataclass
@@ -243,7 +244,11 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     return compactos
 
 
-POPULACOES = {"todos": "", "codigo": " (só quem codou)"}
+POPULACOES = {
+    "todos": "",
+    "codigo": " (só quem codou)",
+    "mais_de_um_dia": " (mais de um dia de atividade)",
+}
 
 
 def aplica_populacao(p: Parametros) -> None:
@@ -288,6 +293,8 @@ class Contexto:
             self.compactos = carrega_compactos(p, fonte, entrada)
         if p.populacao == "codigo":
             self.compactos = vitalidade.so_quem_codou(self.compactos)
+        elif p.populacao == "mais_de_um_dia":
+            self.compactos = vitalidade.tira_pessoas_de_um_dia(self.compactos)
         self.fim = self.compactos["timestamp"].max()
         pessoas = self.compactos["contributor_id"].nunique()
         print(
@@ -332,7 +339,14 @@ class ContextoComparativo:
 # --- Resultados em disco e contexto leve ----------------------------------------
 
 # Parâmetros que mudam as tabelas. Os outros (anos da pirâmide, `teto`, ...) só mudam o gráfico.
-PARAMETROS_DO_CALCULO = ("min_saidas", "horizonte", "ano_pesos", "linguagens_rq2", "variantes")
+PARAMETROS_DO_CALCULO = (
+    "min_saidas",
+    "horizonte",
+    "ano_pesos",
+    "linguagens_rq2",
+    "variantes",
+    "carencia_anos",
+)
 
 
 def _raiz_resultados(escopo: str) -> Path:
@@ -437,6 +451,7 @@ def metrica_composicao(ctx: Contexto) -> Dados:
     """
     return {
         "composicao": vitalidade.composicao(ctx.pa),
+        "composicao_trimestral": vitalidade.composicao_trimestral(ctx.pa),
         "indice_envelhecimento": vitalidade.indice_envelhecimento(ctx.pa),
     }
 
@@ -591,6 +606,8 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         t["saida_pct"] = 100 * t["saidas"] / t["ativos"]
         t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
         t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
+        # Saída é definitiva, e quem parou há pouco ainda pode voltar: só vale até `carencia_anos`.
+        t["decidido"] = t["ano"] <= lingua.fim.year - ctx.p.carencia_anos
         ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice
         t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
         trajetorias.append(t)
