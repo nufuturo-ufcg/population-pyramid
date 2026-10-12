@@ -426,3 +426,13 @@ def test_so_quem_passou_de_90_dias():
     ev["timestamp"] = pd.to_datetime(ev["timestamp"])
     assert set(vitalidade.so_quem_passou_de(ev, 90)["contributor_id"]) == {2}
     assert set(vitalidade.so_quem_passou_de(ev, 89)["contributor_id"]) == {1, 2}
+
+
+def test_ate_a_data_tira_o_que_vem_depois_e_quem_so_aparece_depois():
+    ev = _eventos()
+    corte = pd.Timestamp("2021-12-31 23:59:59")
+    cortado = vitalidade.ate_a_data(ev, corte)
+    assert cortado["timestamp"].max() <= corte
+    assert set(cortado["contributor_id"]) == {1, 2, 3}  # a 4 só aparece em 2023
+    # A pessoa 3 fica só com o commit de 2021: o de 2024 saiu.
+    assert (cortado["contributor_id"] == 3).sum() == 1

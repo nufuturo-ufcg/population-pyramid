@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -159,7 +160,7 @@ class Parametros:
     ano_base_indice: int
     carencia_anos: int
     rodadas_padronizacao: dict[str, list[str]]
-    nascimento_dias: int
+    data_de_corte: str | None
     ccr_ncr_inatividade_meses: float
     ccr_ncr_novato_meses: float
 
@@ -252,8 +253,28 @@ POPULACOES = {
     "todos": "",
     "codigo": " (só quem codou)",
     "mais_de_um_dia": " (mais de um dia de atividade)",
-    "passou_90_dias": " (contribuição 90 dias depois da primeira)",
 }
+PASSOU_DIAS = re.compile(r"passou_(\d+)_dias")
+
+
+def rotulo_da_populacao(nome: str) -> str:
+    """Texto do título de cada população. `passou_N_dias` vale para qualquer N."""
+    if nome in POPULACOES:
+        return POPULACOES[nome]
+    achou = PASSOU_DIAS.fullmatch(nome)
+    if achou is None:
+        raise SystemExit(f"populacao {nome!r}: use {list(POPULACOES)} ou passou_N_dias.")
+    return f" (contribuição {achou.group(1)} dias depois da primeira)"
+
+
+def fim_da_coleta(p: Parametros, ultimo_evento: pd.Timestamp) -> pd.Timestamp:
+    """O fim do estudo: `data_de_corte`, que tem de ser fim de trimestre, ou o último evento."""
+    if not p.data_de_corte:
+        return ultimo_evento
+    corte = pd.Timestamp(p.data_de_corte)
+    if corte != corte + pd.offsets.QuarterEnd(0):
+        raise SystemExit(f"data_de_corte {p.data_de_corte}: use o último dia de um trimestre.")
+    return min(ultimo_evento, corte + pd.Timedelta(days=1) - pd.Timedelta(seconds=1))
 
 
 def aplica_populacao(p: Parametros) -> None:
@@ -261,12 +282,11 @@ def aplica_populacao(p: Parametros) -> None:
 
     O cache dos eventos é um só (`<saída>/<linguagem>/cache`) e serve às duas.
     """
-    if p.populacao not in POPULACOES:
-        raise SystemExit(f"populacao {p.populacao!r}: use {list(POPULACOES)}.")
+    rotulo = rotulo_da_populacao(p.populacao)
     sufixo = "" if p.populacao == "todos" else f"-{p.populacao}"
     fb.CFG.saida = fb.CFG.saida.with_name(f"{fb.LING.atual.slug}{sufixo}")
     fb.ESTADO_PASTA_GERAL.pasta = Path(fb.TMP_BASE) / f"geral{sufixo}"
-    vitalidade_figuras.ESTADO.sufixo = POPULACOES[p.populacao]
+    vitalidade_figuras.ESTADO.sufixo = rotulo
 
 
 class Contexto:
@@ -296,13 +316,16 @@ class Contexto:
             self.compactos = vitalidade.compacta(self.eventos)
         else:
             self.compactos = carrega_compactos(p, fonte, entrada)
+        # O corte vem antes da população: quem "voltou depois" só vale até o fim do estudo.
+        self.fim = fim_da_coleta(p, self.compactos["timestamp"].max())
+        self.compactos = vitalidade.ate_a_data(self.compactos, self.fim)
+        achou = PASSOU_DIAS.fullmatch(p.populacao)
         if p.populacao == "codigo":
             self.compactos = vitalidade.so_quem_codou(self.compactos)
         elif p.populacao == "mais_de_um_dia":
             self.compactos = vitalidade.tira_pessoas_de_um_dia(self.compactos)
-        elif p.populacao == "passou_90_dias":
-            self.compactos = vitalidade.so_quem_passou_de(self.compactos, p.nascimento_dias)
-        self.fim = self.compactos["timestamp"].max()
+        elif achou is not None:
+            self.compactos = vitalidade.so_quem_passou_de(self.compactos, int(achou.group(1)))
         pessoas = self.compactos["contributor_id"].nunique()
         print(
             f"{fb.LING.atual.nome}: {pessoas} pessoas, {len(self.compactos)} instantes "
@@ -354,7 +377,7 @@ PARAMETROS_DO_CALCULO = (
     "variantes",
     "carencia_anos",
     "rodadas_padronizacao",
-    "nascimento_dias",
+    "data_de_corte",
     "ccr_ncr_inatividade_meses",
     "ccr_ncr_novato_meses",
 )
@@ -523,12 +546,13 @@ def metrica_cenarios(ctx: Contexto) -> Dados:
     return tabelas
 
 
-def _ccr_ncr(p: Parametros, compactos: pd.DataFrame) -> pd.DataFrame:
+def _ccr_ncr(p: Parametros, compactos: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
     """CCR e NCR com a inatividade e o corte de novato do yaml, em meses."""
     return vitalidade.ccr_ncr_trimestral(
         compactos,
         inatividade_dias=p.ccr_ncr_inatividade_meses * vitalidade.DAYS_PER_MONTH,
         novato_dias=round(p.ccr_ncr_novato_meses * vitalidade.DAYS_PER_MONTH),
+        fim=fim,
     )
 
 
@@ -544,7 +568,7 @@ def metrica_ccr_ncr(ctx: Contexto) -> Dados:
     Python também. Com 3 e 3 reproduz o motor exatamente.
     Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
     """
-    return {"ccr_ncr": _ccr_ncr(ctx.p, ctx.compactos)}
+    return {"ccr_ncr": _ccr_ncr(ctx.p, ctx.compactos, ctx.fim)}
 
 
 @metrica("ccr_ncr_comparado", escopo="comparativo")
@@ -557,7 +581,7 @@ def metrica_ccr_ncr_comparado(ctx: ContextoComparativo) -> Dados:
     """
     partes = []
     for slug, lingua in ctx.por_lingua.items():
-        t = _ccr_ncr(ctx.p, lingua.compactos)
+        t = _ccr_ncr(ctx.p, lingua.compactos, lingua.fim)
         t.insert(0, "slug", slug)
         partes.append(t)
     return {"ccr_ncr_comparado": pd.concat(partes, ignore_index=True)}

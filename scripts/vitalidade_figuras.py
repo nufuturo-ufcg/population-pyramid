@@ -82,6 +82,12 @@ def _ate_o_ano_decidido(ctx: Any) -> int:
     return int(ctx.fim.year - 1)
 
 
+def _ultimo_ano_de_contagem(ctx: Any) -> int:
+    """Último ano inteiro com ativos e novatos: o do fim do estudo, se ele cai em 31/12."""
+    fim = ctx.fim
+    return int(fim.year if fim >= pd.Timestamp(year=fim.year, month=12, day=31) else fim.year - 1)
+
+
 def _primeiro_provisorio(ctx: Any) -> int:
     """Primeiro ano com saída provisória: a que tem menos de `carencia_anos` anos de coleta depois.
 
@@ -410,7 +416,8 @@ def salva(fig: Any, nome: str, geral: bool = False) -> None:
 def figura_anual(ctx: Any, d: Dados) -> None:
     """Ativos, novatos, saídas e voltas por ano e o crescimento embaixo, até o último ano."""
     t = d["anual"]
-    t = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
+    decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
+    t = t[t["ano"] <= _ultimo_ano_de_contagem(ctx)]
     nome = _nome()
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
     series = [
@@ -419,7 +426,6 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         ("saidas", "saídas definitivas"),
         ("voltas", "voltas"),
     ]
-    decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     prov = _primeiro_provisorio(ctx)
     for (coluna, rotulo), cor in zip(series, categorica(), strict=False):
         base = decidido if coluna == "saidas" else t
@@ -929,7 +935,7 @@ def figura_transicao_trimestral(ctx: Any, d: Dados) -> None:
 def figura_fluxo(ctx: Any, d: Dados) -> None:
     """Barras por ano: novatos e voltas para cima, saídas para baixo, até o último ano."""
     t = d["anual"]
-    t = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
+    t = t[t["ano"] <= _ultimo_ano_de_contagem(ctx)]
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.bar(t["ano"], t["novatos"], color=categorica()[1], label="novatos")

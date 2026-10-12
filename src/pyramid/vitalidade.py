@@ -365,6 +365,7 @@ def ccr_ncr_trimestral(
     eventos: pd.DataFrame,
     inatividade_dias: float = INATIVIDADE_CCR_DIAS,
     novato_dias: float = NOVATO_DIAS,
+    fim: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """CCR e NCR por trimestre (IEICE16), direto dos eventos compactados.
 
@@ -380,7 +381,9 @@ def ccr_ncr_trimestral(
 
     O último evento de cada pessoa até o fim do trimestre é o último do trimestre dela, que a
     compactação guarda, então a conta é exata. `inatividade_dias` e `novato_dias` trocam os 3
-    meses por outro corte, para a sensibilidade.
+    meses por outro corte, para a sensibilidade. Com `fim`, o último trimestre da série é o
+    último que termina até `fim`; sem ele, vale a regra do motor, que para um trimestre antes
+    do último evento.
     """
     ev = eventos[["contributor_id", "event_type", "timestamp"]].sort_values("timestamp")
     codou = ev["event_type"].isin(TIPOS_CODING)
@@ -390,10 +393,15 @@ def ccr_ncr_trimestral(
     pessoas = ev["contributor_id"].to_numpy()
 
     inicio = (ev["timestamp"].min() + pd.offsets.QuarterEnd(0)).normalize()
-    fim = (ev["timestamp"].max() - pd.offsets.QuarterEnd(1)).normalize()
+    if fim is None:
+        ultimo = (ev["timestamp"].max() - pd.offsets.QuarterEnd(1)).normalize()
+    else:
+        ultimo = (fim + pd.offsets.QuarterEnd(0)).normalize()
+        if ultimo > fim.normalize():
+            ultimo = (ultimo - pd.offsets.QuarterEnd(1)).normalize()
     janela = np.timedelta64(int(inatividade_dias * 86400), "s")
     linhas = []
-    for t in pd.date_range(inicio, fim, freq="QE"):
+    for t in pd.date_range(inicio, ultimo, freq="QE"):
         de = np.searchsorted(instantes, (t - pd.Timedelta(janela)).to_datetime64(), side="left")
         ate = np.searchsorted(instantes, t.to_datetime64(), side="right")
         ativos = pd.unique(pessoas[de:ate])
@@ -441,6 +449,15 @@ def composicao_trimestral(pa: pd.DataFrame, band_dias: int = BAND_DIAS) -> pd.Da
         if lado not in t:
             t[lado] = 0
     return t[lados].reset_index()
+
+
+def ate_a_data(eventos: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
+    """Os eventos até `fim`, como se a coleta tivesse terminado ali.
+
+    Quem só aparece depois some, e quem aparece nos dois lados fica com o último evento de antes.
+    A compactação é exata quando `fim` cai no fim de um trimestre.
+    """
+    return eventos[eventos["timestamp"] <= fim]
 
 
 def so_quem_passou_de(eventos: pd.DataFrame, dias: float = 90) -> pd.DataFrame:

@@ -280,3 +280,23 @@ def test_carencia_de_um_ano_nao_tracejou_nada_e_a_de_tres_traceja_dois_anos():
     assert f._primeiro_provisorio(Ctx) == 2026  # 2025 já é firme, nada tracejado
     Ctx.p.carencia_anos = 3
     assert f._primeiro_provisorio(Ctx) == 2024  # 2024 e 2025 provisórios
+
+
+def test_populacao_passou_n_dias_aceita_qualquer_n():
+    assert script.rotulo_da_populacao("passou_30_dias").startswith(" (contribuição 30 dias")
+    assert script.rotulo_da_populacao("passou_60_dias").startswith(" (contribuição 60 dias")
+    with pytest.raises(SystemExit):
+        script.rotulo_da_populacao("passou_dias")
+
+
+def test_data_de_corte_fecha_o_estudo_no_fim_do_dia_e_exige_fim_de_trimestre():
+    import pandas as pd
+
+    p = script.carrega_parametros(["data_de_corte=2025-12-31"])
+    fim = script.fim_da_coleta(p, pd.Timestamp("2026-10-12"))
+    assert fim == pd.Timestamp("2025-12-31 23:59:59")
+    # Se a coleta termina antes do corte, vale o último evento.
+    assert script.fim_da_coleta(p, pd.Timestamp("2025-05-01")) == pd.Timestamp("2025-05-01")
+    assert script.fim_da_coleta(script.carrega_parametros(["data_de_corte=null"]), fim) == fim
+    with pytest.raises(SystemExit):
+        script.fim_da_coleta(script.carrega_parametros(["data_de_corte=2025-11-30"]), fim)
