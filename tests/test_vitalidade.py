@@ -59,6 +59,27 @@ def test_tabela_anual():
     assert list(t.loc[[2020, 2021, 2022], "crescimento_natural_pct"]) == [50, -50, -100]
 
 
+def test_fluxos_anual_bate_com_tabela_anual():
+    f = vitalidade.fluxos(_eventos(), FIM, "Y")
+    t = vitalidade.tabela_anual(vitalidade.pessoa_ano(_eventos(), FIM), FIM)
+    t = t[t["ano"] <= 2023]
+    assert [p.year for p in f["periodo"]] == [2020, 2021, 2022, 2023]
+    assert f["populacao"].tolist() == t["ativos"].tolist()
+    assert f["nascimentos"].tolist() == t["novatos"].tolist()
+    assert f["voltas"].tolist() == t["voltas"].tolist()
+    assert f["obitos"].iloc[:3].tolist() == t["saidas"].iloc[:3].tolist()
+
+
+def test_fluxos_trimestral_conta_quem_esta_no_intervalo():
+    """A conta em 2020Q2 e 2020Q3 sem evento neles: o período de atividade dela cobre."""
+    f = vitalidade.fluxos(_eventos(), FIM, "Q").set_index("periodo")
+    seis = f.loc[pd.Period("2020Q1") : pd.Period("2021Q2")]
+    assert seis["populacao"].tolist() == [1, 2, 1, 1, 2, 1]
+    assert seis["nascimentos"].tolist() == [1, 1, 0, 0, 1, 0]
+    assert seis["obitos"].tolist() == [0, 1, 0, 0, 1, 1]
+    assert f.index[-1] == pd.Period("2024Q1")
+
+
 def test_tabela_anual_falha_quando_a_conta_nao_fecha():
     pa = vitalidade.pessoa_ano(_eventos(), FIM)
     pa.loc[(pa["contributor_id"] == 1) & (pa["ano"] == 2021), "saida"] = False
@@ -170,7 +191,9 @@ def _pa_estavel() -> pd.DataFrame:
 
 def test_backtest_em_populacao_estavel_acerta():
     fim = pd.Timestamp("2030-01-01")
-    bt = vitalidade.backtest(_pa_estavel(), fim, ultimo_ano=2015, teto=False, min_saidas=1)
+    bt = vitalidade.backtest(
+        _pa_estavel(), fim, ultimo_ano=2015, teto=False, regra=vitalidade.RegraCenario(min_saidas=1)
+    )
     assert sorted(bt["ano"].unique()) == [2012, 2013, 2014, 2015]
     total = bt[bt["faixa"] == "total"]
     assert (total["real"] == 15).all()
@@ -180,9 +203,95 @@ def test_backtest_em_populacao_estavel_acerta():
     assert (bt["abre_coorte"].dropna() == 0).all()
 
     # Sem nenhum ano com 1000 saídas, os cenários caem na permanência do coorte.
-    sem_validos = vitalidade.backtest(_pa_estavel(), fim, 2015, teto=False, min_saidas=1000)
+    sem_validos = vitalidade.backtest(
+        _pa_estavel(), fim, 2015, teto=False, regra=vitalidade.RegraCenario(min_saidas=1000)
+    )
     assert sem_validos["pessimista"].tolist() == pytest.approx(sem_validos["coorte"].tolist())
 
-    futuro = vitalidade.projeta_futuro(_pa_estavel(), fim, 2015, 3, teto=False, min_saidas=1)
+    futuro = vitalidade.projeta_futuro(
+        _pa_estavel(), fim, 2015, 3, teto=False, regra=vitalidade.RegraCenario(min_saidas=1)
+    )
     futuro = futuro[futuro["faixa"] == "total"]
     assert futuro["previsto"].tolist() == pytest.approx([15] * 15)
+
+
+def test_cenarios_por_taxa_com_janela():
+    """Ativos totais 10, 20, 40, 40; novatos 10, 15, 20, 12. Taxas: 1,5, 1,0, 0,3."""
+    pop = pd.DataFrame(
+        {0: [10, 15, 20, 12], 1: [0, 5, 20, 28]}, index=[2020, 2021, 2022, 2023]
+    ).reindex(columns=range(10), fill_value=0)
+    saidas = pd.DataFrame(0.0, index=pop.index, columns=range(vitalidade.BANDAS))
+    regra = vitalidade.RegraCenario(janela=2, novatos_por_taxa=True)
+    c = vitalidade.cenarios(pop, saidas, 2023, regra)
+    # A janela de 2 anos fica só com 2022 e 2023 (taxas 1,0 e 0,3); o 1,5 de 2021 sai.
+    assert c["pessimista"][1] == pytest.approx(0.3)
+    assert c["otimista"][1] == pytest.approx(1.0)
+
+
+def _eventos_aleatorios() -> pd.DataFrame:
+    """300 pessoas com rajadas no mesmo dia, silêncios longos e os sete tipos de evento."""
+    rng = np.random.default_rng(7)
+    tipos = ["commits", "pull_requests", "issues", "issue_comments", "issue_events"]
+    linhas = []
+    for pessoa in range(300):
+        dia = pd.Timestamp("2010-01-01") + pd.Timedelta(days=int(rng.integers(0, 2000)))
+        for _ in range(int(rng.integers(1, 12))):
+            dia += pd.Timedelta(days=int(rng.choice([0, 3, 40, 200, 400, 900])))
+            for _ in range(int(rng.integers(1, 5))):
+                instante = dia + pd.Timedelta(seconds=int(rng.integers(0, 86400)))
+                linhas.append((pessoa, str(rng.choice(tipos)), instante))
+    return pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+
+
+def test_periodos_igual_ao_profile_do_motor():
+    from pyramid.classify import profile
+
+    ev = _eventos_aleatorios()
+    esperado = profile(ev, vitalidade.TIPOS_CODING, vitalidade.GAP_DIAS)
+    pd.testing.assert_frame_equal(vitalidade.periodos(ev), esperado)
+
+
+def test_compacta_nao_muda_nenhuma_metrica():
+    ev = _eventos_aleatorios()
+    pequeno = vitalidade.compacta(ev)
+    assert len(pequeno) < len(ev)
+    fim = ev["timestamp"].max()
+
+    pa_cheio = vitalidade.pessoa_ano(ev, fim)
+    pa_pequeno = vitalidade.pessoa_ano(pequeno, fim)
+    pd.testing.assert_frame_equal(pa_cheio, pa_pequeno)
+    pd.testing.assert_frame_equal(
+        vitalidade.tabela_anual(pa_cheio, fim), vitalidade.tabela_anual(pa_pequeno, fim)
+    )
+    pd.testing.assert_frame_equal(vitalidade.duracoes(ev, fim), vitalidade.duracoes(pequeno, fim))
+    for freq in ("Y", "Q"):
+        pd.testing.assert_frame_equal(
+            vitalidade.fluxos(ev, fim, freq), vitalidade.fluxos(pequeno, fim, freq)
+        )
+
+
+def test_compacta_em_pedacos_da_o_mesmo_resultado():
+    """Compactar cada pedaço e juntar equivale a compactar tudo: vale para coletas enormes."""
+    ev = _eventos_aleatorios()
+    corte = len(ev) // 3
+    pedacos = [ev.iloc[:corte], ev.iloc[corte : 2 * corte], ev.iloc[2 * corte :]]
+    em_pedacos = vitalidade.compacta(pd.concat([vitalidade.compacta(p) for p in pedacos]))
+    inteiro = vitalidade.compacta(ev)
+    pd.testing.assert_frame_equal(em_pedacos, inteiro)
+    # E o resultado não muda se for compactado de novo.
+    pd.testing.assert_frame_equal(vitalidade.compacta(inteiro), inteiro)
+
+
+def test_kaplan_meier_de_amostra_enorme_fica_com_um_ponto_por_dia(monkeypatch):
+    rng = np.random.default_rng(3)
+    anos = rng.uniform(0, 5, 3000)
+    dur = pd.DataFrame({"duracao_anos": anos, "saiu": rng.random(3000) < 0.7})
+    completa = vitalidade.kaplan_meier(dur)
+    monkeypatch.setattr(vitalidade, "MAX_PONTOS_KM", 100)
+    fina = vitalidade.kaplan_meier(dur)
+    assert len(fina) < len(completa)
+    assert len(fina) <= 5 * 366
+    # Cada ponto que sobra é um ponto da curva completa, com o mesmo S.
+    juntos = fina.merge(completa, on="anos", suffixes=("_fina", "_completa"))
+    assert len(juntos) == len(fina)
+    assert np.allclose(juntos["S_fina"], juntos["S_completa"])

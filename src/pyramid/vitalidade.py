@@ -26,12 +26,13 @@ que a coleta não cobre até lá fica com saída `NaN`. Anualizar está proibido
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .classify import DAYS_PER_MONTH, profile
+from .classify import DAYS_PER_MONTH
 from .projection import _wilcoxon, abre
 
 GAP_DIAS = 12 * DAYS_PER_MONTH
@@ -54,6 +55,70 @@ def ano_fechado(ano: int, fim: pd.Timestamp) -> bool:
     return fim > pd.Timestamp(f"{ano + 1}-01-01") + pd.Timedelta(days=GAP_DIAS)
 
 
+def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
+    """Reduz os eventos ao que as métricas deste módulo usam, sem mudar nenhum resultado.
+
+    Guarda, de cada pessoa, o primeiro e o último evento de cada trimestre, mais o
+    primeiro evento de código e o primeiro de discussão da vida. As métricas só
+    dependem de:
+
+      - onde um período de atividade (separado por mais de 12 meses de silêncio)
+        começa e termina: um silêncio desses nunca cabe dentro de um trimestre, então
+        o primeiro e o último evento de cada trimestre bastam;
+      - em que anos a pessoa apareceu e o primeiro e o último evento dela;
+      - o primeiro evento de cada lado (código e discussão).
+
+    Os eventos que sobram são todos reais. Aplicar de novo ao resultado não muda
+    nada, então coletas enormes podem ser compactadas em pedaços.
+    """
+    ev = eventos[["contributor_id", "event_type", "timestamp"]]
+    ev = ev.sort_values(["contributor_id", "timestamp"], kind="stable")
+    trimestre = ev["timestamp"].dt.year * 4 + (ev["timestamp"].dt.month - 1) // 3
+    por_trimestre = ev.groupby([ev["contributor_id"], trimestre], sort=False)
+    codou = ev["event_type"].isin(TIPOS_CODING)
+    por_pessoa_codigo = ev[codou].groupby("contributor_id", sort=False)
+    por_pessoa_discussao = ev[~codou].groupby("contributor_id", sort=False)
+    partes = [
+        por_trimestre.head(1),
+        por_trimestre.tail(1),
+        por_pessoa_codigo.head(1),
+        por_pessoa_discussao.head(1),
+    ]
+    out = pd.concat(partes).drop_duplicates()
+    out["event_type"] = out["event_type"].astype(str)
+    return out.sort_values(["contributor_id", "timestamp"], kind="stable").reset_index(drop=True)
+
+
+def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
+    """Um período de atividade por linha, com o primeiro evento de código e de discussão da pessoa.
+
+    Mesma saída de `classify.profile(eventos, TIPOS_CODING, GAP_DIAS)`, numa
+    passada vetorizada em vez de um laço Python por pessoa. Um teste confere
+    as duas contra os mesmos eventos.
+    """
+    ev = eventos.sort_values(["contributor_id", "timestamp"], kind="stable")
+    ts = ev["timestamp"]
+    pessoa = ev["contributor_id"]
+    codou = ev["event_type"].isin(TIPOS_CODING)
+
+    primeiros = (
+        ev.assign(_c=ts.where(codou), _d=ts.where(~codou))
+        .groupby("contributor_id", sort=False)
+        .agg(init_c=("_c", "min"), init_d=("_d", "min"))
+    )
+
+    pessoa_nova = pessoa != pessoa.shift()
+    silencio = (ts - ts.shift()) / np.timedelta64(1, "D") > GAP_DIAS
+    periodo = (pessoa_nova | silencio).cumsum()
+    spans = ev.groupby(periodo, sort=False).agg(
+        contributor_id=("contributor_id", "first"),
+        span_start=("timestamp", "min"),
+        span_end=("timestamp", "max"),
+    )
+    spans["span_idx"] = spans.groupby("contributor_id", sort=False).cumcount()
+    return spans.reset_index(drop=True).merge(primeiros, on="contributor_id", how="left")
+
+
 def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataFrame:
     """Uma linha por (pessoa, ano em que contribuiu). Base de toda métrica anual.
 
@@ -63,7 +128,7 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
         fim = eventos["timestamp"].max()
     ev = eventos[["contributor_id", "event_type", "timestamp"]]
 
-    spans = profile(ev, TIPOS_CODING, GAP_DIAS)
+    spans = periodos(ev)
     marcos = spans.groupby("contributor_id").agg(
         init_c=("init_c", "first"), init_d=("init_d", "first"), primeiro=("span_start", "min")
     )
@@ -142,6 +207,65 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
             )
     t.index.name = "ano"
     return t.reset_index()
+
+
+def fluxos(eventos: pd.DataFrame, fim: pd.Timestamp, freq: str = "Y") -> pd.DataFrame:
+    """População, nascimentos, óbitos e voltas por período: ano (`"Y"`) ou trimestre (`"Q"`).
+
+    População de P: pessoas com um período de atividade que cobre P, do primeiro
+    ao último evento dele, contando os meses sem evento no meio. No passo anual
+    isso dá os mesmos ativos de `tabela_anual`, porque dois eventos do mesmo
+    período de atividade nunca ficam com um ano inteiro vazio entre eles.
+
+    Nascimento é o primeiro evento da vida; óbito, o último evento de um período
+    de atividade seguido de 12 meses sem nada; volta, o começo de um período
+    depois do primeiro. O período em que a coleta termina fica de fora, e o
+    óbito de P fica `NaN` enquanto a coleta não cobre 12 meses depois de P.
+
+    Falha alto se a conta não fecha: pop(P+1) = pop(P) - óbitos(P) +
+    nascimentos(P+1) + voltas(P+1).
+    """
+    spans = periodos(eventos[["contributor_id", "event_type", "timestamp"]])
+    inicio = pd.PeriodIndex(spans["span_start"], freq=freq).asi8
+    termino = pd.PeriodIndex(spans["span_end"], freq=freq).asi8
+    primeiro = int(inicio.min())
+    ultimo_completo = pd.Period(fim, freq=freq).ordinal - 1
+    n = ultimo_completo - primeiro + 1
+
+    eh_primeiro = spans["span_idx"].to_numpy() == 0
+    parou = ((fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS)).to_numpy()
+    entram = np.bincount(inicio - primeiro, minlength=n)[:n]
+    # Quem termina em P ainda conta em P e sai do estoque em P+1.
+    saem = np.bincount(termino - primeiro + 1, minlength=n + 1)[:n]
+    nascimentos = np.bincount(inicio[eh_primeiro] - primeiro, minlength=n)[:n]
+    voltas = np.bincount(inicio[~eh_primeiro] - primeiro, minlength=n)[:n]
+    obitos = np.bincount(termino[parou] - primeiro, minlength=n)[:n].astype(float)
+
+    calendario = pd.period_range(pd.Period(ordinal=primeiro, freq=freq), periods=n)
+    for i, periodo in enumerate(calendario):
+        if not fim > (periodo + 1).start_time + pd.Timedelta(days=GAP_DIAS):
+            obitos[i] = np.nan
+
+    t = pd.DataFrame(
+        {
+            "periodo": calendario,
+            "populacao": np.cumsum(entram - saem),
+            "nascimentos": nascimentos,
+            "obitos": obitos,
+            "voltas": voltas,
+        }
+    )
+    for i in range(n - 1):
+        if np.isnan(obitos[i]):
+            continue
+        esperado = (
+            t.loc[i, "populacao"] - obitos[i] + t.loc[i + 1, "nascimentos"] + t.loc[i + 1, "voltas"]
+        )
+        if esperado != t.loc[i + 1, "populacao"]:
+            raise ValueError(f"fluxos: conta não fecha em {calendario[i]}->{calendario[i + 1]}.")
+    t["natalidade_pct"] = 100 * t["nascimentos"] / t["populacao"]
+    t["mortalidade_pct"] = 100 * t["obitos"] / t["populacao"]
+    return t
 
 
 def composicao(pa: pd.DataFrame) -> pd.DataFrame:
@@ -255,10 +379,21 @@ def _amostra_censurada(dur: pd.DataFrame) -> stats.CensoredData:
     )
 
 
+# Acima disso a curva sai com um ponto por dia: milhões de pessoas dariam um ponto por pessoa.
+MAX_PONTOS_KM = 2_000_000
+
+
 def kaplan_meier(dur: pd.DataFrame) -> pd.DataFrame:
-    """Fração estimada ainda ativa, `S`, depois de `anos` desde a primeira contribuição."""
+    """Fração estimada ainda ativa, `S`, depois de `anos` desde a primeira contribuição.
+
+    Com mais de `MAX_PONTOS_KM` pontos fica o último de cada dia, que é exato nesse instante.
+    """
     sf = stats.ecdf(_amostra_censurada(dur)).sf
-    return pd.DataFrame({"anos": sf.quantiles, "S": sf.probabilities})
+    curva = pd.DataFrame({"anos": sf.quantiles, "S": sf.probabilities})
+    if len(curva) <= MAX_PONTOS_KM:
+        return curva
+    dia = np.floor(curva["anos"] * DIAS_POR_ANO)
+    return curva.groupby(dia, sort=True).last().reset_index(drop=True)
 
 
 def logrank(dur_a: pd.DataFrame, dur_b: pd.DataFrame) -> tuple[float, float]:
@@ -398,21 +533,40 @@ def projeta_um_ano(p: np.ndarray, sr: np.ndarray, novatos: float, teto: bool) ->
     return proj
 
 
+@dataclass(frozen=True)
+class RegraCenario:
+    """Como os cenários leem a série histórica.
+
+    min_saidas        a permanência da banda a de Y-1 para Y só entra se a banda
+                      teve pelo menos essas saídas em Y-1
+    janela            só os últimos `janela` anos até a base; `None` usa a história toda
+    novatos_por_taxa  novatos viram taxa (novatos de Y / ativos de Y-1), aplicada
+                      à população do ano projetado; falso usa a contagem de novatos
+    """
+
+    min_saidas: int = 0
+    janela: int | None = None
+    novatos_por_taxa: bool = False
+
+
 def cenarios(
-    pop: pd.DataFrame, saidas: pd.DataFrame, ate_ano: int, min_saidas: int
+    pop: pd.DataFrame, saidas: pd.DataFrame, ate_ano: int, regra: RegraCenario
 ) -> dict[str, tuple[np.ndarray, float]]:
     """(permanência, novatos) de cada cenário, só com a série até `ate_ano`.
 
     pessimista  menor valor histórico; otimista  maior; conservador  a média dos dois.
-    A permanência de a de Y-1 para Y só entra quando a banda a teve pelo menos
-    `min_saidas` saídas em Y-1. Banda sem nenhum ano válido usa a permanência do
-    último ano nos três cenários, a mesma do coorte.
+    Os novatos saem em contagem ou em taxa, conforme `regra.novatos_por_taxa`;
+    `_novatos_do_cenario` converte. Banda sem nenhum ano válido usa a
+    permanência do último ano nos três cenários, a mesma do coorte.
     """
+    inicio = int(pop.index.min()) + 1
+    if regra.janela is not None:
+        inicio = max(inicio, ate_ano - regra.janela + 1)
     historico = []
-    for ano in range(int(pop.index.min()) + 1, ate_ano + 1):
+    for ano in range(inicio, ate_ano + 1):
         sr = permanencia(pop, ano)
         for a in range(BANDAS):
-            if not saidas.loc[ano - 1, a] >= min_saidas:
+            if not saidas.loc[ano - 1, a] >= regra.min_saidas:
                 sr[a] = np.nan
         historico.append(sr)
     h = pd.DataFrame(historico)
@@ -423,7 +577,10 @@ def cenarios(
         if np.isnan(menor[a]):
             menor[a] = ultimo[a]
             maior[a] = ultimo[a]
-    novatos = pop.loc[:ate_ano, 0]
+    novatos = pop.loc[inicio:ate_ano, 0]
+    if regra.novatos_por_taxa:
+        ativos_antes = pop.sum(axis=1).shift(1).loc[inicio:ate_ano]
+        novatos = novatos / ativos_antes
     return {
         "pessimista": (menor, float(novatos.min())),
         "conservador": ((menor + maior) / 2, float(novatos.min() + novatos.max()) / 2),
@@ -431,8 +588,15 @@ def cenarios(
     }
 
 
+def _novatos_do_cenario(valor: float, p: np.ndarray, regra: RegraCenario) -> float:
+    """Novatos do ano projetado a partir da pirâmide `p` do ano anterior."""
+    if regra.novatos_por_taxa:
+        return valor * float(p.sum())
+    return valor
+
+
 def _projecoes(
-    pop: pd.DataFrame, saidas: pd.DataFrame, base: int, teto: bool, min_saidas: int
+    pop: pd.DataFrame, saidas: pd.DataFrame, base: int, teto: bool, regra: RegraCenario
 ) -> dict[str, np.ndarray]:
     """Pirâmide de `base + 1` por cada método, usando só a série até `base`."""
     p = _bandas(pop.loc[base])
@@ -441,8 +605,8 @@ def _projecoes(
         "ingenuo": p,
         "coorte": projeta_um_ano(p, permanencia(pop, base), novatos_coorte, teto),
     }
-    for nome, (sr, novatos) in cenarios(pop, saidas, base, min_saidas).items():
-        proj[nome] = projeta_um_ano(p, sr, novatos, teto)
+    for nome, (sr, valor) in cenarios(pop, saidas, base, regra).items():
+        proj[nome] = projeta_um_ano(p, sr, _novatos_do_cenario(valor, p, regra), teto)
     return proj
 
 
@@ -457,7 +621,7 @@ def _por_faixa(v: np.ndarray) -> dict[str, float]:
 
 
 def backtest(
-    pa: pd.DataFrame, fim: pd.Timestamp, ultimo_ano: int, teto: bool, min_saidas: int
+    pa: pd.DataFrame, fim: pd.Timestamp, ultimo_ano: int, teto: bool, regra: RegraCenario
 ) -> pd.DataFrame:
     """Prevê cada ano até `ultimo_ano` com a série anterior a ele, e mede o erro.
 
@@ -470,7 +634,7 @@ def backtest(
     linhas = []
     for alvo in range(int(pop.index.min()) + 2, ultimo_ano + 1):
         previsto = {}
-        for metodo, v in _projecoes(pop, saidas, alvo - 1, teto, min_saidas).items():
+        for metodo, v in _projecoes(pop, saidas, alvo - 1, teto, regra).items():
             previsto[metodo] = _por_faixa(v)
         real = _por_faixa(_bandas(pop.loc[alvo]))
         for faixa, valor in real.items():
@@ -523,7 +687,12 @@ def resumo_backtest(bt: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 
 def projeta_futuro(  # noqa: PLR0913, PLR0917
-    pa: pd.DataFrame, fim: pd.Timestamp, ultimo_ano: int, anos: int, teto: bool, min_saidas: int
+    pa: pd.DataFrame,
+    fim: pd.Timestamp,
+    ultimo_ano: int,
+    anos: int,
+    teto: bool,
+    regra: RegraCenario,
 ) -> pd.DataFrame:
     """Projeta `anos` anos depois de `ultimo_ano`, um ano por vez.
 
@@ -534,7 +703,7 @@ def projeta_futuro(  # noqa: PLR0913, PLR0917
     pop = populacao_por_idade(pa)
     p_ultimo = _bandas(pop.loc[ultimo_ano])
     sr_coorte = permanencia(pop, ultimo_ano)
-    fixos = cenarios(pop, saidas_por_banda(pa, fim), ultimo_ano, min_saidas)
+    fixos = cenarios(pop, saidas_por_banda(pa, fim), ultimo_ano, regra)
 
     atual = dict.fromkeys(METODOS, p_ultimo)
     anterior_coorte = _bandas(pop.loc[ultimo_ano - 1])
@@ -543,7 +712,8 @@ def projeta_futuro(  # noqa: PLR0913, PLR0917
         novatos = (atual["coorte"][0] + anterior_coorte[0]) / 2
         anterior_coorte = atual["coorte"]
         atual["coorte"] = projeta_um_ano(atual["coorte"], sr_coorte, novatos, teto)
-        for nome, (sr, novatos_cenario) in fixos.items():
+        for nome, (sr, valor) in fixos.items():
+            novatos_cenario = _novatos_do_cenario(valor, atual[nome], regra)
             atual[nome] = projeta_um_ano(atual[nome], sr, novatos_cenario, teto)
         for metodo in METODOS:
             for faixa, valor in _por_faixa(atual[metodo]).items():
