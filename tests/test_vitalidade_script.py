@@ -262,3 +262,20 @@ def test_populacao_de_codigo_grava_em_pasta_propria(tmp_path, monkeypatch):
     assert script.vitalidade_figuras.ESTADO.sufixo == " (só quem codou)"
     script.aplica_populacao(script.carrega_parametros([]))  # volta ao padrão
     assert script.vitalidade_figuras.ESTADO.sufixo == ""
+
+
+def test_carencia_de_um_ano_nao_tracejou_nada_e_a_de_tres_traceja_dois_anos():
+    import pandas as pd
+
+    import vitalidade_figuras as f
+
+    class Ctx:
+        fim = pd.Timestamp("2026-10-12")
+
+        class p:  # noqa: N801
+            carencia_anos = 1
+
+    assert f._ate_o_ano_decidido(Ctx) == 2025
+    assert f._primeiro_provisorio(Ctx) == 2026  # 2025 já é firme, nada tracejado
+    Ctx.p.carencia_anos = 3
+    assert f._primeiro_provisorio(Ctx) == 2024  # 2024 e 2025 provisórios

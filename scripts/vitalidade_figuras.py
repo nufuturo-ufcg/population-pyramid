@@ -83,7 +83,11 @@ def _ate_o_ano_decidido(ctx: Any) -> int:
 
 
 def _primeiro_provisorio(ctx: Any) -> int:
-    """Primeiro dos últimos `carencia_anos` anos, que ainda podem ter quem volte."""
+    """Primeiro ano com saída provisória: a que tem menos de `carencia_anos` anos de coleta depois.
+
+    Um ano é firme quando `fim.year - ano >= carencia_anos`. Com 1, até 2025 é firme e nada sai
+    tracejado; com 3, 2024 e 2025 saem tracejados.
+    """
     return int(ctx.fim.year - ctx.p.carencia_anos + 1)
 
 
