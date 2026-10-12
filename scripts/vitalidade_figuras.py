@@ -62,6 +62,7 @@ CHAVES_DE_ESTILO = {
     "rotulo_y",
     "xlim",  # [min, max]
     "ylim",
+    "escala_y",  # linear ou log
     "grade",  # false apaga a grade
     "fontes",  # titulo, rotulo, tick, legenda, titulo_geral (pontos); null mantém o desenhado
     "legenda",  # mostrar, posicao ("abaixo" ou loc do matplotlib), colunas, moldura
@@ -201,6 +202,8 @@ def _aplica_eixo(ax: Any, opcoes: dict[str, Any], linguagem: str) -> None:
         ax.set_xlim(*opcoes["xlim"])
     if opcoes.get("ylim") is not None:
         ax.set_ylim(*opcoes["ylim"])
+    if opcoes.get("escala_y") is not None:
+        ax.set_yscale(opcoes["escala_y"])
 
 
 def _e_referencia(traco: Any) -> bool:
@@ -311,7 +314,11 @@ def aplica_estilo(fig: Any, e: dict[str, Any]) -> None:
         fig.set_size_inches(*e["figsize"])
     por_painel = e.get("eixos") or {}
     for i, ax in enumerate(eixos):
-        opcoes = {k: e[k] for k in ("titulo", "rotulo_x", "rotulo_y", "xlim", "ylim") if k in e}
+        opcoes = {
+            k: e[k]
+            for k in ("titulo", "rotulo_x", "rotulo_y", "xlim", "ylim", "escala_y")
+            if k in e
+        }
         _aplica_eixo(ax, opcoes if i == 0 else {}, linguagem)
         _aplica_eixo(ax, por_painel.get(i) or {}, linguagem)
         if e.get("grade") is False:

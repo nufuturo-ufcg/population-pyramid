@@ -22,6 +22,7 @@
 #   titulo_geral        título da figura inteira (gráficos com vários painéis)
 #   rotulo_x, rotulo_y  rótulos dos eixos do primeiro painel
 #   xlim, ylim          [mínimo, máximo] do primeiro painel
+#   escala_y            linear ou log (o índice de ativos usa log: o Zig cresce 13 vezes)
 #   grade               false apaga a grade
 #   fontes              titulo, rotulo, tick, legenda, titulo_geral, em pontos
 #   legenda             mostrar (false esconde), posicao ("abaixo" ou um loc do
@@ -74,3 +75,6 @@ figuras:
   comparacao_corrigida.smr: {figsize: [9, 4]}
   magnetismo.linhas: {figsize: [9, 4]}
   magnetismo.dispersao: {figsize: [6.5, 6]}
+  trajetoria.indice: {figsize: [9, 4.5], escala_y: log}
+  trajetoria.crescimento: {figsize: [9, 4.5]}
+  trajetoria.taxas: {figsize: [9, 7]}
