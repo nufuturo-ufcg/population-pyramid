@@ -159,6 +159,9 @@ class Parametros:
     ano_base_indice: int
     carencia_anos: int
     rodadas_padronizacao: dict[str, list[str]]
+    nascimento_dias: int
+    ccr_ncr_inatividade_meses: float
+    ccr_ncr_novato_meses: float
 
 
 @dataclass
@@ -249,6 +252,7 @@ POPULACOES = {
     "todos": "",
     "codigo": " (só quem codou)",
     "mais_de_um_dia": " (mais de um dia de atividade)",
+    "passou_90_dias": " (contribuição 90 dias depois da primeira)",
 }
 
 
@@ -296,6 +300,8 @@ class Contexto:
             self.compactos = vitalidade.so_quem_codou(self.compactos)
         elif p.populacao == "mais_de_um_dia":
             self.compactos = vitalidade.tira_pessoas_de_um_dia(self.compactos)
+        elif p.populacao == "passou_90_dias":
+            self.compactos = vitalidade.so_quem_passou_de(self.compactos, p.nascimento_dias)
         self.fim = self.compactos["timestamp"].max()
         pessoas = self.compactos["contributor_id"].nunique()
         print(
@@ -348,6 +354,9 @@ PARAMETROS_DO_CALCULO = (
     "variantes",
     "carencia_anos",
     "rodadas_padronizacao",
+    "nascimento_dias",
+    "ccr_ncr_inatividade_meses",
+    "ccr_ncr_novato_meses",
 )
 
 
@@ -514,18 +523,28 @@ def metrica_cenarios(ctx: Contexto) -> Dados:
     return tabelas
 
 
+def _ccr_ncr(p: Parametros, compactos: pd.DataFrame) -> pd.DataFrame:
+    """CCR e NCR com a inatividade e o corte de novato do yaml, em meses."""
+    return vitalidade.ccr_ncr_trimestral(
+        compactos,
+        inatividade_dias=p.ccr_ncr_inatividade_meses * vitalidade.DAYS_PER_MONTH,
+        novato_dias=round(p.ccr_ncr_novato_meses * vitalidade.DAYS_PER_MONTH),
+    )
+
+
 @metrica("ccr_ncr")
 def metrica_ccr_ncr(ctx: Contexto) -> Dados:
     """CCR e NCR: equilíbrio entre quem faz código e quem discute, novato e veterano. RQ1 e RQ2.
 
-    O que faz: por trimestre, sobre quem contribuiu nos 3 meses até o fim dele, CCR = (código -
-    discussão) / o maior dos dois e NCR = (novatos - experientes) / o maior dos dois, ambos entre
-    -1 e 1. Novato é quem tem até 91 dias (3 meses) de idade. O sinal dos dois classifica o
+    O que faz: por trimestre, sobre quem contribuiu nos `ccr_ncr_inatividade_meses` (12, o limite
+    de saída do Avelino) até o fim dele, CCR = (código - discussão) / o maior dos dois e NCR =
+    (novatos - experientes) / o maior dos dois, ambos entre -1 e 1. Novato é quem tem até
+    `ccr_ncr_novato_meses` (3, o corte do IEICE16) de idade. O sinal dos dois classifica o
     trimestre nos tipos A a D. Mesma conta do motor, direto dos eventos compactados: roda no
-    Python também.
+    Python também. Com 3 e 3 reproduz o motor exatamente.
     Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
     """
-    return {"ccr_ncr": vitalidade.ccr_ncr_trimestral(ctx.compactos)}
+    return {"ccr_ncr": _ccr_ncr(ctx.p, ctx.compactos)}
 
 
 @metrica("ccr_ncr_comparado", escopo="comparativo")
@@ -538,7 +557,7 @@ def metrica_ccr_ncr_comparado(ctx: ContextoComparativo) -> Dados:
     """
     partes = []
     for slug, lingua in ctx.por_lingua.items():
-        t = vitalidade.ccr_ncr_trimestral(lingua.compactos)
+        t = _ccr_ncr(ctx.p, lingua.compactos)
         t.insert(0, "slug", slug)
         partes.append(t)
     return {"ccr_ncr_comparado": pd.concat(partes, ignore_index=True)}

@@ -443,6 +443,21 @@ def composicao_trimestral(pa: pd.DataFrame, band_dias: int = BAND_DIAS) -> pd.Da
     return t[lados].reset_index()
 
 
+def so_quem_passou_de(eventos: pd.DataFrame, dias: float = 90) -> pd.DataFrame:
+    """Os eventos de quem tem ao menos uma contribuição `dias` ou mais depois da primeira.
+
+    A pessoa só conta como viva depois de provar presença: um evento a pelo menos `dias` dias do
+    primeiro. É o nascimento reconhecido com atraso, como a saída é reconhecida com 12 meses de
+    silêncio. O corte olha o futuro da pessoa, então derruba a saída dos novatos e infla a
+    retenção deles, e não serve para as taxas de saída da faixa 0-1. Serve para a composição
+    (pirâmide).
+    """
+    por_pessoa = eventos.groupby("contributor_id")["timestamp"]
+    vida = por_pessoa.max() - por_pessoa.min()
+    passou = vida >= pd.Timedelta(days=dias)
+    return eventos[eventos["contributor_id"].isin(passou[passou].index)]
+
+
 def tira_pessoas_de_um_dia(eventos: pd.DataFrame) -> pd.DataFrame:
     """Os eventos de quem teve atividade em mais de um dia. Tira quem entrou e sumiu no mesmo dia.
 

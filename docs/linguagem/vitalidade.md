@@ -43,6 +43,8 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - A pirâmide por faixa sai em % dos ativos do ano (`piramide_em_pct`). A de contagem fica em `composicao.piramides_contagem`.
 - `composicao.piramides_trimestrais` desenha como o artigo: idade em bandas de 90 dias no fim do ano, só para olhar. As métricas usam as faixas de 1 ano.
 - `populacao: mais_de_um_dia` tira quem teve atividade num dia só. O corte olha o futuro da pessoa (só fica quem voltou em outro dia), então derruba a saída dos novatos e infla a retenção: serve de sensibilidade, não de população principal.
+- `populacao: passou_90_dias` mantém quem tem uma contribuição `nascimento_dias` (90) ou mais depois da primeira: a pessoa só conta como viva depois de provar presença, como a saída só vale depois de 12 meses de silêncio. Serve à composição (pirâmide). Olha o futuro da pessoa, então derruba a saída dos novatos e não serve às taxas de saída da faixa 0-1.
+- Limite de saída: 12 meses em tudo, de Avelino et al. (ESEM 2019, seção II-B e Tabela II). O CCR e o NCR usavam 3 meses de inatividade (IEICE16) e agora usam `ccr_ncr_inatividade_meses` (12). O corte de novato do CCR e NCR segue 3 meses (`ccr_ncr_novato_meses`). Com 3 e 3 o resultado é o do motor, exatamente. Refeita com os nossos dados, a Tabela II do Avelino tem a maior média harmônica em 12 meses nas cinco linguagens.
 - `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade definitiva, até o último ano completo, com os últimos `carencia_anos` (1) anos completos tracejados.
 
 ## Gráficos

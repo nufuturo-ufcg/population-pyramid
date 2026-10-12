@@ -410,3 +410,19 @@ def test_ccr_ncr_trimestral_a_mao():
     assert linha["type"] == "A"
     # 30/06: ninguém contribuiu nos 3 meses até o fim do trimestre, e o trimestre sai da série.
     assert pd.Timestamp("2020-06-30") not in t.index
+
+
+def test_so_quem_passou_de_90_dias():
+    ev = pd.DataFrame(
+        [
+            (1, "commits", "2023-01-01"),
+            (1, "commits", "2023-03-31"),  # 89 dias depois: não chega
+            (2, "commits", "2023-01-01"),
+            (2, "issues", "2023-04-01"),  # 90 dias depois: chega
+            (3, "commits", "2023-05-05"),  # um evento só
+        ],
+        columns=["contributor_id", "event_type", "timestamp"],
+    )
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    assert set(vitalidade.so_quem_passou_de(ev, 90)["contributor_id"]) == {2}
+    assert set(vitalidade.so_quem_passou_de(ev, 89)["contributor_id"]) == {1, 2}
