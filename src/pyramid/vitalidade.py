@@ -340,6 +340,9 @@ def fluxos(
     return t
 
 
+NOVATO_DIAS = round(
+    3 * DAYS_PER_MONTH
+)  # 91, a banda de 3 meses do pipeline do figuras_linguagem_bruta
 INATIVIDADE_CCR_DIAS = 3 * DAYS_PER_MONTH  # "did not give any contribution for more than 3 months"
 
 
@@ -366,7 +369,7 @@ def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
       população   quem contribuiu nos 3 meses até o fim do trimestre (`active`)
       lado        código se o primeiro commit ou PR é de antes do fim do trimestre
                   (inclui o `moved`), senão discussão
-      novato      idade até 90 dias, contada do primeiro commit ou PR (ou, sem ele, da
+      novato      idade até 91 dias (3 meses), contada do primeiro commit ou PR (ou, sem ele, da
                   primeira discussão)
       CCR         (código - discussão) / o maior dos dois
       NCR         (novatos - experientes) / o maior dos dois
@@ -396,7 +399,7 @@ def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
         do_lado_do_codigo = (codigo <= t).to_numpy()
         origem = codigo.where(do_lado_do_codigo, discussao)
         idade_dias = ((t - origem).dt.total_seconds() / 86400.0).clip(lower=0.0)
-        novatos = int((idade_dias <= BAND_DIAS).sum())
+        novatos = int((idade_dias <= NOVATO_DIAS).sum())
         n_codigo = int(do_lado_do_codigo.sum())
         n_discussao = len(ativos) - n_codigo
         ccr = _razao(n_codigo, n_discussao)

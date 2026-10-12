@@ -518,8 +518,9 @@ def metrica_ccr_ncr(ctx: Contexto) -> Dados:
 
     O que faz: por trimestre, sobre quem contribuiu nos 3 meses até o fim dele, CCR = (código -
     discussão) / o maior dos dois e NCR = (novatos - experientes) / o maior dos dois, ambos entre
-    -1 e 1. Novato é quem tem até 90 dias de idade. O sinal dos dois classifica o trimestre nos
-    tipos A a D. Mesma conta do motor, direto dos eventos compactados: roda no Python também.
+    -1 e 1. Novato é quem tem até 91 dias (3 meses) de idade. O sinal dos dois classifica o
+    trimestre nos tipos A a D. Mesma conta do motor, direto dos eventos compactados: roda no
+    Python também.
     Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
     """
     return {"ccr_ncr": vitalidade.ccr_ncr_trimestral(ctx.compactos)}

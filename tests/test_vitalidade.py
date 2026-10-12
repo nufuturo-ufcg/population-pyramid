@@ -385,7 +385,7 @@ def test_tira_pessoas_de_um_dia():
 
 
 def test_ccr_ncr_trimestral_a_mao():
-    """Em 31/03/2020: A, C e E codaram, B só discutiu; A, B e C têm até 90 dias, E tem 455."""
+    """Em 31/03/2020: A, C e E codaram, B só discutiu; A, B e C têm até 91 dias, E tem 455."""
     linhas = [
         (1, "commits", "2020-01-10"),  # A: 81 dias de idade no snapshot
         (1, "commits", "2020-03-01"),
