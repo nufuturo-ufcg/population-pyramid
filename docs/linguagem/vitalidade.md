@@ -33,6 +33,15 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - A régua (12 meses, faixas, passo anual) fica em `src/pyramid/vitalidade.py` como constante. Mudá-la exige editar o motor.
 - `ccr_ncr`, `stickiness` e `magnetismo` rodam o pipeline trimestral do motor (banda de 3 meses). Os gráficos deles desenham das tabelas, como os outros.
 
+## Populações e comparação entre linguagens
+
+- `populacao: todos` conta quem teve qualquer evento. `populacao: codigo` conta só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Em cada linguagem, entre 52% e 64% das pessoas só abriram issue ou comentaram. Cada população grava em pasta própria (`python`, `python-codigo`, `geral-codigo`), e o cache dos eventos é um só.
+- Rodar a segunda população não relê os CSV: `--set populacao=codigo` usa o cache. A população `codigo` olha o que a pessoa fez em algum momento da vida, não se ela voltou, então não carrega o viés de condicionar no futuro que um corte de "pelo menos 2 dias de atividade" teria.
+- Quase metade das pessoas de toda linguagem tem vida de um dia só (Clojure 44%, Elixir 43%, Python 42%) e cerca de dois terços saem a cada ano. O público de evento único existe em todas igualmente, e é por isso que as curvas de retenção ficam próximas.
+- `crescimento_liquido_pct` = (novatos + voltas - saídas) / ativos. Fecha a conta de ativos. O crescimento natural do plano, sem as voltas, dá negativo em todas as linguagens, até no Python, porque quem sai por 12 meses e volta conta como saída e depois como novo ativo.
+- A métrica `trajetoria` (comparativa) tira o tamanho da comparação: índice de ativos (100 em `ano_base_indice`), crescimento líquido, taxas de saída e de volta em % dos ativos, e as pirâmides de cada linguagem em % no mesmo ano (`ano_comparacao`).
+- A pirâmide por faixa sai em % dos ativos do ano (`piramide_em_pct`). A de contagem fica em `composicao.piramides_contagem`.
+
 ## Gráficos
 
 Aparência em `scripts/vitalidade_figuras.yaml`, por gráfico (`tamanho.anual`) ou para todos (`global`):
@@ -117,6 +126,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - A idade medida em 1/jan caiu porque punha duas coortes de entrada na faixa 0-1, e a projeção por coorte precisa de uma coorte por faixa de 1 ano.
 - Com a idade por ano de calendário, a faixa 8+ de Clojure aparece em 2016, como diz o plano.
 - Passo anual.
+- Dois eventos do mesmo ano de calendário nunca viram dois períodos, mesmo com mais de 365,25 dias entre eles (só acontece em ano bissexto, de 1/jan a 31/dez). A janela de 12 meses lê-se como "quem contribuiu durante o ano" (`discrepancias.md`, seção 19). Sem isso a pessoa teria duas saídas no mesmo ano e a tabela anual não fecha. Em 4,2 milhões de pessoas do Python, uma caiu aí, e as tabelas de Clojure saem idênticas.
 
 ## Contagens por ano
 

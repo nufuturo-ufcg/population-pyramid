@@ -62,3 +62,18 @@ threads: 16
 # O duckdb relê o arquivo inteiro só para contar as linhas brutas de cada papel (estatística
 # do filtro, sem efeito nas métricas). Em centenas de GB isso custa uns 20 minutos.
 contar_linhas_brutas: false
+
+# População de cada linguagem. todos: quem teve algum evento (commit, PR, issue, comentário).
+# codigo: só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Metade das
+# pessoas de cada linguagem só abriu issue ou comentou uma vez; `codigo` tira esse público.
+# Cada população grava em pasta própria (python, python-codigo).
+populacao: todos
+
+# Pirâmides por faixa em % dos ativos do ano (a soma dos dois lados e de todas as faixas é
+# 100). false desenha contagens. A pirâmide de contagem fica sempre disponível em
+# composicao.piramides_contagem.
+piramide_em_pct: true
+
+# Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
+ano_comparacao: 2024
+ano_base_indice: 2019

@@ -89,6 +89,16 @@ def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["contributor_id", "timestamp"], kind="stable").reset_index(drop=True)
 
 
+def so_quem_codou(eventos: pd.DataFrame) -> pd.DataFrame:
+    """Os eventos de quem fez ao menos um commit ou PR na vida, inclusive os de discussão.
+
+    Tira o público que só abre issue ou comenta, que dá metade das pessoas de cada
+    linguagem. A pessoa entra na população no primeiro evento dela, de qualquer tipo.
+    """
+    codou = eventos.loc[eventos["event_type"].isin(TIPOS_CODING), "contributor_id"].unique()
+    return eventos[eventos["contributor_id"].isin(codou)]
+
+
 def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
     """Um período de atividade por linha, com o primeiro evento de código e de discussão da pessoa.
 
@@ -197,6 +207,10 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
         if not ano_fechado(ano, fim):
             t.loc[ano, "saidas"] = np.nan
     t["crescimento_natural_pct"] = 100 * (t["novatos"] - t["saidas"]) / t["ativos"]
+    # Com as voltas, que fecham a conta de ativos: quem sai e volta depois de 12 meses
+    # conta como saída num ano e como volta em outro. Sem elas, a comunidade que cresce
+    # por reentrada aparece em queda.
+    t["crescimento_liquido_pct"] = 100 * (t["novatos"] + t["voltas"] - t["saidas"]) / t["ativos"]
 
     for ano in t.index:
         if ano + 1 not in t.index or pd.isna(t.loc[ano, "saidas"]):

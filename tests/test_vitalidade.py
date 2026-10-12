@@ -316,3 +316,19 @@ def test_dois_eventos_no_mesmo_ano_bissexto_sao_um_periodo_so():
     pa = vitalidade.pessoa_ano(ev, fim)  # antes falhava com (pessoa, ano) repetido
     assert not pa.duplicated(["contributor_id", "ano"]).any()
     vitalidade.tabela_anual(pa, fim)
+
+
+def test_crescimento_liquido_conta_as_voltas():
+    t = vitalidade.tabela_anual(vitalidade.pessoa_ano(_eventos(), FIM), FIM).set_index("ano")
+    # Em 2022: 1 ativo (a pessoa 2, volta), 0 novatos, 1 saída, 1 volta.
+    assert t.loc[2022, "crescimento_natural_pct"] == -100
+    assert t.loc[2022, "crescimento_liquido_pct"] == 0
+    assert t.loc[2020, "crescimento_liquido_pct"] == t.loc[2020, "crescimento_natural_pct"]
+
+
+def test_so_quem_codou_guarda_os_eventos_de_discussao_de_quem_codou():
+    ev = _eventos()
+    so_codigo = vitalidade.so_quem_codou(ev)
+    # A pessoa 4 só abriu issue e sai. A 2 discutiu e depois commitou: fica com os dois.
+    assert set(so_codigo["contributor_id"]) == {1, 2, 3}
+    assert (so_codigo["contributor_id"] == 2).sum() == 2

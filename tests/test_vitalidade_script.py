@@ -23,6 +23,7 @@ ESPERADAS = {
     "stickiness",
     "significancia",
     "comparacao_corrigida",
+    "trajetoria",
     "magnetismo",
 }
 
@@ -242,3 +243,22 @@ def test_pacote_sem_resultados_falha_alto(tmp_path):
 
     with pytest.raises(SystemExit):
         pacote.empacota(tmp_path, tmp_path / "x.tar.gz")
+
+
+def test_populacao_desconhecida_falha_alto():
+    p = script.carrega_parametros(["populacao=ninguem"])
+    with pytest.raises(SystemExit):
+        script.aplica_populacao(p)
+
+
+def test_populacao_de_codigo_grava_em_pasta_propria(tmp_path, monkeypatch):
+    script.carga_fonte.aplica_linguagem("zig")
+    monkeypatch.setattr(script.fb, "TMP_BASE", tmp_path)
+    monkeypatch.setattr(script.fb.CFG, "saida", tmp_path / "zig", raising=False)
+    monkeypatch.setattr(script.fb.ESTADO_PASTA_GERAL, "pasta", tmp_path / "geral")
+    script.aplica_populacao(script.carrega_parametros(["populacao=codigo"]))
+    assert script.fb.CFG.saida == tmp_path / "zig-codigo"
+    assert script.fb.ESTADO_PASTA_GERAL.pasta == tmp_path / "geral-codigo"
+    assert script.vitalidade_figuras.ESTADO.sufixo == " (só quem codou)"
+    script.aplica_populacao(script.carrega_parametros([]))  # volta ao padrão
+    assert script.vitalidade_figuras.ESTADO.sufixo == ""

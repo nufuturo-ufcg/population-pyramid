@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import carga_compacta
 import carga_fonte
 import figuras_linguagem_bruta as fb
+import vitalidade_figuras
 import vitalidade_pacote
 from pyramid import units, vitalidade
 from vitalidade_figuras import FIGURAS, FIGURAS_PADRAO, carrega_estilo, desenha
@@ -152,6 +153,10 @@ class Parametros:
     memoria: str
     threads: int | None
     contar_linhas_brutas: bool
+    populacao: str
+    piramide_em_pct: bool
+    ano_comparacao: int
+    ano_base_indice: int
 
 
 @dataclass
@@ -206,7 +211,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     leem dali, enquanto os arquivos de entrada não mudarem.
     """
     motor = escolhe_motor(p, fonte, entrada)
-    pasta = fb.CFG.saida / "cache"
+    pasta = Path(fb.TMP_BASE) / fb.LING.atual.slug / "cache"
     parquet = pasta / "vitalidade_eventos.parquet"
     arquivo_selo = pasta / "vitalidade_eventos.json"
     selo = _selo_dos_dados(fonte, motor)
@@ -225,7 +230,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     eventos = carga_compacta.carrega(
         fonte,
         motor,
-        trabalho=fb.CFG.saida / "trabalho",
+        trabalho=Path(fb.TMP_BASE) / fb.LING.atual.slug / "trabalho",
         memoria=p.memoria,
         threads=p.threads,
         contar_brutas=p.contar_linhas_brutas,
@@ -238,6 +243,22 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     return compactos
 
 
+POPULACOES = {"todos": "", "codigo": " (só quem codou)"}
+
+
+def aplica_populacao(p: Parametros) -> None:
+    """Resultados e figuras de cada população ficam em pastas separadas: `python`, `python-codigo`.
+
+    O cache dos eventos é um só (`<saída>/<linguagem>/cache`) e serve às duas.
+    """
+    if p.populacao not in POPULACOES:
+        raise SystemExit(f"populacao {p.populacao!r}: use {list(POPULACOES)}.")
+    sufixo = "" if p.populacao == "todos" else f"-{p.populacao}"
+    fb.CFG.saida = fb.CFG.saida.with_name(f"{fb.LING.atual.slug}{sufixo}")
+    fb.ESTADO_PASTA_GERAL.pasta = Path(fb.TMP_BASE) / f"geral{sufixo}"
+    vitalidade_figuras.ESTADO.sufixo = POPULACOES[p.populacao]
+
+
 class Contexto:
     """Dados de uma linguagem, calculados uma vez e compartilhados pelas métricas.
 
@@ -248,6 +269,7 @@ class Contexto:
     def __init__(self, p: Parametros, slug: str, bruto: bool, entrada: Entrada):
         carga_fonte.aplica_linguagem(slug)
         fb.CFG.aplica(fb.RODADA)
+        aplica_populacao(p)
         self.p = p
         self.eventos: pd.DataFrame | None = None
         fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
@@ -264,6 +286,8 @@ class Contexto:
             self.compactos = vitalidade.compacta(self.eventos)
         else:
             self.compactos = carrega_compactos(p, fonte, entrada)
+        if p.populacao == "codigo":
+            self.compactos = vitalidade.so_quem_codou(self.compactos)
         self.fim = self.compactos["timestamp"].max()
         pessoas = self.compactos["contributor_id"].nunique()
         print(
@@ -354,6 +378,7 @@ class ContextoLeve:
     def __init__(self, p: Parametros, escopo: str, slug: str):
         carga_fonte.aplica_linguagem(slug)
         fb.CFG.aplica(fb.RODADA)
+        aplica_populacao(p)
         self.p = p
         arquivo = _raiz_resultados(escopo) / "meta.json"
         if not arquivo.exists():
@@ -545,6 +570,42 @@ def metrica_comparacao_corrigida(ctx: ContextoComparativo) -> Dados:
     return {"padronizacao": vitalidade.padronizacao(taxas, ctx.p.ano_pesos)}
 
 
+@metrica("trajetoria", escopo="comparativo")
+def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
+    """Trajetória: tamanho, crescimento e composição de cada linguagem, lado a lado. Responde RQ2.
+
+    O que faz: ativos por ano e o índice de ativos (100 em `ano_base_indice`), o crescimento
+    líquido (novatos + voltas - saídas) / ativos, as taxas de saída e de volta em % dos ativos e
+    a composição por faixa em % dos ativos do ano. Linguagens de tamanhos muito diferentes (o
+    Python tem mil vezes os ativos do Zig) só se comparam com o tamanho tirado: índice, taxas e
+    composição em %.
+    Referência: equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050,
+    https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf);
+    pirâmide etária em % da população (IBGE, https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95).
+    """
+    base = ctx.p.ano_base_indice
+    trajetorias, composicoes = [], []
+    for slug, lingua in ctx.por_lingua.items():
+        t = lingua.anual.copy()
+        t.insert(0, "slug", slug)
+        t["saida_pct"] = 100 * t["saidas"] / t["ativos"]
+        t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
+        t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
+        ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice
+        t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
+        trajetorias.append(t)
+        c = vitalidade.composicao(lingua.pa)
+        lados = ["non_coding", "moved", "coding"]
+        total_do_ano = c[lados].sum(axis=1).groupby(c["ano"]).transform("sum")
+        c[lados] = 100 * c[lados].div(total_do_ano, axis=0)
+        c.insert(0, "slug", slug)
+        composicoes.append(c)
+    return {
+        "trajetoria": pd.concat(trajetorias, ignore_index=True),
+        "composicao_pct": pd.concat(composicoes, ignore_index=True),
+    }
+
+
 @metrica("magnetismo", escopo="comparativo", pipeline=True, padrao=False)
 def metrica_magnetismo(ctx: ContextoComparativo) -> Dados:
     """Magnetismo: fração dos novatos do ano que escolheram cada linguagem. Responde RQ2.
@@ -649,10 +710,11 @@ def _sem_pipeline_se_grande(
     return [n for n in nomes if n not in com_pipeline]
 
 
-def _so_com_resultados(nomes: list[str], slug: str) -> list[str]:
+def _so_com_resultados(nomes: list[str], slug: str, p: Parametros) -> list[str]:
     """Com `--so-figuras` e sem `--metricas`, desenha só o que tem resultado gravado."""
     carga_fonte.aplica_linguagem(slug)
     fb.CFG.aplica(fb.RODADA)
+    aplica_populacao(p)
     com, sem = [], []
     for nome in nomes:
         tem = any((_raiz_resultados(ESCOPO[nome]) / nome).glob("*.parquet")) or any(
@@ -810,7 +872,7 @@ def main() -> None:
     if not args.metricas and not args.so_figuras:
         nomes = _sem_pipeline_se_grande(nomes, p, args.linguagem, de_entrada)
     if not args.metricas and args.so_figuras:
-        nomes = _so_com_resultados(nomes, args.linguagem)
+        nomes = _so_com_resultados(nomes, args.linguagem, p)
     roda(nomes, p, args.linguagem, args.figuras, de_entrada, args.so_figuras)
 
 

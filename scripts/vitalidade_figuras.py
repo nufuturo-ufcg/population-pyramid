@@ -75,6 +75,11 @@ CHAVES_DE_ESTILO = {
 }
 
 
+def _nome() -> str:
+    """Nome da linguagem atual, com a população se não for a de todos."""
+    return fb.LING.atual.nome + ESTADO.sufixo
+
+
 def _mescla(base: dict, extra: dict) -> dict:
     """`extra` por cima de `base`, entrando nos dicionários em vez de trocá-los."""
     saida = dict(base)
@@ -92,6 +97,7 @@ class _Estado:
     def __init__(self) -> None:
         self.estilo: dict[str, Any] = {}
         self.atual: dict[str, Any] = {}
+        self.sufixo = ""  # " (só quem codou)", no fim do nome da linguagem
 
 
 ESTADO = _Estado()
@@ -300,7 +306,7 @@ def _aplica_extras(eixos: list, e: dict[str, Any]) -> None:
 def aplica_estilo(fig: Any, e: dict[str, Any]) -> None:
     """Aplica na figura pronta tudo que o estilo `e` pede. Opção ausente não muda nada."""
     eixos = [ax for ax in fig.axes if ax.get_visible() and ax.get_label() != "<colorbar>"]
-    linguagem = fb.LING.atual.nome
+    linguagem = _nome()
     if e.get("figsize"):
         fig.set_size_inches(*e["figsize"])
     por_painel = e.get("eixos") or {}
@@ -348,7 +354,7 @@ def salva(fig: Any, nome: str, geral: bool = False) -> None:
 def figura_anual(ctx: Any, d: Dados) -> None:
     """Ativos, novatos, saídas e voltas por ano, e o crescimento natural embaixo."""
     t = d["anual"]
-    nome = fb.LING.atual.nome
+    nome = _nome()
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
     series = [
         ("ativos", "ativos"),
@@ -366,33 +372,51 @@ def figura_anual(ctx: Any, d: Dados) -> None:
 
     ax2.axhline(0, color="#888888", linewidth=0.8)
     ax2.plot(
-        t["ano"], t["crescimento_natural_pct"], color="black", linewidth=2, marker="o", markersize=4
+        t["ano"],
+        t["crescimento_natural_pct"],
+        color="black",
+        linewidth=2,
+        marker="o",
+        markersize=4,
+        label="natural: (novatos - saídas) / ativos",
     )
-    ax2.set_ylabel("(novatos - saídas) / ativos, %")
+    if "crescimento_liquido_pct" in t:
+        ax2.plot(
+            t["ano"],
+            t["crescimento_liquido_pct"],
+            color=categorica()[0],
+            linewidth=2,
+            marker="o",
+            markersize=4,
+            label="líquido: (novatos + voltas - saídas) / ativos",
+        )
+    ax2.set_ylabel("% dos ativos")
     ax2.set_xlabel("ano")
-    ax2.set_title("crescimento natural (anos sem saída decidida ficam de fora)")
+    ax2.set_title("crescimento (anos sem saída decidida ficam de fora)")
+    ax2.legend(loc="lower left", frameon=False)
     for ax in (ax1, ax2):
         plots._theme(ax)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, "anual.png")
 
 
-@figura("composicao", "piramides", padrao=True)
-def figura_piramides(ctx: Any, d: Dados) -> None:
-    """Pirâmides por faixa de tempo de casa nos `anos_piramide`."""
+def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
     comp = d["composicao"]
     anos = [a for a in ctx.p.anos_piramide if a in set(comp["ano"])]
     codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
+    lados = ["non_coding", "moved", "coding"]
     quadros = []
     for ano in anos:
         q = comp[comp["ano"] == ano].copy()
         q["band"] = q["faixa"].map(codigo).astype(int)
+        if em_pct:
+            q[lados] = 100 * q[lados] / q[lados].to_numpy().sum()
         quadros.append(q)
     xmax = 1.0
     for q in quadros:
         xmax = max(xmax, float(q["non_coding"].max()), float((q["moved"] + q["coding"]).max()))
 
-    fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 3.6), sharey=True)
+    fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 3.8), sharey=True)
     for ax, ano, q in zip(eixos, anos, quadros, strict=True):
         plots.draw_pyramid(ax, q, xmax=xmax)
         ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
@@ -400,12 +424,24 @@ def figura_piramides(ctx: Any, d: Dados) -> None:
         ax.set_yticks([], minor=True)
         ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
         ax.set_title(str(ano))
-    fig.suptitle(
-        f"{fb.LING.atual.nome}: ativos por tempo de casa (esquerda discussão, direita código)"
-    )
+        ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
+    unidade = "% dos ativos" if em_pct else "ativos"
+    fig.suptitle(f"{_nome()}: {unidade} por tempo de casa (esquerda discussão, direita código)")
     fb._legenda_discussion(fig, plots)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
-    salva(fig, "piramides_faixa.png")
+    salva(fig, "piramides_faixa_pct.png" if em_pct else "piramides_faixa.png")
+
+
+@figura("composicao", "piramides", padrao=True)
+def figura_piramides(ctx: Any, d: Dados) -> None:
+    """Pirâmides por faixa nos `anos_piramide`, em % dos ativos do ano (`piramide_em_pct`)."""
+    _desenha_piramides(ctx, d, ctx.p.piramide_em_pct)
+
+
+@figura("composicao", "piramides_contagem")
+def figura_piramides_contagem(ctx: Any, d: Dados) -> None:
+    """As mesmas pirâmides em número de pessoas."""
+    _desenha_piramides(ctx, d, False)
 
 
 @figura("composicao", "indice", padrao=True)
@@ -416,7 +452,7 @@ def figura_indice(ctx: Any, d: Dados) -> None:
     ax.plot(ind["ano"], ind["indice"], color=categorica()[0], linewidth=2, marker="o", markersize=4)
     ax.set_ylabel("ativos 5+ anos / ativos 0-1 ano")
     ax.set_xlabel("ano")
-    ax.set_title(f"{fb.LING.atual.nome}: índice de envelhecimento")
+    ax.set_title(f"{_nome()}: índice de envelhecimento")
     plots._theme(ax)
     salva(fig, "indice_envelhecimento.png")
 
@@ -446,8 +482,7 @@ def figura_taxa_saida(ctx: Any, d: Dados) -> None:
     ax.set_ylabel("saídas / ativos da faixa")
     ax.set_xlabel("ano")
     ax.set_title(
-        f"{fb.LING.atual.nome}: taxa de saída por faixa "
-        f"(ponto vazado = menos de {saidas_estavel} saídas)"
+        f"{_nome()}: taxa de saída por faixa (ponto vazado = menos de {saidas_estavel} saídas)"
     )
     ax.legend(loc="upper right", frameon=False, ncol=3)
     plots._theme(ax)
@@ -466,7 +501,7 @@ def figura_tabua(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_xlabel("anos desde a primeira contribuição (x)")
     ax.set_ylabel("fração da coorte que chega em x, S(x)")
-    ax.set_title(f"{fb.LING.atual.nome}: tábua de vida por coorte de entrada")
+    ax.set_title(f"{_nome()}: tábua de vida por coorte de entrada")
     ax.legend(title="coorte", frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_coortes.png")
@@ -494,8 +529,7 @@ def figura_backtest(bt: pd.DataFrame, teto: bool, pasta: str, rotulo: str) -> No
     ax.set_xlabel("ano previsto")
     rotulo_teto = "com teto em 1" if teto else "sem teto"
     ax.set_title(
-        f"{fb.LING.atual.nome}: backtest um ano à frente, permanência {rotulo_teto}\n"
-        f"cenários: {rotulo}"
+        f"{_nome()}: backtest um ano à frente, permanência {rotulo_teto}\ncenários: {rotulo}"
     )
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False)
     plots._theme(ax)
@@ -553,8 +587,7 @@ def figura_futuro(
     ax.set_xlabel("ano")
     rotulo_teto = "com teto em 1" if teto else "sem teto"
     ax.set_title(
-        f"{fb.LING.atual.nome}: projeção a partir de {ultimo}, permanência {rotulo_teto}\n"
-        f"cenários: {rotulo}"
+        f"{_nome()}: projeção a partir de {ultimo}, permanência {rotulo_teto}\ncenários: {rotulo}"
     )
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False)
     plots._theme(ax)
@@ -627,7 +660,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str) -> None:
     passo = "ano" if nome == "anual" else "trimestre"
     ax.set_ylabel(f"% da população no {passo} (linhas)")
     ax.set_xlabel("ano")
-    ax.set_title(f"{fb.LING.atual.nome}: natalidade e mortalidade, passo {nome}")
+    ax.set_title(f"{_nome()}: natalidade e mortalidade, passo {nome}")
 
     linhas, rotulos = ax.get_legend_handles_labels()
     linhas_fundo, rotulos_fundo = fundo.get_legend_handles_labels()
@@ -684,7 +717,7 @@ def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
         ax.set_ylabel("ativos no ano")
     linhas, rotulos = eixos[0, 0].get_legend_handles_labels()
     fig.legend(linhas, rotulos, loc="lower center", ncol=3, frameon=False)
-    fig.suptitle(f"{fb.LING.atual.nome}: backtest dos cenários, uma regra por painel")
+    fig.suptitle(f"{_nome()}: backtest dos cenários, uma regra por painel")
     fig.tight_layout(rect=(0, 0.05, 1, 1))
     salva(fig, "cenarios_comparados.png")
 
@@ -771,7 +804,7 @@ def figura_fluxo(ctx: Any, d: Dados) -> None:
     ax.bar(t["ano"], -t["saidas"].fillna(0), color=categorica()[2], label="saídas (para baixo)")
     ax.set_ylabel("pessoas")
     ax.set_xlabel("ano")
-    ax.set_title(f"{fb.LING.atual.nome}: entradas e saídas por ano")
+    ax.set_title(f"{_nome()}: entradas e saídas por ano")
     ax.legend(loc="upper left", frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -796,7 +829,7 @@ def figura_proporcao(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_ylabel("parcela dos ativos")
     ax.set_xlabel("ano")
-    ax.set_title(f"{fb.LING.atual.nome}: composição por tempo de casa")
+    ax.set_title(f"{_nome()}: composição por tempo de casa")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=6, frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -814,7 +847,7 @@ def figura_esperanca(ctx: Any, d: Dados) -> None:
         ax.plot(t["x"], t["e"], color=cor, linewidth=2, label=str(coorte))
     ax.set_xlabel("anos desde a primeira contribuição (x)")
     ax.set_ylabel("anos que ainda restam, e(x)")
-    ax.set_title(f"{fb.LING.atual.nome}: esperança de permanência por coorte (piso)")
+    ax.set_title(f"{_nome()}: esperança de permanência por coorte (piso)")
     ax.legend(title="coorte", frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca.png")
@@ -830,7 +863,7 @@ def figura_calor(ctx: Any, d: Dados) -> None:
     ax.set_xticks(range(len(m.columns)), [str(a) for a in m.columns], rotation=90)
     ax.set_yticks(range(len(m.index)), [f"{f} anos" for f in m.index])
     fig.colorbar(imagem, ax=ax, label="saídas / ativos da faixa")
-    ax.set_title(f"{fb.LING.atual.nome}: taxa de saída por faixa e ano")
+    ax.set_title(f"{_nome()}: taxa de saída por faixa e ano")
     salva(fig, "taxa_saida_calor.png")
 
 
@@ -880,7 +913,7 @@ def figura_ccr_ncr_dispersao(ctx: Any, d: Dados) -> None:
     ax.set_ylim(-1.05, 1.05)
     ax.set_xlabel("CCR")
     ax.set_ylabel("NCR")
-    ax.set_title(f"{fb.LING.atual.nome}: CCR x NCR por trimestre")
+    ax.set_title(f"{_nome()}: CCR x NCR por trimestre")
     salva(fig, "ccr_ncr_dispersao.png")
 
 
@@ -893,7 +926,7 @@ def figura_ccr_ncr_serie(ctx: Any, d: Dados) -> None:
     ax.plot(t["snapshot"], t["ccr"], color=categorica()[0], linewidth=2, label="CCR")
     ax.plot(t["snapshot"], t["ncr"], color=categorica()[1], linewidth=2, label="NCR")
     ax.set_ylim(-1.05, 1.05)
-    ax.set_title(f"{fb.LING.atual.nome}: CCR e NCR por trimestre")
+    ax.set_title(f"{_nome()}: CCR e NCR por trimestre")
     ax.legend(loc="lower right", frameon=False)
     plots._theme(ax)
     salva(fig, "ccr_ncr_serie.png")
@@ -907,7 +940,7 @@ def figura_stickiness_barras(ctx: Any, d: Dados) -> None:
     ax.bar(t["year"].astype(int).astype(str), t["stickiness"], color="black")
     ax.tick_params(axis="x", rotation=90)  # senão o rótulo de ano cola um no outro
     ax.set_ylabel("stickiness")
-    ax.set_title(f"{fb.LING.atual.nome}: stickiness por ano")
+    ax.set_title(f"{_nome()}: stickiness por ano")
     salva(fig, "stickiness_barras.png")
 
 
@@ -922,7 +955,7 @@ def figura_stickiness_linha(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_xlabel("ano")
     ax.set_ylabel("quem volta no ano seguinte / ativos")
-    ax.set_title(f"{fb.LING.atual.nome}: stickiness por ano")
+    ax.set_title(f"{_nome()}: stickiness por ano")
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, "stickiness_linha.png")
@@ -1009,6 +1042,98 @@ def figura_magnetismo_dispersao(ctx: Any, d: Dados) -> None:
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "magnetismo_dispersao.png", geral=True)
+
+
+# --- Comparação de trajetória entre linguagens -----------------------------------
+
+
+def _linhas_por_linguagem(ax: Any, t: pd.DataFrame, coluna: str, desde: int) -> None:
+    for slug in t["slug"].drop_duplicates():
+        f = t[(t["slug"] == slug) & (t["ano"] >= desde) & t[coluna].notna()]
+        nome = carga_fonte.LINGUAGENS[slug].nome
+        ax.plot(
+            f["ano"],
+            f[coluna],
+            color=cor_da(slug),
+            linewidth=2,
+            marker="o",
+            markersize=4,
+            label=nome,
+        )
+    plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+
+@figura("trajetoria", "indice", padrao=True)
+def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
+    """Ativos de cada linguagem, índice 100 em `ano_base_indice`: tira o tamanho da comparação."""
+    base = ctx.p.ano_base_indice
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    _linhas_por_linguagem(ax, d["trajetoria"], "indice", base)
+    ax.axhline(100, color="#888888", linewidth=0.8)
+    ax.set_ylabel(f"ativos no ano (índice, {base} = 100)")
+    ax.set_xlabel("ano")
+    ax.set_title("Evolução do número de ativos, cada linguagem contra o próprio tamanho")
+    ax.legend(frameon=False)
+    salva(fig, "trajetoria_indice.png", geral=True)
+
+
+@figura("trajetoria", "crescimento", padrao=True)
+def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
+    """Crescimento líquido por ano, (novatos + voltas - saídas) / ativos, em %."""
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    _linhas_por_linguagem(ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice)
+    ax.axhline(0, color="#888888", linewidth=0.8)
+    ax.set_ylabel("crescimento líquido, % dos ativos")
+    ax.set_xlabel("ano")
+    ax.set_title("Crescimento líquido da comunidade (positivo: entra mais gente do que sai)")
+    ax.legend(frameon=False)
+    salva(fig, "trajetoria_crescimento.png", geral=True)
+
+
+@figura("trajetoria", "taxas")
+def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
+    """Saídas e voltas de cada ano, em % dos ativos, em dois painéis."""
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    _linhas_por_linguagem(ax1, d["trajetoria"], "saida_pct", ctx.p.ano_base_indice)
+    _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", ctx.p.ano_base_indice)
+    ax1.set_ylabel("saídas, % dos ativos")
+    ax2.set_ylabel("voltas, % dos ativos")
+    ax2.set_xlabel("ano")
+    ax1.set_title("Quem saiu no ano e quem voltou depois de 12 meses")
+    ax1.legend(frameon=False, ncol=5)
+    salva(fig, "trajetoria_taxas.png", geral=True)
+
+
+@figura("trajetoria", "piramides", padrao=True)
+def figura_piramides_entre_linguagens(ctx: Any, d: Dados) -> None:
+    """Uma pirâmide por linguagem em `ano_comparacao`, em % dos ativos, na mesma escala."""
+    ano = ctx.p.ano_comparacao
+    comp = d["composicao_pct"]
+    comp = comp[comp["ano"] == ano]
+    codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
+    slugs = [s for s in ctx.p.linguagens_rq2 if s in set(comp["slug"])]
+    quadros = []
+    for slug in slugs:
+        q = comp[comp["slug"] == slug].copy()
+        q["band"] = q["faixa"].map(codigo).astype(int)
+        quadros.append(q)
+    xmax = 1.0
+    for q in quadros:
+        xmax = max(xmax, float(q["non_coding"].max()), float((q["moved"] + q["coding"]).max()))
+    fig, eixos = plt.subplots(1, len(slugs), figsize=(3.4 * len(slugs), 3.8), sharey=True)
+    for ax, slug, q in zip(eixos, slugs, quadros, strict=True):
+        plots.draw_pyramid(ax, q, xmax=xmax)
+        ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
+        ax.set_yticks(range(len(vitalidade.FAIXAS)), minor=False)
+        ax.set_yticks([], minor=True)
+        ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
+        ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
+        ax.set_xlabel("% dos ativos do ano", fontsize=8)
+    fig.suptitle(f"Composição por tempo de casa em {ano} (esquerda discussão, direita código)")
+    fb._legenda_discussion(fig, plots)
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    salva(fig, "trajetoria_piramides.png", geral=True)
 
 
 carrega_estilo([])  # estilo padrão do yaml; `main` recarrega com os `--estilo`
