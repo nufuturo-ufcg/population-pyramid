@@ -158,6 +158,7 @@ class Parametros:
     ano_comparacao: int
     ano_base_indice: int
     carencia_anos: int
+    rodadas_padronizacao: dict[str, list[str]]
 
 
 @dataclass
@@ -346,6 +347,7 @@ PARAMETROS_DO_CALCULO = (
     "linguagens_rq2",
     "variantes",
     "carencia_anos",
+    "rodadas_padronizacao",
 )
 
 
@@ -588,15 +590,20 @@ def metrica_comparacao_corrigida(ctx: ContextoComparativo) -> Dados:
 
     O que faz: taxa direta = soma de (taxa da faixa da linguagem x peso da faixa
     na população de referência). SMR = saídas reais / saídas esperadas, com as
-    taxas da referência aplicadas à composição real. A referência é a soma das
-    linguagens em `ano_pesos`.
+    taxas da referência aplicadas à composição real. A referência de cada rodada
+    de `rodadas_padronizacao` é a soma das linguagens dela em `ano_pesos`: uma rodada
+    entre as de nicho (RQ2a) e outra do Clojure com o Python (RQ2b).
     Referência: Ahmad et al., Age Standardization of Rates: A New WHO Standard,
     OMS, 2001, https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf.
     """
     taxas = {}
     for slug, lingua in ctx.por_lingua.items():
         taxas[slug] = vitalidade.taxa_saida_por_faixa(lingua.pa, lingua.fim)
-    return {"padronizacao": vitalidade.padronizacao(taxas, ctx.p.ano_pesos)}
+    rodadas = []
+    for nome, linguagens in ctx.p.rodadas_padronizacao.items():
+        da_rodada = {slug: taxas[slug] for slug in linguagens}
+        rodadas.append(vitalidade.padronizacao(da_rodada, ctx.p.ano_pesos).assign(rodada=nome))
+    return {"padronizacao": pd.concat(rodadas, ignore_index=True)}
 
 
 @metrica("trajetoria", escopo="comparativo")

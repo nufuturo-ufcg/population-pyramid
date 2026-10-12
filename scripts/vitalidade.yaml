@@ -85,3 +85,10 @@ ano_base_indice: 2019
 # 1: até 2025 firme, nada tracejado. 2: 2025 tracejado. 3: 2024 e 2025 tracejados (3/4 das
 # pausas terminam em até 3 anos). Muda só o desenho, nenhuma tabela.
 carencia_anos: 1
+
+# Rodadas do SMR e da taxa padronizada. A referência de cada rodada é a soma das linguagens dela
+# em `ano_pesos`. Nicho: Clojure, Elixir, Zig e OCaml (RQ2a). Python: Clojure e Python (RQ2b), para
+# o Python não pesar na referência das de nicho.
+rodadas_padronizacao:
+  nicho: [clojure, elixir, zig, ocaml]
+  python: [clojure, python]

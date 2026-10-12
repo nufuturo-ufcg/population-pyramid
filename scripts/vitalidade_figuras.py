@@ -872,36 +872,38 @@ def figura_km(ctx: Any, d: Dados) -> None:
 
 @figura("comparacao_corrigida", "tres_paineis", padrao=True)
 def figura_padronizacao(ctx: Any, d: Dados) -> None:
-    """Taxa bruta, padronizada e SMR, um painel cada."""
-    pad = d["padronizacao"]
-    linguagens = ctx.p.linguagens_rq2
+    """Taxa bruta, padronizada e SMR, um painel cada, uma figura por rodada."""
     ano_pesos = ctx.p.ano_pesos
-    fig, eixos = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
-    paineis = [
-        ("taxa_bruta", "taxa de saída bruta"),
-        ("taxa_padronizada", f"taxa padronizada (pesos de {ano_pesos})"),
-        ("smr", "SMR (saídas reais / esperadas)"),
-    ]
-    for ax, (coluna, rotulo) in zip(eixos, paineis, strict=True):
-        for slug in linguagens:
-            t = pad[(pad["linguagem"] == slug) & pad[coluna].notna()]
-            ax.plot(
-                t["ano"],
-                t[coluna],
-                color=cor_da(slug),
-                linewidth=2,
-                marker="o",
-                markersize=4,
-                label=carga_fonte.LINGUAGENS[slug].nome,
-            )
-        ax.set_ylabel(rotulo)
-        plots._theme(ax)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    eixos[2].axhline(1, color="#888888", linewidth=0.8)
-    eixos[0].legend(loc="upper left", frameon=False)
-    eixos[0].set_title("Taxa de saída corrigida pela composição por tempo de casa")
-    eixos[2].set_xlabel("ano")
-    salva(fig, "padronizacao.png", geral=True)
+    for rodada, linguagens in ctx.p.rodadas_padronizacao.items():
+        pad = d["padronizacao"]
+        pad = pad[pad["rodada"] == rodada]
+        fig, eixos = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
+        paineis = [
+            ("taxa_bruta", "taxa de saída bruta"),
+            ("taxa_padronizada", f"taxa padronizada (pesos de {ano_pesos})"),
+            ("smr", "SMR (saídas reais / esperadas)"),
+        ]
+        for ax, (coluna, rotulo) in zip(eixos, paineis, strict=True):
+            for slug in linguagens:
+                t = pad[(pad["linguagem"] == slug) & pad[coluna].notna()]
+                ax.plot(
+                    t["ano"],
+                    t[coluna],
+                    color=cor_da(slug),
+                    linewidth=2,
+                    marker="o",
+                    markersize=4,
+                    label=carga_fonte.LINGUAGENS[slug].nome,
+                )
+            ax.set_ylabel(rotulo)
+            plots._theme(ax)
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        eixos[2].axhline(1, color="#888888", linewidth=0.8)
+        eixos[0].legend(loc="upper left", frameon=False)
+        nomes = ", ".join(carga_fonte.LINGUAGENS[s].nome for s in linguagens)
+        eixos[0].set_title(f"Taxa de saída corrigida pela composição (referência: {nomes})")
+        eixos[2].set_xlabel("ano")
+        salva(fig, f"padronizacao_{rodada}.png", geral=True)
 
 
 @figura("tamanho", "transicao_anual", padrao=True)
@@ -1193,21 +1195,23 @@ def figura_logrank(ctx: Any, d: Dados) -> None:
 
 @figura("comparacao_corrigida", "smr")
 def figura_smr(ctx: Any, d: Dados) -> None:
-    """SMR de cada linguagem por ano, em um painel só."""
-    pad = d["padronizacao"]
-    fig, ax = plt.subplots(figsize=(9, 4))
-    ax.axhline(1, color="#888888", linewidth=0.8)
-    for slug in ctx.p.linguagens_rq2:
-        t = pad[(pad["linguagem"] == slug) & pad["smr"].notna()]
-        cor = cor_da(slug)
-        ax.plot(t["ano"], t["smr"], color=cor, linewidth=2, label=carga_fonte.LINGUAGENS[slug].nome)
-    ax.set_ylabel("SMR (saídas reais / esperadas)")
-    ax.set_xlabel("ano")
-    ax.set_title(f"SMR com a referência de {ctx.p.ano_pesos}")
-    ax.legend(frameon=False)
-    plots._theme(ax)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    salva(fig, "smr.png", geral=True)
+    """SMR de cada linguagem por ano, em um painel só, uma figura por rodada."""
+    for rodada, linguagens in ctx.p.rodadas_padronizacao.items():
+        pad = d["padronizacao"]
+        pad = pad[pad["rodada"] == rodada]
+        fig, ax = plt.subplots(figsize=(9, 4))
+        ax.axhline(1, color="#888888", linewidth=0.8)
+        for slug in linguagens:
+            t = pad[(pad["linguagem"] == slug) & pad["smr"].notna()]
+            nome = carga_fonte.LINGUAGENS[slug].nome
+            ax.plot(t["ano"], t["smr"], color=cor_da(slug), linewidth=2, label=nome)
+        ax.set_ylabel("SMR (saídas reais / esperadas)")
+        ax.set_xlabel("ano")
+        ax.set_title(f"SMR, rodada {rodada}, referência de {ctx.p.ano_pesos}")
+        ax.legend(frameon=False)
+        plots._theme(ax)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        salva(fig, f"smr_{rodada}.png", geral=True)
 
 
 @figura("magnetismo", "linhas", padrao=True)

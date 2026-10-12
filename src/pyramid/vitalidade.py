@@ -361,7 +361,11 @@ def _razao(a: float, b: float) -> float:
     return float("nan") if maior == 0 else (a - b) / maior
 
 
-def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
+def ccr_ncr_trimestral(
+    eventos: pd.DataFrame,
+    inatividade_dias: float = INATIVIDADE_CCR_DIAS,
+    novato_dias: float = NOVATO_DIAS,
+) -> pd.DataFrame:
     """CCR e NCR por trimestre (IEICE16), direto dos eventos compactados.
 
     Mesma conta do motor (`snapshots.pyramid_at` e `metrics.from_pyramids`), sem o pipeline:
@@ -375,7 +379,8 @@ def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
       NCR         (novatos - experientes) / o maior dos dois
 
     O último evento de cada pessoa até o fim do trimestre é o último do trimestre dela, que a
-    compactação guarda, então a conta é exata.
+    compactação guarda, então a conta é exata. `inatividade_dias` e `novato_dias` trocam os 3
+    meses por outro corte, para a sensibilidade.
     """
     ev = eventos[["contributor_id", "event_type", "timestamp"]].sort_values("timestamp")
     codou = ev["event_type"].isin(TIPOS_CODING)
@@ -386,7 +391,7 @@ def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
 
     inicio = (ev["timestamp"].min() + pd.offsets.QuarterEnd(0)).normalize()
     fim = (ev["timestamp"].max() - pd.offsets.QuarterEnd(1)).normalize()
-    janela = np.timedelta64(int(INATIVIDADE_CCR_DIAS * 86400), "s")
+    janela = np.timedelta64(int(inatividade_dias * 86400), "s")
     linhas = []
     for t in pd.date_range(inicio, fim, freq="QE"):
         de = np.searchsorted(instantes, (t - pd.Timedelta(janela)).to_datetime64(), side="left")
@@ -399,7 +404,7 @@ def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
         do_lado_do_codigo = (codigo <= t).to_numpy()
         origem = codigo.where(do_lado_do_codigo, discussao)
         idade_dias = ((t - origem).dt.total_seconds() / 86400.0).clip(lower=0.0)
-        novatos = int((idade_dias <= NOVATO_DIAS).sum())
+        novatos = int((idade_dias <= novato_dias).sum())
         n_codigo = int(do_lado_do_codigo.sum())
         n_discussao = len(ativos) - n_codigo
         ccr = _razao(n_codigo, n_discussao)
