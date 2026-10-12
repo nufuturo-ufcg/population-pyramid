@@ -814,6 +814,10 @@ def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
         ax.set_visible(False)
     for ax, (rotulo, bt) in zip(eixos.flat, bts.items(), strict=False):
         t = bt[(bt["faixa"] == "total") & (bt["teto"] == teto)].dropna(subset=["conservador"])
+        if t.empty:  # linguagem com pouca história: nenhum ano com backtest nesta regra
+            ax.set_title(f"{rotulo}\nsem anos suficientes para o backtest")
+            plots._theme(ax)
+            continue
         # Barra vertical por ano: continua legível quando o backtest tem um ano só (Zig).
         ax.vlines(
             t["ano"],
