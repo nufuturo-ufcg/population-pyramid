@@ -512,20 +512,33 @@ def metrica_cenarios(ctx: Contexto) -> Dados:
     return tabelas
 
 
-@metrica("ccr_ncr", pipeline=True)
+@metrica("ccr_ncr")
 def metrica_ccr_ncr(ctx: Contexto) -> Dados:
     """CCR e NCR: equilíbrio entre quem faz código e quem discute, novato e veterano. RQ1 e RQ2.
 
-    O que faz: por trimestre, CCR = (coding - non) / maior dos dois e NCR faz o
-    mesmo para novato contra experiente, ambos entre -1 e 1. O sinal dos dois
-    classifica o trimestre nos tipos A a D. Usa a régua do IEICE16 (banda de 3
-    meses), a mesma de `figuras_linguagem_bruta.py --figuras ccr-ncr`.
+    O que faz: por trimestre, sobre quem contribuiu nos 3 meses até o fim dele, CCR = (código -
+    discussão) / o maior dos dois e NCR = (novatos - experientes) / o maior dos dois, ambos entre
+    -1 e 1. Novato é quem tem até 90 dias de idade. O sinal dos dois classifica o trimestre nos
+    tipos A a D. Mesma conta do motor, direto dos eventos compactados: roda no Python também.
     Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
     """
-    pl = ctx.pipeline
-    todos = pl.metrics.load_all()
-    df = todos[todos["scope_id"] == pl.sid].dropna(subset=["ccr", "ncr"]).sort_values("snapshot")
-    return {"ccr_ncr": df[["snapshot", "ccr", "ncr", "type"]]}
+    return {"ccr_ncr": vitalidade.ccr_ncr_trimestral(ctx.compactos)}
+
+
+@metrica("ccr_ncr_comparado", escopo="comparativo")
+def metrica_ccr_ncr_comparado(ctx: ContextoComparativo) -> Dados:
+    """CCR e NCR das cinco linguagens no mesmo quadro. RQ1 e RQ2.
+
+    O que faz: o `ccr_ncr` de cada linguagem de `linguagens_rq2`, empilhado, para os gráficos
+    com todas juntas.
+    Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
+    """
+    partes = []
+    for slug, lingua in ctx.por_lingua.items():
+        t = vitalidade.ccr_ncr_trimestral(lingua.compactos)
+        t.insert(0, "slug", slug)
+        partes.append(t)
+    return {"ccr_ncr_comparado": pd.concat(partes, ignore_index=True)}
 
 
 @metrica("stickiness", pipeline=True)

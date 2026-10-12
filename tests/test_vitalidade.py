@@ -382,3 +382,31 @@ def test_tira_pessoas_de_um_dia():
     )
     ev["timestamp"] = pd.to_datetime(ev["timestamp"])
     assert set(vitalidade.tira_pessoas_de_um_dia(ev)["contributor_id"]) == {2}
+
+
+def test_ccr_ncr_trimestral_a_mao():
+    """Em 31/03/2020: A, C e E codaram, B só discutiu; A, B e C têm até 90 dias, E tem 455."""
+    linhas = [
+        (1, "commits", "2020-01-10"),  # A: 81 dias de idade no snapshot
+        (1, "commits", "2020-03-01"),
+        (2, "issues", "2020-02-15"),  # B: 45 dias, só discussão
+        (3, "commits", "2020-03-20"),  # C: 11 dias
+        (4, "commits", "2019-01-01"),  # E: 455 dias, ativo pelo commit de março
+        (4, "commits", "2020-03-25"),
+        (5, "commits", "2020-09-01"),  # só estende a série de trimestres
+    ]
+    ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    t = vitalidade.ccr_ncr_trimestral(ev).set_index("snapshot")
+    linha = t.loc[pd.Timestamp("2020-03-31")]
+    assert (linha["coding"], linha["non_coding"], linha["new"], linha["experienced"]) == (
+        3,
+        1,
+        3,
+        1,
+    )
+    assert linha["ccr"] == pytest.approx(2 / 3)
+    assert linha["ncr"] == pytest.approx(2 / 3)
+    assert linha["type"] == "A"
+    # 30/06: ninguém contribuiu nos 3 meses até o fim do trimestre, e o trimestre sai da série.
+    assert pd.Timestamp("2020-06-30") not in t.index

@@ -340,6 +340,83 @@ def fluxos(
     return t
 
 
+INATIVIDADE_CCR_DIAS = 3 * DAYS_PER_MONTH  # "did not give any contribution for more than 3 months"
+
+
+def _tipo_ccr_ncr(ccr: float, ncr: float) -> str | None:
+    """Tipo A a D pelo sinal dos dois. Zero cai do lado baixo, como em `metrics._type_of`."""
+    if not (np.isfinite(ccr) and np.isfinite(ncr)):
+        return None
+    return {(True, True): "A", (False, True): "B", (True, False): "C", (False, False): "D"}[
+        (ccr > 0, ncr > 0)
+    ]
+
+
+def _razao(a: float, b: float) -> float:
+    """(a - b) / max(a, b), como `metrics.ratio`. Indefinida sem ninguém."""
+    maior = max(a, b)
+    return float("nan") if maior == 0 else (a - b) / maior
+
+
+def ccr_ncr_trimestral(eventos: pd.DataFrame) -> pd.DataFrame:
+    """CCR e NCR por trimestre (IEICE16), direto dos eventos compactados.
+
+    Mesma conta do motor (`snapshots.pyramid_at` e `metrics.from_pyramids`), sem o pipeline:
+
+      população   quem contribuiu nos 3 meses até o fim do trimestre (`active`)
+      lado        código se o primeiro commit ou PR é de antes do fim do trimestre
+                  (inclui o `moved`), senão discussão
+      novato      idade até 90 dias, contada do primeiro commit ou PR (ou, sem ele, da
+                  primeira discussão)
+      CCR         (código - discussão) / o maior dos dois
+      NCR         (novatos - experientes) / o maior dos dois
+
+    O último evento de cada pessoa até o fim do trimestre é o último do trimestre dela, que a
+    compactação guarda, então a conta é exata.
+    """
+    ev = eventos[["contributor_id", "event_type", "timestamp"]].sort_values("timestamp")
+    codou = ev["event_type"].isin(TIPOS_CODING)
+    primeiro_codigo = ev[codou].groupby("contributor_id")["timestamp"].min()
+    primeira_discussao = ev[~codou].groupby("contributor_id")["timestamp"].min()
+    instantes = ev["timestamp"].to_numpy()
+    pessoas = ev["contributor_id"].to_numpy()
+
+    inicio = (ev["timestamp"].min() + pd.offsets.QuarterEnd(0)).normalize()
+    fim = (ev["timestamp"].max() - pd.offsets.QuarterEnd(1)).normalize()
+    janela = np.timedelta64(int(INATIVIDADE_CCR_DIAS * 86400), "s")
+    linhas = []
+    for t in pd.date_range(inicio, fim, freq="QE"):
+        de = np.searchsorted(instantes, (t - pd.Timedelta(janela)).to_datetime64(), side="left")
+        ate = np.searchsorted(instantes, t.to_datetime64(), side="right")
+        ativos = pd.unique(pessoas[de:ate])
+        if len(ativos) == 0:
+            continue
+        codigo = primeiro_codigo.reindex(ativos)
+        discussao = primeira_discussao.reindex(ativos)
+        do_lado_do_codigo = (codigo <= t).to_numpy()
+        origem = codigo.where(do_lado_do_codigo, discussao)
+        idade_dias = ((t - origem).dt.total_seconds() / 86400.0).clip(lower=0.0)
+        novatos = int((idade_dias <= BAND_DIAS).sum())
+        n_codigo = int(do_lado_do_codigo.sum())
+        n_discussao = len(ativos) - n_codigo
+        ccr = _razao(n_codigo, n_discussao)
+        ncr = _razao(novatos, len(ativos) - novatos)
+        linhas.append(
+            {
+                "snapshot": t,
+                "coding": n_codigo,
+                "non_coding": n_discussao,
+                "new": novatos,
+                "experienced": len(ativos) - novatos,
+                "total": len(ativos),
+                "ccr": ccr,
+                "ncr": ncr,
+                "type": _tipo_ccr_ncr(ccr, ncr),
+            }
+        )
+    return pd.DataFrame(linhas)
+
+
 BAND_DIAS = 90  # trimestre de 90 dias, como o `band_days` da replicação do IEICE16
 
 

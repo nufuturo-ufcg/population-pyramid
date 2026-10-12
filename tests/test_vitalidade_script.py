@@ -24,6 +24,7 @@ ESPERADAS = {
     "significancia",
     "comparacao_corrigida",
     "trajetoria",
+    "ccr_ncr_comparado",
     "magnetismo",
 }
 

@@ -78,3 +78,5 @@ figuras:
   trajetoria.indice: {figsize: [9, 4.5], escala_y: log}
   trajetoria.crescimento: {figsize: [9, 4.5]}
   trajetoria.taxas: {figsize: [9, 7]}
+  ccr_ncr_comparado.dispersao: {figsize: [8, 7]}
+  ccr_ncr_comparado.serie: {figsize: [10, 7]}

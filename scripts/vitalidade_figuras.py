@@ -1085,6 +1085,69 @@ def figura_ccr_ncr_serie(ctx: Any, d: Dados) -> None:
     salva(fig, "ccr_ncr_serie.png")
 
 
+@figura("ccr_ncr_comparado", "dispersao", padrao=True)
+def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
+    """CCR x NCR por trimestre, as cinco linguagens juntas; o ponto grande é o último trimestre."""
+    t = d["ccr_ncr_comparado"]
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.axhline(0, color="#888888", linewidth=0.7)
+    ax.axvline(0, color="#888888", linewidth=0.7)
+    for slug in t["slug"].drop_duplicates():
+        f = t[t["slug"] == slug].dropna(subset=["ccr", "ncr"])
+        cor = cor_da(slug)
+        nome = carga_fonte.LINGUAGENS[slug].nome
+        ax.scatter(f["ccr"], f["ncr"], color=cor, s=16, alpha=0.45, label=nome, zorder=3)
+        ultimo = f.iloc[-1]
+        ax.scatter([ultimo["ccr"]], [ultimo["ncr"]], color=cor, s=90, edgecolor="black", zorder=4)
+        ax.annotate(
+            str(pd.Timestamp(ultimo["snapshot"]).year),
+            (ultimo["ccr"], ultimo["ncr"]),
+            fontsize=8,
+            textcoords="offset points",
+            xytext=(6, 6),
+        )
+    ax.set_xlim(-1.05, 1.05)
+    ax.set_ylim(-1.05, 1.05)
+    ax.set_xlabel("CCR  (código contra discussão)")
+    ax.set_ylabel("NCR  (novatos contra experientes)")
+    for texto, x, y in (
+        ("A", 0.93, 0.93),
+        ("B", -0.97, 0.93),
+        ("C", 0.93, -0.97),
+        ("D", -0.97, -0.97),
+    ):
+        ax.text(x, y, texto, fontsize=14, color="#999999", ha="center", va="center")
+    ax.set_title("CCR x NCR por trimestre, cinco linguagens")
+    ax.legend(frameon=False, loc="lower center", ncol=5, bbox_to_anchor=(0.5, -0.12))
+    plots._theme(ax)
+    salva(fig, "ccr_ncr_dispersao.png", geral=True)
+
+
+@figura("ccr_ncr_comparado", "serie")
+def figura_ccr_ncr_comparado_serie(ctx: Any, d: Dados) -> None:
+    """CCR e NCR ao longo dos trimestres, um painel cada, cinco linguagens."""
+    t = d["ccr_ncr_comparado"]
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+    for ax, coluna, rotulo in ((ax1, "ccr", "CCR"), (ax2, "ncr", "NCR")):
+        ax.axhline(0, color="#888888", linewidth=0.8)
+        for slug in t["slug"].drop_duplicates():
+            f = t[t["slug"] == slug].dropna(subset=[coluna])
+            ax.plot(
+                f["snapshot"],
+                f[coluna],
+                color=cor_da(slug),
+                linewidth=1.8,
+                label=carga_fonte.LINGUAGENS[slug].nome,
+            )
+        ax.set_ylim(-1.05, 1.05)
+        ax.set_ylabel(rotulo)
+        plots._theme(ax)
+    ax1.set_title("CCR e NCR por trimestre, cinco linguagens")
+    ax1.legend(frameon=False, ncol=5, loc="lower center", bbox_to_anchor=(0.5, 1.0))
+    ax2.set_xlabel("trimestre")
+    salva(fig, "ccr_ncr_serie.png", geral=True)
+
+
 @figura("stickiness", "barras", padrao=True)
 def figura_stickiness_barras(ctx: Any, d: Dados) -> None:
     """Uma barra por ano."""
