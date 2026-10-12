@@ -43,7 +43,7 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - A pirâmide por faixa sai em % dos ativos do ano (`piramide_em_pct`). A de contagem fica em `composicao.piramides_contagem`.
 - `composicao.piramides_trimestrais` desenha como o artigo: idade em bandas de 90 dias no fim do ano, só para olhar. As métricas usam as faixas de 1 ano.
 - `populacao: mais_de_um_dia` tira quem teve atividade num dia só. O corte olha o futuro da pessoa (só fica quem voltou em outro dia), então derruba a saída dos novatos e infla a retenção: serve de sensibilidade, não de população principal.
-- `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade definitiva, até o último ano completo, com os últimos `carencia_anos` anos tracejados.
+- `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade definitiva, até o último ano completo, com os últimos `carencia_anos` (1) anos completos tracejados.
 
 ## Gráficos
 
@@ -141,7 +141,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - Moved de Y: o primeiro commit ou PR caiu em Y, depois de a pessoa já ter discutido.
 - A conta fecha: ativos(Y+1) = ativos(Y) - saídas(Y) - pausas(Y) + novatos(Y+1) + voltas(Y+1). `tabela_anual` falha se não fechar.
 - `crescimento_natural_pct` = (novatos - saídas) / ativos, nascimentos menos mortes. `crescimento_liquido_pct` = (novatos + voltas - saídas - pausas) / ativos, a variação real dos ativos.
-- Hindsight: saber que a pessoa volta no futuro tira a saída dela. O custo é que a saída dos anos finais é provisória, porque quem parou há pouco ainda pode voltar. Das pausas que terminam, 54% a 67% duram até 2 anos, 75% a 86% até 3 e 90% a 98% até 5, nas cinco linguagens. Os gráficos vão até o último ano completo da coleta. O último ano completo conta como saída quem não contribuiu desde então, com menos de 12 meses de coleta confirmados (`provisorio` na tabela anual). Os `carencia_anos` (3) últimos anos saem tracejados nos gráficos de saída, mortalidade e crescimento. O ano da coleta, incompleto, fica fora.
+- Hindsight: saber que a pessoa volta no futuro tira a saída dela. O custo é que a saída dos anos finais é provisória, porque quem parou há pouco ainda pode voltar. Das pausas que terminam, 54% a 67% duram até 2 anos, 75% a 86% até 3 e 90% a 98% até 5, nas cinco linguagens. Os gráficos vão até o último ano completo da coleta. O último ano completo conta como saída quem não contribuiu desde então, com menos de 12 meses de coleta confirmados (`provisorio` na tabela anual). Os `carencia_anos` (1) últimos anos completos saem tracejados nos gráficos de saída, mortalidade e crescimento. O ano da coleta, incompleto, fica fora.
 
 ## Escolhas feitas com o usuário (2026-10-09)
 

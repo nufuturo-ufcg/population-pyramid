@@ -80,7 +80,8 @@ ano_base_indice: 2019
 
 # Saída é definitiva: a última contribuição da vida, seguida de 12 meses sem nada até o fim da
 # coleta. Os gráficos vão até o último ano completo da coleta (2025). Quem parou há pouco ainda
-# pode voltar, então a saída dos últimos `carencia_anos` anos é provisória e sai tracejada
-# (nas cinco linguagens, 3/4 das pausas terminam em até 3 anos). O último ano completo é o mais
-# provisório: conta como saída quem não contribuiu desde então, com menos de 12 meses de coleta.
-carencia_anos: 3
+# pode voltar, então a saída dos últimos `carencia_anos` anos completos é provisória e sai
+# tracejada. 1 marca só o último ano completo, o que ainda não tem 12 meses de coleta depois.
+# 3 marcaria também os anos com menos de 3 anos de acompanhamento (3/4 das pausas terminam em
+# até 3 anos). Muda só o desenho, nenhuma tabela.
+carencia_anos: 1
