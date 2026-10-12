@@ -80,6 +80,35 @@ Motores de carga (`scripts/carga_compacta.py`, `motor` no yaml ou `--motor`; `au
 - `--saida PASTA` (padrão `~/Documents/pyramid-vitalidade`, env `PYRAMID_SAIDA`) escolhe onde ficam resultados e figuras.
 - Fluxo: na batuta, calcular e `--empacota`; copiar o `.tar.gz` para o Mac com `scp`; no Mac, `--importa` e `--so-figuras` com o estilo que quiser.
 
+## Rodar na batuta
+
+O código só se edita no Mac e sobe para o GitHub. Na batuta só há clone, pull e execução.
+
+```bash
+# uma vez
+ssh wendell@batuta.splab.ufcg.edu.br
+git clone --branch feat/piramide-por-linguagem https://github.com/nufuturo-ufcg/population-pyramid.git ~/pyramid-vitalidade
+curl -LsSf https://astral.sh/uv/install.sh | sh        # sem uv
+cd ~/pyramid-vitalidade && uv sync
+
+# a cada rodada
+cd ~/pyramid-vitalidade && git pull && export MPLBACKEND=Agg
+nohup setsid uv run python scripts/vitalidade.py --linguagem python --saida ~/pyramid-vitalidade-saida \
+    --figuras nenhuma > ~/pyramid-vitalidade-saida/python-run.log 2>&1 < /dev/null &
+uv run python scripts/vitalidade.py --comparativo --saida ~/pyramid-vitalidade-saida --figuras nenhuma
+uv run python scripts/vitalidade.py --saida ~/pyramid-vitalidade-saida --empacota
+
+# no Mac
+scp wendell@batuta.splab.ufcg.edu.br:pyramid-vitalidade-saida/vitalidade-resultados-*.tar.gz .
+uv run python scripts/vitalidade.py --importa vitalidade-resultados-AAAA-MM-DD-HHMM.tar.gz
+uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras todas
+```
+
+- `/tmp` da batuta tem 2,7 GB. Resultados e a pasta de trabalho do duckdb ficam na pasta de `--saida`, em `/home`.
+- Uma linguagem de cada vez. O Python leva cerca de 1 hora com o motor duckdb (10 GB leem em 2 minutos) e usa até 24 GB de memória (`memoria` no yaml). A batuta divide memória com as coletas: deixe folga.
+- A pasta `~/population-pyramid` da batuta é a da coleta. Não use.
+- Sem display, `MPLBACKEND=Agg`. Com `--figuras nenhuma` a batuta só calcula, e o Mac desenha.
+
 ## Régua
 
 - Saída: 12 meses sem contribuir (Avelino et al., ESEM 2019). A replicação do IEICE16 usa 3.

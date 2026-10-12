@@ -61,7 +61,9 @@ NULOS = [
     "nan",
     "null",
 ]
-LINHA_MAXIMA = 256 * 1024 * 1024  # um commit com milhares de arquivos tem uma linha enorme
+# Cada núcleo reserva um buffer proporcional a isto. 256 MB por linha estourou 24 GB com 16 núcleos.
+# Um commit com milhares de arquivos cabe em bem menos; linha maior é descartada.
+LINHA_MAXIMA = 32 * 1024 * 1024
 CODIGOS_DE_CODIGO = ("commits", "pull_requests")
 
 
