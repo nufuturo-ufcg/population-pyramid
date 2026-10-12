@@ -93,8 +93,9 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
     """Um período de atividade por linha, com o primeiro evento de código e de discussão da pessoa.
 
     Mesma saída de `classify.profile(eventos, TIPOS_CODING, GAP_DIAS)`, numa
-    passada vetorizada em vez de um laço Python por pessoa. Um teste confere
-    as duas contra os mesmos eventos.
+    passada vetorizada em vez de um laço Python por pessoa, com uma diferença: eventos do
+    mesmo ano de calendário ficam no mesmo período, mesmo com mais de 365,25 dias entre eles
+    (só acontece em ano bissexto). Um teste confere as duas nos demais casos.
     """
     ev = eventos.sort_values(["contributor_id", "timestamp"], kind="stable")
     ts = ev["timestamp"]
@@ -108,7 +109,13 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
     )
 
     pessoa_nova = pessoa != pessoa.shift()
-    silencio = (ts - ts.shift()) / np.timedelta64(1, "D") > GAP_DIAS
+    anterior = ts.shift()
+    # Dois eventos do mesmo ano de calendário nunca são dois períodos: num ano bissexto, 1/jan e
+    # 31/dez distam mais de 365,25 dias, e sem esta guarda a pessoa teria duas saídas no mesmo
+    # ano, que a tabela anual não sabe contar. Em 4,2 milhões de pessoas do Python, uma só caiu aí.
+    silencio = ((ts - anterior) / np.timedelta64(1, "D") > GAP_DIAS) & (
+        ts.dt.year != anterior.dt.year
+    )
     periodo = (pessoa_nova | silencio).cumsum()
     spans = ev.groupby(periodo, sort=False).agg(
         contributor_id=("contributor_id", "first"),

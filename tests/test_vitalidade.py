@@ -295,3 +295,24 @@ def test_kaplan_meier_de_amostra_enorme_fica_com_um_ponto_por_dia(monkeypatch):
     juntos = fina.merge(completa, on="anos", suffixes=("_fina", "_completa"))
     assert len(juntos) == len(fina)
     assert np.allclose(juntos["S_fina"], juntos["S_completa"])
+
+
+def test_dois_eventos_no_mesmo_ano_bissexto_sao_um_periodo_so():
+    """1/jan e 31/dez de 2024 distam 365,67 dias e, ainda assim, são o mesmo ano."""
+    linhas = [
+        (1, "commits", "2019-09-06 23:13:20"),
+        (1, "commits", "2024-01-01 02:23:05"),
+        (1, "commits", "2024-12-31 18:16:16"),
+        (2, "commits", "2016-01-01 00:00:10"),
+        (2, "commits", "2016-12-31 12:00:00"),
+        (2, "commits", "2018-06-01 00:00:00"),
+    ]
+    ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    spans = vitalidade.periodos(ev)
+    # A pessoa 1 tem dois períodos (2019 e 2024); a 2 também (2016 e 2018), nenhum partido no ano.
+    assert spans.groupby("contributor_id").size().to_dict() == {1: 2, 2: 2}
+    fim = pd.Timestamp("2027-01-01")
+    pa = vitalidade.pessoa_ano(ev, fim)  # antes falhava com (pessoa, ano) repetido
+    assert not pa.duplicated(["contributor_id", "ano"]).any()
+    vitalidade.tabela_anual(pa, fim)

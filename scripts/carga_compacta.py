@@ -28,7 +28,12 @@ def _pandas(fonte: Fonte, **_: object) -> pd.DataFrame:
 
 
 def _duckdb(
-    fonte: Fonte, trabalho: Path, memoria: str = "30GB", threads: int | None = None, **_: object
+    fonte: Fonte,
+    trabalho: Path,
+    memoria: str = "30GB",
+    threads: int | None = None,
+    contar_brutas: bool = True,
+    **_: object,
 ) -> pd.DataFrame:
     """O motor duckdb mora em `adapters/coleta_csv/`, onde o SQL é permitido."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -48,6 +53,7 @@ def _duckdb(
         trabalho=trabalho,
         memoria=memoria,
         threads=threads,
+        contar_brutas=contar_brutas,
     )
     resultado = carga_duckdb.carrega(pedido)
     fb._stats().update(resultado.estatisticas)
@@ -62,7 +68,8 @@ MOTORES: dict[str, Callable[..., pd.DataFrame]] = {"pandas": _pandas, "duckdb": 
 def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFrame:
     """Eventos [contributor_id, event_type, timestamp] da fonte, lidos pelo motor escolhido.
 
-    Opções do `duckdb`: `trabalho` (pasta em disco para o derrame), `memoria` ("30GB"), `threads`.
+    Opções do `duckdb`: `trabalho` (pasta em disco para o derrame), `memoria` ("30GB"), `threads`,
+    `contar_brutas` (relê o arquivo só para contar linhas).
     """
     if motor not in MOTORES:
         raise SystemExit(f"motor {motor!r} desconhecido: use {list(MOTORES)}.")

@@ -151,6 +151,7 @@ class Parametros:
     limite_bruto_gb: float
     memoria: str
     threads: int | None
+    contar_linhas_brutas: bool
 
 
 @dataclass
@@ -222,7 +223,12 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         f"carga: motor {motor}, {fonte.bytes_de_eventos() / 1e9:.1f} GB de eventos ({fonte.origem})"
     )
     eventos = carga_compacta.carrega(
-        fonte, motor, trabalho=fb.CFG.saida / "trabalho", memoria=p.memoria, threads=p.threads
+        fonte,
+        motor,
+        trabalho=fb.CFG.saida / "trabalho",
+        memoria=p.memoria,
+        threads=p.threads,
+        contar_brutas=p.contar_linhas_brutas,
     )
     compactos = vitalidade.compacta(eventos)
     del eventos

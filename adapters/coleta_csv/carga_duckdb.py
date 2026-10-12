@@ -79,6 +79,7 @@ class Pedido:
     trabalho: Path  # pasta em disco para o banco e o derrame
     memoria: str = "30GB"
     threads: int | None = None
+    contar_brutas: bool = True  # relê o arquivo inteiro só para contar linhas: minutos por 100 GB
     agora: pd.Timestamp = field(default_factory=pd.Timestamp.now)
 
 
@@ -180,9 +181,15 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     """)
     stats["eventos_api_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE NOT eh_commit")
     stats["eventos_git_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE eh_commit")
-    print("duckdb: contando as linhas brutas", file=sys.stderr)
-    stats["eventos_api_bruto"] = _um(con, "SELECT count(*) FROM bruto WHERE NOT eh_commit")
-    stats["eventos_git_bruto"] = _um(con, "SELECT count(*) FROM bruto WHERE eh_commit")
+    if pedido.contar_brutas:
+        print("duckdb: contando as linhas brutas", file=sys.stderr)
+        linha = con.execute(
+            "SELECT count(*) FILTER (WHERE NOT eh_commit), count(*) FILTER (WHERE eh_commit) "
+            "FROM bruto"
+        ).fetchone()
+        stats["eventos_api_bruto"], stats["eventos_git_bruto"] = (
+            (int(linha[0]), int(linha[1])) if linha else (0, 0)
+        )
 
     print("duckdb: commits copiados entre repositórios", file=sys.stderr)
     con.execute("""

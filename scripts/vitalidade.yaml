@@ -58,3 +58,7 @@ limite_bruto_gb: 20
 # coletas: deixe folga. threads null usa todos.
 memoria: 30GB
 threads: 16
+
+# O duckdb relê o arquivo inteiro só para contar as linhas brutas de cada papel (estatística
+# do filtro, sem efeito nas métricas). Em centenas de GB isso custa uns 20 minutos.
+contar_linhas_brutas: false
