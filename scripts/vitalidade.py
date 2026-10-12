@@ -649,6 +649,21 @@ def _sem_pipeline_se_grande(
     return [n for n in nomes if n not in com_pipeline]
 
 
+def _so_com_resultados(nomes: list[str], slug: str) -> list[str]:
+    """Com `--so-figuras` e sem `--metricas`, desenha só o que tem resultado gravado."""
+    carga_fonte.aplica_linguagem(slug)
+    fb.CFG.aplica(fb.RODADA)
+    com, sem = [], []
+    for nome in nomes:
+        tem = any((_raiz_resultados(ESCOPO[nome]) / nome).glob("*.parquet")) or any(
+            (_raiz_resultados(ESCOPO[nome]) / nome).glob("*/*.parquet")
+        )
+        (com if tem else sem).append(nome)
+    if sem:
+        print(f"aviso: sem resultados gravados de {sem}; ficam de fora.", file=sys.stderr)
+    return com
+
+
 def roda(
     nomes: list[str],
     p: Parametros,
@@ -794,6 +809,8 @@ def main() -> None:
     de_entrada = Entrada(args.dados, args.eventos, args.alvo, not args.sem_cache, args.motor)
     if not args.metricas and not args.so_figuras:
         nomes = _sem_pipeline_se_grande(nomes, p, args.linguagem, de_entrada)
+    if not args.metricas and args.so_figuras:
+        nomes = _so_com_resultados(nomes, args.linguagem)
     roda(nomes, p, args.linguagem, args.figuras, de_entrada, args.so_figuras)
 
 
