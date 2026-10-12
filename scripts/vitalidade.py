@@ -1,61 +1,57 @@
 #!/usr/bin/env python
-"""Métricas de vitalidade de uma linguagem (Plano de Experimento, RQ1).
+"""Métricas de vitalidade de uma linguagem (Plano de Experimento, RQ1 a RQ3).
 
-    uv run python scripts/vitalidade.py --linguagem clojure
+Cada linha da tabela de variáveis dependentes do plano é uma função `metrica_*`
+abaixo, com o que ela faz e a referência do cálculo. `main` roda as pedidas em
+sequência: calcula, grava as tabelas (parquet e CSV) e só então desenha. Os
+gráficos e o estilo deles ficam em `vitalidade_figuras.py` e `vitalidade_figuras.yaml`.
 
-Carrega a coleta com `carrega_eventos` de `figuras_linguagem_bruta.py` (mesmos
-filtros de elegibilidade, bot e conta apagada) e grava, em
-`~/Documents/pyramid-tmp/<linguagem>/vitalidade/`:
+    uv run python scripts/vitalidade.py                              # todas, uma linguagem
+    uv run python scripts/vitalidade.py --linguagem elixir
+    uv run python scripts/vitalidade.py --metricas tamanho,cenarios  # só algumas
+    uv run python scripts/vitalidade.py --comparativo                # as de várias linguagens
+    uv run python scripts/vitalidade.py --set min_saidas=20          # troca um parâmetro
+    uv run python scripts/vitalidade.py --so-figuras                 # redesenha do disco
+    uv run python scripts/vitalidade.py --so-figuras --estilo tamanho.anual:titulo="Outro"
+    uv run python scripts/vitalidade.py --lista                      # nomes e referências
 
-  anual.csv / anual.png                   ativos, novatos, saídas, voltas, moved, crescimento
-  composicao.csv / piramides_faixa.png    pirâmide por faixa de tempo de casa, anos escolhidos
-  indice_envelhecimento.csv / .png        ativos 5+ anos / ativos 0-1 ano
-  taxa_saida_faixa.csv / .png             saídas / ativos por (ano, faixa)
-  tabua_coortes.csv / tabua_coortes.png   tábua de vida por coorte de entrada
-  tabua_todas.csv                         tábua de vida com todas as coortes juntas
-  projecao_backtest.csv / .png            cada ano previsto só com os anos anteriores
-  projecao_resumo.csv, projecao_wilcoxon.csv   mediana do ABRE, cobertura e Wilcoxon
-  projecao_anos_validos.csv               anos com MIN_SAIDAS saídas ou mais, por banda
-  projecao_futuro.csv / .png              próximos HORIZONTE anos, um por vez
+Parâmetros do cálculo em `scripts/vitalidade.yaml`, estilo dos gráficos em
+`scripts/vitalidade_figuras.yaml`. A régua (saída em 12 meses, faixas, passo anual)
+mora em `src/pyramid/vitalidade.py`.
 
-    uv run python scripts/vitalidade.py --comparativo
-
-Compara LINGUAGENS_RQ2 e grava em `~/Documents/pyramid-tmp/geral/vitalidade/`:
-
-  kaplan_meier.csv / .png, logrank.csv    retenção por linguagem
-  padronizacao.csv / .png                 taxa bruta, padronizada e SMR por ano
-
-Definições em `src/pyramid/vitalidade.py`.
+Carrega a coleta com `carga_compacta.py` (mesmos filtros de elegibilidade, bot e conta
+apagada de `figuras_linguagem_bruta.py`, em pedaços). Grava, por linguagem, em
+`~/Documents/pyramid-tmp/<linguagem>/` (`csv/`, `resultados/` e as figuras) e, no
+comparativo, em `~/Documents/pyramid-tmp/geral/`. `resultados/` guarda as tabelas
+de cada métrica em parquet: `--so-figuras` desenha a partir delas, sem reler os eventos.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from functools import cached_property
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
-import matplotlib.pyplot as plt
 import pandas as pd
-from matplotlib.ticker import MaxNLocator
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import carga_compacta
+import carga_fonte
 import figuras_linguagem_bruta as fb
-from pyramid import plots, vitalidade
+import vitalidade_pacote
+from pyramid import units, vitalidade
+from vitalidade_figuras import FIGURAS, FIGURAS_PADRAO, carrega_estilo, desenha
 
 PASTA = "vitalidade"
-ANOS_PIRAMIDE = [2010, 2014, 2018, 2022, 2026]
-COORTES_TABUA = [2010, 2013, 2016, 2019, 2022]
-# CDC WONDER: taxa por idade com menos de 20 óbitos é instável. O plano usa como referência.
-MIN_SAIDAS = 20
-HORIZONTE = 5
-# Python e OCaml entram quando as coletas fecharem; a padronização é refeita com elas.
-LINGUAGENS_RQ2 = ["clojure", "elixir", "zig"]
-ANO_PESOS = 2025
-
-# Paleta de referência do skill dataviz: categórica em ordem fixa, e rampa azul
-# (passos 250 a 700) para o que é ordinal (faixas, coortes).
-CATEGORICA = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
-RAMPA = ["#86b6ef", "#5598e7", "#2a78d6", "#256abf", "#184f95", "#0d366b"]
+YAML = Path(__file__).parent / "vitalidade.yaml"
 
 
 def _csv(df: pd.DataFrame, nome: str) -> None:
@@ -64,239 +60,68 @@ def _csv(df: pd.DataFrame, nome: str) -> None:
     print(f"salvo: {caminho}")
 
 
-def _rampa(n: int) -> list[str]:
-    """`n` passos espalhados pela rampa ordinal, do mais claro ao mais escuro."""
-    if n == 1:
-        return [RAMPA[-1]]
-    passos: list[str] = []
-    for i in range(n):
-        passos.append(RAMPA[round(i * (len(RAMPA) - 1) / (n - 1))])
-    return passos
+# --- Registro de métricas e figuras ---------------------------------------------
+
+Dados = dict[str, pd.DataFrame]
+METRICAS: dict[str, Callable[[Any], Dados]] = {}
+ESCOPO: dict[str, str] = {}
+USA_PIPELINE: dict[str, bool] = {}
+PADRAO: dict[str, bool] = {}
 
 
-def figura_anual(t: pd.DataFrame) -> None:
-    nome = fb.LING.atual.nome
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-    series = [
-        ("ativos", "ativos"),
-        ("novatos", "novatos"),
-        ("saidas", "saídas"),
-        ("voltas", "voltas"),
-    ]
-    for (coluna, rotulo), cor in zip(series, CATEGORICA, strict=False):
-        ax1.plot(
-            t["ano"], t[coluna], color=cor, linewidth=2, marker="o", markersize=4, label=rotulo
-        )
-    ax1.set_ylabel("pessoas")
-    ax1.set_title(f"{nome}: entradas e saídas por ano (saída = 12 meses sem contribuir)")
-    ax1.legend(loc="upper left", frameon=False)
+def metrica(
+    nome: str, escopo: str = "linguagem", pipeline: bool = False, padrao: bool = True
+) -> Callable[[Callable], Callable]:
+    """Registra uma função como métrica do plano, pelo nome da linha da tabela.
 
-    ax2.axhline(0, color="#888888", linewidth=0.8)
-    ax2.plot(
-        t["ano"], t["crescimento_natural_pct"], color="black", linewidth=2, marker="o", markersize=4
-    )
-    ax2.set_ylabel("(novatos - saídas) / ativos, %")
-    ax2.set_xlabel("ano")
-    ax2.set_title("crescimento natural (anos sem saída decidida ficam de fora)")
-    for ax in (ax1, ax2):
-        plots._theme(ax)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    fb._salva_fig(fig, f"{PASTA}/anual.png")
+    A função devolve as tabelas (nome -> DataFrame) que o runner grava em CSV.
+    escopo    "linguagem" roda numa linguagem; "comparativo" compara `linguagens_rq2`
+    pipeline  usa o pipeline trimestral do motor, que precisa dos eventos brutos
+    padrao    falso tira a métrica da execução sem `--metricas`
+    """
+
+    def registra(funcao: Callable) -> Callable:
+        METRICAS[nome] = funcao
+        ESCOPO[nome] = escopo
+        USA_PIPELINE[nome] = pipeline
+        PADRAO[nome] = padrao
+        FIGURAS.setdefault(nome, {})
+        return funcao
+
+    return registra
 
 
-def figura_piramides(comp: pd.DataFrame) -> None:
-    anos = [a for a in ANOS_PIRAMIDE if a in set(comp["ano"])]
-    codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
-    quadros = []
-    for ano in anos:
-        q = comp[comp["ano"] == ano].copy()
-        q["band"] = q["faixa"].map(codigo).astype(int)
-        quadros.append(q)
-    xmax = 1.0
-    for q in quadros:
-        xmax = max(xmax, float(q["non_coding"].max()), float((q["moved"] + q["coding"]).max()))
-
-    fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 3.6), sharey=True)
-    for ax, ano, q in zip(eixos, anos, quadros, strict=True):
-        plots.draw_pyramid(ax, q, xmax=xmax)
-        ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
-        ax.set_yticks(range(len(vitalidade.FAIXAS)), minor=False)
-        ax.set_yticks([], minor=True)
-        ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
-        ax.set_title(str(ano))
-    fig.suptitle(
-        f"{fb.LING.atual.nome}: ativos por tempo de casa (esquerda discussão, direita código)"
-    )
-    fb._legenda_discussion(fig, plots)
-    fig.tight_layout(rect=(0, 0.08, 1, 1))
-    fb._salva_fig(fig, f"{PASTA}/piramides_faixa.png")
-
-
-def figura_indice(ind: pd.DataFrame) -> None:
-    fig, ax = plt.subplots(figsize=(9, 3.5))
-    ax.plot(ind["ano"], ind["indice"], color=CATEGORICA[0], linewidth=2, marker="o", markersize=4)
-    ax.set_ylabel("ativos 5+ anos / ativos 0-1 ano")
-    ax.set_xlabel("ano")
-    ax.set_title(f"{fb.LING.atual.nome}: índice de envelhecimento")
-    plots._theme(ax)
-    fb._salva_fig(fig, f"{PASTA}/indice_envelhecimento.png")
-
-
-def figura_taxa_saida(taxa: pd.DataFrame) -> None:
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    for faixa, cor in zip(vitalidade.FAIXAS, _rampa(len(vitalidade.FAIXAS)), strict=True):
-        f = taxa[(taxa["faixa"] == faixa) & taxa["taxa_saida"].notna()]
-        if f.empty:
-            continue
-        ax.plot(f["ano"], f["taxa_saida"], color=cor, linewidth=2, label=f"{faixa} anos")
-        estavel = f["saidas"] >= MIN_SAIDAS
-        ax.scatter(f.loc[estavel, "ano"], f.loc[estavel, "taxa_saida"], color=cor, s=30, zorder=3)
-        ax.scatter(
-            f.loc[~estavel, "ano"],
-            f.loc[~estavel, "taxa_saida"],
-            facecolor="white",
-            edgecolor=cor,
-            s=30,
-            zorder=3,
-        )
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("saídas / ativos da faixa")
-    ax.set_xlabel("ano")
-    ax.set_title(
-        f"{fb.LING.atual.nome}: taxa de saída por faixa "
-        f"(ponto vazado = menos de {MIN_SAIDAS} saídas)"
-    )
-    ax.legend(loc="upper right", frameon=False, ncol=3)
-    plots._theme(ax)
-    fb._salva_fig(fig, f"{PASTA}/taxa_saida_faixa.png")
-
-
-def figura_tabua(tabuas: pd.DataFrame) -> None:
-    coortes = [c for c in COORTES_TABUA if c in set(tabuas["coorte"])]
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    for coorte, cor in zip(coortes, _rampa(len(coortes)), strict=True):
-        t = tabuas[tabuas["coorte"] == coorte]
-        ax.plot(t["x"], t["S"], color=cor, linewidth=2, marker="o", markersize=4, label=str(coorte))
-    ax.set_ylim(0, 1)
-    ax.set_xlabel("anos desde a primeira contribuição (x)")
-    ax.set_ylabel("fração da coorte que chega em x, S(x)")
-    ax.set_title(f"{fb.LING.atual.nome}: tábua de vida por coorte de entrada")
-    ax.legend(title="coorte", frameon=False)
-    plots._theme(ax)
-    fb._salva_fig(fig, f"{PASTA}/tabua_coortes.png")
-
-
-def figura_backtest(bt: pd.DataFrame, teto: bool) -> None:
-    t = bt[(bt["faixa"] == "total") & (bt["teto"] == teto)]
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.fill_between(
-        t["ano"],
-        t["pessimista"],
-        t["otimista"],
-        color=CATEGORICA[0],
-        alpha=0.15,
-        label="pessimista a otimista",
-    )
-    ax.plot(t["ano"], t["real"], color="black", linewidth=2, marker="o", markersize=4, label="real")
-    for metodo, cor in [
-        ("ingenuo", CATEGORICA[1]),
-        ("coorte", CATEGORICA[2]),
-        ("conservador", CATEGORICA[0]),
-    ]:
-        ax.plot(t["ano"], t[metodo], color=cor, linewidth=2, label=metodo)
-    ax.set_ylabel("ativos no ano")
-    ax.set_xlabel("ano previsto")
-    rotulo_teto = "com teto em 1" if teto else "sem teto"
-    ax.set_title(
-        f"{fb.LING.atual.nome}: backtest da projeção, um ano à frente (permanência {rotulo_teto})"
-    )
-    ax.legend(loc="upper left", frameon=False)
-    plots._theme(ax)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    fb._salva_fig(fig, f"{PASTA}/projecao_backtest.png")
-
-
-def figura_futuro(anual: pd.DataFrame, futuro: pd.DataFrame, ultimo: int, teto: bool) -> None:
-    observado = anual[anual["ano"] <= ultimo]
-    total = futuro[futuro["faixa"] == "total"]
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.plot(
-        observado["ano"],
-        observado["ativos"],
-        color="black",
-        linewidth=2,
-        marker="o",
-        markersize=4,
-        label="observado",
-    )
-    ponto = observado[observado["ano"] == ultimo]
-    linhas = {}
-    for metodo in vitalidade.METODOS:
-        m = total[total["metodo"] == metodo]
-        linhas[metodo] = pd.concat(
-            [
-                pd.DataFrame({"ano": ponto["ano"], "previsto": ponto["ativos"]}),
-                m[["ano", "previsto"]],
-            ]
-        )
-    ax.fill_between(
-        linhas["pessimista"]["ano"],
-        linhas["pessimista"]["previsto"],
-        linhas["otimista"]["previsto"],
-        color=CATEGORICA[0],
-        alpha=0.15,
-        label="pessimista a otimista",
-    )
-    for metodo, cor in [
-        ("ingenuo", CATEGORICA[1]),
-        ("coorte", CATEGORICA[2]),
-        ("conservador", CATEGORICA[0]),
-    ]:
-        ax.plot(
-            linhas[metodo]["ano"],
-            linhas[metodo]["previsto"],
-            color=cor,
-            linewidth=2,
-            linestyle="--",
-            label=metodo,
-        )
-    ax.set_ylabel("ativos no ano")
-    ax.set_xlabel("ano")
-    rotulo_teto = "com teto em 1" if teto else "sem teto"
-    ax.set_title(f"{fb.LING.atual.nome}: projeção a partir de {ultimo} (permanência {rotulo_teto})")
-    ax.legend(loc="upper left", frameon=False)
-    plots._theme(ax)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    fb._salva_fig(fig, f"{PASTA}/projecao_futuro.png")
-
-
-def projecao(pa: pd.DataFrame, anual: pd.DataFrame, fim: pd.Timestamp) -> None:
+def _projecao_variante(
+    ctx: Contexto, regra: vitalidade.RegraCenario, chave: str
+) -> dict[str, pd.DataFrame]:
+    """Backtest e projeção futura com uma regra de cenário. Devolve as tabelas, por nome."""
+    pa, fim, p = ctx.pa, ctx.fim, ctx.p
     # O ano em que a coleta termina está pela metade: fica fora da projeção.
     ultimo = fim.year - 1
     partes = []
+    futuros = []
     for teto in (False, True):
-        partes.append(vitalidade.backtest(pa, fim, ultimo, teto, MIN_SAIDAS))
+        partes.append(vitalidade.backtest(pa, fim, ultimo, teto, regra))
+        f = vitalidade.projeta_futuro(pa, fim, ultimo, p.horizonte, teto, regra)
+        f.insert(0, "teto", teto)
+        futuros.append(f)
     bt = pd.concat(partes, ignore_index=True)
+    futuro = pd.concat(futuros, ignore_index=True)
     resumo = vitalidade.resumo_backtest(bt)
 
-    # O plano adota a forma (com ou sem teto) de menor erro; a outra é sensibilidade.
-    abre = resumo["abre"].set_index("teto")
-    teto = bool(abre["coorte"].idxmin())
-    print(f"permanência adotada: {'com' if teto else 'sem'} teto em 1", file=sys.stderr)
-    futuro = vitalidade.projeta_futuro(pa, fim, ultimo, HORIZONTE, teto, MIN_SAIDAS)
-
     # O plano escolhe o mínimo de saídas olhando quantos anos válidos sobram por banda.
-    validos = vitalidade.saidas_por_banda(pa, fim) >= MIN_SAIDAS
-    _csv(
-        validos.sum().rename("anos_validos").rename_axis("banda").reset_index(),
-        "projecao_anos_validos.csv",
-    )
-    _csv(bt, "projecao_backtest.csv")
-    _csv(resumo["abre"], "projecao_resumo.csv")
-    _csv(resumo["wilcoxon"], "projecao_wilcoxon.csv")
-    _csv(futuro, "projecao_futuro.csv")
-    figura_backtest(bt, teto)
-    figura_futuro(anual, futuro, ultimo, teto)
+    saidas = vitalidade.saidas_por_banda(pa, fim)
+    validos = pd.DataFrame({"banda": range(vitalidade.BANDAS)})
+    for minimo in (10, 20):
+        validos[f"anos_com_{minimo}_saidas"] = (saidas >= minimo).sum().to_numpy()
+    pasta = f"cenarios-{chave}"
+    return {
+        f"{pasta}/projecao_anos_validos": validos,
+        f"{pasta}/projecao_backtest": bt,
+        f"{pasta}/projecao_resumo": resumo["abre"],
+        f"{pasta}/projecao_wilcoxon": resumo["wilcoxon"],
+        f"{pasta}/projecao_futuro": futuro,
+    }
 
 
 def _csv_geral(df: pd.DataFrame, nome: str) -> None:
@@ -305,131 +130,665 @@ def _csv_geral(df: pd.DataFrame, nome: str) -> None:
     print(f"salvo: {caminho}")
 
 
-def _salva_geral(fig: plt.Figure, nome: str) -> None:
-    caminho = fb._caminho_geral(f"{PASTA}/{nome}")
-    fig.savefig(caminho, dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    print(f"salvo: {caminho}")
+# --- Parâmetros e contexto -----------------------------------------------------
 
 
-def figura_km(curvas: pd.DataFrame) -> None:
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    for slug in LINGUAGENS_RQ2:
-        c = curvas[curvas["linguagem"] == slug]
-        ax.step(
-            c["anos"],
-            c["S"],
-            where="post",
-            color=fb.CORES_LINGUAGEM[slug],
-            linewidth=2,
-            label=fb.LINGUAGENS[slug].nome,
-        )
-    ax.set_ylim(0, 1)
-    ax.set_xlabel("anos desde a primeira contribuição")
-    ax.set_ylabel("fração ainda ativa, S(t)")
-    ax.set_title("Kaplan-Meier por linguagem (último evento a 12 meses do fim = censura)")
-    ax.legend(frameon=False)
-    plots._theme(ax)
-    _salva_geral(fig, "kaplan_meier.png")
+@dataclass
+class Parametros:
+    """Os parâmetros do plano. Defaults em `vitalidade.yaml`, cada chave explicada lá."""
+
+    min_saidas: int
+    saidas_estavel: int
+    teto: bool
+    horizonte: int
+    ano_pesos: int
+    linguagens_rq2: list[str]
+    anos_piramide: list[int]
+    coortes_tabua: list[int]
+    variantes: dict[str, list[Any]]
+    motor: str
+    limite_pandas_gb: float
+    limite_bruto_gb: float
+    memoria: str
+    threads: int | None
 
 
-def figura_padronizacao(pad: pd.DataFrame) -> None:
-    fig, eixos = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
-    paineis = [
-        ("taxa_bruta", "taxa de saída bruta"),
-        ("taxa_padronizada", f"taxa padronizada (pesos de {ANO_PESOS})"),
-        ("smr", "SMR (saídas reais / esperadas)"),
-    ]
-    for ax, (coluna, rotulo) in zip(eixos, paineis, strict=True):
-        for slug in LINGUAGENS_RQ2:
-            t = pad[(pad["linguagem"] == slug) & pad[coluna].notna()]
-            ax.plot(
-                t["ano"],
-                t[coluna],
-                color=fb.CORES_LINGUAGEM[slug],
-                linewidth=2,
-                marker="o",
-                markersize=4,
-                label=fb.LINGUAGENS[slug].nome,
-            )
-        ax.set_ylabel(rotulo)
-        plots._theme(ax)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    eixos[2].axhline(1, color="#888888", linewidth=0.8)
-    eixos[0].legend(loc="upper left", frameon=False)
-    eixos[0].set_title("Taxa de saída corrigida pela composição por tempo de casa")
-    eixos[2].set_xlabel("ano")
-    _salva_geral(fig, "padronizacao.png")
+@dataclass
+class Entrada:
+    """De onde vêm os eventos desta execução e como usar o cache. Vale para `--linguagem`."""
+
+    dados: str | None = None
+    eventos: list[str] | None = None
+    alvos: list[str] | None = None
+    usar_cache: bool = True
+    motor: str | None = None  # None usa `p.motor`
 
 
-def comparativo() -> None:
-    duracoes = {}
-    taxas = {}
-    for slug in LINGUAGENS_RQ2:
-        fb.LING.aplica(slug)
+def carrega_parametros(sobrepostos: list[str]) -> Parametros:
+    """Lê o yaml e aplica cada `chave=valor` de `--set` por cima."""
+    valores = yaml.safe_load(YAML.read_text())
+    for item in sobrepostos:
+        chave, igual, texto = item.partition("=")
+        if not igual or chave not in valores:
+            raise SystemExit(f"--set {item!r}: use chave=valor, com chave de {YAML.name}.")
+        valores[chave] = yaml.safe_load(texto)
+    return Parametros(**valores)
+
+
+# Sobe quando o filtro de eventos de `carrega_eventos` mudar: invalida todo cache.
+VERSAO_CACHE = 2
+
+
+def _selo_dos_dados(fonte: carga_fonte.Fonte, motor: str) -> dict[str, Any]:
+    """Tamanho e data de cada arquivo de entrada. Mudou um byte, o cache perde a validade."""
+    arquivos = {}
+    for caminho in [a.caminho for a in fonte.eventos] + fonte.alvos:
+        info = caminho.stat()
+        arquivos[str(caminho)] = [info.st_size, info.st_mtime_ns]
+    return {"versao": VERSAO_CACHE, "motor": motor, "arquivos": arquivos}
+
+
+def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> str:
+    """O motor pedido; em `auto`, pandas até `limite_pandas_gb` de eventos e duckdb acima."""
+    motor = entrada.motor or p.motor
+    if motor != "auto":
+        return motor
+    grande = fonte.bytes_de_eventos() > p.limite_pandas_gb * 1e9
+    return "duckdb" if grande else "pandas"
+
+
+def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> pd.DataFrame:
+    """Eventos compactados da linguagem atual (`vitalidade.compacta`).
+
+    Os CSV brutos têm GB e levam de minutos a horas para ler. O resultado compactado
+    vai para `<saida>/cache/` e as execuções seguintes (outro `--set`, outra figura)
+    leem dali, enquanto os arquivos de entrada não mudarem.
+    """
+    motor = escolhe_motor(p, fonte, entrada)
+    pasta = fb.CFG.saida / "cache"
+    parquet = pasta / "vitalidade_eventos.parquet"
+    arquivo_selo = pasta / "vitalidade_eventos.json"
+    selo = _selo_dos_dados(fonte, motor)
+    cache_valido = (
+        entrada.usar_cache
+        and parquet.exists()
+        and arquivo_selo.exists()
+        and json.loads(arquivo_selo.read_text()) == selo
+    )
+    if cache_valido:
+        print(f"cache: {parquet}")
+        return pd.read_parquet(parquet)
+    print(
+        f"carga: motor {motor}, {fonte.bytes_de_eventos() / 1e9:.1f} GB de eventos ({fonte.origem})"
+    )
+    eventos = carga_compacta.carrega(
+        fonte, motor, trabalho=fb.CFG.saida / "trabalho", memoria=p.memoria, threads=p.threads
+    )
+    compactos = vitalidade.compacta(eventos)
+    del eventos
+    pasta.mkdir(parents=True, exist_ok=True)
+    compactos.to_parquet(parquet, index=False)
+    arquivo_selo.write_text(json.dumps(selo))
+    return compactos
+
+
+class Contexto:
+    """Dados de uma linguagem, calculados uma vez e compartilhados pelas métricas.
+
+    `bruto=True` guarda os eventos completos (com repositório), que o pipeline do
+    motor exige. Sem ele só existem os eventos compactados, uma fração do tamanho.
+    """
+
+    def __init__(self, p: Parametros, slug: str, bruto: bool, entrada: Entrada):
+        carga_fonte.aplica_linguagem(slug)
         fb.CFG.aplica(fb.RODADA)
-        eventos = fb.carrega_eventos(fb.RODADA)
-        fim = eventos["timestamp"].max()
-        duracoes[slug] = vitalidade.duracoes(eventos, fim)
-        taxas[slug] = vitalidade.taxa_saida_por_faixa(vitalidade.pessoa_ano(eventos, fim), fim)
+        self.p = p
+        self.eventos: pd.DataFrame | None = None
+        fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
+        if bruto:
+            if not fonte.cabe_no_carregador_original(p.limite_bruto_gb):
+                raise SystemExit(
+                    f"{slug}: {fonte.bytes_de_eventos() / 1e9:.0f} GB de eventos passam do "
+                    f"limite de {p.limite_bruto_gb} GB do pipeline do motor (ccr_ncr, stickiness, "
+                    "magnetismo), que lê tudo para a memória. Tire essas métricas ou aumente "
+                    "limite_bruto_gb."
+                )
+            fb.CFG.dados = fonte.pasta_dados
+            self.eventos = fb.carrega_eventos(fb.RODADA)
+            self.compactos = vitalidade.compacta(self.eventos)
+        else:
+            self.compactos = carrega_compactos(p, fonte, entrada)
+        self.fim = self.compactos["timestamp"].max()
+        pessoas = self.compactos["contributor_id"].nunique()
+        print(
+            f"{fb.LING.atual.nome}: {pessoas} pessoas, {len(self.compactos)} instantes "
+            f"compactados, coleta até {self.fim.date()}"
+        )
+        self.pa = vitalidade.pessoa_ano(self.compactos, self.fim)
+        self.anual = vitalidade.tabela_anual(self.pa, self.fim)
+        self.dur = vitalidade.duracoes(self.compactos, self.fim)
 
+    @cached_property
+    def pipeline(self) -> SimpleNamespace:
+        """Pipeline trimestral do motor (banda de 3 meses), montado só se alguém pedir."""
+        if self.eventos is None:
+            raise RuntimeError("pipeline exige Contexto(bruto=True).")
+        return fb.roda_pipeline(self.eventos, band_months=3)
+
+
+class ContextoComparativo:
+    """Um `Contexto` por linguagem de `p.linguagens_rq2`."""
+
+    def __init__(self, p: Parametros, bruto: bool, entrada: Entrada, principal: str):
+        self.p = p
+        self.por_lingua = {}
+        for slug in p.linguagens_rq2:
+            # `--dados` e `--eventos` valem para a linguagem principal; as outras vêm do yaml.
+            da_linha = entrada if slug == principal else Entrada(usar_cache=entrada.usar_cache)
+            da_linha.motor = entrada.motor
+            self.por_lingua[slug] = Contexto(p, slug, bruto, da_linha)
+
+    @cached_property
+    def pipeline_conjunto(self) -> SimpleNamespace:
+        """As linguagens numa fonte só, `idioma` dizendo a de cada linha (ver `monta_fonte`)."""
+        partes = []
+        for slug, lingua in self.por_lingua.items():
+            ev = lingua.eventos.copy()
+            ev["idioma"] = carga_fonte.LINGUAGENS[slug].nome
+            partes.append(ev)
+        return fb.roda_pipeline(pd.concat(partes, ignore_index=True), band_months=3)
+
+
+# --- Resultados em disco e contexto leve ----------------------------------------
+
+# Parâmetros que mudam as tabelas. Os outros (anos da pirâmide, `teto`, ...) só mudam o gráfico.
+PARAMETROS_DO_CALCULO = ("min_saidas", "horizonte", "ano_pesos", "linguagens_rq2", "variantes")
+
+
+def _raiz_resultados(escopo: str) -> Path:
+    """Pasta das tabelas gravadas: por linguagem, ou a das comparações."""
+    if escopo == "linguagem":
+        raiz = fb.CFG.saida / "resultados" / PASTA
+        raiz.mkdir(parents=True, exist_ok=True)
+        return raiz
+    return fb._caminho_geral(f"resultados/{PASTA}/meta.json").parent
+
+
+def salva_tabelas(escopo: str, metrica_nome: str, dados: Dados) -> None:
+    """Grava as tabelas da métrica em parquet, que guarda os tipos (período, categoria, data)."""
+    pasta = _raiz_resultados(escopo) / metrica_nome
+    for chave, tabela in dados.items():
+        caminho = pasta / f"{chave}.parquet"
+        caminho.parent.mkdir(parents=True, exist_ok=True)
+        tabela.to_parquet(caminho, index=False)
+    print(f"resultados: {pasta}")
+
+
+def carrega_tabelas(escopo: str, metrica_nome: str) -> Dados:
+    pasta = _raiz_resultados(escopo) / metrica_nome
+    arquivos = sorted(pasta.rglob("*.parquet"))
+    if not arquivos:
+        raise SystemExit(f"sem resultados de {metrica_nome!r} em {pasta}: rode sem --so-figuras.")
+    dados = {}
+    for arquivo in arquivos:
+        chave = arquivo.relative_to(pasta).with_suffix("").as_posix()
+        dados[chave] = pd.read_parquet(arquivo)
+    return dados
+
+
+def salva_meta(escopo: str, p: Parametros, fim: pd.Timestamp | None) -> None:
+    """Grava o fim da coleta e os parâmetros que produziram as tabelas."""
+    meta = {"fim": None if fim is None else str(fim), "parametros": asdict(p)}
+    (_raiz_resultados(escopo) / "meta.json").write_text(json.dumps(meta, default=str))
+
+
+class ContextoLeve:
+    """O que os gráficos pedem do contexto, lido de `resultados/`: sem reler os eventos."""
+
+    def __init__(self, p: Parametros, escopo: str, slug: str):
+        carga_fonte.aplica_linguagem(slug)
+        fb.CFG.aplica(fb.RODADA)
+        self.p = p
+        arquivo = _raiz_resultados(escopo) / "meta.json"
+        if not arquivo.exists():
+            raise SystemExit(f"sem resultados em {arquivo.parent}: rode sem --so-figuras.")
+        meta = json.loads(arquivo.read_text())
+        gravados = meta["parametros"]
+        atuais = json.loads(json.dumps(asdict(p), default=str))
+        diferem = [k for k in PARAMETROS_DO_CALCULO if gravados.get(k) != atuais[k]]
+        if diferem:
+            print(
+                f"aviso: {diferem} mudaram desde que as tabelas foram gravadas; "
+                "os gráficos usam as tabelas antigas. Rode sem --so-figuras para recalcular.",
+                file=sys.stderr,
+            )
+        self.fim = pd.Timestamp(meta["fim"]) if meta["fim"] else None
+
+    @cached_property
+    def anual(self) -> pd.DataFrame:
+        return carrega_tabelas("linguagem", "tamanho")["anual"]
+
+
+# --- As métricas, na ordem da tabela de variáveis dependentes do plano ---------
+# Cada uma devolve suas tabelas; o runner grava os CSV. Os gráficos de cada uma
+# vêm logo depois, registrados com @figura e escolhidos com `--figuras`.
+
+
+@metrica("tamanho")
+def metrica_tamanho(ctx: Contexto) -> Dados:
+    """Tamanho: crescimento natural por ano, natalidade e mortalidade. Responde RQ1.1.
+
+    O que faz: (novatos - saídas) / ativos do ano, em %. Natalidade e mortalidade
+    (nascimentos e óbitos sobre a população do período) saem por ano e por
+    trimestre, com a mesma conta de fluxo.
+    Referência: equação compensadora da demografia (IBGE, metodologia das
+    projeções 1980-2050, https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf;
+    PRB Population Handbook 2011). Novatos e saídas: Foucault et al., ESEC/FSE
+    2015, https://doi.org/10.1145/2786805.2786870.
+    """
+    return {
+        "anual": ctx.anual,
+        "transicao_anual": vitalidade.fluxos(ctx.compactos, ctx.fim, "Y"),
+        "transicao_trimestral": vitalidade.fluxos(ctx.compactos, ctx.fim, "Q"),
+    }
+
+
+@metrica("composicao")
+def metrica_composicao(ctx: Contexto) -> Dados:
+    """Composição: pirâmide por faixa de tempo de casa e índice de envelhecimento. Responde RQ1.2.
+
+    O que faz: ativos por faixa (0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos), com um lado
+    para quem faz código e outro para quem só discute (moved é quem trocou de
+    lado). Índice de envelhecimento = ativos com 5+ anos / ativos com 0-1 ano.
+    Referência: pirâmide etária e índice de envelhecimento do IBGE
+    (https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95);
+    Hannemann e Klamma, OSS 2013, https://doi.org/10.1007/978-3-642-38928-3_6.
+    """
+    return {
+        "composicao": vitalidade.composicao(ctx.pa),
+        "indice_envelhecimento": vitalidade.indice_envelhecimento(ctx.pa),
+    }
+
+
+@metrica("retencao")
+def metrica_retencao(ctx: Contexto) -> Dados:
+    """Retenção: tábua de vida por coorte de entrada. Responde RQ1.3.
+
+    O que faz: para cada coorte (ano de entrada) e cada ano de contribuição x,
+    l(x) ainda ativos, d(x) saídas entre x e x+1, q(x) = d/l e e(x) tempo médio
+    restante. Quem tem último evento a menos de 12 meses do fim da coleta é
+    censurado (censura à direita).
+    Referência: IBGE, Tábua Completa de Mortalidade 2023,
+    https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf;
+    Hannemann e Klamma, OSS 2013.
+    """
+    return {
+        "tabua_coortes": vitalidade.tabuas_por_coorte(ctx.dur),
+        "tabua_todas": vitalidade.tabua_de_vida(ctx.dur),
+    }
+
+
+@metrica("saida_por_faixa")
+def metrica_saida_por_faixa(ctx: Contexto) -> Dados:
+    """Saída por faixa: taxa de saída por faixa de tempo de casa. Responde RQ1.3.
+
+    O que faz: saídas da faixa / ativos da faixa no ano, por (ano, faixa). O
+    denominador é quem contribuiu no ano. Célula com menos de `saidas_estavel`
+    saídas é marcada como instável. Ano sem 12 meses de coleta depois dele
+    fica sem taxa.
+    Referência: taxa de mortalidade por idade, o q(x) da tábua de vida (IBGE,
+    https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf);
+    mínimo de 20 óbitos do NCHS/CDC (CDC WONDER, Presentation Standards for
+    Mortality Data, 2024).
+    """
+    return {"taxa_saida_faixa": vitalidade.taxa_saida_por_faixa(ctx.pa, ctx.fim)}
+
+
+@metrica("cenarios")
+def metrica_cenarios(ctx: Contexto) -> Dados:
+    """Cenários futuros: projeção ingênua, coorte e cenários, com backtest. Responde RQ3.
+
+    O que faz: pirâmide de T+1 em faixas de 1 ano (0 a 8+). Ingênuo repete a
+    pirâmide de T. Coorte aplica a permanência do último par de anos e novatos
+    igual à média dos dois últimos anos. Cenários usam o menor, o maior e a
+    média dos dois da série histórica. Backtest de cada ano só com os anteriores,
+    erro em ABRE, Wilcoxon entre métodos e cobertura do intervalo. Roda cada
+    regra de `variantes` e as duas formas de teto.
+    Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363
+    (ingênuo, coorte, ABRE, Wilcoxon); variantes de projeção da ONU (PRB,
+    https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/)
+    e do Ipea (Bonifácio e Guimarães, Texto para Discussão 2698, 2021).
+    """
+    tabelas = {}
+    for chave, (_rotulo, janela, por_taxa) in ctx.p.variantes.items():
+        regra = vitalidade.RegraCenario(ctx.p.min_saidas, janela, por_taxa)
+        tabelas.update(_projecao_variante(ctx, regra, chave))
+    return tabelas
+
+
+@metrica("ccr_ncr", pipeline=True)
+def metrica_ccr_ncr(ctx: Contexto) -> Dados:
+    """CCR e NCR: equilíbrio entre quem faz código e quem discute, novato e veterano. RQ1 e RQ2.
+
+    O que faz: por trimestre, CCR = (coding - non) / maior dos dois e NCR faz o
+    mesmo para novato contra experiente, ambos entre -1 e 1. O sinal dos dois
+    classifica o trimestre nos tipos A a D. Usa a régua do IEICE16 (banda de 3
+    meses), a mesma de `figuras_linguagem_bruta.py --figuras ccr-ncr`.
+    Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
+    """
+    pl = ctx.pipeline
+    todos = pl.metrics.load_all()
+    df = todos[todos["scope_id"] == pl.sid].dropna(subset=["ccr", "ncr"]).sort_values("snapshot")
+    return {"ccr_ncr": df[["snapshot", "ccr", "ncr", "type"]]}
+
+
+@metrica("stickiness", pipeline=True)
+def metrica_stickiness(ctx: Contexto) -> Dados:
+    """Stickiness: fração de quem contribuiu num ano e volta no ano seguinte. Responde RQ2.
+
+    O que faz: stickiness por ano da linguagem. O magnetismo tem métrica própria
+    (`magnetismo`), porque só tem sentido com as linguagens juntas. Usa o
+    pipeline do motor (banda de 3 meses).
+    Referência: Yamashita et al., MSR 2014, https://doi.org/10.1145/2597073.2597116;
+    Ferreira, Silva e Valente, SBES 2020, https://doi.org/10.1145/3422392.3422433.
+    """
+    pl = ctx.pipeline
+    pares, cobertura = pl.attractiveness.activity(scopes=[pl.sid])
+    anual = pl.attractiveness.annual(pares, coverage_end=cobertura)
+    return {"stickiness_ano": anual[anual["scope_id"] == pl.sid]}
+
+
+@metrica("significancia", escopo="comparativo")
+def metrica_significancia(ctx: ContextoComparativo) -> Dados:
+    """Significância da diferença: Kaplan-Meier e log-rank entre linguagens. Responde RQ2.
+
+    O que faz: curva de retenção S(t) por linguagem, com quem seguia ativo ao
+    fim da coleta tratado como censura, e log-rank da primeira linguagem de
+    `linguagens_rq2` contra cada uma das outras.
+    Referência: Constantinou e Mens, Innovations in Systems and Software
+    Engineering, 2017, https://doi.org/10.1007/s11334-017-0303-4.
+    """
     curvas = []
-    for slug, dur in duracoes.items():
-        curvas.append(vitalidade.kaplan_meier(dur).assign(linguagem=slug))
-    curvas_df = pd.concat(curvas, ignore_index=True)
+    for slug, lingua in ctx.por_lingua.items():
+        curvas.append(vitalidade.kaplan_meier(lingua.dur).assign(linguagem=slug))
 
+    referencia = ctx.p.linguagens_rq2[0]
     testes = []
-    for slug in LINGUAGENS_RQ2[1:]:
-        estatistica, p = vitalidade.logrank(duracoes["clojure"], duracoes[slug])
-        testes.append({"comparacao": f"clojure x {slug}", "estatistica": estatistica, "p": p})
+    for slug in ctx.p.linguagens_rq2[1:]:
+        estatistica, p = vitalidade.logrank(
+            ctx.por_lingua[referencia].dur, ctx.por_lingua[slug].dur
+        )
+        testes.append({"comparacao": f"{referencia} x {slug}", "estatistica": estatistica, "p": p})
+    return {"kaplan_meier": pd.concat(curvas, ignore_index=True), "logrank": pd.DataFrame(testes)}
 
-    pad = vitalidade.padronizacao(taxas, ANO_PESOS)
 
-    _csv_geral(curvas_df, "kaplan_meier.csv")
-    _csv_geral(pd.DataFrame(testes), "logrank.csv")
-    _csv_geral(pad, "padronizacao.csv")
-    figura_km(curvas_df)
-    figura_padronizacao(pad)
+@metrica("comparacao_corrigida", escopo="comparativo")
+def metrica_comparacao_corrigida(ctx: ContextoComparativo) -> Dados:
+    """Comparação corrigida: taxa de saída padronizada por faixa e SMR. Responde RQ2.
+
+    O que faz: taxa direta = soma de (taxa da faixa da linguagem x peso da faixa
+    na população de referência). SMR = saídas reais / saídas esperadas, com as
+    taxas da referência aplicadas à composição real. A referência é a soma das
+    linguagens em `ano_pesos`.
+    Referência: Ahmad et al., Age Standardization of Rates: A New WHO Standard,
+    OMS, 2001, https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf.
+    """
+    taxas = {}
+    for slug, lingua in ctx.por_lingua.items():
+        taxas[slug] = vitalidade.taxa_saida_por_faixa(lingua.pa, lingua.fim)
+    return {"padronizacao": vitalidade.padronizacao(taxas, ctx.p.ano_pesos)}
+
+
+@metrica("magnetismo", escopo="comparativo", pipeline=True, padrao=False)
+def metrica_magnetismo(ctx: ContextoComparativo) -> Dados:
+    """Magnetismo: fração dos novatos do ano que escolheram cada linguagem. Responde RQ2.
+
+    O que faz: novatos da linguagem no ano / novatos de todas as linguagens
+    carregadas no ano, junto com a stickiness no mesmo quadro. O plano adia o
+    uso: o denominador só representa o GitHub com todas as linguagens coletadas,
+    e quem saiu para uma linguagem de fora da amostra não aparece. Por isso
+    fica fora da execução padrão e roda só com `--metricas magnetismo`.
+    Referência: Yamashita et al., MSR 2014, https://doi.org/10.1145/2597073.2597116;
+    Ferreira, Silva e Valente, SBES 2020, https://doi.org/10.1145/3422392.3422433.
+    """
+    ids = {}
+    for slug in ctx.p.linguagens_rq2:
+        ids[units.id_da_linguagem(carga_fonte.LINGUAGENS[slug].nome)] = slug
+    pl = ctx.pipeline_conjunto
+    pares, cobertura = pl.attractiveness.activity(scopes=list(ids))
+    anual = pl.attractiveness.annual(pares, coverage_end=cobertura)
+    anual = anual[anual["scope_id"].isin(ids)].copy()
+    anual.insert(0, "linguagem", anual["scope_id"].map(ids))
+    colunas = ["linguagem", "year", "devs", "newcomers_here", "newcomers_total"]
+    return {"magnetismo": anual[[*colunas, "magnetism", "stickiness"]]}
+
+
+# --- Execução ------------------------------------------------------------------
+
+
+def escolhe_figuras(pedido: str, nomes: list[str]) -> dict[str, list[str]]:
+    """Traduz `--figuras` em {métrica: [figuras]}.
+
+    `padrao` (as marcadas como padrão), `todas`, `nenhuma`, ou uma lista com
+    `metrica` (todas as figuras dela) e `metrica.figura` (uma só).
+    """
+    escolha: dict[str, list[str]] = {nome: [] for nome in nomes}
+    for item in pedido.split(","):
+        nome_metrica, _, nome_figura = item.partition(".")
+        if item not in ("padrao", "todas", "nenhuma"):
+            existe = nome_metrica in FIGURAS and nome_figura in ("", *FIGURAS[nome_metrica])
+            if not existe:
+                raise SystemExit(f"--figuras {item!r}: veja as opções com --lista.")
+        for nome in nomes:
+            for fig in FIGURAS[nome]:
+                if item == "todas":
+                    quer = True
+                elif item == "padrao":
+                    quer = (nome, fig) in FIGURAS_PADRAO
+                else:
+                    quer = nome_metrica == nome and nome_figura in ("", fig)
+                if quer and fig not in escolha[nome]:
+                    escolha[nome].append(fig)
+    return escolha
+
+
+def _grava(escopo: str, chave: str, tabela: pd.DataFrame) -> None:
+    if escopo == "linguagem":
+        _csv(tabela, f"{chave}.csv")
+    else:
+        _csv_geral(tabela, f"{chave}.csv")
+
+
+def _executa(
+    nomes: list[str],
+    ctx: Contexto | ContextoComparativo | ContextoLeve,
+    escolha: dict,
+    so_figuras: bool,
+) -> None:
+    """Para cada métrica: calcula, grava as tabelas e só então desenha as figuras escolhidas.
+
+    Com `so_figuras`, lê as tabelas de `resultados/` em vez de calcular.
+    """
+    for nome in nomes:
+        print(f"== {nome}")
+        escopo = ESCOPO[nome]
+        if so_figuras:
+            dados = carrega_tabelas(escopo, nome)
+        else:
+            dados = METRICAS[nome](ctx)
+            salva_tabelas(escopo, nome, dados)
+            for chave, tabela in dados.items():
+                _grava(escopo, chave, tabela)
+        for fig in escolha[nome]:
+            print(f"-- figura {nome}.{fig}")
+            desenha(f"{nome}.{fig}", FIGURAS[nome][fig], ctx, dados)
+
+
+def _sem_pipeline_se_grande(
+    nomes: list[str], p: Parametros, slug: str, entrada: Entrada
+) -> list[str]:
+    """Tira da execução padrão o que exige `carrega_eventos` quando os eventos não cabem nele."""
+    com_pipeline = [n for n in nomes if USA_PIPELINE[n] and ESCOPO[n] == "linguagem"]
+    if not com_pipeline:
+        return nomes
+    fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
+    if fonte.cabe_no_carregador_original(p.limite_bruto_gb):
+        return nomes
+    print(
+        f"aviso: {slug} tem {fonte.bytes_de_eventos() / 1e9:.0f} GB de eventos; "
+        f"{com_pipeline} usam o pipeline do motor (tudo em memória) e ficam de fora. "
+        "Peça com --metricas para forçar.",
+        file=sys.stderr,
+    )
+    return [n for n in nomes if n not in com_pipeline]
+
+
+def roda(
+    nomes: list[str],
+    p: Parametros,
+    slug: str,
+    figuras: str,
+    entrada: Entrada,
+    so_figuras: bool,
+) -> None:
+    """Roda as métricas pedidas: as de uma linguagem primeiro, depois as comparativas."""
+    escolha = escolhe_figuras(figuras, nomes)
+    de_uma_linguagem = [n for n in nomes if ESCOPO[n] == "linguagem"]
+    comparativas = [n for n in nomes if ESCOPO[n] == "comparativo"]
+
+    if de_uma_linguagem:
+        if so_figuras:
+            ctx = ContextoLeve(p, "linguagem", slug)
+        else:
+            bruto = any(USA_PIPELINE[n] for n in de_uma_linguagem)
+            ctx = Contexto(p, slug, bruto, entrada)
+            salva_meta("linguagem", p, ctx.fim)
+        _executa(de_uma_linguagem, ctx, escolha, so_figuras)
+    if comparativas:
+        if so_figuras:
+            ctx_comparativo = ContextoLeve(p, "comparativo", slug)
+        else:
+            bruto = any(USA_PIPELINE[n] for n in comparativas)
+            ctx_comparativo = ContextoComparativo(p, bruto, entrada, slug)
+            salva_meta("comparativo", p, None)
+        _executa(comparativas, ctx_comparativo, escolha, so_figuras)
+
+
+def lista_metricas() -> None:
+    for nome, funcao in METRICAS.items():
+        padrao = "" if PADRAO[nome] else ", fora da execução padrão"
+        print(f"{nome} ({ESCOPO[nome]}{padrao})\n{funcao.__doc__}")
+        print("    figuras:")
+        for fig, funcao_fig in FIGURAS[nome].items():
+            marca = "*" if (nome, fig) in FIGURAS_PADRAO else " "
+            print(f"    {marca} {nome}.{fig}: {funcao_fig.__doc__}")
+        print()
+    print("* = desenhada por padrão")
+
+
+PADRAO_SAIDA = Path.home() / "Documents" / "pyramid-vitalidade"
+
+
+def aplica_saida(base: Path) -> None:
+    """Aponta as saídas de `figuras_linguagem_bruta` para `base`/<linguagem> e `base`/geral."""
+    fb.TMP_BASE = base
+    fb.PASTA_GERAL = base / "geral"
+    fb.ESTADO_PASTA_GERAL.pasta = base / "geral"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("--linguagem", default="clojure", choices=sorted(fb.LINGUAGENS))
-    parser.add_argument("--comparativo", action="store_true", help="compara LINGUAGENS_RQ2")
+    parser.add_argument("--linguagem", default="clojure", choices=sorted(carga_fonte.LINGUAGENS))
+    parser.add_argument(
+        "--metricas", help=f"nomes separados por vírgula. Padrão: todas. Opções: {list(METRICAS)}"
+    )
+    parser.add_argument(
+        "--figuras",
+        default="padrao",
+        help="padrao, todas, nenhuma, ou metrica / metrica.figura separados por vírgula",
+    )
+    parser.add_argument(
+        "--comparativo",
+        action="store_true",
+        help="sem --metricas, roda as comparativas (várias linguagens) em vez das de uma",
+    )
+    parser.add_argument(
+        "--set", dest="sobrepostos", action="append", default=[], metavar="CHAVE=VALOR"
+    )
+    entrada = parser.add_argument_group("entrada: de onde ler os eventos (nada é movido)")
+    entrada.add_argument("--dados", help="pasta com os eventos e o alvo da linguagem")
+    entrada.add_argument(
+        "--eventos", action="append", help="arquivo de eventos (repetível); o papel vem do nome"
+    )
+    entrada.add_argument("--alvo", action="append", help="arquivo-alvo (repetível)")
+    entrada.add_argument("--motor", help="pandas, duckdb ou auto (padrão do yaml)")
+    entrada.add_argument("--sem-cache", action="store_true", help="relê os eventos brutos")
+    saida = parser.add_argument_group("saída")
+    saida.add_argument(
+        "--saida",
+        default=os.environ.get("PYRAMID_SAIDA", str(PADRAO_SAIDA)),
+        help=f"pasta de resultados e figuras (padrão {PADRAO_SAIDA}; env PYRAMID_SAIDA)",
+    )
+    saida.add_argument(
+        "--so-figuras",
+        action="store_true",
+        help="desenha a partir de resultados/, sem recalcular nem reler os eventos",
+    )
+    saida.add_argument(
+        "--estilo",
+        action="append",
+        default=[],
+        metavar="FIGURA:OPCAO=VALOR",
+        help="sobrepõe uma opção de vitalidade_figuras.yaml (global:dpi=300)",
+    )
+    saida.add_argument(
+        "--empacota",
+        nargs="?",
+        const="",
+        metavar="ARQUIVO",
+        help="junta os resultados num .tar.gz (padrão: dentro de --saida) e termina",
+    )
+    saida.add_argument("--importa", metavar="PACOTE", help="abre um .tar.gz em --saida e termina")
+    parser.add_argument(
+        "--lista", action="store_true", help="mostra métricas, figuras, referências"
+    )
     args = parser.parse_args()
-    if args.comparativo:
-        comparativo()
+    if args.lista:
+        lista_metricas()
         return
-    fb.LING.aplica(args.linguagem)
-    fb.CFG.aplica(fb.RODADA)
+    base = Path(args.saida).expanduser()
+    aplica_saida(base)
+    if args.importa:
+        vitalidade_pacote.importa(Path(args.importa).expanduser(), base)
+        return
+    if args.empacota is not None:
+        destino = Path(args.empacota).expanduser() if args.empacota else None
+        vitalidade_pacote.empacota(base, destino)
+        return
 
-    eventos = fb.carrega_eventos(fb.RODADA)
-    fim = eventos["timestamp"].max()
-    print(f"{fb.LING.atual.nome}: {len(eventos)} eventos, coleta até {fim.date()}", file=sys.stderr)
-
-    pa = vitalidade.pessoa_ano(eventos, fim)
-    anual = vitalidade.tabela_anual(pa, fim)
-    comp = vitalidade.composicao(pa)
-    indice = vitalidade.indice_envelhecimento(pa)
-    taxa = vitalidade.taxa_saida_por_faixa(pa, fim)
-    dur = vitalidade.duracoes(eventos, fim)
-    tabuas = vitalidade.tabuas_por_coorte(dur)
-
-    _csv(anual, "anual.csv")
-    _csv(comp, "composicao.csv")
-    _csv(indice, "indice_envelhecimento.csv")
-    _csv(taxa, "taxa_saida_faixa.csv")
-    _csv(tabuas, "tabua_coortes.csv")
-    _csv(vitalidade.tabua_de_vida(dur), "tabua_todas.csv")
-
-    figura_anual(anual)
-    figura_piramides(comp)
-    figura_indice(indice)
-    figura_taxa_saida(taxa)
-    figura_tabua(tabuas)
-    projecao(pa, anual, fim)
+    if args.metricas:
+        nomes = args.metricas.split(",")
+        desconhecidas = [n for n in nomes if n not in METRICAS]
+        if desconhecidas:
+            parser.error(f"métrica desconhecida: {desconhecidas}. Opções: {list(METRICAS)}")
+    elif args.figuras not in ("padrao", "todas", "nenhuma"):
+        # `--figuras tamanho.anual` sozinho pede só a métrica dona do gráfico.
+        nomes = []
+        for item in args.figuras.split(","):
+            nome_metrica = item.partition(".")[0]
+            if nome_metrica in METRICAS and nome_metrica not in nomes:
+                nomes.append(nome_metrica)
+    else:
+        escopo = "comparativo" if args.comparativo else "linguagem"
+        nomes = [n for n in METRICAS if ESCOPO[n] == escopo and PADRAO[n]]
+    p = carrega_parametros(args.sobrepostos)
+    carrega_estilo(args.estilo)
+    de_entrada = Entrada(args.dados, args.eventos, args.alvo, not args.sem_cache, args.motor)
+    if not args.metricas and not args.so_figuras:
+        nomes = _sem_pipeline_se_grande(nomes, p, args.linguagem, de_entrada)
+    roda(nomes, p, args.linguagem, args.figuras, de_entrada, args.so_figuras)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,60 @@
+# Parâmetros das métricas de vitalidade (Plano de Experimento).
+#
+# Editar um número aqui muda o default sem tocar em código. Uma execução também
+# sobrepõe qualquer chave pela linha de comando:
+#
+#     uv run python scripts/vitalidade.py --set min_saidas=20 --set horizonte=3
+#
+# A régua do plano (saída = 12 meses, faixas 0-1 a 8+, passo anual) mora em
+# src/pyramid/vitalidade.py e não aparece aqui.
+
+# Cenários: a permanência de uma banda num ano só entra quando a banda teve
+# pelo menos esse número de saídas no ano anterior. 0 desliga o filtro.
+# Referência do plano: 20 (NCHS/CDC, CDC WONDER Presentation Standards 2024).
+min_saidas: 0
+
+# Taxa de saída por faixa: ponto vazado na figura quando a célula tem menos
+# saídas que isso. Mesmo critério do CDC.
+saidas_estavel: 20
+
+# Permanência da projeção usada nas figuras. false = sem teto, como o IEICE16;
+# true = com teto em 1. Os CSVs trazem as duas, na coluna `teto`.
+teto: false
+
+# Anos projetados à frente na projeção futura.
+horizonte: 5
+
+# Ano cuja composição por faixa serve de peso na taxa padronizada e no SMR.
+ano_pesos: 2025
+
+# Linguagens do comparativo (Kaplan-Meier, log-rank, padronização). A primeira
+# é a referência do log-rank. As cinco do plano: nicho (Elixir, Zig, OCaml) e Python.
+linguagens_rq2: [clojure, elixir, zig, ocaml, python]
+
+# Anos mostrados nas pirâmides por faixa e coortes mostradas na tábua de vida.
+anos_piramide: [2010, 2014, 2018, 2022, 2026]
+coortes_tabua: [2010, 2013, 2016, 2019, 2022]
+
+# Regras de cenário comparadas no backtest: nome da pasta: [rótulo, janela em
+# anos (null = história toda), novatos por taxa]. A primeira é a do plano.
+variantes:
+  contagem-historia: ["novatos em contagem, história toda", null, false]
+  taxa-historia: ["novatos por taxa, história toda", null, true]
+  contagem-5anos: ["novatos em contagem, últimos 5 anos", 5, false]
+  taxa-5anos: ["novatos por taxa, últimos 5 anos", 5, true]
+
+# Carga dos eventos. De onde ler fica em vitalidade_fontes.yaml (ou --dados / --eventos).
+#
+# Motor da carga: pandas (tudo em memória, um núcleo), duckdb (paralelo, derrama em disco,
+# para centenas de GB) ou auto, que escolhe duckdb acima de limite_pandas_gb de eventos.
+motor: auto
+limite_pandas_gb: 20
+
+# Acima disso o pipeline do motor (ccr_ncr, stickiness, magnetismo), que lê tudo para a
+# memória, sai da execução padrão e recusa o pedido explícito.
+limite_bruto_gb: 20
+
+# Memória e núcleos do duckdb. A batuta tem 40 núcleos e 94 GB, compartilhados com as
+# coletas: deixe folga. threads null usa todos.
+memoria: 30GB
+threads: 16

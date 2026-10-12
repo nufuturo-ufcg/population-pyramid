@@ -1,0 +1,76 @@
+# Estilo dos gráficos de vitalidade (scripts/vitalidade_figuras.py).
+#
+# Editar aqui muda a aparência sem tocar em código, e `--so-figuras` redesenha em
+# segundos a partir dos resultados já gravados, sem reler os eventos:
+#
+#     uv run python scripts/vitalidade.py --so-figuras --figuras tamanho
+#
+# Uma execução também sobrepõe qualquer opção, com figura:opção=valor:
+#
+#     --estilo tamanho.anual:titulo="{linguagem}: entradas e saídas"
+#     --estilo tamanho.anual:legenda.posicao=abaixo
+#     --estilo global:dpi=300
+#
+# Um gráfico usa `global` com as opções do próprio gráfico por cima. Opção ausente
+# ou null mantém o que a função do gráfico desenha.
+#
+# Opções (todas valem em `global` e em qualquer gráfico):
+#   figsize             [largura, altura] em polegadas
+#   dpi                 resolução do arquivo
+#   formato             png, svg ou pdf
+#   titulo              título do primeiro painel. {linguagem} vira o nome da linguagem
+#   titulo_geral        título da figura inteira (gráficos com vários painéis)
+#   rotulo_x, rotulo_y  rótulos dos eixos do primeiro painel
+#   xlim, ylim          [mínimo, máximo] do primeiro painel
+#   grade               false apaga a grade
+#   fontes              titulo, rotulo, tick, legenda, titulo_geral, em pontos
+#   legenda             mostrar (false esconde), posicao ("abaixo" ou um loc do
+#                       matplotlib, como "upper left"), colunas, moldura (true/false)
+#   linha               largura e marcador_tamanho de todas as linhas
+#   paleta              categorica e rampa, listas de cores
+#   cores_linguagem     {clojure: "#...", elixir: "#..."}, nos gráficos comparativos
+#   linhas_horizontais  lista de {y, rotulo, cor, estilo, largura, eixo}
+#   linhas_verticais    lista de {x, rotulo, cor, estilo, largura, eixo}
+#   textos              lista de {x, y, texto, tamanho, cor, eixo}, em coordenadas dos dados
+#   eixos               {1: {titulo, rotulo_x, rotulo_y, xlim, ylim}} para o segundo
+#                       painel em diante (o índice 0 é o primeiro, coberto pelas opções
+#                       de cima)
+
+global:
+  dpi: 200
+  formato: png
+  paleta:
+    # Paleta de referência do skill dataviz: categórica em ordem fixa, e rampa azul
+    # (passos 250 a 700) para o que é ordinal (faixas, coortes).
+    categorica: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+    rampa: ["#86b6ef", "#5598e7", "#2a78d6", "#256abf", "#184f95", "#0d366b"]
+  fontes:
+    titulo: null
+    rotulo: null
+    tick: null
+    legenda: null
+    titulo_geral: null
+
+# Tamanhos de cada gráfico. Gráfico sem tamanho aqui calcula o dele a partir dos
+# dados (um painel por ano de pirâmide, uma barra por ano, uma linha por comparação).
+figuras:
+  tamanho.anual: {figsize: [9, 7]}
+  tamanho.transicao_anual: {figsize: [10, 5.5]}
+  tamanho.transicao_trimestral: {figsize: [10, 5.5]}
+  tamanho.fluxo: {figsize: [9, 4.5]}
+  composicao.indice: {figsize: [9, 3.5]}
+  composicao.proporcao: {figsize: [9, 4.5]}
+  retencao.sobrevivencia: {figsize: [8, 4.5]}
+  retencao.esperanca: {figsize: [8, 4.5]}
+  saida_por_faixa.linhas: {figsize: [9, 4.5]}
+  saida_por_faixa.calor: {figsize: [10, 3.8]}
+  cenarios.backtest: {figsize: [9, 4.5]}
+  cenarios.futuro: {figsize: [9, 4.5]}
+  ccr_ncr.dispersao: {figsize: [7.5, 6.5]}
+  ccr_ncr.serie: {figsize: [9, 4]}
+  stickiness.linha: {figsize: [9, 3.5]}
+  significancia.km: {figsize: [8, 4.5]}
+  comparacao_corrigida.tres_paineis: {figsize: [9, 9]}
+  comparacao_corrigida.smr: {figsize: [9, 4]}
+  magnetismo.linhas: {figsize: [9, 4]}
+  magnetismo.dispersao: {figsize: [6.5, 6]}
