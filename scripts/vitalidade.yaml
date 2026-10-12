@@ -79,8 +79,8 @@ ano_comparacao: 2024
 ano_base_indice: 2019
 
 # Saída é definitiva: a última contribuição da vida, seguida de 12 meses sem nada até o fim da
-# coleta. Quem parou há pouco ainda pode voltar, então a saída dos últimos anos é provisória
-# (em todas as linguagens, 3/4 das pausas terminam em até 3 anos). Os gráficos de saída,
-# mortalidade e crescimento só mostram os anos com pelo menos `carencia_anos` de coleta depois.
-# 1 mostra tudo o que a regra de 12 meses já decide.
+# coleta. Os gráficos vão até o último ano completo da coleta (2025). Quem parou há pouco ainda
+# pode voltar, então a saída dos últimos `carencia_anos` anos é provisória e sai tracejada
+# (nas cinco linguagens, 3/4 das pausas terminam em até 3 anos). O último ano completo é o mais
+# provisório: conta como saída quem não contribuiu desde então, com menos de 12 meses de coleta.
 carencia_anos: 3

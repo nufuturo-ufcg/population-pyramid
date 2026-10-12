@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import yaml
 from matplotlib.ticker import MaxNLocator
@@ -77,8 +78,47 @@ CHAVES_DE_ESTILO = {
 
 
 def _ate_o_ano_decidido(ctx: Any) -> int:
-    """Último ano com saída confiável: o da coleta menos `carencia_anos`."""
-    return int(ctx.fim.year - ctx.p.carencia_anos)
+    """Último ano completo da coleta, o último com saída (provisória) a mostrar."""
+    return int(ctx.fim.year - 1)
+
+
+def _primeiro_provisorio(ctx: Any) -> int:
+    """Primeiro dos últimos `carencia_anos` anos, que ainda podem ter quem volte."""
+    return int(ctx.fim.year - ctx.p.carencia_anos + 1)
+
+
+def _plota_datas(
+    ax: Any, x: Any, y: Any, anos: Any, primeiro_provisorio: int, **estilo: Any
+) -> None:
+    """Como `_plota`, com o eixo em datas e a decisão de provisório pelo ano de cada ponto."""
+    x = pd.Series(list(x))
+    y = pd.Series(list(y))
+    anos = pd.Series(list(anos))
+    firme = (anos < primeiro_provisorio).to_numpy()
+    cauda = (anos >= primeiro_provisorio).to_numpy().copy()
+    if firme.any() and cauda.any():
+        ultimo_firme = np.flatnonzero(firme).max()
+        cauda[ultimo_firme] = True  # a ponte entre o traço cheio e o tracejado
+    rotulo = estilo.pop("label", None)
+    if firme.any():
+        ax.plot(x[firme], y[firme], label=rotulo, **estilo)
+        rotulo = None
+    if cauda.any() and (anos[cauda] >= primeiro_provisorio).any():
+        ax.plot(x[cauda], y[cauda], linestyle="--", label=rotulo, **estilo)
+
+
+def _plota(ax: Any, x: Any, y: Any, primeiro_provisorio: int, **estilo: Any) -> None:
+    """Traço cheio até o último ano firme e tracejado dali em diante, na mesma cor."""
+    x = pd.Series(list(x))
+    y = pd.Series(list(y))
+    firme = (x < primeiro_provisorio).to_numpy()
+    cauda = (x >= primeiro_provisorio - 1).to_numpy()
+    rotulo = estilo.pop("label", None)
+    if firme.any():
+        ax.plot(x[firme], y[firme], label=rotulo, **estilo)
+        rotulo = None
+    if (x[cauda] >= primeiro_provisorio).any():
+        ax.plot(x[cauda], y[cauda], linestyle="--", label=rotulo, **estilo)
 
 
 def _nome() -> str:
@@ -364,8 +404,9 @@ def salva(fig: Any, nome: str, geral: bool = False) -> None:
 
 @figura("tamanho", "anual", padrao=True)
 def figura_anual(ctx: Any, d: Dados) -> None:
-    """Ativos, novatos, saídas e voltas por ano, e o crescimento natural embaixo."""
+    """Ativos, novatos, saídas e voltas por ano e o crescimento embaixo, até o último ano."""
     t = d["anual"]
+    t = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     nome = _nome()
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
     series = [
@@ -375,11 +416,14 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         ("voltas", "voltas"),
     ]
     decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
+    prov = _primeiro_provisorio(ctx)
     for (coluna, rotulo), cor in zip(series, categorica(), strict=False):
         base = decidido if coluna == "saidas" else t
-        ax1.plot(
+        _plota(
+            ax1,
             base["ano"],
             base[coluna],
+            prov if coluna == "saidas" else 10_000,
             color=cor,
             linewidth=2,
             marker="o",
@@ -391,9 +435,11 @@ def figura_anual(ctx: Any, d: Dados) -> None:
     ax1.legend(loc="upper left", frameon=False)
 
     ax2.axhline(0, color="#888888", linewidth=0.8)
-    ax2.plot(
+    _plota(
+        ax2,
         decidido["ano"],
         decidido["crescimento_natural_pct"],
+        prov,
         color="black",
         linewidth=2,
         marker="o",
@@ -401,9 +447,11 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         label="natural: (novatos - saídas definitivas) / ativos",
     )
     if "crescimento_liquido_pct" in t:
-        ax2.plot(
+        _plota(
+            ax2,
             decidido["ano"],
             decidido["crescimento_liquido_pct"],
+            prov,
             color=categorica()[0],
             linewidth=2,
             marker="o",
@@ -412,7 +460,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         )
     ax2.set_ylabel("% dos ativos")
     ax2.set_xlabel("ano")
-    ax2.set_title("crescimento (só os anos com saída decidida, ver `carencia_anos`)")
+    ax2.set_title("crescimento (tracejado: os últimos anos, com saída provisória)")
     ax2.legend(loc="lower left", frameon=False)
     for ax in (ax1, ax2):
         plots._theme(ax)
@@ -525,7 +573,15 @@ def figura_taxa_saida(ctx: Any, d: Dados) -> None:
         f = taxa[(taxa["faixa"] == faixa) & taxa["taxa_saida"].notna()]
         if f.empty:
             continue
-        ax.plot(f["ano"], f["taxa_saida"], color=cor, linewidth=2, label=f"{faixa} anos")
+        _plota(
+            ax,
+            f["ano"],
+            f["taxa_saida"],
+            _primeiro_provisorio(ctx),
+            color=cor,
+            linewidth=2,
+            label=f"{faixa} anos",
+        )
         estavel = f["saidas"] >= saidas_estavel
         ax.scatter(f.loc[estavel, "ano"], f.loc[estavel, "taxa_saida"], color=cor, s=30, zorder=3)
         ax.scatter(
@@ -540,7 +596,8 @@ def figura_taxa_saida(ctx: Any, d: Dados) -> None:
     ax.set_ylabel("saídas / ativos da faixa")
     ax.set_xlabel("ano")
     ax.set_title(
-        f"{_nome()}: taxa de saída por faixa (ponto vazado = menos de {saidas_estavel} saídas)"
+        f"{_nome()}: taxa de saída por faixa (ponto vazado = menos de {saidas_estavel} saídas, "
+        "tracejado = provisório)"
     )
     ax.legend(loc="upper right", frameon=False, ncol=3)
     plots._theme(ax)
@@ -653,11 +710,11 @@ def figura_futuro(
     salva(fig, f"{pasta}/projecao_futuro.png")
 
 
-def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int) -> None:
+def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int) -> None:
     """Natalidade e mortalidade com a área entre elas; população ao fundo, eixo da direita.
 
-    Só os períodos até `ate_ano`, com óbito decidido: os anos finais não têm como mostrar a
-    mortalidade ainda, e ficam fora inteiros, também a natalidade.
+    Só os períodos até `ate_ano`, o último ano completo. O traço tracejado marca os anos de
+    saída provisória, a partir de `provisorio`.
     """
     f = f[f["obitos"].notna() & (f["periodo"].dt.year <= ate_ano)]
     # Cada ponto e cada barra no meio do seu período.
@@ -698,16 +755,23 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int) -> None:
         alpha=0.2,
         label="queda natural",
     )
-    ax.plot(
+    anos = f["periodo"].dt.year
+    _plota_datas(
+        ax,
         meio,
         nat,
+        anos,
+        provisorio,
         color=categorica()[0],
         linewidth=2,
         label="natalidade (novatos / população)",
     )
-    ax.plot(
+    _plota_datas(
+        ax,
         meio,
         mort,
+        anos,
+        provisorio,
         color=categorica()[1],
         linewidth=2,
         label="mortalidade (saídas definitivas / população)",
@@ -839,24 +903,43 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
 @figura("tamanho", "transicao_anual", padrao=True)
 def figura_transicao_anual(ctx: Any, d: Dados) -> None:
     """Natalidade e mortalidade por ano, população ao fundo."""
-    _figura_transicao(d["transicao_anual"], "anual", _ate_o_ano_decidido(ctx))
+    _figura_transicao(
+        d["transicao_anual"], "anual", _ate_o_ano_decidido(ctx), _primeiro_provisorio(ctx)
+    )
 
 
 @figura("tamanho", "transicao_trimestral", padrao=True)
 def figura_transicao_trimestral(ctx: Any, d: Dados) -> None:
     """Natalidade e mortalidade por trimestre, população ao fundo."""
-    _figura_transicao(d["transicao_trimestral"], "trimestral", _ate_o_ano_decidido(ctx))
+    _figura_transicao(
+        d["transicao_trimestral"],
+        "trimestral",
+        _ate_o_ano_decidido(ctx),
+        _primeiro_provisorio(ctx),
+    )
 
 
 @figura("tamanho", "fluxo")
 def figura_fluxo(ctx: Any, d: Dados) -> None:
-    """Barras por ano: novatos e voltas para cima, saídas para baixo."""
+    """Barras por ano: novatos e voltas para cima, saídas para baixo, até o último ano."""
     t = d["anual"]
+    t = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.bar(t["ano"], t["novatos"], color=categorica()[1], label="novatos")
     ax.bar(t["ano"], t["voltas"], bottom=t["novatos"], color=categorica()[3], label="voltas")
-    ax.bar(t["ano"], -t["saidas"].fillna(0), color=categorica()[2], label="saídas (para baixo)")
+    saidas = -t["saidas"].fillna(0)
+    firme = t["ano"] < _primeiro_provisorio(ctx)
+    ax.bar(t.loc[firme, "ano"], saidas[firme], color=categorica()[2], label="saídas (para baixo)")
+    ax.bar(
+        t.loc[~firme, "ano"],
+        saidas[~firme],
+        color=categorica()[2],
+        alpha=0.5,
+        hatch="//",
+        edgecolor="white",
+        label="saídas provisórias",
+    )
     ax.set_ylabel("pessoas")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: entradas e saídas por ano")
@@ -918,7 +1001,17 @@ def figura_calor(ctx: Any, d: Dados) -> None:
     imagem = ax.imshow(m.to_numpy(dtype=float), aspect="auto", cmap="Blues", vmin=0, vmax=1)
     ax.set_xticks(range(len(m.columns)), [str(a) for a in m.columns], rotation=90)
     ax.set_yticks(range(len(m.index)), [f"{f} anos" for f in m.index])
-    fig.colorbar(imagem, ax=ax, label="saídas / ativos da faixa")
+    provisorios = [i for i, a in enumerate(m.columns) if a >= _primeiro_provisorio(ctx)]
+    if provisorios:
+        ax.axvspan(
+            provisorios[0] - 0.5,
+            provisorios[-1] + 0.5,
+            facecolor="none",
+            edgecolor="#555555",
+            hatch="//",
+            linewidth=0,
+        )
+    fig.colorbar(imagem, ax=ax, label="saídas / ativos da faixa (hachurado = provisório)")
     ax.set_title(f"{_nome()}: taxa de saída por faixa e ano")
     salva(fig, "taxa_saida_calor.png")
 
@@ -1104,22 +1197,21 @@ def figura_magnetismo_dispersao(ctx: Any, d: Dados) -> None:
 
 
 def _linhas_por_linguagem(
-    ax: Any, t: pd.DataFrame, coluna: str, desde: int, so_decididos: bool = False
+    ax: Any, t: pd.DataFrame, coluna: str, desde: int, com_cauda: bool = False
 ) -> None:
+    """Uma linha por linguagem; com `com_cauda`, os anos provisórios saem tracejados."""
     for slug in t["slug"].drop_duplicates():
         f = t[(t["slug"] == slug) & (t["ano"] >= desde) & t[coluna].notna()]
-        if so_decididos:
-            f = f[f["decidido"]]
         nome = carga_fonte.LINGUAGENS[slug].nome
-        ax.plot(
-            f["ano"],
-            f[coluna],
-            color=cor_da(slug),
-            linewidth=2,
-            marker="o",
-            markersize=4,
-            label=nome,
-        )
+        estilo = {"color": cor_da(slug), "linewidth": 2, "marker": "o", "markersize": 4}
+        if not com_cauda:
+            ax.plot(f["ano"], f[coluna], label=nome, **estilo)
+            continue
+        firme = f[~f["provisorio"]]
+        ax.plot(firme["ano"], firme[coluna], label=nome, **estilo)
+        cauda = f[f["provisorio"] | (f["ano"] == firme["ano"].max())]
+        if len(cauda) > 1:
+            ax.plot(cauda["ano"], cauda[coluna], linestyle="--", **estilo)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
@@ -1143,12 +1235,15 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
     """Crescimento líquido por ano, (novatos + voltas - saídas) / ativos, em %."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(
-        ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice, so_decididos=True
+        ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice, com_cauda=True
     )
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.set_ylabel("crescimento líquido, % dos ativos")
     ax.set_xlabel("ano")
-    ax.set_title("Crescimento líquido da comunidade (positivo: entra mais gente do que sai)")
+    ax.set_title(
+        "Crescimento líquido da comunidade (positivo: entra mais gente do que sai; "
+        "tracejado: provisório)"
+    )
     ax.legend(frameon=False)
     salva(fig, "trajetoria_crescimento.png", geral=True)
 
@@ -1157,9 +1252,7 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
 def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
     """Saídas e voltas de cada ano, em % dos ativos, em dois painéis."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-    _linhas_por_linguagem(
-        ax1, d["trajetoria"], "saida_pct", ctx.p.ano_base_indice, so_decididos=True
-    )
+    _linhas_por_linguagem(ax1, d["trajetoria"], "saida_pct", ctx.p.ano_base_indice, com_cauda=True)
     _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", ctx.p.ano_base_indice)
     ax1.set_ylabel("saídas, % dos ativos")
     ax2.set_ylabel("voltas, % dos ativos")

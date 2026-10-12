@@ -56,10 +56,13 @@ def test_tabela_anual():
     assert list(t["moved"]) == [0, 0, 1, 0, 0]
     # Saída é definitiva: B para em 2020 e volta em 2022, então 2020 é pausa, e C para em 2021
     # e volta em 2024, então 2021 também. Só A sai em 2021 e B em 2022.
-    assert list(t.loc[[2020, 2021, 2022], "saidas"]) == [0, 1, 1]
+    # 2023 é o último ano completo: D, que só abriu uma issue em dez/2023, já conta como saída,
+    # com o selo de provisório. 2024 é o ano da coleta e fica sem saída.
+    assert list(t.loc[[2020, 2021, 2022, 2023], "saidas"]) == [0, 1, 1, 1]
     assert list(t["pausas"]) == [1, 1, 0, 0, 0]
-    assert t.loc[[2023, 2024], "saidas"].isna().all()
-    assert list(t.loc[[2020, 2021, 2022], "crescimento_natural_pct"]) == [100, 0, -100]
+    assert list(t["provisorio"]) == [False, False, False, True, False]
+    assert np.isnan(t.loc[2024, "saidas"])
+    assert list(t.loc[[2020, 2021, 2022, 2023], "crescimento_natural_pct"]) == [100, 0, -100, 0]
 
 
 def test_fluxos_por_periodo_de_atividade_bate_com_tabela_anual():
@@ -80,8 +83,7 @@ def test_fluxos_de_vida_unica_nao_tem_volta_e_conta_os_vivos_nas_pausas():
     assert f["populacao"].tolist() == [2, 3, 2, 2]
     assert f["nascimentos"].tolist() == [2, 1, 0, 1]
     assert (f["voltas"] == 0).all()
-    assert f["obitos"].iloc[:3].tolist() == [0, 1, 1]
-    assert np.isnan(f["obitos"].iloc[3])
+    assert f["obitos"].tolist() == [0, 1, 1, 1]  # o último ano completo entra, provisório
 
 
 def test_fluxos_trimestral_conta_quem_esta_no_intervalo():

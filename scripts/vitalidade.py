@@ -606,8 +606,9 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         t["saida_pct"] = 100 * t["saidas"] / t["ativos"]
         t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
         t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
-        # Saída é definitiva, e quem parou há pouco ainda pode voltar: só vale até `carencia_anos`.
-        t["decidido"] = t["ano"] <= lingua.fim.year - ctx.p.carencia_anos
+        # Saída é definitiva, e quem parou há pouco ainda pode voltar: os últimos `carencia_anos`
+        # anos são provisórios e saem tracejados.
+        t["provisorio"] = t["ano"] > lingua.fim.year - ctx.p.carencia_anos
         ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice
         t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
         trajetorias.append(t)

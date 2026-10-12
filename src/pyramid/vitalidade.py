@@ -57,6 +57,20 @@ def ano_fechado(ano: int, fim: pd.Timestamp) -> bool:
     return fim > pd.Timestamp(f"{ano + 1}-01-01") + pd.Timedelta(days=GAP_DIAS)
 
 
+def ano_completo(ano: int, fim: pd.Timestamp) -> bool:
+    """O ano de calendário acabou antes do fim da coleta. Só o ano da coleta fica de fora."""
+    return ano < fim.year
+
+
+def provisorio(ano: int, fim: pd.Timestamp) -> bool:
+    """Ano completo cuja saída ainda não passou por 12 meses de coleta: vale como estimativa.
+
+    Quem teve a última contribuição nele conta como saída, com menos de 12 meses de silêncio
+    confirmados. Quem voltar depois do fim da coleta ainda aparece como saída.
+    """
+    return ano_completo(ano, fim) and not ano_fechado(ano, fim)
+
+
 def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
     """Reduz os eventos ao que as métricas deste módulo usam, sem mudar nenhum resultado.
 
@@ -174,7 +188,10 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     # (é o que o separou do seguinte), então basta medir a distância até `fim`.
     # Saída é o fim do último período, o da vida inteira: quem para e depois volta
     # não saiu, só fez uma pausa.
-    parou = (fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS)
+    # O último ano completo entra com a regra provisória: o último evento nele já conta como saída.
+    parou = ((fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS)) | (
+        spans["span_end"].dt.year == fim.year - 1
+    )
     ultimo = spans["span_idx"] == spans.groupby("contributor_id")["span_idx"].transform("max")
     definitiva = parou & ultimo
     pausa = parou & ~ultimo
@@ -225,8 +242,9 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
         }
     )
     for ano in t.index:
-        if not ano_fechado(ano, fim):
+        if not ano_completo(ano, fim):
             t.loc[ano, "saidas"] = np.nan
+    t["provisorio"] = [provisorio(ano, fim) for ano in t.index]
     t["crescimento_natural_pct"] = 100 * (t["novatos"] - t["saidas"]) / t["ativos"]
     t["crescimento_liquido_pct"] = (
         100 * (t["novatos"] + t["voltas"] - t["saidas"] - t["pausas"]) / t["ativos"]
@@ -284,7 +302,10 @@ def fluxos(
     n = ultimo_completo - primeiro + 1
 
     eh_primeiro = spans["span_idx"].to_numpy() == 0
-    parou = ((fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS)).to_numpy()
+    parou = (
+        ((fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS))
+        | (spans["span_end"].dt.year == fim.year - 1)
+    ).to_numpy()
     entram = np.bincount(inicio - primeiro, minlength=n)[:n]
     # Quem termina em P ainda conta em P e sai do estoque em P+1.
     saem = np.bincount(termino - primeiro + 1, minlength=n + 1)[:n]
@@ -294,7 +315,7 @@ def fluxos(
 
     calendario = pd.period_range(pd.Period(ordinal=primeiro, freq=freq), periods=n)
     for i, periodo in enumerate(calendario):
-        if not fim > (periodo + 1).start_time + pd.Timedelta(days=GAP_DIAS):
+        if (periodo + 1).start_time > pd.Timestamp(year=fim.year, month=1, day=1):
             obitos[i] = np.nan
 
     t = pd.DataFrame(
@@ -376,7 +397,7 @@ def taxa_saida_por_faixa(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
     )
     t["saidas"] = t["saidas"].astype(float)
     for i in t.index:
-        if not ano_fechado(int(t.loc[i, "ano"]), fim):
+        if not ano_completo(int(t.loc[i, "ano"]), fim):
             t.loc[i, "saidas"] = np.nan
     t["taxa_saida"] = t["saidas"] / t["ativos"].where(t["ativos"] > 0)
     return t
