@@ -436,3 +436,20 @@ def test_ate_a_data_tira_o_que_vem_depois_e_quem_so_aparece_depois():
     assert set(cortado["contributor_id"]) == {1, 2, 3}  # a 4 só aparece em 2023
     # A pessoa 3 fica só com o commit de 2021: o de 2024 saiu.
     assert (cortado["contributor_id"] == 3).sum() == 1
+
+
+def test_sobrevida_condicional_a_mao():
+    """Quatro pessoas saem aos 1, 2, 3 e 4 anos: S = 1, 0,75, 0,5, 0,25, 0."""
+    dur = pd.DataFrame({"duracao_anos": [1.0, 2.0, 3.0, 4.0], "saiu": [True] * 4})
+    t = vitalidade.sobrevida_condicional(dur, idades=(0, 1, 2), horizonte=2.0).set_index("x")
+    assert list(t["n_risco"]) == [4, 4, 3]
+    assert t.loc[1, "S_x"] == pytest.approx(0.75)
+    # Chegou a 1 ano (0,75) e a 2 anos tem 0,5: segue mais 1 ano com 0,5 / 0,75.
+    assert t.loc[1, "cond_1a"] == pytest.approx(0.5 / 0.75)
+    assert t.loc[1, "cond_2a"] == pytest.approx(0.25 / 0.75)
+    # Vida residual de quem tem 0 ano, em 2 anos: 1 ano a 1,0 mais 1 ano a 0,75.
+    assert t.loc[0, "anos_esperados"] == pytest.approx(1.75)
+    # Além do último tempo observado a curva não diz nada.
+    assert np.isnan(t.loc[2, "cond_5a"])
+    # Aos 2 anos (S = 0,5): 1 ano a 0,5 e 1 ano a 0,25, dividido por 0,5.
+    assert t.loc[2, "anos_esperados"] == pytest.approx(1.5)

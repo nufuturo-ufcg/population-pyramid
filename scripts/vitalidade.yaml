@@ -108,3 +108,8 @@ ccr_ncr_novato_meses: 3
 # saída de 2025 não existe: ativos, novatos e pirâmides vão até 2025, e saída, mortalidade e
 # crescimento até 2024. null usa todos os eventos até o último.
 data_de_corte: "2025-12-31"
+
+# Sobrevida condicional: idades x (em anos) em que se pergunta "quem chegou até aqui, quanto mais
+# fica?", e o horizonte dos anos ativos esperados. O ponto de virada aparece em 2 a 3 anos.
+idades_sobrevida: [0, 0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12]
+horizonte_sobrevida_anos: 5

@@ -25,6 +25,7 @@ ESPERADAS = {
     "comparacao_corrigida",
     "trajetoria",
     "ccr_ncr_comparado",
+    "sobrevida_condicional",
     "magnetismo",
 }
 
