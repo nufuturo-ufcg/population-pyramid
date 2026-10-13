@@ -173,7 +173,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 - `moved` (ida): primeiro commit ou PR depois de já ter discutido. Ano = o do primeiro commit ou PR.
 - `deixou_codigo` (volta): a última atividade de discussão vem depois do último commit ou PR. Ano = o do último commit ou PR.
-- A volta olha o futuro: quem voltar a codar deixa de contar. Os últimos anos ficam subestimados e saem tracejados.
+- A volta olha o futuro: quem voltar a codar deixa de contar. No último ano da coleta o último commit é só o último visto, e quem ainda vai codar entra como quem deixou o código (2025 em Clojure dá 19%, contra 10% nos anos anteriores). A figura para em `fim.year - 1`, e o último ano dela ainda sobe um pouco.
 - A compactação guarda o último evento de código e de discussão de cada trimestre. Muda `VERSAO_CACHE`: caches antigos são refeitos.
 - Figura: `tamanho.troca_de_papel`, em % dos ativos do ano.
 

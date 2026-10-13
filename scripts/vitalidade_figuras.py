@@ -897,7 +897,7 @@ def figura_tabua_esperanca(ctx: Any, d: Dados) -> None:
         )
     ax.set_xlabel("anos de casa x (anos desde a primeira contribuição)")
     ax.set_ylabel("vida restante, e(x), em anos")
-    ax.set_title(f"{_nome()}: quem chegou a x anos, quantos anos ainda restam (piso)")
+    ax.set_title(f"Quem chegou a x anos, quantos anos ainda restam (piso){ESTADO.sufixo}")
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca_comparada.png", geral=True)
@@ -921,7 +921,7 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
         ax.set_xlabel("anos de casa x")
         plots._theme(ax)
     ax1.legend(frameon=False)
-    fig.suptitle(f"{_nome()}: chegar à senioridade e permanecer nela")
+    fig.suptitle(f"Chegar à senioridade e permanecer nela{ESTADO.sufixo}")
     fig.tight_layout()
     salva(fig, "tabua_chegar_e_ficar.png", geral=True)
 
@@ -1013,9 +1013,13 @@ def figura_fluxo(ctx: Any, d: Dados) -> None:
 
 @figura("tamanho", "troca_de_papel", padrao=True)
 def figura_troca_de_papel(ctx: Any, d: Dados) -> None:
-    """Quem troca de lado por ano, em % dos ativos: discussão para código (moved) e a volta."""
+    """Quem troca de lado por ano, em % dos ativos: discussão para código (moved) e a volta.
+
+    Para no último ano com futuro: no ano final o último commit é o último da coleta, e quem
+    ainda vai codar entra como quem deixou o código.
+    """
     t = d["anual"]
-    t = t[t["ano"] <= _ultimo_ano_de_contagem(ctx)]
+    t = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ida = 100 * t["moved"] / t["ativos"]
     volta = 100 * t["deixou_codigo"] / t["ativos"]
