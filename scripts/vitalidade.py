@@ -677,10 +677,11 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
     """Trajetória: tamanho, crescimento e composição de cada linguagem, lado a lado. Responde RQ2.
 
     O que faz: ativos por ano e o índice de ativos (100 em `ano_base_indice`), o crescimento
-    líquido (novatos + voltas - saídas) / ativos, as taxas de saída e de volta em % dos ativos e
-    a composição por faixa em % dos ativos do ano. Linguagens de tamanhos muito diferentes (o
-    Python tem mil vezes os ativos do Zig) só se comparam com o tamanho tirado: índice, taxas e
-    composição em %.
+    líquido (novatos + voltas - saídas - pausas) / ativos, as taxas de saída e de volta em % dos
+    ativos e a composição por faixa em % dos ativos do ano. O crescimento líquido do ano divide
+    pelos ativos do próprio ano. Não é a variação sobre o ano anterior (ver `tabela_anual`).
+    Linguagens de tamanhos muito diferentes (o Python tem mil vezes os ativos do Zig) só se
+    comparam com o tamanho tirado: índice, taxas e composição em %.
     Referência: equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050,
     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf);
     pirâmide etária em % da população (IBGE, https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95).

@@ -454,7 +454,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         linewidth=2,
         marker="o",
         markersize=4,
-        label="natural: (novatos - saídas definitivas) / ativos",
+        label="natural do ano: (novatos - saídas) / ativos do mesmo ano",
     )
     if "crescimento_liquido_pct" in t:
         _plota(
@@ -466,7 +466,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
             linewidth=2,
             marker="o",
             markersize=4,
-            label="líquido: (novatos + voltas - saídas - pausas) / ativos",
+            label="líquido do ano: (novatos + voltas - saídas - pausas) / ativos do mesmo ano",
         )
     ax2.set_ylabel("% dos ativos")
     ax2.set_xlabel("ano")
@@ -1413,13 +1413,16 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
 
 @figura("trajetoria", "crescimento", padrao=True)
 def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
-    """Crescimento líquido por ano, (novatos + voltas - saídas) / ativos, em %."""
+    """Crescimento líquido do ano, (novatos + voltas - saídas - pausas) / ativos do mesmo ano, em %.
+
+    A base são os ativos do próprio ano. Não é a variação sobre o ano anterior.
+    """
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(
         ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice, com_cauda=True
     )
     ax.axhline(0, color="#888888", linewidth=0.8)
-    ax.set_ylabel("crescimento líquido, % dos ativos")
+    ax.set_ylabel("crescimento líquido do ano, % dos ativos do mesmo ano")
     ax.set_xlabel("ano")
     ax.set_title(
         "Crescimento líquido da comunidade (positivo: entra mais gente do que sai; "
@@ -1427,6 +1430,47 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
     )
     ax.legend(frameon=False)
     salva(fig, "trajetoria_crescimento.png", geral=True)
+
+
+@figura("trajetoria", "linha_do_tempo", padrao=True)
+def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
+    """Pirâmides em % de cada linguagem (linhas) em cada ano de `anos_piramide` (colunas)."""
+    comp = d["composicao_pct"]
+    ativos = d["trajetoria"].set_index(["slug", "ano"])["ativos"]
+    anos = list(ctx.p.anos_piramide)
+    slugs = list(ctx.p.linguagens_rq2)
+    codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
+    xmax = 50.0  # nenhuma barra passa de 50% dos ativos do ano
+    fig, eixos = plt.subplots(
+        len(slugs), len(anos), figsize=(3.0 * len(anos), 2.5 * len(slugs)), sharey=True
+    )
+    for i, slug in enumerate(slugs):
+        for j, ano in enumerate(anos):
+            ax = eixos[i][j]
+            q = comp[(comp["slug"] == slug) & (comp["ano"] == ano)].copy()
+            tem = (slug, ano) in ativos.index and ativos[(slug, ano)] >= MIN_ATIVOS_CCR_NCR
+            if tem:
+                q["band"] = q["faixa"].map(codigo).astype(int)
+                plots.draw_pyramid(ax, q, xmax=xmax)
+            else:
+                ax.text(0.5, 0.5, "menos de 100 ativos", ha="center", va="center", color="#999999")
+                ax.set_xticks([])
+            ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
+            ax.set_yticks(range(len(vitalidade.FAIXAS)))
+            ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS], fontsize=7)
+            if i == 0:
+                ax.set_title(str(ano))
+            if j == 0:
+                ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=11)
+            if i == len(slugs) - 1 and tem:
+                ax.set_xlabel("% dos ativos do ano", fontsize=7)
+    fig.suptitle(
+        f"Pirâmides por tempo de casa, linha do tempo por linguagem{ESTADO.sufixo}\n"
+        "(esquerda discussão, direita código; cada pirâmide soma 100%)"
+    )
+    fb._legenda_discussion(fig, plots)
+    fig.tight_layout(rect=(0, 0.04, 1, 0.94))
+    salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
 
 
 @figura("trajetoria", "taxas")

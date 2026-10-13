@@ -83,3 +83,4 @@ figuras:
   ccr_ncr_comparado.serie: {figsize: [10, 7]}
   tabua_comparada.esperanca: {figsize: [8, 4.5]}
   tabua_comparada.chegar_e_ficar: {figsize: [12, 4.5]}
+  trajetoria.linha_do_tempo: {figsize: [15, 12.5]}

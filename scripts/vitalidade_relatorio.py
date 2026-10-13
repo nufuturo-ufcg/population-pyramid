@@ -54,30 +54,36 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
     py = carga_fonte.LINGUAGENS["python"].nome
     zig = carga_fonte.LINGUAGENS["zig"].nome
 
-    saida_c = 1 - fica[c]
-    saida_py = 1 - fica[py]
     diferenca_total = chega.loc[5, py] / chega.loc[5, c]
     diferenca_2_anos = chega.loc[2, py] / chega.loc[2, c]
     parcela = 100 * np.log(diferenca_2_anos) / np.log(diferenca_total)
+    menor_s5 = chega.loc[5].idxmin() == c
+    sobe_c = 100 * (fica.loc[3, c] - fica.loc[0, c])
+    sobe_py = 100 * (fica.loc[3, py] - fica.loc[0, py])
     leitura = [
-        "- **Ponto de virada: confirmado.** Nas cinco linguagens a chance de seguir mais 1 ano "
-        "sobe nos primeiros 3 anos e depois fica estável.",
-        f"- {c}: a chance de sair no ano cai de {num(100 * saida_c[0], 0)}% em x=0 para "
-        f"{num(100 * saida_c[2], 0)}% em x=2 e {num(100 * saida_c[5], 0)}% em x=5.",
-        f"- {py}: cai de {num(100 * saida_py[0], 0)}% em x=0 para {num(100 * saida_py[2], 0)}% "
-        f"em x=2 e {num(100 * saida_py[5], 0)}% em x=5.",
-        f"- **{py} uniforme: não aparece nos dados.** A chance de sair em {py} também cai "
-        "com o tempo de casa, com a mesma forma de {c}, a um nível mais baixo.".replace("{c}", c),
-        f"- **Chegar à senioridade em {c}: confirmado.** S(5) = {num(chega.loc[5, c])} em {c} "
-        f"e {num(chega.loc[5, py])} em {py}. {num(parcela, 0)}% dessa distância se forma "
-        "nos 2 primeiros anos.",
-        f"- **Sênior de {c} sai menos: não aparece nos dados.** Quem chegou a 5 anos segue mais "
-        f"1 ano com chance {num(fica.loc[5, c])} em {c} e {num(fica.loc[5, py])} em {py}. "
-        f"Em x=8 são {num(fica.loc[8, c])} e {num(fica.loc[8, py])}.",
-        f"- {zig} tem poucas pessoas nos x altos (l(8) = {num(risco.loc[8, zig], 0)}), "
-        "e os valores dele ali oscilam.",
-        "- e(x) cai nos x altos por construção: quanto mais velho o x, menos anos de coleta "
-        "restam para somar.",
+        "| Sua afirmação | Tabela | Como a tabela mostra | Resultado |",
+        "|---|---|---|---|",
+        "| Existe um ponto de virada em 2 a 3 anos | Chance de seguir mais 1 ano | "
+        f"Coluna {c}: x=0 {num(fica.loc[0, c])}, x=2 {num(fica.loc[2, c])}, "
+        f"x=3 {num(fica.loc[3, c])}, x=5 {num(fica.loc[5, c])}. Sobe até x=3 e quase para. "
+        "As outras quatro colunas têm o mesmo formato. | Confirmada |",
+        f"| Em {py} essa chance fica uniforme | Chance de seguir mais 1 ano | "
+        f"Coluna {py}: x=0 {num(fica.loc[0, py])}, x=2 {num(fica.loc[2, py])}, "
+        f"x=3 {num(fica.loc[3, py])}, x=5 {num(fica.loc[5, py])}. Sobe {num(sobe_py, 0)} pontos "
+        f"de x=0 a x=3, contra {num(sobe_c, 0)} em {c}. | Parcial: mais plana, não uniforme |",
+        f"| {c} tem dificuldade de chegar à senioridade | Fração que chega a x | "
+        f"S(5) = {num(chega.loc[5, c])} em {c} e {num(chega.loc[5, py])} em {py}"
+        + (", o menor das cinco" if menor_s5 else "")
+        + f". S(2) = {num(chega.loc[2, c])} contra {num(chega.loc[2, py])}: "
+        f"{num(parcela, 0)}% da distância em S(5) já existe em x=2. | Confirmada |",
+        f"| O sênior de {c} sai menos | Chance de seguir mais 1 ano, linhas x=5 a x=8 | "
+        f"x=5: {num(fica.loc[5, c])} em {c} e {num(fica.loc[5, py])} em {py}. "
+        f"x=8: {num(fica.loc[8, c])} e {num(fica.loc[8, py])}. {c} fica igual ou abaixo. "
+        "| Não aparece |",
+        "",
+        f"{zig} tem poucas pessoas nos x altos (l(8) = {num(risco.loc[8, zig], 0)}), "
+        "e os valores dele ali oscilam. e(x) cai nos x altos por construção: quanto mais "
+        "velho o x, menos anos de coleta restam para somar.",
     ]
     linhas = [
         "## 1. Tábua de vida",
@@ -149,9 +155,61 @@ def secao_ccr_ncr(pasta: Path, figuras: str, ordem: list[str]) -> str:
     return "\n".join(linhas)
 
 
+def secao_piramides(figuras: str) -> str:
+    linhas = [
+        "## 3. Pirâmides ao longo do tempo",
+        "",
+        "Uma linha por linguagem, uma coluna por ano. Cada pirâmide soma 100% dos ativos do "
+        "ano. Esquerda: discussão. Direita: código. Pirâmide com menos de 100 ativos fica vazia.",
+        "",
+        f"![pirâmides]({figuras}/trajetoria_linha_do_tempo.png)",
+        "",
+    ]
+    return "\n".join(linhas)
+
+
+def secao_crescimento(base: Path, p: v.Parametros, ordem: list[str]) -> str:
+    quadros = []
+    for slug in ordem:
+        pasta = slug if p.populacao == "todos" else f"{slug}-{p.populacao}"
+        a = pd.read_csv(base / pasta / "csv" / "vitalidade" / "anual.csv").set_index("ano")
+        a["variacao"] = 100 * (a["ativos"] / a["ativos"].shift(1) - 1)
+        a["linguagem"] = slug
+        quadros.append(a.reset_index())
+    t = pd.concat(quadros, ignore_index=True)
+    ultimo = pd.Timestamp(p.data_de_corte).year - 1
+    t = t[(t["ano"] >= 2015) & (t["ano"] <= ultimo)]
+    liquido = por_linguagem(t, "crescimento_liquido_pct", "ano", ordem)
+    variacao = por_linguagem(t, "variacao", "ano", ordem)
+    linhas = [
+        "## 4. Crescimento líquido: base de cálculo",
+        "",
+        "O crescimento líquido do ano Y **tem como base os ativos do próprio ano Y**. "
+        "Ele não é a variação sobre o ano anterior.",
+        "",
+        "- Crescimento líquido(Y) = (novatos(Y) + voltas(Y) - saídas(Y) - pausas(Y)) / ativos(Y).",
+        "- Novatos e voltas de Y são quem entrou em Y. Saídas e pausas de Y são quem tem a "
+        "última contribuição em Y (a saída só se confirma 12 meses depois).",
+        "- Variação dos ativos(Y) = ativos(Y) / ativos(Y-1) - 1. Essa sim usa o ano anterior "
+        "como base, com as saídas e pausas de Y-1.",
+        "- Os dois ficam parecidos quando a comunidade é estável e se separam quando ela "
+        "muda de tamanho.",
+        "",
+        "### Crescimento líquido do ano (%, base: ativos do mesmo ano)",
+        "",
+        tabela_md(liquido, 1),
+        "",
+        "### Variação dos ativos sobre o ano anterior (%)",
+        "",
+        tabela_md(variacao, 1),
+        "",
+    ]
+    return "\n".join(linhas)
+
+
 def secao_janela(p: v.Parametros) -> str:
     linhas = [
-        "## 3. Até onde vai a análise e por quê",
+        "## 5. Até onde vai a análise e por quê",
         "",
         f"- O estudo termina em **{p.data_de_corte}** (`data_de_corte`). Os eventos de 2026 saem "
         "de tudo.",
@@ -187,10 +245,12 @@ def main() -> None:
     ordem = p.linguagens_rq2
 
     partes = [
-        "# Vitalidade das comunidades: tábua de vida e CCR/NCR\n",
+        "# Vitalidade das comunidades\n",
         f"Os números vêm dos CSV de `{nome}/csv/vitalidade/`.\n",
         secao_tabua(pasta, figuras, ordem),
         secao_ccr_ncr(pasta, figuras, ordem),
+        secao_piramides(figuras),
+        secao_crescimento(base, p, ordem),
         secao_janela(p),
     ]
     destino = base / "RELATORIO.md"

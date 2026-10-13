@@ -252,6 +252,12 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
     crescimento_natural_pct = (novatos - saídas) / ativos: nascimentos menos óbitos, como na
     demografia. crescimento_liquido_pct soma o que fecha a conta de ativos:
     (novatos + voltas - saídas - pausas) / ativos.
+
+    Os dois dividem pelos ativos do PRÓPRIO ano Y e somam os fluxos de Y: quem entrou em Y e quem
+    tem a última contribuição em Y (a saída só se confirma 12 meses depois). Nenhum dos dois é a
+    variação dos ativos sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, que usa os ativos de
+    Y-1 como base e as saídas e pausas de Y-1. Clojure 2024: líquido -8,5%, variação dos ativos
+    -18,8%.
     """
     g = pa.groupby("ano")
     t = pd.DataFrame(

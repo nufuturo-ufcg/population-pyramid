@@ -142,7 +142,8 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - Volta de Y: um período de atividade que não é o primeiro começou em Y.
 - Moved de Y: o primeiro commit ou PR caiu em Y, depois de a pessoa já ter discutido.
 - A conta fecha: ativos(Y+1) = ativos(Y) - saídas(Y) - pausas(Y) + novatos(Y+1) + voltas(Y+1). `tabela_anual` falha se não fechar.
-- `crescimento_natural_pct` = (novatos - saídas) / ativos, nascimentos menos mortes. `crescimento_liquido_pct` = (novatos + voltas - saídas - pausas) / ativos, a variação real dos ativos.
+- `crescimento_natural_pct` = (novatos - saídas) / ativos, nascimentos menos mortes. `crescimento_liquido_pct` = (novatos + voltas - saídas - pausas) / ativos.
+- Os dois crescimentos usam os fluxos do ano Y (quem entrou em Y, quem tem a última contribuição em Y) e dividem pelos ativos do próprio Y. Nenhum dos dois é a variação sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1: essa usa os ativos de Y-1 como base e as saídas e pausas de Y-1. Clojure 2024: líquido -8,5%, variação dos ativos -18,8%. O relatório mostra as duas lado a lado.
 - Hindsight: saber que a pessoa volta no futuro tira a saída dela. O custo é que a saída dos anos finais é provisória, porque quem parou há pouco ainda pode voltar. Das pausas que terminam, 54% a 67% duram até 2 anos, 75% a 86% até 3 e 90% a 98% até 5, nas cinco linguagens. Os gráficos vão até o último ano completo da coleta. O último ano completo conta como saída quem não contribuiu desde então, com menos de 12 meses de coleta confirmados (`provisorio` na tabela anual). Os `carencia_anos` (1) últimos anos completos saem tracejados nos gráficos de saída, mortalidade e crescimento. O ano da coleta, incompleto, fica fora.
 
 ## Escolhas feitas com o usuário (2026-10-09)
