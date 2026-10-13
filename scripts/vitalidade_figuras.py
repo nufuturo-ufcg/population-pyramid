@@ -1183,27 +1183,40 @@ def figura_ccr_ncr_serie(ctx: Any, d: Dados) -> None:
     salva(fig, "ccr_ncr_serie.png")
 
 
+# shortcut: com menos ativos que isso o CCR e o NCR saltam entre -1 e 1 sem dizer nada, e a figura
+# começa quando a comunidade tem 100 ativos. Vira parâmetro se alguém precisar de outro corte.
+MIN_ATIVOS_CCR_NCR = 100
+
+
+def _ccr_ncr_com_massa(t: pd.DataFrame) -> pd.DataFrame:
+    """Só os trimestres em que a comunidade já tem `MIN_ATIVOS_CCR_NCR` ativos."""
+    return t[t["total"] >= MIN_ATIVOS_CCR_NCR].dropna(subset=["ccr", "ncr"])
+
+
 @figura("ccr_ncr_comparado", "dispersao", padrao=True)
 def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
-    """CCR x NCR por trimestre, as cinco linguagens juntas; o ponto grande é o último trimestre."""
-    t = d["ccr_ncr_comparado"]
+    """CCR x NCR no fim de cada ano, um ponto por ano ligado ao seguinte, cinco linguagens."""
+    t = _ccr_ncr_com_massa(d["ccr_ncr_comparado"])
+    t = t[pd.to_datetime(t["snapshot"]).dt.month == 12]
     fig, ax = plt.subplots(figsize=(8, 7))
     ax.axhline(0, color="#888888", linewidth=0.7)
     ax.axvline(0, color="#888888", linewidth=0.7)
     for slug in t["slug"].drop_duplicates():
-        f = t[t["slug"] == slug].dropna(subset=["ccr", "ncr"])
+        f = t[t["slug"] == slug]
         cor = cor_da(slug)
         nome = carga_fonte.LINGUAGENS[slug].nome
-        ax.scatter(f["ccr"], f["ncr"], color=cor, s=16, alpha=0.45, label=nome, zorder=3)
-        ultimo = f.iloc[-1]
-        ax.scatter([ultimo["ccr"]], [ultimo["ncr"]], color=cor, s=90, edgecolor="black", zorder=4)
-        ax.annotate(
-            str(pd.Timestamp(ultimo["snapshot"]).year),
-            (ultimo["ccr"], ultimo["ncr"]),
-            fontsize=8,
-            textcoords="offset points",
-            xytext=(6, 6),
-        )
+        ax.plot(f["ccr"], f["ncr"], color=cor, linewidth=1, alpha=0.6, zorder=2)
+        ax.scatter(f["ccr"], f["ncr"], color=cor, s=60, edgecolor="white", label=nome, zorder=3)
+        for _, ponto in f.iterrows():
+            ano = pd.Timestamp(ponto["snapshot"]).year
+            if ano % 5 == 0 or ano == f["snapshot"].map(pd.Timestamp).max().year:
+                ax.annotate(
+                    str(ano),
+                    (ponto["ccr"], ponto["ncr"]),
+                    fontsize=8,
+                    textcoords="offset points",
+                    xytext=(6, 6),
+                )
     ax.set_xlim(-1.05, 1.05)
     ax.set_ylim(-1.05, 1.05)
     ax.set_xlabel("CCR  (código contra discussão)")
@@ -1215,16 +1228,16 @@ def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
         ("D", -0.97, -0.97),
     ):
         ax.text(x, y, texto, fontsize=14, color="#999999", ha="center", va="center")
-    ax.set_title("CCR x NCR por trimestre, cinco linguagens")
+    ax.set_title(f"CCR x NCR no fim de cada ano, cinco linguagens{ESTADO.sufixo}")
     ax.legend(frameon=False, loc="lower center", ncol=5, bbox_to_anchor=(0.5, -0.12))
     plots._theme(ax)
     salva(fig, "ccr_ncr_dispersao.png", geral=True)
 
 
-@figura("ccr_ncr_comparado", "serie")
+@figura("ccr_ncr_comparado", "serie", padrao=True)
 def figura_ccr_ncr_comparado_serie(ctx: Any, d: Dados) -> None:
     """CCR e NCR ao longo dos trimestres, um painel cada, cinco linguagens."""
-    t = d["ccr_ncr_comparado"]
+    t = _ccr_ncr_com_massa(d["ccr_ncr_comparado"])
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
     for ax, coluna, rotulo in ((ax1, "ccr", "CCR"), (ax2, "ncr", "NCR")):
         ax.axhline(0, color="#888888", linewidth=0.8)
@@ -1240,8 +1253,8 @@ def figura_ccr_ncr_comparado_serie(ctx: Any, d: Dados) -> None:
         ax.set_ylim(-1.05, 1.05)
         ax.set_ylabel(rotulo)
         plots._theme(ax)
-    ax1.set_title("CCR e NCR por trimestre, cinco linguagens")
-    ax1.legend(frameon=False, ncol=5, loc="lower center", bbox_to_anchor=(0.5, 1.0))
+    ax1.set_title(f"CCR e NCR por trimestre, cinco linguagens{ESTADO.sufixo}")
+    ax2.legend(frameon=False, ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.15))
     ax2.set_xlabel("trimestre")
     salva(fig, "ccr_ncr_serie.png", geral=True)
 
