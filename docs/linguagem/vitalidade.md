@@ -106,11 +106,10 @@ git clone --branch feat/piramide-por-linguagem https://github.com/nufuturo-ufcg/
 curl -LsSf https://astral.sh/uv/install.sh | sh        # sem uv
 cd ~/pyramid-vitalidade && uv sync
 
-# a cada rodada
+# a cada rodada: todas as linguagens e populações em paralelo, um processo por tarefa
 cd ~/pyramid-vitalidade && git pull && export MPLBACKEND=Agg
-nohup setsid uv run python scripts/vitalidade.py --linguagem python --saida ~/pyramid-vitalidade-saida \
-    --figuras nenhuma > ~/pyramid-vitalidade-saida/python-run.log 2>&1 < /dev/null &
-uv run python scripts/vitalidade.py --comparativo --saida ~/pyramid-vitalidade-saida --figuras nenhuma
+nohup setsid uv run python scripts/vitalidade_grade.py --saida ~/pyramid-vitalidade-saida \
+    --populacoes passou_30_dias,todos > ~/pyramid-vitalidade-saida/grade.log 2>&1 < /dev/null &
 uv run python scripts/vitalidade.py --saida ~/pyramid-vitalidade-saida --empacota
 
 # no Mac
@@ -120,7 +119,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 ```
 
 - `/tmp` da batuta tem 2,7 GB. Resultados e a pasta de trabalho do duckdb ficam na pasta de `--saida`, em `/home`.
-- Uma linguagem de cada vez. O Python leva cerca de 1 hora com o motor duckdb (10 GB leem em 2 minutos) e usa até 24 GB de memória (`memoria` no yaml). A batuta divide memória com as coletas: deixe folga.
+- `vitalidade_grade.py` espalha as tarefas em `processos` processos (yaml): a leitura dos eventos de cada linguagem vem primeiro, depois as outras populações dela, e o comparativo espera o cache de todas. Uma linguagem de cada vez continua valendo com `vitalidade.py --linguagem`. O Python leva cerca de 1 hora com o motor duckdb (10 GB leem em 2 minutos) e usa até 24 GB de memória (`memoria` no yaml). A batuta divide memória com as coletas: deixe folga.
 - A pasta `~/population-pyramid` da batuta é a da coleta. Não use.
 - Sem display, `MPLBACKEND=Agg`. Com `--figuras nenhuma` a batuta só calcula, e o Mac desenha.
 

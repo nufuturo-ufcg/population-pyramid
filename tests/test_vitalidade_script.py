@@ -301,3 +301,43 @@ def test_data_de_corte_fecha_o_estudo_no_fim_do_dia_e_exige_fim_de_trimestre():
     assert script.fim_da_coleta(script.carrega_parametros(["data_de_corte=null"]), fim) == fim
     with pytest.raises(SystemExit):
         script.fim_da_coleta(script.carrega_parametros(["data_de_corte=2025-11-30"]), fim)
+
+
+def test_grade_respeita_as_dependencias():
+    """O comparativo espera o cache de todas as linguagens; uma população extra espera a sua."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import vitalidade_grade as grade
+
+    ordem = []
+
+    def linguagem(config, slug, populacao):
+        ordem.append(("l", slug, populacao))
+
+    def comparativo(config, populacao):
+        ordem.append(("c", populacao))
+
+    with ThreadPoolExecutor(3) as pool:
+        falhas = grade.executa(pool, {}, ["a", "b"], ["x", "y"], linguagem, comparativo)
+    assert falhas == []
+    assert sorted(ordem) == sorted(
+        [("l", "a", "x"), ("l", "b", "x"), ("l", "a", "y"), ("l", "b", "y"), ("c", "x"), ("c", "y")]
+    )
+    primeiras = [ordem.index(("l", "a", "x")), ordem.index(("l", "b", "x"))]
+    assert ordem.index(("l", "a", "y")) > primeiras[0]
+    assert ordem.index(("l", "b", "y")) > primeiras[1]
+    assert min(ordem.index(("c", "x")), ordem.index(("c", "y"))) > max(primeiras)
+
+
+def test_grade_conta_a_tarefa_que_falha_e_segue():
+    from concurrent.futures import ThreadPoolExecutor
+
+    import vitalidade_grade as grade
+
+    def linguagem(config, slug, populacao):
+        if slug == "b":
+            raise ValueError("quebrou")
+
+    with ThreadPoolExecutor(2) as pool:
+        falhas = grade.executa(pool, {}, ["a", "b"], ["x"], linguagem, lambda c, p: None)
+    assert len(falhas) == 1 and "linguagem b x" in falhas[0]

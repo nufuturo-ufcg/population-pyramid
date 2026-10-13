@@ -154,6 +154,7 @@ class Parametros:
     memoria: str
     threads: int | None
     contar_linhas_brutas: bool
+    processos: int
     populacao: str
     piramide_em_pct: bool
     ano_comparacao: int

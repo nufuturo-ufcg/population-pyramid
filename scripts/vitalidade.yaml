@@ -59,6 +59,10 @@ limite_bruto_gb: 20
 memoria: 30GB
 threads: 16
 
+# Tarefas em paralelo em vitalidade_grade.py (um processo cada). O Python inteiro usa uns 8 GB de
+# memória por tarefa; as outras linguagens, bem menos.
+processos: 4
+
 # O duckdb relê o arquivo inteiro só para contar as linhas brutas de cada papel (estatística
 # do filtro, sem efeito nas métricas). Em centenas de GB isso custa uns 20 minutos.
 contar_linhas_brutas: false
