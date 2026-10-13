@@ -9,6 +9,7 @@ ficam aqui e citam células da tabela, nunca um valor digitado.
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 import carga_fonte
@@ -53,24 +54,26 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
     py = carga_fonte.LINGUAGENS["python"].nome
     zig = carga_fonte.LINGUAGENS["zig"].nome
 
-    def serie(tabela: pd.DataFrame, nome: str, xs: list[int]) -> str:
-        partes = []
-        for x in xs:
-            partes.append(f"{num(tabela.loc[x, nome])} em x={x}")
-        return ", ".join(partes)
-
-    pontos = [0, 1, 2, 3, 5]
-    dist0 = 100 * (fica.loc[0, py] - fica.loc[0, c])
-    dist5 = 100 * (fica.loc[5, py] - fica.loc[5, c])
+    saida_c = 1 - fica[c]
+    saida_py = 1 - fica[py]
+    diferenca_total = chega.loc[5, py] / chega.loc[5, c]
+    diferenca_2_anos = chega.loc[2, py] / chega.loc[2, c]
+    parcela = 100 * np.log(diferenca_2_anos) / np.log(diferenca_total)
     leitura = [
-        "- O ponto de virada existe nas cinco linguagens: a chance de seguir mais 1 ano sobe "
-        "nos primeiros 3 anos e depois fica estável.",
-        f"- {c}: {serie(fica, c, pontos)}.",
-        f"- {py}: {serie(fica, py, pontos)}.",
-        f"- Em {py} a chance também sobe até x=3. A distância para {c} é de {num(dist0, 0)} "
-        f"pontos em x=0 e de {num(dist5, 0)} em x=5.",
-        f"- Quem chega a 5 anos segue com chance parecida nas duas. A diferença está em "
-        f"chegar lá: S(5) = {num(chega.loc[5, c])} em {c} e {num(chega.loc[5, py])} em {py}.",
+        "- **Ponto de virada: confirmado.** Nas cinco linguagens a chance de seguir mais 1 ano "
+        "sobe nos primeiros 3 anos e depois fica estável.",
+        f"- {c}: a chance de sair no ano cai de {num(100 * saida_c[0], 0)}% em x=0 para "
+        f"{num(100 * saida_c[2], 0)}% em x=2 e {num(100 * saida_c[5], 0)}% em x=5.",
+        f"- {py}: cai de {num(100 * saida_py[0], 0)}% em x=0 para {num(100 * saida_py[2], 0)}% "
+        f"em x=2 e {num(100 * saida_py[5], 0)}% em x=5.",
+        f"- **{py} uniforme: não aparece nos dados.** A chance de sair em {py} também cai "
+        "com o tempo de casa, com a mesma forma de {c}, a um nível mais baixo.".replace("{c}", c),
+        f"- **Chegar à senioridade em {c}: confirmado.** S(5) = {num(chega.loc[5, c])} em {c} "
+        f"e {num(chega.loc[5, py])} em {py}. {num(parcela, 0)}% dessa distância se forma "
+        "nos 2 primeiros anos.",
+        f"- **Sênior de {c} sai menos: não aparece nos dados.** Quem chegou a 5 anos segue mais "
+        f"1 ano com chance {num(fica.loc[5, c])} em {c} e {num(fica.loc[5, py])} em {py}. "
+        f"Em x=8 são {num(fica.loc[8, c])} e {num(fica.loc[8, py])}.",
         f"- {zig} tem poucas pessoas nos x altos (l(8) = {num(risco.loc[8, zig], 0)}), "
         "e os valores dele ali oscilam.",
         "- e(x) cai nos x altos por construção: quanto mais velho o x, menos anos de coleta "
@@ -162,8 +165,8 @@ def secao_janela(p: v.Parametros) -> str:
         "a 12 meses ou menos do fim conta como censurado: pode ainda estar ativo.",
         "- A troca de papel (discussão para código e a volta) vai até 2024, pelo mesmo motivo "
         "da saída.",
-        f"- População: `{p.populacao}`. Só entra quem tem uma contribuição 30 dias ou mais "
-        "depois da primeira.",
+        f"- População: `{p.populacao}`. Só entra quem tem 30 dias ou mais entre o primeiro e o "
+        "último evento, de qualquer tipo (commit, PR, issue, comentário).",
         "- Os cortes ficam em `scripts/vitalidade.yaml` (lista em `docs/linguagem/parametros.md`).",
         "",
     ]

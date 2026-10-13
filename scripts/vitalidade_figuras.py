@@ -1195,42 +1195,43 @@ def _ccr_ncr_com_massa(t: pd.DataFrame) -> pd.DataFrame:
 
 @figura("ccr_ncr_comparado", "dispersao", padrao=True)
 def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
-    """CCR x NCR no fim de cada ano, um ponto por ano ligado ao seguinte, cinco linguagens."""
+    """CCR x NCR no fim de cada ano de `anos_piramide`, um ponto por linguagem em cada painel."""
     t = _ccr_ncr_com_massa(d["ccr_ncr_comparado"])
-    t = t[pd.to_datetime(t["snapshot"]).dt.month == 12]
-    fig, ax = plt.subplots(figsize=(8, 7))
-    ax.axhline(0, color="#888888", linewidth=0.7)
-    ax.axvline(0, color="#888888", linewidth=0.7)
-    for slug in t["slug"].drop_duplicates():
-        f = t[t["slug"] == slug]
-        cor = cor_da(slug)
-        nome = carga_fonte.LINGUAGENS[slug].nome
-        ax.plot(f["ccr"], f["ncr"], color=cor, linewidth=1, alpha=0.6, zorder=2)
-        ax.scatter(f["ccr"], f["ncr"], color=cor, s=60, edgecolor="white", label=nome, zorder=3)
-        for _, ponto in f.iterrows():
-            ano = pd.Timestamp(ponto["snapshot"]).year
-            if ano % 5 == 0 or ano == f["snapshot"].map(pd.Timestamp).max().year:
-                ax.annotate(
-                    str(ano),
-                    (ponto["ccr"], ponto["ncr"]),
-                    fontsize=8,
-                    textcoords="offset points",
-                    xytext=(6, 6),
-                )
-    ax.set_xlim(-1.05, 1.05)
-    ax.set_ylim(-1.05, 1.05)
-    ax.set_xlabel("CCR  (código contra discussão)")
-    ax.set_ylabel("NCR  (novatos contra experientes)")
-    for texto, x, y in (
-        ("A", 0.93, 0.93),
-        ("B", -0.97, 0.93),
-        ("C", 0.93, -0.97),
-        ("D", -0.97, -0.97),
-    ):
-        ax.text(x, y, texto, fontsize=14, color="#999999", ha="center", va="center")
-    ax.set_title(f"CCR x NCR no fim de cada ano, cinco linguagens{ESTADO.sufixo}")
-    ax.legend(frameon=False, loc="lower center", ncol=5, bbox_to_anchor=(0.5, -0.12))
-    plots._theme(ax)
+    t = t[pd.to_datetime(t["snapshot"]).dt.month == 12].copy()
+    t["ano"] = pd.to_datetime(t["snapshot"]).dt.year
+    anos = list(ctx.p.anos_piramide)
+    colunas = min(3, len(anos))
+    linhas = -(-len(anos) // colunas)
+    fig, eixos = plt.subplots(linhas, colunas, figsize=(5 * colunas, 4.8 * linhas), squeeze=False)
+    for ax, ano in zip(eixos.flat, anos, strict=False):
+        ax.axhline(0, color="#888888", linewidth=0.7)
+        ax.axvline(0, color="#888888", linewidth=0.7)
+        for _, ponto in t[t["ano"] == ano].iterrows():
+            cor = cor_da(ponto["slug"])
+            ax.scatter(
+                [ponto["ccr"]], [ponto["ncr"]], color=cor, s=130, edgecolor="white", zorder=3
+            )
+            ax.annotate(
+                carga_fonte.LINGUAGENS[ponto["slug"]].nome,
+                (ponto["ccr"], ponto["ncr"]),
+                fontsize=9,
+                textcoords="offset points",
+                xytext=(8, 6),
+            )
+        ax.set_xlim(-1.05, 1.05)
+        ax.set_ylim(-1.05, 1.05)
+        ax.set_title(str(ano))
+        for texto, x, y in (("A", 0.9, 0.9), ("B", -0.9, 0.9), ("C", 0.9, -0.9), ("D", -0.9, -0.9)):
+            ax.text(x, y, texto, fontsize=12, color="#999999", ha="center", va="center")
+        plots._theme(ax)
+    for ax in eixos.flat[len(anos) :]:
+        ax.set_visible(False)
+    for ax in eixos[-1]:
+        ax.set_xlabel("CCR  (código contra discussão)")
+    for ax in eixos[:, 0]:
+        ax.set_ylabel("NCR  (novatos contra experientes)")
+    fig.suptitle(f"CCR x NCR no fim de cada ano, uma linguagem por ponto{ESTADO.sufixo}")
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     salva(fig, "ccr_ncr_dispersao.png", geral=True)
 
 
