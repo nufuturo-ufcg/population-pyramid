@@ -110,6 +110,6 @@ ccr_ncr_novato_meses: 3
 data_de_corte: "2025-12-31"
 
 # Sobrevida condicional: idades x (em anos) em que se pergunta "quem chegou até aqui, quanto mais
-# fica?", e o horizonte dos anos ativos esperados. O ponto de virada aparece em 2 a 3 anos.
-idades_sobrevida: [0, 0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12]
+# fica?", e o horizonte dos anos ativos esperados. O ponto de virada aparece em 2 a 3 anos; 8 é a última faixa das pirâmides (8+).
+idades_sobrevida: [0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8]
 horizonte_sobrevida_anos: 5
