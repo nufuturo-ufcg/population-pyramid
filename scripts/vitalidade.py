@@ -163,8 +163,7 @@ class Parametros:
     data_de_corte: str | None
     ccr_ncr_inatividade_meses: float
     ccr_ncr_novato_meses: float
-    idades_sobrevida: list[float]
-    horizonte_sobrevida_anos: float
+    tabua_ate_anos: int
 
 
 @dataclass
@@ -380,8 +379,7 @@ PARAMETROS_DO_CALCULO = (
     "carencia_anos",
     "rodadas_padronizacao",
     "data_de_corte",
-    "idades_sobrevida",
-    "horizonte_sobrevida_anos",
+    "tabua_ate_anos",
     "ccr_ncr_inatividade_meses",
     "ccr_ncr_novato_meses",
 )
@@ -631,29 +629,23 @@ def metrica_significancia(ctx: ContextoComparativo) -> Dados:
     return {"kaplan_meier": pd.concat(curvas, ignore_index=True), "logrank": pd.DataFrame(testes)}
 
 
-@metrica("sobrevida_condicional", escopo="comparativo")
-def metrica_sobrevida_condicional(ctx: ContextoComparativo) -> Dados:
-    """Sobrevida condicional: quem chegou à idade x, quanto tempo mais fica. Responde RQ1 e RQ2.
+@metrica("tabua_comparada", escopo="comparativo")
+def metrica_tabua_comparada(ctx: ContextoComparativo) -> Dados:
+    """Tábua de vida de cada linguagem lado a lado, até `tabua_ate_anos`. Responde RQ1 e RQ2.
 
-    O que faz: para cada idade de `idades_sobrevida`, a chance de seguir ativa mais 1, 2 e 5 anos,
-    S(x+t) / S(x), e os anos ativos esperados nos `horizonte_sobrevida_anos` seguintes. Mostra
-    se há um ponto de virada (a idade a partir da qual o risco de sair se estabiliza) e se
-    o sênior de uma linguagem sai menos que o de outra, separando isso de chegar à senioridade
-    (S_x).
-    Referência: tábua de vida, esperança de vida à idade x (Chiang, Introduction to Stochastic
-    Processes in Biostatistics, 1968); vida média restante restrita (Royston e Parmar, BMC Medical
-    Research Methodology, 2013, https://doi.org/10.1186/1471-2288-13-152).
+    O que faz: a tábua de vida de `retencao` (l, d, q, S, e) de todas as pessoas de cada linguagem,
+    cortada em `tabua_ate_anos` de casa. e(x) é a vida restante de quem chegou a x. A chance de
+    seguir mais t anos tendo chegado a x sai de l(x+t) / l(x), sem métrica à parte.
+    Referência: IBGE, Tábua Completa de Mortalidade 2023,
+    https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf.
     """
     tabelas = []
     for slug, lingua in ctx.por_lingua.items():
-        t = vitalidade.sobrevida_condicional(
-            lingua.dur,
-            idades=tuple(ctx.p.idades_sobrevida),
-            horizonte=ctx.p.horizonte_sobrevida_anos,
-        )
+        t = vitalidade.tabua_de_vida(lingua.dur)
+        t = t[t["x"] <= ctx.p.tabua_ate_anos].copy()
         t.insert(0, "linguagem", slug)
         tabelas.append(t)
-    return {"sobrevida_condicional": pd.concat(tabelas, ignore_index=True)}
+    return {"tabua_comparada": pd.concat(tabelas, ignore_index=True)}
 
 
 @metrica("comparacao_corrigida", escopo="comparativo")

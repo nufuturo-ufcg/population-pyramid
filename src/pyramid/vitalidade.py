@@ -614,59 +614,6 @@ def kaplan_meier(dur: pd.DataFrame) -> pd.DataFrame:
     return curva.groupby(dia, sort=True).last().reset_index(drop=True)
 
 
-def _sobrevida_em(curva: pd.DataFrame, t: float) -> float:
-    """S(t) da curva de Kaplan-Meier: o último degrau até `t`, e 1 antes do primeiro."""
-    antes = curva.loc[curva["anos"] <= t, "S"]
-    return float(antes.iloc[-1]) if len(antes) else 1.0
-
-
-def _area_sob_a_curva(curva: pd.DataFrame, de: float, ate: float) -> float:
-    """Integral de S(t) entre `de` e `ate`: a curva é uma escada, então é uma soma de retângulos."""
-    cortes = curva.loc[(curva["anos"] > de) & (curva["anos"] < ate), "anos"].to_numpy()
-    pontos = np.concatenate([[de], cortes, [ate]])
-    larguras = np.diff(pontos)
-    alturas = np.array([_sobrevida_em(curva, p) for p in pontos[:-1]])
-    return float((larguras * alturas).sum())
-
-
-def sobrevida_condicional(
-    dur: pd.DataFrame,
-    idades: tuple[float, ...] = (0, 0.5, 1, 2, 3, 4, 5, 6, 8, 10, 12),
-    horizonte: float = 5.0,
-) -> pd.DataFrame:
-    """Dado que a pessoa chegou à idade x, quanto tempo mais ela fica?
-
-    Uma linha por idade x:
-
-    n_risco       pessoas que chegaram à idade x (duração observada de pelo menos x)
-    S_x           chance de chegar a x desde a entrada (Kaplan-Meier)
-    cond_1a, 2a, 5a  chance de seguir ativa mais 1, 2 ou 5 anos, S(x+t) / S(x)
-    anos_esperados   anos ativos esperados nos `horizonte` anos seguintes, a integral de S entre
-                     x e x+horizonte dividida por S(x) (vida residual média, truncada no horizonte)
-
-    O que passa do último tempo observado fica `NaN`: a curva não diz nada ali. A vida residual
-    não depende de quem saiu antes de x, então vale igual em qualquer população que corte só
-    quem morre cedo (um dia só, 30 dias).
-    """
-    curva = kaplan_meier(dur)
-    maximo = float(dur["duracao_anos"].max())
-    linhas = []
-    for x in idades:
-        s_x = _sobrevida_em(curva, x)
-        linha = {
-            "x": x,
-            "n_risco": int((dur["duracao_anos"] >= x).sum()),
-            "S_x": s_x,
-        }
-        for t in (1, 2, 5):
-            ok = x + t <= maximo and s_x > 0
-            linha[f"cond_{t}a"] = _sobrevida_em(curva, x + t) / s_x if ok else np.nan
-        ok = x + horizonte <= maximo and s_x > 0
-        linha["anos_esperados"] = _area_sob_a_curva(curva, x, x + horizonte) / s_x if ok else np.nan
-        linhas.append(linha)
-    return pd.DataFrame(linhas)
-
-
 def logrank(dur_a: pd.DataFrame, dur_b: pd.DataFrame) -> tuple[float, float]:
     """Log-rank bilateral entre duas curvas de Kaplan-Meier: (estatística, p-valor)."""
     r = stats.logrank(_amostra_censurada(dur_a), _amostra_censurada(dur_b))

@@ -80,6 +80,5 @@ figuras:
   trajetoria.taxas: {figsize: [9, 7]}
   ccr_ncr_comparado.dispersao: {figsize: [8, 7]}
   ccr_ncr_comparado.serie: {figsize: [10, 7]}
-  sobrevida_condicional.cond_1a: {figsize: [8, 4.5]}
-  sobrevida_condicional.anos_esperados: {figsize: [8, 4.5]}
-  sobrevida_condicional.chegar_e_ficar: {figsize: [12, 4.5]}
+  tabua_comparada.esperanca: {figsize: [8, 4.5]}
+  tabua_comparada.chegar_e_ficar: {figsize: [12, 4.5]}

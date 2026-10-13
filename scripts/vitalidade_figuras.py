@@ -880,76 +880,50 @@ def figura_km(ctx: Any, d: Dados) -> None:
     salva(fig, "kaplan_meier.png", geral=True)
 
 
-@figura("sobrevida_condicional", "cond_1a", padrao=True)
-def figura_sobrevida_cond_1a(ctx: Any, d: Dados) -> None:
-    """Chance de seguir ativa mais 1 ano, dado que chegou à idade x (mostra o ponto de virada)."""
-    t = d["sobrevida_condicional"]
+@figura("tabua_comparada", "esperanca", padrao=True)
+def figura_tabua_esperanca(ctx: Any, d: Dados) -> None:
+    """e(x), a vida restante de quem chegou a x anos de casa, uma linha por linguagem."""
+    t = d["tabua_comparada"]
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for slug in ctx.p.linguagens_rq2:
-        c = t[(t["linguagem"] == slug) & t["cond_1a"].notna() & (t["x"] > 0)]
+        c = t[t["linguagem"] == slug]
         ax.plot(
             c["x"],
-            c["cond_1a"],
+            c["e"],
             marker="o",
             color=cor_da(slug),
             linewidth=2,
             label=carga_fonte.LINGUAGENS[slug].nome,
         )
-    ax.set_ylim(0, 1)
-    ax.set_xlabel("idade x na comunidade (anos desde a primeira contribuição)")
-    ax.set_ylabel("chance de seguir ativa mais 1 ano")
-    ax.set_title(f"{_nome()}: quem chegou à idade x, chance de ficar mais 1 ano")
+    ax.set_xlabel("anos de casa x (anos desde a primeira contribuição)")
+    ax.set_ylabel("vida restante, e(x), em anos")
+    ax.set_title(f"{_nome()}: quem chegou a x anos, quantos anos ainda restam (piso)")
     ax.legend(frameon=False)
     plots._theme(ax)
-    salva(fig, "sobrevida_cond_1a.png", geral=True)
+    salva(fig, "tabua_esperanca_comparada.png", geral=True)
 
 
-@figura("sobrevida_condicional", "anos_esperados", padrao=True)
-def figura_sobrevida_anos_esperados(ctx: Any, d: Dados) -> None:
-    """Anos ativos esperados nos próximos `horizonte_sobrevida_anos`, dado que chegou à idade x."""
-    t = d["sobrevida_condicional"]
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    for slug in ctx.p.linguagens_rq2:
-        c = t[(t["linguagem"] == slug) & t["anos_esperados"].notna()]
-        ax.plot(
-            c["x"],
-            c["anos_esperados"],
-            marker="o",
-            color=cor_da(slug),
-            linewidth=2,
-            label=carga_fonte.LINGUAGENS[slug].nome,
-        )
-    ax.set_xlabel("idade x na comunidade (anos desde a primeira contribuição)")
-    ax.set_ylabel(f"anos ativos esperados nos próximos {ctx.p.horizonte_sobrevida_anos:g}")
-    ax.set_title(f"{_nome()}: vida restante esperada, dado que chegou à idade x")
-    ax.legend(frameon=False)
-    plots._theme(ax)
-    salva(fig, "sobrevida_anos_esperados.png", geral=True)
-
-
-@figura("sobrevida_condicional", "chegar_e_ficar")
-def figura_sobrevida_chegar_e_ficar(ctx: Any, d: Dados) -> None:
-    """Dois painéis: chegar à idade x (S_x) e, tendo chegado, ficar mais 1 ano."""
-    t = d["sobrevida_condicional"]
+@figura("tabua_comparada", "chegar_e_ficar")
+def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
+    """Dois painéis: chegar a x anos, S(x), e ficar mais 1 ano tendo chegado, 1 - q(x)."""
+    t = d["tabua_comparada"]
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
     for slug in ctx.p.linguagens_rq2:
         c = t[t["linguagem"] == slug]
         nome = carga_fonte.LINGUAGENS[slug].nome
-        ax1.plot(c["x"], c["S_x"], marker="o", color=cor_da(slug), linewidth=2, label=nome)
-        ok = c[c["cond_1a"].notna() & (c["x"] > 0)]
-        ax2.plot(ok["x"], ok["cond_1a"], marker="o", color=cor_da(slug), linewidth=2, label=nome)
-    ax1.set_title("Chegar: fração que chega à idade x")
-    ax1.set_ylabel("S(x)")
-    ax2.set_title("Ficar: quem chegou a x segue mais 1 ano")
-    ax2.set_ylabel("S(x+1) / S(x)")
+        ax1.plot(c["x"], c["S"], marker="o", color=cor_da(slug), linewidth=2, label=nome)
+        ax2.plot(c["x"], 1 - c["q"], marker="o", color=cor_da(slug), linewidth=2, label=nome)
+    ax1.set_title("Chegar: fração que chega a x anos, S(x)")
+    ax2.set_title("Ficar: quem chegou a x segue mais 1 ano, 1 - q(x)")
+    ax1.set_ylim(0, 1)
     ax2.set_ylim(0, 1)
     for ax in (ax1, ax2):
-        ax.set_xlabel("idade x (anos)")
+        ax.set_xlabel("anos de casa x")
         plots._theme(ax)
     ax1.legend(frameon=False)
     fig.suptitle(f"{_nome()}: chegar à senioridade e permanecer nela")
     fig.tight_layout()
-    salva(fig, "sobrevida_chegar_e_ficar.png", geral=True)
+    salva(fig, "tabua_chegar_e_ficar.png", geral=True)
 
 
 @figura("comparacao_corrigida", "tres_paineis", padrao=True)

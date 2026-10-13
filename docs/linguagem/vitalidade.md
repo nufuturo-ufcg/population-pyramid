@@ -170,14 +170,12 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - `scipy.stats.ecdf` com `CensoredData` faz a curva. `scipy.stats.logrank` compara Clojure com cada linguagem.
 - Sem censura, o S(1) do Kaplan-Meier é igual ao S(1) da tábua (teste em `tests/test_vitalidade.py`).
 
-## Sobrevida condicional
+## Tábua comparada
 
-- Pergunta: quem chegou à idade x, quanto tempo mais fica? Métrica `sobrevida_condicional` (comparativa), idades em `idades_sobrevida`.
-- `S_x`: chance de chegar a x (Kaplan-Meier). `cond_1a`, `cond_2a`, `cond_5a`: S(x+t) / S(x).
-- `anos_esperados`: integral de S entre x e x+`horizonte_sobrevida_anos`, dividida por S(x) (vida média restante restrita).
-- Valor além do último tempo observado fica `NaN`.
-- Separa dois efeitos: chegar à senioridade (`S_x`) e permanecer nela (`cond_1a`). A figura `chegar_e_ficar` mostra os dois lado a lado.
-- Teste a mão em `tests/test_vitalidade.py` (`test_sobrevida_condicional_a_mao`).
+- Métrica `tabua_comparada` (comparativa): a tábua de vida de todas as pessoas de cada linguagem, até `tabua_ate_anos` (8, a última faixa das pirâmides).
+- e(x) é a vida restante de quem chegou a x. A chance de seguir mais t anos tendo chegado a x sai de l(x+t) / l(x).
+- A figura `chegar_e_ficar` separa chegar à senioridade, S(x), de permanecer nela, 1 - q(x).
+- e(x) é piso: a cauda censurada fica de fora (`e_truncado`).
 
 ## Taxa padronizada e SMR
 
