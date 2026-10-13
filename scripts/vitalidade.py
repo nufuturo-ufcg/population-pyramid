@@ -251,22 +251,16 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     return compactos
 
 
-POPULACOES = {
-    "todos": "",
-    "codigo": " (só quem codou)",
-    "mais_de_um_dia": " (mais de um dia de atividade)",
-}
+# A população não entra no título dos gráficos: ela já nomeia a pasta (`python-passou_30_dias`).
+POPULACOES = ("todos", "codigo", "mais_de_um_dia")
 PASSOU_DIAS = re.compile(r"passou_(\d+)_dias")
 
 
 def rotulo_da_populacao(nome: str) -> str:
-    """Texto do título de cada população. `passou_N_dias` vale para qualquer N."""
-    if nome in POPULACOES:
-        return POPULACOES[nome]
-    achou = PASSOU_DIAS.fullmatch(nome)
-    if achou is None:
+    """Texto que a população acrescenta ao título dos gráficos: nenhum. Valida o nome."""
+    if nome not in POPULACOES and PASSOU_DIAS.fullmatch(nome) is None:
         raise SystemExit(f"populacao {nome!r}: use {list(POPULACOES)} ou passou_N_dias.")
-    return f" (contribuição {achou.group(1)} dias depois da primeira)"
+    return ""
 
 
 def fim_da_coleta(p: Parametros, ultimo_evento: pd.Timestamp) -> pd.Timestamp:

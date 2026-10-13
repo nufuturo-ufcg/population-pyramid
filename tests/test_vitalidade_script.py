@@ -261,7 +261,7 @@ def test_populacao_de_codigo_grava_em_pasta_propria(tmp_path, monkeypatch):
     script.aplica_populacao(script.carrega_parametros(["populacao=codigo"]))
     assert script.fb.CFG.saida == tmp_path / "zig-codigo"
     assert script.fb.ESTADO_PASTA_GERAL.pasta == tmp_path / "geral-codigo"
-    assert script.vitalidade_figuras.ESTADO.sufixo == " (só quem codou)"
+    assert script.vitalidade_figuras.ESTADO.sufixo == ""
     script.aplica_populacao(script.carrega_parametros(["populacao=todos"]))
     assert script.vitalidade_figuras.ESTADO.sufixo == ""
 
@@ -284,8 +284,8 @@ def test_carencia_de_um_ano_nao_tracejou_nada_e_a_de_tres_traceja_dois_anos():
 
 
 def test_populacao_passou_n_dias_aceita_qualquer_n():
-    assert script.rotulo_da_populacao("passou_30_dias").startswith(" (contribuição 30 dias")
-    assert script.rotulo_da_populacao("passou_60_dias").startswith(" (contribuição 60 dias")
+    assert script.rotulo_da_populacao("passou_30_dias") == ""
+    assert script.rotulo_da_populacao("passou_60_dias") == ""
     with pytest.raises(SystemExit):
         script.rotulo_da_populacao("passou_dias")
 

@@ -153,7 +153,7 @@ class _Estado:
     def __init__(self) -> None:
         self.estilo: dict[str, Any] = {}
         self.atual: dict[str, Any] = {}
-        self.sufixo = ""  # " (só quem codou)", no fim do nome da linguagem
+        self.sufixo = ""  # texto no fim do nome da linguagem; a população não usa mais
 
 
 ESTADO = _Estado()
@@ -441,7 +441,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
             label=rotulo,
         )
     ax1.set_ylabel("pessoas")
-    ax1.set_title(f"{nome}: entradas e saídas por ano (saída = 12 meses sem contribuir)")
+    ax1.set_title(f"{nome}: entradas e saídas por ano")
     ax1.legend(loc="upper left", frameon=False)
 
     ax2.axhline(0, color="#888888", linewidth=0.8)
@@ -470,7 +470,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         )
     ax2.set_ylabel("% dos ativos")
     ax2.set_xlabel("ano")
-    ax2.set_title("crescimento (tracejado: os últimos anos, com saída provisória)")
+    ax2.set_title("crescimento")
     ax2.legend(loc="lower left", frameon=False)
     for ax in (ax1, ax2):
         plots._theme(ax)
@@ -504,7 +504,7 @@ def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
         ax.set_title(str(ano))
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
-    fig.suptitle(f"{_nome()}: {unidade} por tempo de casa (esquerda discussão, direita código)")
+    fig.suptitle(f"{_nome()}: {unidade} por tempo de casa")
     fb._legenda_discussion(fig, plots)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     salva(fig, "piramides_faixa_pct.png" if em_pct else "piramides_faixa.png")
@@ -605,10 +605,7 @@ def figura_taxa_saida(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_ylabel("saídas / ativos da faixa")
     ax.set_xlabel("ano")
-    ax.set_title(
-        f"{_nome()}: taxa de saída por faixa (ponto vazado = menos de {saidas_estavel} saídas, "
-        "tracejado = provisório)"
-    )
+    ax.set_title(f"{_nome()}: taxa de saída por faixa")
     ax.legend(loc="upper right", frameon=False, ncol=3)
     plots._theme(ax)
     salva(fig, "taxa_saida_faixa.png")
@@ -624,7 +621,7 @@ def figura_tabua(ctx: Any, d: Dados) -> None:
         t = tabuas[tabuas["coorte"] == coorte]
         ax.plot(t["x"], t["S"], color=cor, linewidth=2, marker="o", markersize=4, label=str(coorte))
     ax.set_ylim(0, 1)
-    ax.set_xlabel("anos desde a primeira contribuição (x)")
+    ax.set_xlabel("anos desde a primeira contribuição")
     ax.set_ylabel("fração da coorte que chega em x, S(x)")
     ax.set_title(f"{_nome()}: tábua de vida por coorte de entrada")
     ax.legend(title="coorte", frameon=False)
@@ -738,7 +735,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
     fundo = ax.twinx()
     largura = 300 if nome == "anual" else 75
     fundo.bar(meio, f["populacao"], width=largura, color="#9a9a9a", alpha=0.35, label="população")
-    fundo.set_ylabel("população viva (barras)")
+    fundo.set_ylabel("população viva")
     fundo.grid(False)
     # Linhas na frente das barras: o fundo pega a cor do tema e o eixo das linhas fica vazado.
     fundo.set_facecolor(ax.get_facecolor())
@@ -787,7 +784,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
         label="mortalidade (saídas definitivas / população)",
     )
     passo = "ano" if nome == "anual" else "trimestre"
-    ax.set_ylabel(f"% da população no {passo} (linhas)")
+    ax.set_ylabel(f"% da população no {passo}")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: natalidade e mortalidade, passo {nome}")
 
@@ -874,7 +871,7 @@ def figura_km(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_xlabel("anos desde a primeira contribuição")
     ax.set_ylabel("fração ainda ativa, S(t)")
-    ax.set_title("Kaplan-Meier por linguagem (último evento a 12 meses do fim = censura)")
+    ax.set_title("Kaplan-Meier por linguagem")
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "kaplan_meier.png", geral=True)
@@ -895,9 +892,9 @@ def figura_tabua_esperanca(ctx: Any, d: Dados) -> None:
             linewidth=2,
             label=carga_fonte.LINGUAGENS[slug].nome,
         )
-    ax.set_xlabel("anos de casa x (anos desde a primeira contribuição)")
+    ax.set_xlabel("anos desde a primeira contribuição")
     ax.set_ylabel("vida restante, e(x), em anos")
-    ax.set_title(f"Quem chegou a x anos, quantos anos ainda restam (piso){ESTADO.sufixo}")
+    ax.set_title("Quem chegou a x anos, quantos anos ainda restam")
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca_comparada.png", geral=True)
@@ -921,7 +918,7 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
         ax.set_xlabel("anos de casa x")
         plots._theme(ax)
     ax1.legend(frameon=False)
-    fig.suptitle(f"Chegar à senioridade e permanecer nela{ESTADO.sufixo}")
+    fig.suptitle("Chegar à senioridade e permanecer nela")
     fig.tight_layout()
     salva(fig, "tabua_chegar_e_ficar.png", geral=True)
 
@@ -937,7 +934,7 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
         paineis = [
             ("taxa_bruta", "taxa de saída bruta"),
             ("taxa_padronizada", f"taxa padronizada (pesos de {ano_pesos})"),
-            ("smr", "SMR (saídas reais / esperadas)"),
+            ("smr", "SMR, saídas reais / esperadas"),
         ]
         for ax, (coluna, rotulo) in zip(eixos, paineis, strict=True):
             for slug in linguagens:
@@ -956,8 +953,7 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         eixos[2].axhline(1, color="#888888", linewidth=0.8)
         eixos[0].legend(loc="upper left", frameon=False)
-        nomes = ", ".join(carga_fonte.LINGUAGENS[s].nome for s in linguagens)
-        eixos[0].set_title(f"Taxa de saída corrigida pela composição (referência: {nomes})")
+        eixos[0].set_title("Taxa de saída corrigida pela composição")
         eixos[2].set_xlabel("ano")
         salva(fig, f"padronizacao_{rodada}.png", geral=True)
 
@@ -1085,9 +1081,9 @@ def figura_esperanca(ctx: Any, d: Dados) -> None:
     for coorte, cor in zip(coortes, rampa(len(coortes)), strict=True):
         t = tabuas[tabuas["coorte"] == coorte]
         ax.plot(t["x"], t["e"], color=cor, linewidth=2, label=str(coorte))
-    ax.set_xlabel("anos desde a primeira contribuição (x)")
+    ax.set_xlabel("anos desde a primeira contribuição")
     ax.set_ylabel("anos que ainda restam, e(x)")
-    ax.set_title(f"{_nome()}: esperança de permanência por coorte (piso)")
+    ax.set_title(f"{_nome()}: esperança de permanência por coorte")
     ax.legend(title="coorte", frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca.png")
@@ -1227,10 +1223,10 @@ def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
     for ax in eixos.flat[len(anos) :]:
         ax.set_visible(False)
     for ax in eixos[-1]:
-        ax.set_xlabel("CCR  (código contra discussão)")
+        ax.set_xlabel("CCR, código contra discussão")
     for ax in eixos[:, 0]:
-        ax.set_ylabel("NCR  (novatos contra experientes)")
-    fig.suptitle(f"CCR x NCR no fim de cada ano, uma linguagem por ponto{ESTADO.sufixo}")
+        ax.set_ylabel("NCR, novatos contra experientes")
+    fig.suptitle("CCR x NCR no fim de cada ano, uma linguagem por ponto")
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     salva(fig, "ccr_ncr_dispersao.png", geral=True)
 
@@ -1254,7 +1250,7 @@ def figura_ccr_ncr_comparado_serie(ctx: Any, d: Dados) -> None:
         ax.set_ylim(-1.05, 1.05)
         ax.set_ylabel(rotulo)
         plots._theme(ax)
-    ax1.set_title(f"CCR e NCR por trimestre, cinco linguagens{ESTADO.sufixo}")
+    ax1.set_title("CCR e NCR por trimestre, cinco linguagens")
     ax2.legend(frameon=False, ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.15))
     ax2.set_xlabel("trimestre")
     salva(fig, "ccr_ncr_serie.png", geral=True)
@@ -1404,7 +1400,7 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(ax, d["trajetoria"], "indice", base)
     ax.axhline(100, color="#888888", linewidth=0.8)
-    ax.set_ylabel(f"ativos no ano (índice, {base} = 100)")
+    ax.set_ylabel(f"ativos no ano, índice com {base} = 100")
     ax.set_xlabel("ano")
     ax.set_title("Evolução do número de ativos, cada linguagem contra o próprio tamanho")
     ax.legend(frameon=False)
@@ -1424,10 +1420,7 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.set_ylabel("crescimento líquido do ano, % dos ativos do mesmo ano")
     ax.set_xlabel("ano")
-    ax.set_title(
-        "Crescimento líquido da comunidade (positivo: entra mais gente do que sai; "
-        "tracejado: provisório)"
-    )
+    ax.set_title("Crescimento líquido da comunidade")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_crescimento.png", geral=True)
 
@@ -1464,10 +1457,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
                 ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=11)
             if i == len(slugs) - 1 and tem:
                 ax.set_xlabel("% dos ativos do ano", fontsize=7)
-    fig.suptitle(
-        f"Pirâmides por tempo de casa, linha do tempo por linguagem{ESTADO.sufixo}\n"
-        "(esquerda discussão, direita código; cada pirâmide soma 100%)"
-    )
+    fig.suptitle("Pirâmides por tempo de casa, linha do tempo por linguagem")
     fb._legenda_discussion(fig, plots)
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
@@ -1512,7 +1502,7 @@ def figura_piramides_entre_linguagens(ctx: Any, d: Dados) -> None:
         ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
         ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
         ax.set_xlabel("% dos ativos do ano", fontsize=8)
-    fig.suptitle(f"Composição por tempo de casa em {ano} (esquerda discussão, direita código)")
+    fig.suptitle(f"Composição por tempo de casa em {ano}")
     fb._legenda_discussion(fig, plots)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     salva(fig, "trajetoria_piramides.png", geral=True)
