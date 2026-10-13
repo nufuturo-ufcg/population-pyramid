@@ -63,14 +63,15 @@ threads: 16
 # do filtro, sem efeito nas métricas). Em centenas de GB isso custa uns 20 minutos.
 contar_linhas_brutas: false
 
-# População de cada linguagem. todos: quem teve algum evento (commit, PR, issue, comentário).
+# População de cada linguagem. O padrão é passou_30_dias: 30 dias já tira a maior parte do efeito de
+# quem aparece uma vez (de 30 a 90 dias pouco muda). todos: quem teve algum evento (commit, PR, issue, comentário).
 # passou_N_dias (passou_30_dias, passou_60_dias, passou_90_dias...): só quem tem uma contribuição N
 # dias ou mais depois da primeira (a pessoa
 # só conta como viva depois de provar presença). mais_de_um_dia: só quem teve atividade em mais de um
 # dia. codigo: só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Metade das
 # pessoas de cada linguagem só abriu issue ou comentou uma vez; `codigo` tira esse público.
 # Cada população grava em pasta própria (python, python-codigo).
-populacao: todos
+populacao: passou_30_dias
 
 # Pirâmides por faixa em % dos ativos do ano (a soma dos dois lados e de todas as faixas é
 # 100). false desenha contagens. A pirâmide de contagem fica sempre disponível em
@@ -98,10 +99,10 @@ rodadas_padronizacao:
 
 
 # CCR e NCR. Inatividade: quem não contribuiu nesse tempo já saiu, 12 meses como Avelino et al.
-# (ESEM 2019). Novato: quem tem esse tempo de idade ou menos, 3 meses como o IEICE16. Com 3 e 3 o
-# resultado é o do motor, exatamente.
+# (ESEM 2019). Novato: quem tem esse tempo de idade ou menos, 12 meses, a mesma janela da saída.
+# O IEICE16 usa 3 e 3; com 3 e 3 o resultado é o do motor, exatamente.
 ccr_ncr_inatividade_meses: 12
-ccr_ncr_novato_meses: 3
+ccr_ncr_novato_meses: 12
 
 # Fim do estudo. Os eventos depois dessa data saem de tudo, como se a coleta tivesse terminado ali
 # (2026 está incompleto). Tem de ser o último dia de um trimestre. Sem acompanhamento depois, a

@@ -262,7 +262,7 @@ def test_populacao_de_codigo_grava_em_pasta_propria(tmp_path, monkeypatch):
     assert script.fb.CFG.saida == tmp_path / "zig-codigo"
     assert script.fb.ESTADO_PASTA_GERAL.pasta == tmp_path / "geral-codigo"
     assert script.vitalidade_figuras.ESTADO.sufixo == " (só quem codou)"
-    script.aplica_populacao(script.carrega_parametros([]))  # volta ao padrão
+    script.aplica_populacao(script.carrega_parametros(["populacao=todos"]))
     assert script.vitalidade_figuras.ESTADO.sufixo == ""
 
 

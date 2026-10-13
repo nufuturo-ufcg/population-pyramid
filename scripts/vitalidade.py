@@ -380,6 +380,7 @@ PARAMETROS_DO_CALCULO = (
     "rodadas_padronizacao",
     "data_de_corte",
     "tabua_ate_anos",
+    "ano_base_indice",
     "ccr_ncr_inatividade_meses",
     "ccr_ncr_novato_meses",
 )
@@ -565,9 +566,9 @@ def metrica_ccr_ncr(ctx: Contexto) -> Dados:
     O que faz: por trimestre, sobre quem contribuiu nos `ccr_ncr_inatividade_meses` (12, o limite
     de saída do Avelino) até o fim dele, CCR = (código - discussão) / o maior dos dois e NCR =
     (novatos - experientes) / o maior dos dois, ambos entre -1 e 1. Novato é quem tem até
-    `ccr_ncr_novato_meses` (3, o corte do IEICE16) de idade. O sinal dos dois classifica o
-    trimestre nos tipos A a D. Mesma conta do motor, direto dos eventos compactados: roda no
-    Python também. Com 3 e 3 reproduz o motor exatamente.
+    `ccr_ncr_novato_meses` (12, a janela da saída; o IEICE16 usa 3) de idade. O sinal dos dois
+    classifica o trimestre nos tipos A a D. Mesma conta do motor, direto dos eventos compactados:
+    roda no Python também. Com 3 e 3 reproduz o motor exatamente.
     Referência: Onoue et al., IEICE16, https://doi.org/10.1587/transinf.2015EDP7363.
     """
     return {"ccr_ncr": _ccr_ncr(ctx.p, ctx.compactos, ctx.fim)}
