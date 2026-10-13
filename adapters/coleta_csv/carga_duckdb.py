@@ -289,15 +289,19 @@ def _finaliza(
 def _compacta(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataFrame:
     """Mesma redução de `vitalidade.compacta`, em SQL.
 
-    Por trimestre o primeiro e o último evento; por pessoa o primeiro de código e o primeiro
-    de discussão.
+    Por trimestre o primeiro e o último evento e o último de código e de discussão; por pessoa
+    o primeiro de código e o primeiro de discussão.
     """
     codigos = [i for i, n in enumerate(nomes_tipo) if n in CODIGOS_DE_CODIGO]
     eh_codigo = "tipo IN (" + ", ".join(str(c) for c in codigos) + ")"
     resultado = con.execute(f"""
         WITH por_trimestre AS (
             SELECT pessoa, min(ts) AS t1, arg_min(tipo, ts) AS tp1,
-                   max(ts) AS t2, arg_max(tipo, ts) AS tp2
+                   max(ts) AS t2, arg_max(tipo, ts) AS tp2,
+                   max(ts) FILTER (WHERE {eh_codigo}) AS c2,
+                   arg_max(tipo, ts) FILTER (WHERE {eh_codigo}) AS tc2,
+                   max(ts) FILTER (WHERE NOT ({eh_codigo})) AS d2,
+                   arg_max(tipo, ts) FILTER (WHERE NOT ({eh_codigo})) AS td2
             FROM final GROUP BY pessoa, year(ts) * 4 + (month(ts) - 1) // 3
         ), primeiros AS (
             SELECT pessoa,
@@ -309,6 +313,8 @@ def _compacta(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataF
         )
         SELECT DISTINCT pessoa AS contributor_id, tp1 AS tipo, t1 AS timestamp FROM por_trimestre
         UNION SELECT pessoa, tp2, t2 FROM por_trimestre
+        UNION SELECT pessoa, tc2, c2 FROM por_trimestre WHERE c2 IS NOT NULL
+        UNION SELECT pessoa, td2, d2 FROM por_trimestre WHERE d2 IS NOT NULL
         UNION SELECT pessoa, tc, c1 FROM primeiros WHERE c1 IS NOT NULL
         UNION SELECT pessoa, td, d1 FROM primeiros WHERE d1 IS NOT NULL
     """).df()

@@ -1011,6 +1011,42 @@ def figura_fluxo(ctx: Any, d: Dados) -> None:
     salva(fig, "fluxo.png")
 
 
+@figura("tamanho", "troca_de_papel", padrao=True)
+def figura_troca_de_papel(ctx: Any, d: Dados) -> None:
+    """Quem troca de lado por ano, em % dos ativos: discussão para código (moved) e a volta."""
+    t = d["anual"]
+    t = t[t["ano"] <= _ultimo_ano_de_contagem(ctx)]
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ida = 100 * t["moved"] / t["ativos"]
+    volta = 100 * t["deixou_codigo"] / t["ativos"]
+    primeiro = _primeiro_provisorio(ctx)
+    _plota(
+        ax,
+        t["ano"],
+        ida,
+        primeiro,
+        color=categorica()[0],
+        marker="o",
+        label="discussão para código (moved)",
+    )
+    _plota(
+        ax,
+        t["ano"],
+        volta,
+        primeiro,
+        color=categorica()[1],
+        marker="o",
+        label="código para discussão",
+    )
+    ax.set_ylabel("% dos ativos do ano")
+    ax.set_xlabel("ano")
+    ax.set_title(f"{_nome()}: troca de papel por ano")
+    ax.legend(frameon=False)
+    plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    salva(fig, "troca_de_papel.png")
+
+
 @figura("composicao", "proporcao")
 def figura_proporcao(ctx: Any, d: Dados) -> None:
     """Área empilhada: parcela de cada faixa de tempo de casa nos ativos do ano."""

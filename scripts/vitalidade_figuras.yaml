@@ -59,6 +59,7 @@ figuras:
   tamanho.transicao_anual: {figsize: [10, 5.5]}
   tamanho.transicao_trimestral: {figsize: [10, 5.5]}
   tamanho.fluxo: {figsize: [9, 4.5]}
+  tamanho.troca_de_papel: {figsize: [9, 4.5]}
   composicao.indice: {figsize: [9, 3.5]}
   composicao.proporcao: {figsize: [9, 4.5]}
   retencao.sobrevivencia: {figsize: [8, 4.5]}

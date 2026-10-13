@@ -74,15 +74,17 @@ def provisorio(ano: int, fim: pd.Timestamp) -> bool:
 def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
     """Reduz os eventos ao que as métricas deste módulo usam, sem mudar nenhum resultado.
 
-    Guarda, de cada pessoa, o primeiro e o último evento de cada trimestre, mais o
-    primeiro evento de código e o primeiro de discussão da vida. As métricas só
-    dependem de:
+    Guarda, de cada pessoa, o primeiro e o último evento de cada trimestre, o último evento
+    de código e o último de discussão de cada trimestre, mais o primeiro evento de código e o
+    primeiro de discussão da vida. As métricas só dependem de:
 
       - onde um período de atividade (separado por mais de 12 meses de silêncio)
         começa e termina: um silêncio desses nunca cabe dentro de um trimestre, então
         o primeiro e o último evento de cada trimestre bastam;
       - em que anos a pessoa apareceu e o primeiro e o último evento dela;
-      - o primeiro evento de cada lado (código e discussão).
+      - o primeiro evento de cada lado (código e discussão);
+      - o último evento de cada lado, que `deixou_codigo` lê. Guardado por trimestre e não por
+        vida, para o corte da coleta num fim de trimestre continuar exato.
 
     Os eventos que sobram são todos reais. Aplicar de novo ao resultado não muda
     nada, então coletas enormes podem ser compactadas em pedaços.
@@ -94,9 +96,17 @@ def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
     codou = ev["event_type"].isin(TIPOS_CODING)
     por_pessoa_codigo = ev[codou].groupby("contributor_id", sort=False)
     por_pessoa_discussao = ev[~codou].groupby("contributor_id", sort=False)
+    codigo_por_trimestre = ev[codou].groupby(
+        [ev["contributor_id"][codou], trimestre[codou]], sort=False
+    )
+    discussao_por_trimestre = ev[~codou].groupby(
+        [ev["contributor_id"][~codou], trimestre[~codou]], sort=False
+    )
     partes = [
         por_trimestre.head(1),
         por_trimestre.tail(1),
+        codigo_por_trimestre.tail(1),
+        discussao_por_trimestre.tail(1),
         por_pessoa_codigo.head(1),
         por_pessoa_discussao.head(1),
     ]
@@ -131,7 +141,12 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
     primeiros = (
         ev.assign(_c=ts.where(codou), _d=ts.where(~codou))
         .groupby("contributor_id", sort=False)
-        .agg(init_c=("_c", "min"), init_d=("_d", "min"))
+        .agg(
+            init_c=("_c", "min"),
+            init_d=("_d", "min"),
+            last_c=("_c", "max"),
+            last_d=("_d", "max"),
+        )
     )
 
     pessoa_nova = pessoa != pessoa.shift()
@@ -163,7 +178,11 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
 
     spans = periodos(ev)
     marcos = spans.groupby("contributor_id").agg(
-        init_c=("init_c", "first"), init_d=("init_d", "first"), primeiro=("span_start", "min")
+        init_c=("init_c", "first"),
+        init_d=("init_d", "first"),
+        last_c=("last_c", "first"),
+        last_d=("last_d", "first"),
+        primeiro=("span_start", "min"),
     )
 
     pa = ev.assign(ano=ev["timestamp"].dt.year)[["contributor_id", "ano"]].drop_duplicates()
@@ -183,6 +202,10 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     moved = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
     pa["categoria"] = np.where(codou, np.where(moved, "moved", "coding"), "non_coding")
     pa["moved_no_ano"] = moved & (pa["init_c"].dt.year == pa["ano"])
+    # O caminho de volta: a pessoa para de codar e depois só discute. O ano é o do último
+    # commit ou PR, e só existe olhando o futuro (quem codar de novo deixa de contar).
+    deixou = pa["last_c"].notna() & pa["last_d"].notna() & (pa["last_d"] > pa["last_c"])
+    pa["deixou_codigo_no_ano"] = deixou & (pa["last_c"].dt.year == pa["ano"])
 
     # Todo período que não é o último já termina com mais de 12 meses de silêncio
     # (é o que o separou do seguinte), então basta medir a distância até `fim`.
@@ -215,11 +238,11 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     # Dois períodos separados por 12 meses não terminam (nem começam) no mesmo ano.
     if pa.duplicated(["contributor_id", "ano"]).any():
         raise ValueError("pessoa_ano: (pessoa, ano) repetido; mais de uma saída ou volta no ano.")
-    return pa.drop(columns=["init_c", "init_d"]).reset_index(drop=True)
+    return pa.drop(columns=["init_c", "init_d", "last_c", "last_d"]).reset_index(drop=True)
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Ativos, novatos, saídas, pausas, voltas, moved e crescimento, por ano.
+    """Ativos, novatos, saídas, pausas, voltas, moved, deixou_codigo e crescimento, por ano.
 
     Saída é definitiva (a última contribuição da vida). Quem para por mais de 12 meses e volta
     tem uma pausa no ano em que parou e uma volta no ano em que voltou, e deixa de ser ativo
@@ -239,6 +262,7 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
             "pausas": g["pausa"].sum(),
             "voltas": g["volta"].sum(),
             "moved": g["moved_no_ano"].sum(),
+            "deixou_codigo": g["deixou_codigo_no_ano"].sum(),
         }
     )
     for ano in t.index:

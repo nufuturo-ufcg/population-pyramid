@@ -170,6 +170,14 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - `scipy.stats.ecdf` com `CensoredData` faz a curva. `scipy.stats.logrank` compara Clojure com cada linguagem.
 - Sem censura, o S(1) do Kaplan-Meier é igual ao S(1) da tábua (teste em `tests/test_vitalidade.py`).
 
+## Troca de papel
+
+- `moved` (ida): primeiro commit ou PR depois de já ter discutido. Ano = o do primeiro commit ou PR.
+- `deixou_codigo` (volta): a última atividade de discussão vem depois do último commit ou PR. Ano = o do último commit ou PR.
+- A volta olha o futuro: quem voltar a codar deixa de contar. Os últimos anos ficam subestimados e saem tracejados.
+- A compactação guarda o último evento de código e de discussão de cada trimestre. Muda `VERSAO_CACHE`: caches antigos são refeitos.
+- Figura: `tamanho.troca_de_papel`, em % dos ativos do ano.
+
 ## Tábua comparada
 
 - Métrica `tabua_comparada` (comparativa): a tábua de vida de todas as pessoas de cada linguagem, até `tabua_ate_anos` (8, a última faixa das pirâmides).

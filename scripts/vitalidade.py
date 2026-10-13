@@ -189,7 +189,7 @@ def carrega_parametros(sobrepostos: list[str]) -> Parametros:
 
 
 # Sobe quando o filtro de eventos de `carrega_eventos` mudar: invalida todo cache.
-VERSAO_CACHE = 2
+VERSAO_CACHE = 3
 
 
 def _selo_dos_dados(fonte: carga_fonte.Fonte, motor: str) -> dict[str, Any]:

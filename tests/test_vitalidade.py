@@ -264,7 +264,9 @@ def test_periodos_igual_ao_profile_do_motor():
 
     ev = _eventos_aleatorios()
     esperado = profile(ev, vitalidade.TIPOS_CODING, vitalidade.GAP_DIAS)
-    pd.testing.assert_frame_equal(vitalidade.periodos(ev), esperado)
+    # last_c e last_d são extras deste módulo; o motor não os tem.
+    obtido = vitalidade.periodos(ev).drop(columns=["last_c", "last_d"])
+    pd.testing.assert_frame_equal(obtido, esperado)
 
 
 def test_compacta_nao_muda_nenhuma_metrica():
@@ -436,3 +438,26 @@ def test_ate_a_data_tira_o_que_vem_depois_e_quem_so_aparece_depois():
     assert set(cortado["contributor_id"]) == {1, 2, 3}  # a 4 só aparece em 2023
     # A pessoa 3 fica só com o commit de 2021: o de 2024 saiu.
     assert (cortado["contributor_id"] == 3).sum() == 1
+
+
+def test_deixou_codigo_e_o_caminho_de_volta_do_moved():
+    """A codou em 2018 e só discutiu depois; B codou por último depois de discutir; C só codou."""
+    linhas = [
+        (1, "commits", "2018-02-01"),
+        (1, "issue_comments", "2018-08-01"),
+        (1, "issue_comments", "2019-03-01"),
+        (2, "issue_comments", "2018-02-01"),
+        (2, "commits", "2019-03-01"),
+        (3, "commits", "2018-05-01"),
+    ]
+    ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    fim = pd.Timestamp("2019-12-31 23:59:59")
+    t = vitalidade.tabela_anual(vitalidade.pessoa_ano(ev, fim), fim).set_index("ano")
+    assert list(t["deixou_codigo"]) == [1, 0]
+    assert list(t["moved"]) == [0, 1]
+    # O último commit de A (fev/2018) divide o trimestre com nada de código depois: a compactação
+    # guarda o último evento de código de cada trimestre, e o resultado não muda.
+    pequeno = vitalidade.compacta(ev)
+    t2 = vitalidade.tabela_anual(vitalidade.pessoa_ano(pequeno, fim), fim).set_index("ano")
+    assert list(t2["deixou_codigo"]) == [1, 0]
