@@ -1633,32 +1633,36 @@ def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
 
 @figura("trajetoria", "piramides", padrao=True)
 def figura_piramides_entre_linguagens(ctx: Any, d: Dados) -> None:
-    """Uma pirâmide por linguagem em `ano_comparacao`, em % dos ativos, na mesma escala."""
-    ano = ctx.p.ano_comparacao
-    comp = d["composicao_pct"]
-    comp = comp[comp["ano"] == ano]
+    """Uma pirâmide por linguagem em cada ano de `anos_comparacao`, na mesma escala."""
+    todos = d["composicao_pct"]
     codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
-    slugs = [s for s in ctx.p.linguagens_rq2 if s in set(comp["slug"])]
-    quadros = []
     lado = ctx.p.piramide_lado
-    for slug in slugs:
-        q = comp[comp["slug"] == slug].copy()
-        q["band"] = q["faixa"].map(codigo).astype(int)
-        quadros.append(_so_o_lado(q, lado))
-    xmax = _xmax_das_piramides(quadros)
-    fig, eixos = plt.subplots(1, len(slugs), figsize=(3.4 * len(slugs), 3.8), sharey=True)
-    for ax, slug, q in zip(eixos, slugs, quadros, strict=True):
-        plots.draw_pyramid(ax, q, xmax=xmax)
-        ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
-        ax.set_yticks(range(len(vitalidade.FAIXAS)), minor=False)
-        ax.set_yticks([], minor=True)
-        ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
-        ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
-        ax.set_xlabel("% dos ativos do ano", fontsize=8)
-    fig.suptitle(f"Composição por tempo de casa em {ano}")
-    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
-    fig.tight_layout(rect=(0, 0.08, 1, 1))
-    salva(fig, "trajetoria_piramides.png", geral=True)
+    por_ano = {}
+    for ano in ctx.p.anos_comparacao:
+        comp = todos[todos["ano"] == ano]
+        slugs = [s for s in ctx.p.linguagens_rq2 if s in set(comp["slug"])]
+        quadros = []
+        for slug in slugs:
+            q = comp[comp["slug"] == slug].copy()
+            q["band"] = q["faixa"].map(codigo).astype(int)
+            quadros.append(_so_o_lado(q, lado))
+        por_ano[ano] = (slugs, quadros)
+    # A mesma escala em todos os anos: as figuras se comparam lado a lado.
+    xmax = _xmax_das_piramides([q for _, quadros in por_ano.values() for q in quadros])
+    for ano, (slugs, quadros) in por_ano.items():
+        fig, eixos = plt.subplots(1, len(slugs), figsize=(3.4 * len(slugs), 3.8), sharey=True)
+        for ax, slug, q in zip(eixos, slugs, quadros, strict=True):
+            plots.draw_pyramid(ax, q, xmax=xmax)
+            ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
+            ax.set_yticks(range(len(vitalidade.FAIXAS)), minor=False)
+            ax.set_yticks([], minor=True)
+            ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
+            ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
+            ax.set_xlabel("% dos ativos do ano", fontsize=8)
+        fig.suptitle(f"Composição por tempo de casa em {ano}")
+        _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
+        fig.tight_layout(rect=(0, 0.08, 1, 1))
+        salva(fig, f"trajetoria_piramides_{ano}.png", geral=True)
 
 
 carrega_estilo([])  # estilo padrão do yaml; `main` recarrega com os `--estilo`

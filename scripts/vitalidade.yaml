@@ -102,7 +102,7 @@ piramide_lado: todos
 usa_moved_to_discussion: false
 
 # Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
-ano_comparacao: 2024
+anos_comparacao: [2024, 2025]
 ano_base_indice: 2019
 
 # Primeiro ano dos gráficos de crescimento e de saída entre linguagens. Antes dele as comunidades

@@ -159,7 +159,7 @@ class Parametros:
     piramide_em_pct: bool
     piramide_lado: str
     usa_moved_to_discussion: bool
-    ano_comparacao: int
+    anos_comparacao: list[int]
     ano_base_indice: int
     ano_inicio_comparacao: int
     carencia_anos: int

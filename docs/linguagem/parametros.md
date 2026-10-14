@@ -37,7 +37,7 @@ Se um parâmetro de tabela mudar, `--so-figuras` avisa que as tabelas gravadas s
 | `ano_pesos` | 2025 | ano cuja composição por faixa pesa a referência de cada rodada. | tabela |
 | `ano_base_indice` | 2019 | ano em que o índice de ativos vale 100. | tabela |
 | `ano_inicio_comparacao` | 2016 | primeiro ano dos gráficos de crescimento e de saída entre linguagens. | desenho |
-| `ano_comparacao` | 2024 | ano das pirâmides lado a lado entre linguagens. | desenho |
+| `anos_comparacao` | 2024, 2025 | anos das pirâmides lado a lado entre linguagens, um arquivo por ano, todos na mesma escala. | desenho |
 
 ### CCR e NCR
 
@@ -91,7 +91,7 @@ Origem dos dados: `scripts/vitalidade_fontes.yaml`, `--dados`, `--eventos`, `--a
 | `ccr_ncr` | linguagem | `ccr_ncr_inatividade_meses`, `ccr_ncr_novato_meses` | |
 | `significancia` | comparativo | `linguagens_rq2` | |
 | `comparacao_corrigida` | comparativo | `linguagens_rq2`, `rodadas_padronizacao`, `ano_pesos` | `carencia_anos` |
-| `trajetoria` | comparativo | `linguagens_rq2`, `ano_base_indice`, `carencia_anos` | `ano_comparacao`, `anos_piramide`, `piramide_lado` |
+| `trajetoria` | comparativo | `linguagens_rq2`, `ano_base_indice`, `carencia_anos` | `anos_comparacao`, `anos_piramide`, `piramide_lado` |
 | `ccr_ncr_comparado` | comparativo | `linguagens_rq2`, `ccr_ncr_inatividade_meses`, `ccr_ncr_novato_meses` | |
 | `tabua_comparada` | comparativo | `linguagens_rq2`, `tabua_ate_anos` | |
 | `stickiness`, `magnetismo` | linguagem | nenhum (fora do padrão) | |
