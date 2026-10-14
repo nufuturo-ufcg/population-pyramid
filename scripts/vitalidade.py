@@ -732,9 +732,11 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         t["saida_pct"] = 100 * t["saidas"] / t["ativos"]
         t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
         t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
-        # Reposição: quantos novatos entram para cada pessoa que sai. Abaixo de 1 a comunidade
-        # não repõe quem sai.
-        t["reposicao"] = t["novatos"] / t["saidas"].where(t["saidas"] > 0)
+        # Reposição: todo mundo que entrou (novatos e voltas) para cada pessoa que saiu (saídas e
+        # pausas). Acima de 1 o crescimento natural é positivo.
+        t["reposicao"] = (t["novatos"] + t["voltas"]) / (t["saidas"] + t["pausas"]).where(
+            t["saidas"].notna()
+        )
         # Quem parou há pouco ainda pode voltar: os últimos `carencia_anos` anos saem tracejados.
         t["provisorio"] = t["ano"] > lingua.fim_acompanhamento.year - ctx.p.carencia_anos
         ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice

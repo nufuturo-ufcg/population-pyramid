@@ -66,8 +66,9 @@ def glossario() -> str:
         "- **Crescimento natural**: todo mundo que entrou menos todo mundo que saiu, em % da "
         "população do ano. É a natalidade menos a mortalidade. A base é o próprio ano, e não "
         "o ano anterior.",
-        "- **Reposição**: novatos do ano divididos pelas saídas do ano. Abaixo de 1 a "
-        "comunidade não repõe quem sai.",
+        "- **Reposição**: todo mundo que entrou no ano (novatos e voltas) dividido por todo mundo "
+        "que saiu (saídas e pausas). Acima de 1 o crescimento natural é positivo. Abaixo de 1 "
+        "a comunidade perde mais gente do que ganha.",
         "- **Índice de envelhecimento**: ativos com 5 anos ou mais de casa divididos pelos ativos "
         "com menos de 1 ano de casa. A idade é o tempo na linguagem, não a idade da pessoa. "
         "Com índice 1 há tantos veteranos quanto novatos. Quando sobe, a base da pirâmide "
@@ -180,9 +181,9 @@ def renovacao(pastas: Pastas, p: v.Parametros, ano_ref: int) -> tuple[pd.DataFra
         i = pastas.csv(lingua, "indice_envelhecimento.csv").set_index("ano")
         t = pd.DataFrame(index=a.index)
         t["ativos"] = a["ativos"]
-        t["novatos"] = a["novatos"]
-        t["saídas"] = a["saidas"]
-        t["novatos por saída"] = a["novatos"] / a["saidas"].where(a["saidas"] > 0)
+        t["entraram"] = a["novatos"] + a["voltas"]
+        t["saíram"] = a["saidas"] + a["pausas"]
+        t["entraram para cada saída"] = t["entraram"] / t["saíram"].where(a["saidas"].notna())
         t["% com menos de 1 ano"] = 100 * i["novatos"] / a["ativos"]
         t["% com 5 anos ou mais"] = 100 * i["veteranos"] / a["ativos"]
         t["índice de envelhecimento"] = i["indice"]
@@ -195,7 +196,9 @@ def renovacao(pastas: Pastas, p: v.Parametros, ano_ref: int) -> tuple[pd.DataFra
     comparacao = []
     for slug, t in por_linguagem_e_ano.items():
         if ano_ref in t.index and t.loc[ano_ref, "ativos"] >= 100:
-            linha = t.loc[ano_ref, ["ativos", "novatos por saída", "% com menos de 1 ano"]].copy()
+            linha = t.loc[
+                ano_ref, ["ativos", "entraram para cada saída", "% com menos de 1 ano"]
+            ].copy()
             linha["% com 5 anos ou mais"] = t.loc[ano_ref, "% com 5 anos ou mais"]
             linha["índice de envelhecimento"] = t.loc[ano_ref, "índice de envelhecimento"]
             linha.name = carga_fonte.LINGUAGENS[slug].nome
@@ -242,11 +245,11 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
 
     clojure_renovacao, comparacao = renovacao(pastas, p, ano_ref)
     ref = clojure_renovacao.loc[ano_ref]
-    ano_1 = clojure_renovacao[clojure_renovacao["novatos por saída"] >= 1].index.max()
+    ano_1 = clojure_renovacao[clojure_renovacao["entraram para cada saída"] >= 1].index.max()
     outras = comparacao.drop(index="Clojure")
-    por_saida = "; ".join(f"{n} {num_f(v)}" for n, v in outras["novatos por saída"].items())
+    por_saida = "; ".join(f"{n} {num_f(v)}" for n, v in outras["entraram para cada saída"].items())
     por_topo = "; ".join(f"{n} {num_f(v, 0)}%" for n, v in outras["% com 5 anos ou mais"].items())
-    menor_reposicao = ref["novatos por saída"] < outras["novatos por saída"].min()
+    menor_reposicao = ref["entraram para cada saída"] < outras["entraram para cada saída"].min()
     maior_topo = ref["% com 5 anos ou mais"] > outras["% com 5 anos ou mais"].max()
 
     coortes = pastas.csv(c, "tabua_coortes.csv")
@@ -345,10 +348,10 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         f"quem fica sobe? As medidas abaixo usam {ano_ref}, o último ano com saída confirmada. "
         "A idade é o tempo na linguagem.",
         "",
-        f"1. **Reposição.** Em {ano_ref} entraram {num_i(ref['novatos'])} novatos para "
-        f"{num_i(ref['saídas'])} saídas: {num_f(ref['novatos por saída'])} novato para cada "
-        f"saída. Desde {ano_1 + 1} a reposição fica abaixo de 1. Nas outras linguagens em "
-        f"{ano_ref}: {por_saida}.",
+        f"1. **Reposição.** Em {ano_ref} entraram {num_i(ref['entraram'])} pessoas (novatos e "
+        f"voltas) e saíram {num_i(ref['saíram'])} (saídas e pausas): "
+        f"{num_f(ref['entraram para cada saída'])} para cada saída. Desde {ano_1 + 1} fica abaixo "
+        f"de 1. Nas outras linguagens em {ano_ref}: {por_saida}.",
         f"2. **Base da pirâmide.** Os ativos com menos de 1 ano de casa eram "
         f"{num_f(clojure_renovacao['% com menos de 1 ano'].iloc[0], 0)}% em "
         f"{clojure_renovacao.index.min()} e são {num_f(ref['% com menos de 1 ano'], 0)}% em "

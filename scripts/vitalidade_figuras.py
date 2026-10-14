@@ -1541,7 +1541,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
 
 @figura("trajetoria", "reposicao", padrao=True)
 def figura_reposicao(ctx: Any, d: Dados) -> None:
-    """Novatos para cada pessoa que sai, por ano. Abaixo de 1 a comunidade não repõe quem sai."""
+    """Todo mundo que entrou para cada pessoa que saiu, por ano. Acima de 1 há crescimento."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(ax, d["trajetoria"], "reposicao", 0, com_cauda=True)
     ax.axhline(1, color="#888888", linewidth=0.8)
@@ -1550,9 +1550,9 @@ def figura_reposicao(ctx: Any, d: Dados) -> None:
     ax.yaxis.set_major_formatter(FuncFormatter(lambda valor, _: f"{valor:g}"))
     ax.yaxis.set_minor_formatter(NullFormatter())
     ax.set_yticks([0.25, 0.5, 1, 2, 4, 8, 12])
-    ax.set_ylabel("novatos para cada pessoa que sai")
+    ax.set_ylabel("entrou para cada pessoa que saiu")
     ax.set_xlabel("ano")
-    ax.set_title("Reposição: acima de 1 entra mais gente do que sai")
+    ax.set_title("Reposição: todo mundo que entrou dividido por todo mundo que saiu")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_reposicao.png", geral=True)
 
