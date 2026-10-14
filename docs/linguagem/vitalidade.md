@@ -171,6 +171,8 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 ## Categorias da pirâmide
 
+Por padrão (`usa_moved_to_discussion: false`) as pirâmides têm três categorias, as do artigo: `non_coding`, `moved` e `coding`, com quem já codou e neste ano só discutiu no lugar que a história dele o põe. Com `usa_moved_to_discussion: true` entra a quarta, abaixo.
+
 No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias, pelo que fez até esse ano.
 
 | categoria | lado | quem é |

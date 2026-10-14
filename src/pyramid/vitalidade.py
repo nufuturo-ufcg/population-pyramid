@@ -168,10 +168,14 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
     return spans.reset_index(drop=True).merge(primeiros, on="contributor_id", how="left")
 
 
-def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataFrame:
+def pessoa_ano(
+    eventos: pd.DataFrame, fim: pd.Timestamp | None = None, com_moved_to_discussion: bool = True
+) -> pd.DataFrame:
     """Uma linha por (pessoa, ano em que contribuiu). Base de toda métrica anual.
 
     `fim` é o último instante coberto pela coleta. Padrão: o evento mais recente.
+    Sem `com_moved_to_discussion` a categoria `moved_to_discussion` não existe: quem já codou e
+    neste ano só discutiu fica onde a história dele o põe, em `moved` ou `coding`.
     """
     if fim is None:
         fim = eventos["timestamp"].max()
@@ -213,7 +217,7 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     comecou_na_discussao = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
     # O lado de volta do `moved`: quem já codou e neste ano só discutiu. Quem fez algum commit ou PR
     # no ano fica do lado do código, mesmo que o último evento do ano seja um comentário.
-    foi_para_discussao = codou & ~codou_no_ano
+    foi_para_discussao = codou & ~codou_no_ano & com_moved_to_discussion
     pa["categoria"] = np.select(
         [~codou, foi_para_discussao, comecou_na_discussao],
         ["non_coding", "moved_to_discussion", "moved"],

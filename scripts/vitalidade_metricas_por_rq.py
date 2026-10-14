@@ -476,6 +476,16 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
     ccr_ano = por_linguagem(fim_de_ano, "ccr", "ano", ordem)
     ncr_ano = por_linguagem(fim_de_ano, "ncr", "ano", ordem)
 
+    comp = pastas.csv(geral, "composicao_pct.csv")
+    lados = comp.groupby(["slug", "ano"])[v.vitalidade.LADOS].sum().reset_index()
+    lados["lado do código %"] = lados["moved"] + lados["coding"]
+    lados["lado da discussão %"] = lados["non_coding"] + lados["moved_to_discussion"]
+    base_traj = pastas.csv(geral, "trajetoria.csv")[["slug", "ano", "ativos"]]
+    lados = lados.merge(base_traj, on=["slug", "ano"])
+    lados = lados[(lados["ativos"] >= 100) & lados["ano"].isin([2015, 2018, 2020, 2022, 2024])]
+    lado_codigo = por_linguagem(
+        lados.rename(columns={"slug": "linguagem"}), "lado do código %", "ano", ordem
+    )
     traj = pastas.csv(geral, "trajetoria.csv")
     traj = traj[(traj["ativos"] >= 100) & (traj["ano"] >= p.ano_inicio_comparacao)]
     crescimento = por_linguagem(
@@ -539,7 +549,19 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
             pastas.base, f"{geral}/vitalidade/trajetoria_crescimento.png", "crescimento natural"
         ),
         "",
-        "### 2.5 Magnetismo e stickiness",
+        "### 2.5 Lado do código e lado da discussão",
+        "",
+        "- Dada a população do ano, quantos % já fizeram commit ou PR (lado do código) e quantos "
+        "só discutem (lado da discussão). A soma dos dois é 100%.",
+        "- Mesma ideia do CCR, em % da população do ano.",
+        "",
+        "Lado do código, em % da população do ano:",
+        "",
+        tabela_md(lado_codigo, 1),
+        "",
+        figura(pastas.base, f"{geral}/vitalidade/trajetoria_lados.png", "lado do código"),
+        "",
+        "### 2.6 Magnetismo e stickiness",
         "",
         "- Plano: magnetismo = novatos que entraram na linguagem / total de novatos das "
         "linguagens do estudo no ano. Stickiness = quem continua ativo no ano seguinte / total "

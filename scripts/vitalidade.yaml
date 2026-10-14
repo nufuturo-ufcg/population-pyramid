@@ -96,6 +96,11 @@ piramide_em_pct: true
 # discussao (non_coding + moved_to_discussion). Só muda o desenho.
 piramide_lado: todos
 
+# Se a pirâmide separa moved_to_discussion (quem já codou e neste ano só discutiu). false: as três
+# categorias do artigo, discussão, moved to coding e coding, com essas pessoas onde a história
+# delas as põe. Muda as tabelas.
+usa_moved_to_discussion: false
+
 # Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
 ano_comparacao: 2024
 ano_base_indice: 2019

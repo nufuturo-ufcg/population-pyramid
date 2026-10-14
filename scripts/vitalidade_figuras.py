@@ -13,6 +13,7 @@ série nova) se muda na função do gráfico, que é curta e isolada.
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -636,12 +637,14 @@ def _xmax_das_piramides(quadros: list[pd.DataFrame], minimo: float = 1.0) -> flo
     return xmax
 
 
-def _legenda_piramide(fig: Any, lado: str) -> None:
-    """Legenda das categorias que o `lado` mostra."""
+def _legenda_piramide(fig: Any, lado: str, com_moved_to_discussion: bool) -> None:
+    """Legenda das categorias que o `lado` mostra, sem moved to discussion se ela não existe."""
     from matplotlib.patches import Patch
 
     handles = []
     for categoria in vitalidade.LADOS:
+        if categoria == "moved_to_discussion" and not com_moved_to_discussion:
+            continue
         if categoria in LADOS_VISTOS[lado]:
             handles.append(
                 Patch(
@@ -679,7 +682,7 @@ def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
     fig.suptitle(f"{_nome()}: {unidade} por tempo de casa")
-    _legenda_piramide(fig, lado)
+    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     salva(fig, "piramides_faixa_pct.png" if em_pct else "piramides_faixa.png")
 
@@ -722,7 +725,7 @@ def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
     fig.suptitle(f"{_nome()}: {unidade} por tempo de casa, bandas de 3 meses")
-    _legenda_piramide(fig, lado)
+    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.06, 1, 1))
     salva(fig, "piramides_trimestrais.png")
 
@@ -1217,6 +1220,89 @@ def figura_cenarios_futuro(ctx: Any, d: Dados) -> None:
         figura_futuro(ctx.anual, futuro, ctx.fim.year - 1, ctx.p.teto, pasta, rotulo)
 
 
+def figura_tres_cenarios(
+    anual: pd.DataFrame, futuro: pd.DataFrame, ultimo: int, pasta: str, rotulo: str
+) -> None:
+    """Pessimista, conservador e otimista como três linhas, com o valor final de cada uma."""
+    observado = anual[anual["ano"] <= ultimo]
+    total = futuro[futuro["faixa"] == "total"]
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ax.plot(
+        observado["ano"],
+        observado["ativos"],
+        color="black",
+        linewidth=2,
+        marker="o",
+        markersize=4,
+        label="observado",
+    )
+    ponto = observado[observado["ano"] == ultimo]
+    cenarios = [
+        ("otimista", categorica()[2]),
+        ("conservador", categorica()[0]),
+        ("pessimista", categorica()[1]),
+    ]
+    linhas = {}
+    for nome, cor in cenarios:
+        m = total[total["metodo"] == nome]
+        linhas[nome] = pd.concat(
+            [
+                pd.DataFrame({"ano": ponto["ano"], "previsto": ponto["ativos"]}),
+                m[["ano", "previsto"]],
+            ]
+        )
+        ax.plot(
+            linhas[nome]["ano"],
+            linhas[nome]["previsto"],
+            color=cor,
+            linewidth=2.5,
+            marker="o",
+            markersize=4,
+            label=nome,
+        )
+        final = linhas[nome].iloc[-1]
+        ax.annotate(
+            f"{final['previsto']:,.0f}".replace(",", "."),
+            (final["ano"], final["previsto"]),
+            textcoords="offset points",
+            xytext=(8, 0),
+            va="center",
+            color=cor,
+            fontsize=10,
+        )
+    ax.fill_between(
+        linhas["pessimista"]["ano"],
+        linhas["pessimista"]["previsto"],
+        linhas["otimista"]["previsto"],
+        color="#888888",
+        alpha=0.12,
+    )
+    ax.set_xlim(observado["ano"].min() - 0.5, linhas["otimista"]["ano"].max() + 1.2)
+    ax.set_ylabel("ativos no ano")
+    ax.set_xlabel("ano")
+    ax.set_title(f"{_nome()}: três cenários a partir de {ultimo}\nregra: {rotulo}")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=4, frameon=False)
+    plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    salva(fig, f"{pasta}/tres_cenarios.png")
+
+
+@figura("cenarios", "tres_cenarios", padrao=True)
+def figura_cenarios_tres(ctx: Any, d: Dados) -> None:
+    """Pessimista, conservador e otimista da projeção, uma figura por regra de `variantes`."""
+    for chave, valores in ctx.p.variantes.items():
+        rotulo = valores[0]
+        pasta = f"cenarios-{chave}"
+        futuro = d[f"{pasta}/projecao_futuro"]
+        futuro = futuro[futuro["teto"] == ctx.p.teto]
+        figura_tres_cenarios(ctx.anual, futuro, ctx.fim.year - 1, pasta, rotulo)
+    # A regra principal também fica na pasta da linguagem, onde é fácil de achar.
+    principal = next(iter(ctx.p.variantes))
+    origem = fb.CFG.saida / PASTA / f"cenarios-{principal}" / "tres_cenarios.png"
+    if origem.exists():
+        shutil.copy(origem, fb.CFG.saida / PASTA / "tres_cenarios.png")
+
+
 @figura("cenarios", "comparadas", padrao=True)
 def figura_cenarios_comparadas(ctx: Any, d: Dados) -> None:
     """Todas as regras de `variantes` lado a lado, um painel por regra."""
@@ -1534,7 +1620,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
             if i == len(slugs) - 1 and tem:
                 ax.set_xlabel("% dos ativos do ano", fontsize=7)
     fig.suptitle("Pirâmides por tempo de casa, linha do tempo por linguagem")
-    _legenda_piramide(fig, lado)
+    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
 
@@ -1555,6 +1641,44 @@ def figura_reposicao(ctx: Any, d: Dados) -> None:
     ax.set_title("Reposição: todo mundo que entrou dividido por todo mundo que saiu")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_reposicao.png", geral=True)
+
+
+def lados_por_ano(d: Dados) -> pd.DataFrame:
+    """% dos ativos do ano do lado do código (moved e coding) e do lado da discussão, por ano."""
+    c = d["composicao_pct"]
+    por_ano = c.groupby(["slug", "ano"])[vitalidade.LADOS].sum().reset_index()
+    por_ano["codigo_pct"] = por_ano["moved"] + por_ano["coding"]
+    por_ano["discussao_pct"] = por_ano["non_coding"] + por_ano["moved_to_discussion"]
+    ativos = d["trajetoria"][["slug", "ano", "ativos"]]
+    por_ano = por_ano.merge(ativos, on=["slug", "ano"])
+    return por_ano[por_ano["ativos"] >= MIN_PESSOAS]
+
+
+@figura("trajetoria", "lados", padrao=True)
+def figura_lados(ctx: Any, d: Dados) -> None:
+    """Parcela da população do ano que já fez commit ou PR (lado do código), por linguagem."""
+    t = lados_por_ano(d)
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ax.axhline(50, color="#888888", linewidth=0.8)
+    for slug in ctx.p.linguagens_rq2:
+        f = t[(t["slug"] == slug) & (t["ano"] >= ctx.p.ano_inicio_comparacao)]
+        ax.plot(
+            f["ano"],
+            f["codigo_pct"],
+            color=cor_da(slug),
+            linewidth=2,
+            marker="o",
+            markersize=4,
+            label=carga_fonte.LINGUAGENS[slug].nome,
+        )
+    ax.set_ylim(0, 100)
+    ax.set_ylabel(f"% da {TERMO_POPULACAO} do lado do código")
+    ax.set_xlabel("ano")
+    ax.set_title("Lado do código: quem já fez commit ou PR, o resto discute")
+    ax.legend(frameon=False, ncol=5, loc="lower center", bbox_to_anchor=(0.5, 1.0))
+    plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    salva(fig, "trajetoria_lados.png", geral=True)
 
 
 @figura("trajetoria", "taxas")
@@ -1598,7 +1722,7 @@ def figura_piramides_entre_linguagens(ctx: Any, d: Dados) -> None:
         ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
         ax.set_xlabel("% dos ativos do ano", fontsize=8)
     fig.suptitle(f"Composição por tempo de casa em {ano}")
-    _legenda_piramide(fig, lado)
+    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     salva(fig, "trajetoria_piramides.png", geral=True)
 

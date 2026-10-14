@@ -158,6 +158,7 @@ class Parametros:
     populacao: str
     piramide_em_pct: bool
     piramide_lado: str
+    usa_moved_to_discussion: bool
     ano_comparacao: int
     ano_base_indice: int
     ano_inicio_comparacao: int
@@ -360,7 +361,9 @@ class Contexto:
             f"compactados, estudo até {self.fim.date()}, acompanhamento até "
             f"{self.fim_acompanhamento.date()}"
         )
-        pa = vitalidade.pessoa_ano(self.compactos_coleta, self.fim_acompanhamento)
+        pa = vitalidade.pessoa_ano(
+            self.compactos_coleta, self.fim_acompanhamento, p.usa_moved_to_discussion
+        )
         self.pa = pa[pa["ano"] <= self.fim.year].reset_index(drop=True)
         self.anual = vitalidade.tabela_anual(self.pa, self.fim_acompanhamento)
         self.dur = vitalidade.duracoes(self.compactos_coleta, self.fim_acompanhamento)
@@ -411,6 +414,7 @@ PARAMETROS_DO_CALCULO = (
     "usa_acompanhamento",
     "tabua_ate_anos",
     "ano_base_indice",
+    "usa_moved_to_discussion",
     "ccr_ncr_inatividade_meses",
     "ccr_ncr_novato_meses",
 )
