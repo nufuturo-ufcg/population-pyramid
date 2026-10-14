@@ -341,3 +341,36 @@ def test_grade_conta_a_tarefa_que_falha_e_segue():
     with ThreadPoolExecutor(2) as pool:
         falhas = grade.executa(pool, {}, ["a", "b"], ["x"], linguagem, lambda c, p: None)
     assert len(falhas) == 1 and "linguagem b x" in falhas[0]
+
+
+def test_piramide_lado_deixa_so_as_categorias_pedidas():
+    import pandas as pd
+
+    import vitalidade_figuras as f
+
+    q = pd.DataFrame({"non_coding": [1], "moved_to_discussion": [2], "moved": [3], "coding": [4]})
+    esperado = {
+        "todos": [1, 2, 3, 4],
+        "moved_para_discussao": [0, 2, 0, 0],
+        "moved_para_codigo": [0, 0, 3, 0],
+        "codigo": [0, 0, 3, 4],
+        "discussao": [1, 2, 0, 0],
+    }
+    for lado, valores in esperado.items():
+        assert f._so_o_lado(q, lado).iloc[0].tolist() == valores, lado
+    with pytest.raises(SystemExit):
+        f._so_o_lado(q, "inexistente")
+
+
+def test_piramide_em_pct_usa_o_total_das_quatro_categorias_como_base():
+    import pandas as pd
+
+    import vitalidade_figuras as f
+
+    q = pd.DataFrame(
+        {"non_coding": [10], "moved_to_discussion": [10], "moved": [30], "coding": [50]}
+    )
+    em_pct = f._em_pct(q)
+    assert em_pct.iloc[0].tolist() == [10, 10, 30, 50]
+    # Um lado isolado mostra a parcela dele, não 100%.
+    assert f._so_o_lado(em_pct, "codigo").iloc[0].tolist() == [0, 0, 30, 50]

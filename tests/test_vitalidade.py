@@ -461,3 +461,36 @@ def test_deixou_codigo_e_o_caminho_de_volta_do_moved():
     pequeno = vitalidade.compacta(ev)
     t2 = vitalidade.tabela_anual(vitalidade.pessoa_ano(pequeno, fim), fim).set_index("ano")
     assert list(t2["deixou_codigo"]) == [1, 0]
+
+
+def test_categorias_da_piramide_pelo_lado_da_atividade_mais_recente():
+    """O lado de quem é no fim do ano: a última discussão depois do último commit/PR é discussão."""
+    linhas = [
+        (1, "commits", "2018-02-01"),  # codou e depois só discutiu: moved_to_discussion
+        (1, "issue_comments", "2018-08-01"),
+        (2, "issue_comments", "2018-02-01"),  # discutiu e depois codou: moved
+        (2, "commits", "2018-09-01"),
+        (3, "commits", "2018-05-01"),  # só código: coding
+        (4, "issues", "2018-05-01"),  # só discussão: non_coding
+        (5, "issue_comments", "2018-02-01"),  # discussão, código, discussão: moved_to_discussion
+        (5, "commits", "2018-03-01"),
+        (5, "issue_comments", "2019-06-01"),
+        (6, "commits", "2018-02-01"),  # codou, discutiu e voltou a codar em 2019
+        (6, "issue_comments", "2018-03-01"),
+        (6, "commits", "2019-04-01"),
+    ]
+    ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    fim = pd.Timestamp("2019-12-31 23:59:59")
+    pa = vitalidade.pessoa_ano(ev, fim).set_index(["contributor_id", "ano"])
+    assert pa.loc[(1, 2018), "categoria"] == "moved_to_discussion"
+    assert pa.loc[(2, 2018), "categoria"] == "moved"
+    assert pa.loc[(3, 2018), "categoria"] == "coding"
+    assert pa.loc[(4, 2018), "categoria"] == "non_coding"
+    assert pa.loc[(5, 2018), "categoria"] == "moved"  # em 2018 a última atividade ainda é código
+    assert pa.loc[(5, 2019), "categoria"] == "moved_to_discussion"
+    assert pa.loc[(6, 2018), "categoria"] == "moved_to_discussion"
+    assert pa.loc[(6, 2019), "categoria"] == "coding"  # voltou a codar: o lado muda
+    comp = vitalidade.composicao(pa.reset_index())
+    assert list(comp.columns) == ["ano", "faixa", *vitalidade.LADOS]
+    assert comp[vitalidade.LADOS].to_numpy().sum() == len(pa)

@@ -352,3 +352,23 @@ def test_timeline_passo_anos_invalido_falha_alto(monkeypatch, tmp_path):
     _tl4_monkeypatch(monkeypatch, tmp_path)
     with pytest.raises(ValueError, match="passo_anos"):
         plots.figure_pyramid_timeline(1, ultimos_anos=4, passo_anos=0)
+
+
+def test_draw_pyramid_empilha_moved_to_discussion_no_lado_da_discussao():
+    """A coluna opcional `moved_to_discussion` soma à esquerda; sem ela o desenho é o de sempre."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    quadro = pd.DataFrame(
+        {"band": [0], "non_coding": [3], "moved": [2], "coding": [4], "moved_to_discussion": [5]}
+    )
+    _, ax = plt.subplots()
+    xmax, _ = plots.draw_pyramid(ax, quadro)
+    assert xmax == 8  # 3 + 5 à esquerda, maior que 2 + 4 à direita
+    sem_a_coluna = quadro.drop(columns=["moved_to_discussion"])
+    _, ax2 = plt.subplots()
+    xmax2, _ = plots.draw_pyramid(ax2, sem_a_coluna)
+    assert xmax2 == 6
+    plt.close("all")

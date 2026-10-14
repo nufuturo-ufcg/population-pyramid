@@ -64,12 +64,14 @@ TICK = "#9E9E9E"
 # direita, empilhado com `moved` na base. Mesma ordem da Fig.1 do IEICE16.
 FILL = {
     "non_coding": "#FFFFFF",
+    "moved_to_discussion": "#BDBDBD",
     "moved": "#BDBDBD",
     "coding": "#4D4D4D",
 }
-HATCH = {"non_coding": "///", "moved": "", "coding": ""}
+HATCH = {"non_coding": "///", "moved_to_discussion": "///", "moved": "", "coding": ""}
 PT_LABEL = {
     "non_coding": "non-coding",
+    "moved_to_discussion": "moved to discussion",
     "moved": "moved to coding",
     "coding": "coding",
 }
@@ -185,11 +187,17 @@ def draw_pyramid(
     _theme(ax)
 
     if frame.empty:
-        y, non, moved, coding = (pd.Series(dtype=float),) * 4
+        y, non, moved_discussion, moved, coding = (pd.Series(dtype=float),) * 5
         topo = 0
     else:
         y = frame["band"].to_numpy()
         non = frame["non_coding"].to_numpy()
+        # Coluna opcional de quem codou e passou a discutir, empilhada no lado da discussão.
+        # A pirâmide do artigo não a tem, e sem ela o desenho é o de sempre.
+        if "moved_to_discussion" in frame:
+            moved_discussion = frame["moved_to_discussion"].to_numpy()
+        else:
+            moved_discussion = non * 0
         moved = frame["moved"].to_numpy()
         coding = frame["coding"].to_numpy()
         topo = int(y.max())
@@ -199,6 +207,16 @@ def draw_pyramid(
             height=0.85,
             color=FILL["non_coding"],
             hatch=HATCH["non_coding"],
+            edgecolor="#4D4D4D",
+            linewidth=0.5,
+        )
+        ax.barh(
+            y,
+            -moved_discussion,
+            height=0.85,
+            left=-non,
+            color=FILL["moved_to_discussion"],
+            hatch=HATCH["moved_to_discussion"],
             edgecolor="#4D4D4D",
             linewidth=0.5,
         )
@@ -216,7 +234,15 @@ def draw_pyramid(
     lim = (
         xmax
         if xmax is not None
-        else (max(float(non.max()), float((moved + coding).max()), 1.0) if not frame.empty else 1.0)
+        else (
+            max(
+                float((non + moved_discussion).max()),
+                float((moved + coding).max()),
+                1.0,
+            )
+            if not frame.empty
+            else 1.0
+        )
     )
     if xticks:
         lim = max(lim, float(max(xticks)))

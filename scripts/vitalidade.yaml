@@ -82,6 +82,16 @@ populacao: passou_30_dias
 # composicao.piramides_contagem.
 piramide_em_pct: true
 
+# Que categorias as pirâmides mostram. As porcentagens seguem sobre os ativos do ano todo, então um
+# lado isolado mostra a parcela dele. As quatro categorias, de quem era e é quem no fim do ano:
+#   non_coding           só discussão: nunca fez commit nem PR
+#   moved_to_discussion  já codou e a atividade mais recente é discussão
+#   moved                começou pela discussão e hoje está do lado do código
+#   coding               o resto de quem codou
+# Opções: todos (as quatro), moved_para_discussao, moved_para_codigo, codigo (moved + coding),
+# discussao (non_coding + moved_to_discussion). Só muda o desenho.
+piramide_lado: todos
+
 # Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
 ano_comparacao: 2024
 ano_base_indice: 2019

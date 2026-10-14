@@ -59,6 +59,7 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 |---|---|---|---|
 | `anos_piramide` | 2010, 2014, 2018, 2022, 2025 | anos das pirâmides por linguagem. | desenho |
 | `piramide_em_pct` | true | pirâmides em % dos ativos do ano. `false` desenha contagens. | desenho |
+| `piramide_lado` | `todos` | quais categorias as pirâmides mostram: `todos` (as quatro), `moved_para_discussao`, `moved_para_codigo`, `codigo` (moved + coding), `discussao` (non_coding + moved_to_discussion). A base da % segue sendo os ativos do ano todo. | desenho |
 | `saidas_estavel` | 20 | taxa de saída da célula (faixa, ano) fica vazada com menos saídas que isso. Mesmo critério do CDC. | desenho |
 
 ### Carga dos eventos
@@ -80,14 +81,14 @@ Origem dos dados: `scripts/vitalidade_fontes.yaml`, `--dados`, `--eventos`, `--a
 | métrica | escopo | lê (tabela) | lê (só desenho) |
 |---|---|---|---|
 | `tamanho` | linguagem | `populacao`, `data_de_corte` | `carencia_anos` |
-| `composicao` | linguagem | `populacao`, `data_de_corte` | `anos_piramide`, `piramide_em_pct` |
+| `composicao` | linguagem | `populacao`, `data_de_corte` | `anos_piramide`, `piramide_em_pct`, `piramide_lado` |
 | `retencao` | linguagem | `populacao`, `data_de_corte` | `coortes_tabua` |
 | `saida_por_faixa` | linguagem | `populacao`, `data_de_corte` | `saidas_estavel`, `carencia_anos` |
 | `cenarios` | linguagem | `min_saidas`, `variantes`, `horizonte` | `teto` |
 | `ccr_ncr` | linguagem | `ccr_ncr_inatividade_meses`, `ccr_ncr_novato_meses` | |
 | `significancia` | comparativo | `linguagens_rq2` | |
 | `comparacao_corrigida` | comparativo | `linguagens_rq2`, `rodadas_padronizacao`, `ano_pesos` | `carencia_anos` |
-| `trajetoria` | comparativo | `linguagens_rq2`, `ano_base_indice`, `carencia_anos` | `ano_comparacao` |
+| `trajetoria` | comparativo | `linguagens_rq2`, `ano_base_indice`, `carencia_anos` | `ano_comparacao`, `anos_piramide`, `piramide_lado` |
 | `ccr_ncr_comparado` | comparativo | `linguagens_rq2`, `ccr_ncr_inatividade_meses`, `ccr_ncr_novato_meses` | |
 | `tabua_comparada` | comparativo | `linguagens_rq2`, `tabua_ate_anos` | |
 | `stickiness`, `magnetismo` | linguagem | nenhum (fora do padrão) | |

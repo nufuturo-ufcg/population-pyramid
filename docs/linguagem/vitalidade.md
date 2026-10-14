@@ -170,6 +170,21 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - `scipy.stats.ecdf` com `CensoredData` faz a curva. `scipy.stats.logrank` compara Clojure com cada linguagem.
 - Sem censura, o S(1) do Kaplan-Meier é igual ao S(1) da tábua (teste em `tests/test_vitalidade.py`).
 
+## Categorias da pirâmide
+
+No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias. O lado é o da atividade mais recente até o fim do ano.
+
+| categoria | lado | quem é |
+|---|---|---|
+| `non_coding` | discussão | nunca fez commit nem PR |
+| `moved_to_discussion` | discussão | já codou, e a última discussão veio depois do último commit ou PR |
+| `moved` | código | começou pela discussão e hoje o último evento é código |
+| `coding` | código | o resto de quem codou |
+
+- A pirâmide é um retrato do fim do ano: olha só o passado. Quem voltar a codar em 2019 sai de `moved_to_discussion` e entra em `coding` ou `moved`.
+- O parâmetro `piramide_lado` limita o desenho a uma parte: `moved_para_discussao`, `moved_para_codigo`, `codigo` (moved + coding), `discussao` (non_coding + moved_to_discussion) ou `todos`. A base da % continua sendo os ativos do ano todo.
+- `moved_to_discussion` é uma situação (estoque). A coluna `deixou_codigo` da tabela anual e a figura de troca de papel contam um fluxo, olhando o futuro.
+
 ## Troca de papel
 
 - `moved` (ida): primeiro commit ou PR depois de já ter discutido. Ano = o do primeiro commit ou PR.

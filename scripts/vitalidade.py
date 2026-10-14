@@ -157,6 +157,7 @@ class Parametros:
     processos: int
     populacao: str
     piramide_em_pct: bool
+    piramide_lado: str
     ano_comparacao: int
     ano_base_indice: int
     carencia_anos: int
@@ -695,7 +696,7 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
         trajetorias.append(t)
         c = vitalidade.composicao(lingua.pa)
-        lados = ["non_coding", "moved", "coding"]
+        lados = vitalidade.LADOS
         total_do_ano = c[lados].sum(axis=1).groupby(c["ano"]).transform("sum")
         c[lados] = 100 * c[lados].div(total_do_ano, axis=0)
         c.insert(0, "slug", slug)

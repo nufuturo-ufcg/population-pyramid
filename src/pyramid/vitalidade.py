@@ -188,6 +188,21 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     pa = ev.assign(ano=ev["timestamp"].dt.year)[["contributor_id", "ano"]].drop_duplicates()
     pa = pa.join(marcos, on="contributor_id")
 
+    # Último commit/PR e última discussão até o fim de cada ano: a pirâmide é um retrato do fim do
+    # ano, então olha só o passado. A compactação guarda o último evento de cada lado por
+    # trimestre, e o máximo acumulado dá o valor exato.
+    do_codigo = ev["event_type"].isin(TIPOS_CODING)
+    ts = ev["timestamp"]
+    por_ano = (
+        ev.assign(ano=ts.dt.year, _c=ts.where(do_codigo), _d=ts.where(~do_codigo))
+        .groupby(["contributor_id", "ano"])
+        .agg(last_c_ate=("_c", "max"), last_d_ate=("_d", "max"))
+    )
+    # cummax deixa NaT nos anos sem evento daquele lado; o ffill carrega o máximo adiante.
+    ate_o_ano = por_ano.groupby(level="contributor_id").cummax()
+    ate_o_ano = ate_o_ano.groupby(level="contributor_id").ffill()
+    pa = pa.join(ate_o_ano, on=["contributor_id", "ano"])
+
     fim_ano = pd.to_datetime((pa["ano"] + 1).astype(str) + "-01-01")
     # Idade em anos de calendário: cada faixa de 1 ano é exatamente uma coorte
     # de entrada, que é o que a projeção por coorte precisa para envelhecer 1 por ano.
@@ -199,9 +214,18 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
 
     # Mesma regra de `snapshots.pyramid_at`, avaliada no fim do ano.
     codou = pa["init_c"].notna() & (pa["init_c"] < fim_ano)
-    moved = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
-    pa["categoria"] = np.where(codou, np.where(moved, "moved", "coding"), "non_coding")
-    pa["moved_no_ano"] = moved & (pa["init_c"].dt.year == pa["ano"])
+    comecou_na_discussao = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
+    # O lado de volta do `moved`. Cada pessoa fica no lado da atividade mais recente: se a última
+    # discussão veio depois do último commit/PR, ela está do lado da discussão, e como já codou é
+    # `moved_to_discussion`. No lado do código, `moved` é quem começou pela discussão.
+    foi_para_discussao = codou & pa["last_d_ate"].notna() & (pa["last_d_ate"] > pa["last_c_ate"])
+    pa["categoria"] = np.select(
+        [~codou, foi_para_discussao, comecou_na_discussao],
+        ["non_coding", "moved_to_discussion", "moved"],
+        default="coding",
+    )
+    # Fluxo: o ano em que quem começou pela discussão fez o primeiro commit/PR.
+    pa["moved_no_ano"] = comecou_na_discussao & (pa["init_c"].dt.year == pa["ano"])
     # O caminho de volta: a pessoa para de codar e depois só discute. O ano é o do último
     # commit ou PR, e só existe olhando o futuro (quem codar de novo deixa de contar).
     deixou = pa["last_c"].notna() & pa["last_d"].notna() & (pa["last_d"] > pa["last_c"])
@@ -238,7 +262,9 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     # Dois períodos separados por 12 meses não terminam (nem começam) no mesmo ano.
     if pa.duplicated(["contributor_id", "ano"]).any():
         raise ValueError("pessoa_ano: (pessoa, ano) repetido; mais de uma saída ou volta no ano.")
-    return pa.drop(columns=["init_c", "init_d", "last_c", "last_d"]).reset_index(drop=True)
+    return pa.drop(
+        columns=["init_c", "init_d", "last_c", "last_d", "last_c_ate", "last_d_ate"]
+    ).reset_index(drop=True)
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
@@ -463,6 +489,10 @@ def ccr_ncr_trimestral(
     return pd.DataFrame(linhas)
 
 
+# As quatro categorias da pirâmide no fim do ano. Esquerda: só discussão e quem codou e passou a
+# discutir. Direita: quem discutiu primeiro e passou a codar (`moved`) e o resto de quem codou.
+LADOS = ["non_coding", "moved_to_discussion", "moved", "coding"]
+
 BAND_DIAS = 90  # trimestre de 90 dias, como o `band_days` da replicação do IEICE16
 
 
@@ -472,7 +502,7 @@ def composicao_trimestral(pa: pd.DataFrame, band_dias: int = BAND_DIAS) -> pd.Da
     A idade é o tempo desde a primeira contribuição até o fim do ano, em bandas de `band_dias`
     dias; a banda 0 vai de 0 a 90 dias. Os lados são os de `composicao`.
     """
-    lados = ["non_coding", "moved", "coding"]
+    lados = LADOS
     banda = (np.ceil((pa["idade_dias"] / band_dias).round(9)) - 1).clip(lower=0).astype(int)
     t = pa.assign(band=banda).groupby(["ano", "band", "categoria"]).size().unstack(fill_value=0)
     for lado in lados:
@@ -517,12 +547,12 @@ def tira_pessoas_de_um_dia(eventos: pd.DataFrame) -> pd.DataFrame:
 
 
 def composicao(pa: pd.DataFrame) -> pd.DataFrame:
-    """Ativos por (ano, faixa) em cada lado da pirâmide: non_coding, moved, coding."""
+    """Ativos por (ano, faixa) nas quatro categorias da pirâmide (ver `LADOS`)."""
     t = pa.groupby(["ano", "faixa", "categoria"], observed=False).size().unstack(fill_value=0)
-    for coluna in ("non_coding", "moved", "coding"):
+    for coluna in LADOS:
         if coluna not in t.columns:
             t[coluna] = 0
-    return t[["non_coding", "moved", "coding"]].reset_index()
+    return t[LADOS].reset_index()
 
 
 def indice_envelhecimento(pa: pd.DataFrame) -> pd.DataFrame:
