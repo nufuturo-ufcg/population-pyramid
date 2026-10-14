@@ -809,7 +809,8 @@ class RegraCenario:
     novatos_por_taxa  novatos viram taxa (novatos de Y / ativos de Y-1), aplicada
                       à população do ano projetado; falso usa a contagem de novatos
     conservador       como o cenário conservador sai da janela: `extremos` é a média do menor
-                      e do maior valor, `media` é a média de todos os anos da janela
+                      e do maior valor, `media` é a média de todos os anos da janela e
+                      `recentes` é a média dos 2 últimos anos da janela
     """
 
     min_saidas: int = 0
@@ -851,15 +852,19 @@ def cenarios(
     if regra.novatos_por_taxa:
         ativos_antes = pop.sum(axis=1).shift(1).loc[inicio:ate_ano]
         novatos = novatos / ativos_antes
-    if regra.conservador == "media":
-        meio = (np.array(h.mean(), dtype=float), float(novatos.mean()))
+    if regra.conservador in ("media", "recentes"):
+        recorte = h if regra.conservador == "media" else h.tail(2)
+        novatos_do_meio = novatos if regra.conservador == "media" else novatos.tail(2)
+        meio = (np.array(recorte.mean(), dtype=float), float(novatos_do_meio.mean()))
         for a in range(BANDAS):
             if np.isnan(meio[0][a]):
                 meio[0][a] = ultimo[a]
     elif regra.conservador == "extremos":
         meio = ((menor + maior) / 2, float(novatos.min() + novatos.max()) / 2)
     else:
-        raise ValueError(f"conservador {regra.conservador!r}: use 'extremos' ou 'media'.")
+        raise ValueError(
+            f"conservador {regra.conservador!r}: use 'extremos', 'media' ou 'recentes'."
+        )
     return {
         "pessimista": (menor, float(novatos.min())),
         "conservador": meio,
