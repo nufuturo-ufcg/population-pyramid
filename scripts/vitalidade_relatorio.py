@@ -205,8 +205,6 @@ def secao_ccr_ncr(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "- NCR = (novatos - experientes) / o maior dos dois. Novato tem até 12 meses de casa.",
         "- Valores no fim de cada ano, nas comunidades com pelo menos 100 ativos.",
         "",
-        f"![série]({figuras}/ccr_ncr_serie.png)",
-        "",
         f"![dispersão]({figuras}/ccr_ncr_dispersao.png)",
         "",
         "### CCR no fim do ano",

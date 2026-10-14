@@ -1314,48 +1314,6 @@ def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
     salva(fig, "ccr_ncr_dispersao.png", geral=True)
 
 
-# Cor de fundo de cada tipo do CCR/NCR e o que o sinal dos dois quer dizer.
-TIPOS_CCR_NCR = {
-    "A": ("#1baf7a", "A: mais código, mais novatos"),
-    "B": ("#2a78d6", "B: mais discussão, mais novatos"),
-    "C": ("#eda100", "C: mais código, mais experientes"),
-    "D": ("#e87ba4", "D: mais discussão, mais experientes"),
-}
-
-
-@figura("ccr_ncr_comparado", "serie", padrao=True)
-def figura_ccr_ncr_comparado_serie(ctx: Any, d: Dados) -> None:
-    """CCR e NCR por trimestre, um painel por linguagem, com o tipo A a D no fundo."""
-    t = _ccr_ncr_com_massa(d["ccr_ncr_comparado"]).copy()
-    t["snapshot"] = pd.to_datetime(t["snapshot"])
-    slugs = [s for s in ctx.p.linguagens_rq2 if s in set(t["slug"])]
-    fig, eixos = plt.subplots(len(slugs), 1, figsize=(10, 2.1 * len(slugs)), sharex=True)
-    for ax, slug in zip(eixos, slugs, strict=True):
-        f = t[t["slug"] == slug]
-        for _, linha in f.iterrows():
-            cor = TIPOS_CCR_NCR[linha["type"]][0]
-            fim = linha["snapshot"]
-            ax.axvspan(fim - pd.Timedelta(days=91), fim, color=cor, alpha=0.18, linewidth=0)
-        ax.axhline(0, color="#888888", linewidth=0.8)
-        ax.plot(f["snapshot"], f["ccr"], color="#184f95", linewidth=2, label="CCR")
-        ax.plot(f["snapshot"], f["ncr"], color="black", linewidth=2, linestyle="--", label="NCR")
-        ax.set_ylim(-1.05, 1.05)
-        ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=11)
-        plots._theme(ax)
-    inicio = t["snapshot"].min() - pd.Timedelta(days=91)
-    eixos[0].set_xlim(inicio, t["snapshot"].max())
-    eixos[-1].set_xlabel("trimestre")
-    from matplotlib.patches import Patch
-
-    handles, _ = eixos[0].get_legend_handles_labels()
-    for cor, rotulo in TIPOS_CCR_NCR.values():
-        handles.append(Patch(facecolor=cor, alpha=0.18, label=rotulo))
-    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=8)
-    fig.suptitle("CCR e NCR por trimestre, um painel por linguagem")
-    fig.tight_layout(rect=(0, 0.07, 1, 0.97))
-    salva(fig, "ccr_ncr_serie.png", geral=True)
-
-
 @figura("stickiness", "barras", padrao=True)
 def figura_stickiness_barras(ctx: Any, d: Dados) -> None:
     """Uma barra por ano."""

@@ -291,8 +291,6 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         tabela_md(ccr_tabela, 2),
         "",
-        figura(pastas.base, f"geral{pastas.sufixo}/vitalidade/ccr_ncr_serie.png", "série"),
-        "",
         "### 1.5 Clojure é uma comunidade envelhecida que não se renova?",
         "",
         "A pergunta, em termos demográficos: a comunidade repõe quem sai, e o tempo de casa de "

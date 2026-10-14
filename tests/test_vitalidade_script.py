@@ -65,9 +65,14 @@ def test_toda_metrica_tem_figura_e_ao_menos_uma_por_padrao():
         assert padrao, nome
 
 
+# A série trimestral do CCR e NCR entre linguagens foi descartada, sobra a dispersão por ano.
+COM_UMA_FIGURA_SO = {"ccr_ncr_comparado"}
+
+
 def test_toda_metrica_oferece_uma_figura_alternativa():
     for nome in script.METRICAS:
-        assert len(script.FIGURAS[nome]) >= 2, nome
+        minimo = 1 if nome in COM_UMA_FIGURA_SO else 2
+        assert len(script.FIGURAS[nome]) >= minimo, nome
 
 
 def test_escolha_de_figuras():
