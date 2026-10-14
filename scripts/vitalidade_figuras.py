@@ -637,6 +637,24 @@ def _xmax_das_piramides(quadros: list[pd.DataFrame], minimo: float = 1.0) -> flo
     return xmax
 
 
+def _regua_x_de_10_em_10(ax: Any, xmax: float) -> None:
+    """Ticks de 10 em 10 (de 5 em 5 se a escala é pequena), iguais nos dois lados e sem sinal."""
+    passo = 10 if xmax >= 20 else 5
+    lado: list[int] = []
+    valor = passo
+    while valor <= xmax * 1.08:
+        lado.append(valor)
+        valor += passo
+    ticks: list[int] = []
+    for t in reversed(lado):
+        ticks.append(-t)
+    ticks.append(0)
+    for t in lado:
+        ticks.append(t)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([f"{abs(t)}" for t in ticks])
+
+
 def _legenda_piramide(fig: Any, lado: str, com_moved_to_discussion: bool) -> None:
     """Legenda das categorias que o `lado` mostra, sem moved to discussion se ela não existe."""
     from matplotlib.patches import Patch
@@ -674,6 +692,8 @@ def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
     fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 3.8), sharey=True)
     for ax, ano, q in zip(eixos, anos, quadros, strict=True):
         plots.draw_pyramid(ax, q, xmax=xmax)
+        if em_pct:
+            _regua_x_de_10_em_10(ax, xmax)
         ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
         ax.set_yticks(range(len(vitalidade.FAIXAS)), minor=False)
         ax.set_yticks([], minor=True)
@@ -681,7 +701,7 @@ def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
         ax.set_title(str(ano))
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
-    fig.suptitle(f"{_nome()}: {unidade} por tempo de casa")
+    fig.suptitle(f"{_nome()}: {unidade} por tempo na linguagem")
     _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     salva(fig, "piramides_faixa_pct.png" if em_pct else "piramides_faixa.png")
@@ -724,7 +744,7 @@ def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
         ax.set_title(str(ano))
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
-    fig.suptitle(f"{_nome()}: {unidade} por tempo de casa, bandas de 3 meses")
+    fig.suptitle(f"{_nome()}: {unidade} por tempo na linguagem, bandas de 3 meses")
     _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.06, 1, 1))
     salva(fig, "piramides_trimestrais.png")
@@ -737,7 +757,7 @@ def figura_indice(ctx: Any, d: Dados) -> None:
     ind = ind[ind["veteranos"] > 0]  # antes do primeiro veterano o índice é 0 por definição
     fig, ax = plt.subplots(figsize=(9, 3.5))
     ax.plot(ind["ano"], ind["indice"], color=categorica()[0], linewidth=2, marker="o", markersize=4)
-    ax.set_ylabel("ativos com 5 anos ou mais de casa\npara cada ativo com menos de 1 ano")
+    ax.set_ylabel("ativos com 5 anos ou mais na linguagem\npara cada ativo com menos de 1 ano")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: índice de envelhecimento")
     plots._theme(ax)
@@ -778,7 +798,7 @@ def figura_taxa_saida(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_ylabel(f"saídas / ativos da faixa\nponto vazado = menos de {saidas_estavel} saídas")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: taxa de saída por faixa de tempo de casa")
+    ax.set_title(f"{_nome()}: taxa de saída por faixa de tempo na linguagem")
     ax.legend(loc="upper right", frameon=False, ncol=3)
     plots._theme(ax)
     salva(fig, "taxa_saida_faixa.png")
@@ -977,7 +997,7 @@ def figura_km(ctx: Any, d: Dados) -> None:
 
 @figura("tabua_comparada", "esperanca", padrao=True)
 def figura_tabua_esperanca(ctx: Any, d: Dados) -> None:
-    """e(x), a vida restante de quem chegou a x anos de casa, uma linha por linguagem."""
+    """e(x), a vida restante de quem chegou a x anos na linguagem, uma linha por linguagem."""
     t = d["tabua_comparada"]
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for slug in ctx.p.linguagens_rq2:
@@ -1017,9 +1037,11 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
     ax1.set_ylim(0, 1)
     ax2.set_ylim(0, 1)
     for ax in (ax1, ax2):
-        ax.set_xlabel("anos de casa x")
+        ax.set_xlabel("anos na linguagem x")
         plots._theme(ax)
-    ax2.set_xlabel(f"anos de casa x, ponto vazado = menos de {MIN_EXPOSICAO} pessoas observadas")
+    ax2.set_xlabel(
+        f"anos na linguagem x, ponto vazado = menos de {MIN_EXPOSICAO} pessoas observadas"
+    )
     ax1.legend(frameon=False)
     fig.suptitle("Chegar à senioridade e permanecer nela")
     fig.tight_layout()
@@ -1042,7 +1064,7 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
             ("taxa_bruta", "1. Taxa de saída como foi observada", "saídas / ativos"),
             (
                 "taxa_padronizada_ate_5a",
-                f"2. Taxa de saída com a composição de {ano_pesos} para todas, 0 a 5 anos de casa",
+                f"2. Taxa de saída com a composição de {ano_pesos} para todas, 0 a 5 anos",
                 "saídas / ativos",
             ),
             (
@@ -1147,7 +1169,7 @@ def figura_troca_de_papel(ctx: Any, d: Dados) -> None:
 
 @figura("composicao", "proporcao")
 def figura_proporcao(ctx: Any, d: Dados) -> None:
-    """Área empilhada: parcela de cada faixa de tempo de casa nos ativos do ano."""
+    """Área empilhada: parcela de cada faixa de tempo na linguagem nos ativos do ano."""
     c = d["composicao"].copy()
     c["total"] = c[vitalidade.LADOS].sum(axis=1)
     t = c.groupby(["ano", "faixa"], observed=False)["total"].sum().unstack()[vitalidade.FAIXAS]
@@ -1163,7 +1185,7 @@ def figura_proporcao(ctx: Any, d: Dados) -> None:
     ax.set_ylim(0, 1)
     ax.set_ylabel("parcela dos ativos")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: composição por tempo de casa")
+    ax.set_title(f"{_nome()}: pessoas por tempo na linguagem")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=6, frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -1541,6 +1563,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
             if tem:
                 q["band"] = q["faixa"].map(codigo).astype(int)
                 plots.draw_pyramid(ax, _so_o_lado(q, lado), xmax=xmax)
+                _regua_x_de_10_em_10(ax, xmax)
             else:
                 ax.text(0.5, 0.5, "menos de 100 ativos", ha="center", va="center", color="#999999")
                 ax.set_xticks([])
@@ -1553,7 +1576,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
                 ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=11)
             if i == len(slugs) - 1 and tem:
                 ax.set_xlabel("% dos ativos do ano", fontsize=7)
-    fig.suptitle("Pirâmides por tempo de casa, linha do tempo por linguagem")
+    fig.suptitle("Pirâmides por tempo na linguagem, linha do tempo por linguagem")
     _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
@@ -1653,13 +1676,14 @@ def figura_piramides_entre_linguagens(ctx: Any, d: Dados) -> None:
         fig, eixos = plt.subplots(1, len(slugs), figsize=(3.4 * len(slugs), 3.8), sharey=True)
         for ax, slug, q in zip(eixos, slugs, quadros, strict=True):
             plots.draw_pyramid(ax, q, xmax=xmax)
+            _regua_x_de_10_em_10(ax, xmax)
             ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
             ax.set_yticks(range(len(vitalidade.FAIXAS)), minor=False)
             ax.set_yticks([], minor=True)
             ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS])
             ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
             ax.set_xlabel("% dos ativos do ano", fontsize=8)
-        fig.suptitle(f"Composição por tempo de casa em {ano}")
+        fig.suptitle(f"Pessoas por anos na linguagem em {ano}")
         _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
         fig.tight_layout(rect=(0, 0.08, 1, 1))
         salva(fig, f"trajetoria_piramides_{ano}.png", geral=True)

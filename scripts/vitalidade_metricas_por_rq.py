@@ -15,7 +15,7 @@ import pandas as pd
 
 import carga_fonte
 import vitalidade as v
-from vitalidade_relatorio import por_linguagem, tabela_md
+from vitalidade_relatorio import num, peso_de_cada_ano, por_linguagem, tabela_md
 
 RQ1 = "RQ1: Como a população de Clojure mudou entre 2008 e 2026?"
 RQ2 = (
@@ -69,10 +69,10 @@ def glossario() -> str:
         "- **Reposição**: todo mundo que entrou no ano (novatos e voltas) dividido por todo mundo "
         "que saiu (saídas e pausas). Acima de 1 o crescimento natural é positivo. Abaixo de 1 "
         "a comunidade perde mais gente do que ganha.",
-        "- **Índice de envelhecimento**: ativos com 5 anos ou mais de casa divididos pelos ativos "
-        "com menos de 1 ano de casa. A idade é o tempo na linguagem, não a idade da pessoa. "
-        "Com índice 1 há tantos veteranos quanto novatos. Quando sobe, a base da pirâmide "
-        "encolhe mais rápido que o topo.",
+        "- **Índice de envelhecimento**: ativos com 5 anos ou mais na linguagem divididos pelos "
+        "ativos com menos de 1 ano na linguagem. A idade é o tempo na linguagem. A idade da "
+        "pessoa fica fora da conta. Com índice 1 há tantos veteranos quanto novatos. Quando sobe, "
+        "a base da pirâmide encolhe mais rápido que o topo.",
         "- **Coorte**: o grupo que entrou no mesmo ano. **Sobrevivência por coorte** é a fração "
         "desse grupo ainda ativa x anos depois. Coorte 2010 de Clojure com 0,83 depois de 1 ano "
         "quer dizer que de cada 100 pessoas que entraram em 2010, 83 seguiam ativas um ano "
@@ -81,7 +81,7 @@ def glossario() -> str:
         "entram como saída, e só contam como observadas na metade do tempo. Contá-las como saída "
         "inflaria as saídas, e ignorá-las inflaria a retenção. Em estatística isso se chama "
         "censura à direita, o termo do plano.",
-        "- **Tábua de vida**: para cada ano de casa x, quantas pessoas chegaram a x, quantas "
+        "- **Tábua de vida**: para cada ano na linguagem x, quantas pessoas chegaram a x, quantas "
         "saíram no ano x, a chance de sair no ano x, a fração que chega a x e quantos anos ainda "
         "restam em média.",
         "- **Chance de seguir mais 1 ano**: 1 menos a chance de sair no ano x, entre quem chegou "
@@ -89,9 +89,10 @@ def glossario() -> str:
         "- **Margem de erro de 95%**: a faixa em que o valor verdadeiro provavelmente está, dado "
         "quantas pessoas foram observadas. Com poucas pessoas a faixa fica larga. Não olha mais "
         "anos à frente. Funciona como a margem de erro de uma pesquisa eleitoral.",
-        "- **Taxa padronizada**: a taxa de saída de cada faixa de tempo de casa, combinada com os "
-        "pesos de uma composição de referência única. Cada linguagem é calculada como se tivesse "
-        "a mesma mistura de novatos e veteranos, e assim a diferença que sobra é de retenção. "
+        "- **Taxa padronizada**: a taxa de saída de cada faixa de tempo na linguagem, combinada "
+        "com os pesos de uma composição de referência única. Cada linguagem é calculada como se "
+        "tivesse a mesma mistura de novatos e veteranos, e assim a diferença que sobra é de "
+        "retenção. "
         "Aqui só as faixas de 0 a 5 anos, que existem em todas as linguagens cinco anos depois "
         "do nascimento delas.",
         "- **SMR**: saídas observadas divididas pelas saídas esperadas, se a linguagem tivesse as "
@@ -112,9 +113,9 @@ def glossario() -> str:
         "- **Poucas pessoas, números instáveis.** Uma taxa calculada sobre dez pessoas pode "
         "dar 0% ou 30% só por acaso. Os pontos do gráfico com menos de 30 pessoas observadas "
         "aparecem vazados, e a tabela do relatório traz a margem de erro.",
-        "- **Quem tem muitos anos de casa é o primeiro grupo a entrar.** Em qualquer linguagem, "
-        "os veteranos de 8 anos são quem chegou cedo, e isso pode diferenciá-los dos demais. "
-        "Em linguagem jovem, como o Zig, são poucas pessoas.",
+        "- **Quem tem muitos anos na linguagem é o primeiro grupo a entrar.** Em qualquer "
+        "linguagem, os veteranos de 8 anos são quem chegou cedo, e isso pode diferenciá-los dos "
+        "demais. Em linguagem jovem, como o Zig, são poucas pessoas.",
         "",
     ]
     return "\n".join(linhas)
@@ -332,8 +333,8 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         "- Plano: pessoas ativas por faixa de tempo de contribuição (a pirâmide) e índice de "
         "envelhecimento.",
-        "- Aqui: faixas 0-1, 1-2, 2-3, 3-5, 5-8 e 8+. Índice = ativos com 5 anos ou mais de casa "
-        "dividido pelos ativos com menos de 1.",
+        "- Aqui: faixas 0-1, 1-2, 2-3, 3-5, 5-8 e 8+. Índice = ativos com 5 anos ou mais na "
+        "linguagem dividido pelos ativos com menos de 1.",
         "",
         tabela_md(envelhecimento, 2),
         "",
@@ -358,32 +359,32 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "- Plano: CCR = (código - discussão) / o maior dos dois. NCR = (novatos - experientes) / o "
         "maior dos dois. O sinal dos dois classifica o trimestre nos tipos A a D.",
         f"- Aqui: quem contribuiu em {p.ccr_ncr_inatividade_meses:g} meses, novato com até "
-        f"{p.ccr_ncr_novato_meses:g} meses de casa. Valores no fim de cada ano.",
+        f"{p.ccr_ncr_novato_meses:g} meses na linguagem. Valores no fim de cada ano.",
         "",
         tabela_md(ccr_tabela, 2),
         "",
         "### 1.5 Clojure é uma comunidade envelhecida que não se renova?",
         "",
-        "A pergunta, em termos demográficos: a comunidade repõe quem sai, e o tempo de casa de "
-        f"quem fica sobe? As medidas abaixo usam {ano_ref}, o último ano com saída confirmada. "
-        "A idade é o tempo na linguagem.",
+        "A pergunta, em termos demográficos: a comunidade repõe quem sai, e o tempo na "
+        f"linguagem de quem fica sobe? As medidas abaixo usam {ano_ref}, o último ano com saída "
+        "confirmada. A idade é o tempo na linguagem.",
         "",
         f"1. **Reposição.** Em {ano_ref} entraram {num_i(ref['entraram'])} pessoas (novatos e "
         f"voltas) e saíram {num_i(ref['saíram'])} (saídas e pausas): "
         f"{num_f(ref['entraram para cada saída'])} para cada saída. Desde {ano_1 + 1} fica abaixo "
         f"de 1. Nas outras linguagens em {ano_ref}: {por_saida}.",
-        f"2. **Base da pirâmide.** Os ativos com menos de 1 ano de casa eram "
+        f"2. **Base da pirâmide.** Os ativos com menos de 1 ano na linguagem eram "
         f"{num_f(clojure_renovacao['% com menos de 1 ano'].iloc[0], 0)}% em "
         f"{clojure_renovacao.index.min()} e são {num_f(ref['% com menos de 1 ano'], 0)}% em "
         f"{ano_ref}.",
-        f"3. **Topo da pirâmide.** Os ativos com 5 anos ou mais de casa são "
+        f"3. **Topo da pirâmide.** Os ativos com 5 anos ou mais na linguagem são "
         f"{num_f(ref['% com 5 anos ou mais'], 0)}% em {ano_ref}. Nas outras: {por_topo}.",
         f"4. **Quem entra agora fica menos.** Depois de 3 anos seguiam ativos "
         f"{num_f(retencao.loc[primeira, 'depois de 3 anos'])} da coorte {primeira} e "
         f"{num_f(retencao.loc[ultima_com_x3, 'depois de 3 anos'])} da coorte {ultima_com_x3}.",
         "",
-        "Leitura: os itens 1 e 2 dizem que a renovação é baixa, o 3 que o tempo de casa de quem "
-        "fica é alto, e o 4 que quem entra sai mais cedo que quem entrou antes. Clojure tem "
+        "Leitura: os itens 1 e 2 dizem que a renovação é baixa, o 3 que o tempo na linguagem de "
+        "quem fica é alto, e o 4 que quem entra sai mais cedo que quem entrou antes. Clojure tem "
         + ("a menor reposição" if menor_reposicao else "uma reposição baixa")
         + " e "
         + (
@@ -395,7 +396,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         "Limites:",
         "",
-        "- O tempo de casa dos ativos sobe em toda comunidade que amadurece. O que distingue "
+        "- O tempo na linguagem dos ativos sobe em toda comunidade que amadurece. O que distingue "
         "Clojure é o nível e a velocidade, comparados com as outras linguagens no mesmo ano.",
         "- Os números contam todas as pessoas da amostra coletada. Não há margem de erro de "
         "amostragem. O que pode mudar o resultado são as definições: saída de 12 meses e "
@@ -425,6 +426,74 @@ def num_i(valor: float) -> str:
 def num_f(valor: float, casas: int = 2) -> str:
     """Número com vírgula decimal."""
     return f"{valor:.{casas}f}".replace(".", ",")
+
+
+def fracao_ate_5_anos(q: pd.Series) -> float:
+    """Fração que chega a 5 anos: o produto de (1 - q) nos anos 0 a 4."""
+    chega = 1.0
+    for x in range(5):
+        chega = chega * (1 - q[x])
+    return chega
+
+
+def primeiros_anos(pastas: Pastas, ordem: list[str]) -> list[str]:
+    """Seção 2.7: números que mostram por que sobreviver nos primeiros anos pesa mais."""
+    geral = "geral" + pastas.sufixo
+    tabua = pastas.csv(geral, "tabua_comparada.csv")
+    q = por_linguagem(tabua, "q", "x", ordem)
+    em_risco = por_linguagem(tabua, "l", "x", ordem)
+    c = carga_fonte.LINGUAGENS["clojure"].nome
+    py = carga_fonte.LINGUAGENS["python"].nome
+    peso, ganho_x0, ganho_x4 = peso_de_cada_ano(q[c], q[py], c, py)
+
+    tabela = pd.DataFrame(index=peso.index)
+    tabela[f"chance de seguir mais 1 ano, {c}"] = 1 - q[c].loc[0:7]
+    tabela[f"chance de seguir mais 1 ano, {py}"] = 1 - q[py].loc[0:7]
+    tabela[f"pessoas de {c} que chegaram a x"] = em_risco[c].loc[0:7]
+    tabela["parte da diferença da fração que chega a 5 anos %"] = pd.to_numeric(
+        peso["parte da diferença da fração que chega a 5 anos %"], errors="coerce"
+    )
+    tabela[f"ganho em anos ativos por pessoa se só este ano fosse como o de {py}"] = peso[
+        "ganho em anos ativos se só este ano fosse como o do outro"
+    ]
+
+    entraram = float(em_risco[c].loc[0])
+    base = fracao_ate_5_anos(q[c])
+    a_mais = []
+    for x in (0, 4):
+        menos = q[c].copy()
+        menos[x] = menos[x] - 0.05
+        a_mais.append(entraram * (fracao_ate_5_anos(menos) - base))
+    parte_0_e_1 = tabela["parte da diferença da fração que chega a 5 anos %"].loc[[0, 1]].sum()
+    parte_3_e_4 = tabela["parte da diferença da fração que chega a 5 anos %"].loc[[3, 4]].sum()
+    return [
+        "### 2.7 Por que sobreviver nos primeiros anos pesa mais",
+        "",
+        "A pergunta é se a chance de seguir mais 1 ano pesa igual em qualquer tempo na "
+        f"linguagem. Os números de {c} contra {py} mostram que o primeiro e o segundo ano pesam "
+        "mais, por três motivos.",
+        "",
+        "1. **Mais gente.** A chance do ano x vale para quem chegou a x. "
+        f"Em {c}, {num(em_risco[c].loc[0], 0)} pessoas chegaram a x=0 e "
+        f"{num(em_risco[c].loc[8], 0)} chegaram a x=8, "
+        f"{num(em_risco[c].loc[0] / em_risco[c].loc[8], 1)} vezes menos.",
+        "2. **A perda do começo se acumula.** A fração que chega a 5 anos é o produto das "
+        "chances de seguir de cada ano. Um ano ruim no começo reduz tudo o que vem depois. "
+        f"Os anos 0 e 1 juntos explicam {num(parte_0_e_1, 0)}% da diferença entre {c} e {py} "
+        f"na fração que chega a 5 anos. Os anos 3 e 4 juntos explicam {num(parte_3_e_4, 0)}%.",
+        "3. **O mesmo ganho vale mais no começo.** Com 5 pontos a menos na chance de sair, "
+        f"entre as {num(entraram, 0)} pessoas que entraram em {c}, "
+        f"{num(a_mais[0], 0)} a mais chegariam a 5 anos se o ganho fosse no ano 0 e "
+        f"{num(a_mais[1], 0)} a mais se fosse no ano 4. Em anos ativos por pessoa nos 8 "
+        f"primeiros anos, o ganho é {num(ganho_x0)} no ano 0 e {num(ganho_x4)} no ano 4.",
+        "",
+        "Como o cálculo foi feito: para cada ano x, troca-se só a chance de sair de "
+        f"{c} naquele ano pela de {py} e mede-se o que muda. Os números vêm de "
+        "`tabua_comparada.csv`, da mesma tabela da seção O peso de cada ano do `RELATORIO.md`.",
+        "",
+        tabela_md(tabela, 2),
+        "",
+    ]
 
 
 def rq2(pastas: Pastas, p: v.Parametros) -> str:
@@ -570,6 +639,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         "Rodam com `--metricas magnetismo` e `--metricas stickiness`, nas linguagens que cabem na "
         "memória do pipeline do motor (Python não cabe).",
         "",
+        *primeiros_anos(pastas, ordem),
     ]
     return "\n".join(linhas)
 

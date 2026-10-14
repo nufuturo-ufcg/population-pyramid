@@ -67,7 +67,7 @@ def _fracao_que_chega(q: pd.Series, ate: int) -> float:
 
 
 def _anos_ativos_esperados(q: pd.Series, horizonte: int) -> float:
-    """Anos ativos esperados de cada pessoa nos `horizonte` primeiros anos de casa."""
+    """Anos ativos esperados de cada pessoa nos `horizonte` primeiros anos na linguagem."""
     anos = 0.0
     chega = 1.0
     for x in range(horizonte):
@@ -78,7 +78,7 @@ def _anos_ativos_esperados(q: pd.Series, horizonte: int) -> float:
 
 
 def peso_de_cada_ano(q_a: pd.Series, q_b: pd.Series, nome_a: str, nome_b: str) -> tuple:
-    """O que cada ano de casa explica da diferença entre duas linguagens.
+    """O que cada ano na linguagem explica da diferença entre duas linguagens.
 
     Para cada ano x, troca só a chance de sair em x da linguagem A pela da B e mede o ganho.
     Devolve a tabela e dois números de comparação: 5 pontos a menos de saída em x=0 e em x=4.
@@ -193,7 +193,7 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
     linhas = [
         "## 1. Tábua de vida",
         "",
-        "x é o tempo de casa em anos completos, contado da primeira contribuição.",
+        "x é o tempo na linguagem em anos completos, contado da primeira contribuição.",
         "",
         "- **Chance de seguir mais 1 ano, tendo chegado a x**: 1 - q(x).",
         "- **Fração que chega a x**: S(x).",
@@ -247,7 +247,7 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "",
         *leitura,
         "",
-        "### O peso de cada ano de casa",
+        "### O peso de cada ano na linguagem",
         "",
         "Sair nos primeiros anos custa mais do que sair nos últimos, porque quem sai cedo deixa "
         "de contar em todos os anos seguintes. A tabela troca, uma vez por linha, só a chance de "
@@ -278,7 +278,7 @@ def secao_ccr_ncr(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "## 2. CCR e NCR ao longo do tempo",
         "",
         "- CCR = (código - discussão) / o maior dos dois, entre quem contribuiu em 12 meses.",
-        "- NCR = (novatos - experientes) / o maior dos dois. Novato tem até 12 meses de casa.",
+        "- NCR = (novatos - experientes) / o maior dos dois. Novato tem até 12 meses na linguagem.",
         "- Valores no fim de cada ano, nas comunidades com pelo menos 100 ativos.",
         "",
         f"![dispersão]({figuras}/ccr_ncr_dispersao.png)",
@@ -381,8 +381,8 @@ def secao_janela(base: Path, p: v.Parametros, ordem: list[str]) -> str:
         "",
         tabela_md(quadro),
         "",
-        "- A taxa de saída por faixa de tempo de casa, a taxa padronizada, o SMR e os cenários "
-        "usam só os anos com saída confirmada, até 2024.",
+        "- A taxa de saída por faixa de tempo na linguagem, a taxa padronizada, o SMR e os "
+        "cenários usam só os anos com saída confirmada, até 2024.",
         f"- População: `{p.populacao}`. Só entra quem tem 30 dias ou mais entre o primeiro e o "
         "último evento, de qualquer tipo (commit, PR, issue, comentário).",
         "- Os cortes ficam em `scripts/vitalidade.yaml` (lista em `docs/linguagem/parametros.md`).",

@@ -521,7 +521,7 @@ def metrica_tamanho(ctx: Contexto) -> Dados:
 
 @metrica("composicao")
 def metrica_composicao(ctx: Contexto) -> Dados:
-    """Composição: pirâmide por faixa de tempo de casa e índice de envelhecimento. Responde RQ1.2.
+    """Composição: pirâmide por faixa de tempo na linguagem e índice de envelhecimento. RQ1.2.
 
     O que faz: ativos por faixa (0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos), com um lado
     para quem faz código e outro para quem só discute (moved é quem trocou de
@@ -557,7 +557,7 @@ def metrica_retencao(ctx: Contexto) -> Dados:
 
 @metrica("saida_por_faixa")
 def metrica_saida_por_faixa(ctx: Contexto) -> Dados:
-    """Saída por faixa: taxa de saída por faixa de tempo de casa. Responde RQ1.3.
+    """Saída por faixa: taxa de saída por faixa de tempo na linguagem. Responde RQ1.3.
 
     O que faz: saídas da faixa / ativos da faixa no ano, por (ano, faixa). O
     denominador é quem contribuiu no ano. Célula com menos de `saidas_estavel`
@@ -679,7 +679,7 @@ def metrica_tabua_comparada(ctx: ContextoComparativo) -> Dados:
     """Tábua de vida de cada linguagem lado a lado, até `tabua_ate_anos`. Responde RQ1 e RQ2.
 
     O que faz: a tábua de vida de `retencao` (l, d, q, S, e) de todas as pessoas de cada linguagem,
-    cortada em `tabua_ate_anos` de casa. e(x) é a vida restante de quem chegou a x. A chance de
+    cortada em `tabua_ate_anos` na linguagem. e(x) é a vida restante de quem chegou a x. A chance de
     seguir mais t anos tendo chegado a x sai de l(x+t) / l(x), sem métrica à parte.
     Referência: IBGE, Tábua Completa de Mortalidade 2023,
     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf.

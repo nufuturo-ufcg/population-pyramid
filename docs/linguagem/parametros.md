@@ -52,7 +52,7 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 
 | parâmetro | padrão | configura | muda |
 |---|---|---|---|
-| `tabua_ate_anos` | 8 | anos de casa mostrados na tábua comparada. 8 é a última faixa das pirâmides. | tabela |
+| `tabua_ate_anos` | 8 | anos na linguagem mostrados na tábua comparada. 8 é a última faixa das pirâmides. | tabela |
 | `coortes_tabua` | 2010, 2013, 2016, 2019, 2022 | coortes de entrada desenhadas na tábua por coorte. | desenho |
 
 ### Pirâmides e taxas por faixa
@@ -105,7 +105,7 @@ Estas não têm chave no yaml. Mudar exige editar `src/pyramid/vitalidade.py`.
 | constante | valor | o que fixa |
 |---|---|---|
 | `GAP_DIAS` | 12 meses | silêncio que separa dois períodos. Saída e pausa partem dele. |
-| `FAIXAS` | 0-1, 1-2, 2-3, 3-5, 5-8, 8+ | faixas de tempo de casa. |
+| `FAIXAS` | 0-1, 1-2, 2-3, 3-5, 5-8, 8+ | faixas de tempo na linguagem. |
 | `BAND_DIAS` | 90 | banda das pirâmides trimestrais. |
 | `NOVATO_DIAS` | 91 | novato do motor, usado só como padrão da função. |
 | `MAX_PONTOS_KM` | 2 000 000 | acima disso o Kaplan-Meier afina os pontos. |

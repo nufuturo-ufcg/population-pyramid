@@ -126,7 +126,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 - Saída: 12 meses sem contribuir (Avelino et al., ESEM 2019). A replicação do IEICE16 usa 3.
 - Idade no ano Y: Y menos o ano da primeira contribuição. Quem entrou em Y tem idade 0.
-- Faixas de tempo de casa: 0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos. Idade 1 cai em 1-2.
+- Faixas de tempo na linguagem: 0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos. Idade 1 cai em 1-2.
 - A idade medida em 1/jan caiu porque punha duas coortes de entrada na faixa 0-1, e a projeção por coorte precisa de uma coorte por faixa de 1 ano.
 - Com a idade por ano de calendário, a faixa 8+ de Clojure aparece em 2016, como diz o plano.
 - Passo anual.
@@ -148,7 +148,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 ## Escolhas feitas com o usuário (2026-10-09)
 
 - Denominador da taxa de saída por faixa: ativos do ano. O plano fala em "ativos no início do ano". Essa leitura caiu porque deixaria no denominador de Y quem já saiu em Y-1, já que a saída é datada pelo último evento.
-- Índice de envelhecimento: ativos com 5 anos ou mais de casa divididos pelos ativos com menos de 1.
+- Índice de envelhecimento: ativos com 5 anos ou mais na linguagem divididos pelos ativos com menos de 1.
 
 ## Censura à direita
 

@@ -6,7 +6,7 @@ Funções puras sobre eventos canônicos (`contributor_id`, `event_type`,
 A régua difere da replicação do IEICE16 em três pontos, todos do plano:
 
   saída    12 meses sem contribuir (Avelino et al., ESEM 2019). O IEICE16 usa 3.
-  faixas   0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos de casa, contados como ano menos
+  faixas   0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos na linguagem, contados como ano menos
            ano de entrada (quem entrou em Y está em 0-1 no ano Y).
   passo    anual.
 
@@ -49,7 +49,7 @@ FAIXAS_VETERANO = ["5-8", "8+"]
 
 
 def faixa_de(anos: pd.Series) -> pd.Series:
-    """Faixa de tempo de casa, fechada embaixo: 1 ano cai em 1-2."""
+    """Faixa de tempo na linguagem, fechada embaixo: 1 ano cai em 1-2."""
     return pd.cut(anos, bins=_CORTES, right=False, labels=FAIXAS)
 
 
@@ -480,7 +480,7 @@ def composicao(pa: pd.DataFrame) -> pd.DataFrame:
 
 
 def indice_envelhecimento(pa: pd.DataFrame) -> pd.DataFrame:
-    """Ativos com 5 anos ou mais de casa divididos pelos ativos com menos de 1, por ano."""
+    """Ativos com 5 anos ou mais na linguagem divididos pelos ativos com menos de 1, por ano."""
     veteranos = pa[pa["faixa"].isin(FAIXAS_VETERANO)].groupby("ano").size()
     novatos = pa[pa["faixa"].isin(FAIXAS_NOVATO)].groupby("ano").size()
     t = pd.DataFrame({"veteranos": veteranos, "novatos": novatos}).fillna(0).astype(int)
@@ -537,7 +537,7 @@ def _intervalo_de_wilson(eventos: float, n: float, z: float = 1.96) -> tuple[flo
 
 
 def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
-    """Tábua de vida atuarial em intervalos de 1 ano de casa.
+    """Tábua de vida atuarial em intervalos de 1 ano na linguagem.
 
     l(x)  pessoas ainda em observação ao chegar em x anos
     d(x)  saídas entre x e x+1
