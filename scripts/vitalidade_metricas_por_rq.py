@@ -120,7 +120,7 @@ def glossario() -> str:
     return "\n".join(linhas)
 
 
-def amostra(pastas: Pastas, p: v.Parametros) -> str:
+def tabela_da_amostra(pastas: Pastas, p: v.Parametros) -> pd.DataFrame | None:
     """Repositórios e pessoas de cada linguagem, lidos da carga gravada junto dos resultados."""
     linhas = []
     for slug in p.linguagens_rq2:
@@ -130,36 +130,56 @@ def amostra(pastas: Pastas, p: v.Parametros) -> str:
         )
         a = meta.get("amostra", {})
         if "repos_finais" not in a:
-            return (
-                "## Amostra\n\nSem as contagens da carga: rode `vitalidade.py --sem-cache` "
-                "em cada linguagem uma vez.\n"
-            )
+            return None
         linhas.append(
             {
                 "linguagem": carga_fonte.LINGUAGENS[slug].nome,
-                "repositórios candidatos": a["repos_total"],
-                "excluídos, 50% do código ou menos": a["repos_excluidos_share"],
+                "candidatos": a["repos_total"],
                 "elegíveis": a["repos_elegiveis"],
                 "com algum evento": a["repos_finais"],
+                "elegíveis sem nenhum evento": a["repos_elegiveis"] - a["repos_finais"],
                 "pessoas com algum evento": a["contribuidores_finais"],
                 f"pessoas na população {p.populacao}": a["pessoas_na_populacao"],
             }
         )
-    tabela = pd.DataFrame(linhas).set_index("linguagem")
-    texto = [
-        "## Amostra",
-        "",
-        "- Candidatos: repositórios com 10 estrelas ou mais, listados pela SEART.",
-        "- Elegíveis: mais de 50% do código do repositório na linguagem.",
-        "- Com algum evento: elegíveis que sobram com pelo menos um evento depois dos filtros "
-        "de autor, bot, data e commit copiado.",
-        "- Pessoas: quem tem algum evento nesses repositórios, e quem entra na população do "
-        "estudo.",
+    return pd.DataFrame(linhas).set_index("linguagem")
+
+
+def texto_da_amostra(titulo: str, tabela: pd.DataFrame | None) -> str:
+    """A amostra em tópicos curtos: o que cada número é e por que há repositório sem evento."""
+    if tabela is None:
+        return (
+            f"{titulo}\n\nSem as contagens da carga: rode `vitalidade.py --sem-cache` em cada "
+            "linguagem uma vez.\n"
+        )
+    linhas = [
+        titulo,
         "",
         tabela_md(tabela),
         "",
+        "- **Candidatos**: repositórios com 10 estrelas ou mais, listados pela SEART.",
+        "- **Elegíveis**: mais de 50% do código do repositório está na linguagem. Sai dos dados do "
+        "repositório, antes de ler qualquer evento.",
+        "- **Com algum evento**: elegíveis que ainda têm pelo menos um evento depois dos filtros "
+        "de eventos. Só se sabe depois de ler os eventos.",
+        "- **Elegíveis sem nenhum evento**: existem, e são a diferença entre as duas colunas.",
+        "- **Por que um repositório elegível fica sem evento**:",
+        "  - Os commits dele são cópia de histórico de um repositório mais antigo (fork completo "
+        "ou clone empurrado), e a cópia fica só no mais antigo.",
+        "  - Nenhum commit dele toca arquivo da linguagem.",
+        "  - Só tem eventos de bot, de conta apagada ou com data fora de 2008 até hoje.",
+        "  - Repositório vazio.",
+        "- A causa de cada repositório sem evento não foi medida.",
+        "- **Pessoas com algum evento**: quem aparece nos repositórios com evento. "
+        "**Pessoas na população**: quem sobra com a população do estudo (`passou_30_dias`: 30 dias "
+        "ou mais entre o primeiro e o último evento).",
+        "",
     ]
-    return "\n".join(texto)
+    return "\n".join(linhas)
+
+
+def amostra(pastas: Pastas, p: v.Parametros) -> str:
+    return texto_da_amostra("## Amostra", tabela_da_amostra(pastas, p))
 
 
 def marca_provisorios(t: pd.DataFrame, primeiro_provisorio: int) -> pd.DataFrame:
@@ -641,6 +661,9 @@ def main() -> None:
         rq3(pastas, p),
         diferencas(p),
     ]
+    (base / "AMOSTRA.md").write_text(
+        texto_da_amostra("# Amostra: repositórios e pessoas", tabela_da_amostra(pastas, p))
+    )
     destino = base / "METRICAS_POR_RQ.md"
     destino.write_text("\n".join(partes))
     print(f"documento: {destino}")
