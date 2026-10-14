@@ -21,14 +21,28 @@ def num(valor: float, casas: int = 2) -> str:
     return f"{valor:.{casas}f}".replace(".", ",")
 
 
+def _so_inteiros(coluna: pd.Series) -> bool:
+    """Coluna numérica cujos valores são todos inteiros (contagens)."""
+    if not pd.api.types.is_numeric_dtype(coluna):
+        return False
+    valores = coluna.dropna()
+    return len(valores) > 0 and bool((valores == valores.round()).all())
+
+
 def tabela_md(t: pd.DataFrame, casas: int = 2) -> str:
-    """Tabela em markdown, a primeira coluna é o índice."""
+    """Tabela em markdown, a primeira coluna é o índice. Coluna de contagens sai sem casas."""
     colunas = [t.index.name or ""] + [str(c) for c in t.columns]
     linhas = ["| " + " | ".join(colunas) + " |", "|" + "---|" * len(colunas)]
+    inteiras = [_so_inteiros(t[c]) for c in t.columns]
     for indice, linha in t.iterrows():
         celulas = [str(indice)]
-        for valor in linha:
-            celulas.append("" if pd.isna(valor) else num(valor, casas))
+        for valor, inteira in zip(linha, inteiras, strict=True):
+            if pd.isna(valor):
+                celulas.append("")
+            elif isinstance(valor, str):
+                celulas.append(valor)
+            else:
+                celulas.append(num(valor, 0 if inteira else casas))
         linhas.append("| " + " | ".join(celulas) + " |")
     return "\n".join(linhas)
 
