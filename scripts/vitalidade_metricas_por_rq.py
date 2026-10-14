@@ -116,6 +116,48 @@ def glossario() -> str:
     return "\n".join(linhas)
 
 
+def amostra(pastas: Pastas, p: v.Parametros) -> str:
+    """Repositórios e pessoas de cada linguagem, lidos da carga gravada junto dos resultados."""
+    linhas = []
+    for slug in p.linguagens_rq2:
+        pasta = pastas.linguagem(slug)
+        meta = json.loads(
+            (pastas.base / pasta / "resultados" / "vitalidade" / "meta.json").read_text()
+        )
+        a = meta.get("amostra", {})
+        if "repos_finais" not in a:
+            return (
+                "## Amostra\n\nSem as contagens da carga: rode `vitalidade.py --sem-cache` "
+                "em cada linguagem uma vez.\n"
+            )
+        linhas.append(
+            {
+                "linguagem": carga_fonte.LINGUAGENS[slug].nome,
+                "repositórios candidatos": a["repos_total"],
+                "excluídos, 50% do código ou menos": a["repos_excluidos_share"],
+                "elegíveis": a["repos_elegiveis"],
+                "com algum evento": a["repos_finais"],
+                "pessoas com algum evento": a["contribuidores_finais"],
+                f"pessoas na população {p.populacao}": a["pessoas_na_populacao"],
+            }
+        )
+    tabela = pd.DataFrame(linhas).set_index("linguagem")
+    texto = [
+        "## Amostra",
+        "",
+        "- Candidatos: repositórios com 10 estrelas ou mais, listados pela SEART.",
+        "- Elegíveis: mais de 50% do código do repositório na linguagem.",
+        "- Com algum evento: elegíveis que sobram com pelo menos um evento depois dos filtros "
+        "de autor, bot, data e commit copiado.",
+        "- Pessoas: quem tem algum evento nesses repositórios, e quem entra na população do "
+        "estudo.",
+        "",
+        tabela_md(tabela),
+        "",
+    ]
+    return "\n".join(texto)
+
+
 def marca_provisorios(t: pd.DataFrame, primeiro_provisorio: int) -> pd.DataFrame:
     """Põe um asterisco no ano das linhas com saída provisória."""
     t = t.copy()
@@ -570,6 +612,7 @@ def main() -> None:
         "Ordem e definições do Plano de Experimento. Cada métrica traz o que o plano pede, "
         "como está aqui, os números e a figura.\n",
         glossario(),
+        amostra(pastas, p),
         rq1(pastas, p),
         rq2(pastas, p),
         rq3(pastas, p),

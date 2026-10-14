@@ -251,7 +251,18 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     pasta.mkdir(parents=True, exist_ok=True)
     compactos.to_parquet(parquet, index=False)
     arquivo_selo.write_text(json.dumps(selo))
+    # Repositórios, contribuidores e eventos de cada etapa da carga: só se conhecem lendo os CSV.
+    (pasta / ARQUIVO_ESTATISTICAS).write_text(json.dumps(fb._stats(), default=str))
     return compactos
+
+
+ARQUIVO_ESTATISTICAS = "estatisticas.json"
+
+
+def le_estatisticas_da_carga() -> dict[str, Any]:
+    """As estatísticas gravadas junto ao cache da linguagem atual; vazio se o cache é antigo."""
+    arquivo = Path(fb.TMP_BASE) / fb.LING.atual.slug / "cache" / ARQUIVO_ESTATISTICAS
+    return json.loads(arquivo.read_text()) if arquivo.exists() else {}
 
 
 # A população não entra no título dos gráficos: ela já nomeia a pasta (`python-passou_30_dias`).
@@ -342,6 +353,8 @@ class Contexto:
             self.fim_acompanhamento = self.fim
         self.compactos = vitalidade.ate_a_data(self.compactos_coleta, self.fim)
         pessoas = self.compactos["contributor_id"].nunique()
+        self.pessoas = int(pessoas)
+        self.estatisticas_da_carga = le_estatisticas_da_carga()
         print(
             f"{fb.LING.atual.nome}: {pessoas} pessoas, {len(self.compactos)} instantes "
             f"compactados, estudo até {self.fim.date()}, acompanhamento até "
@@ -435,12 +448,17 @@ def carrega_tabelas(escopo: str, metrica_nome: str) -> Dados:
 
 
 def salva_meta(
-    escopo: str, p: Parametros, fim: pd.Timestamp | None, fim_acompanhamento: pd.Timestamp | None
+    escopo: str,
+    p: Parametros,
+    fim: pd.Timestamp | None,
+    fim_acompanhamento: pd.Timestamp | None,
+    amostra: dict[str, Any] | None = None,
 ) -> None:
-    """Grava o fim do estudo, o do acompanhamento e os parâmetros que produziram as tabelas."""
+    """Grava o fim do estudo, o do acompanhamento, a amostra e os parâmetros das tabelas."""
     meta = {
         "fim": None if fim is None else str(fim),
         "fim_acompanhamento": None if fim_acompanhamento is None else str(fim_acompanhamento),
+        "amostra": amostra or {},
         "parametros": asdict(p),
     }
     (_raiz_resultados(escopo) / "meta.json").write_text(json.dumps(meta, default=str))
@@ -873,7 +891,8 @@ def roda(
         else:
             bruto = any(USA_PIPELINE[n] for n in de_uma_linguagem)
             ctx = Contexto(p, slug, bruto, entrada)
-            salva_meta("linguagem", p, ctx.fim, ctx.fim_acompanhamento)
+            amostra = {"pessoas_na_populacao": ctx.pessoas, **ctx.estatisticas_da_carga}
+            salva_meta("linguagem", p, ctx.fim, ctx.fim_acompanhamento, amostra)
         _executa(de_uma_linguagem, ctx, escolha, so_figuras)
     if comparativas:
         if so_figuras:
