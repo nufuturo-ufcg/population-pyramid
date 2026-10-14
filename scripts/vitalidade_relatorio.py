@@ -8,6 +8,7 @@ ficam aqui e citam células da tabela, nunca um valor digitado.
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -57,6 +58,62 @@ def por_linguagem(t: pd.DataFrame, coluna: str, indice: str, ordem: list[str]) -
     return p
 
 
+def _fracao_que_chega(q: pd.Series, ate: int) -> float:
+    """Fração que chega a `ate` anos: o produto de (1 - q) nos anos antes."""
+    chega = 1.0
+    for x in range(ate):
+        chega = chega * (1 - q[x])
+    return chega
+
+
+def _anos_ativos_esperados(q: pd.Series, horizonte: int) -> float:
+    """Anos ativos esperados de cada pessoa nos `horizonte` primeiros anos de casa."""
+    anos = 0.0
+    chega = 1.0
+    for x in range(horizonte):
+        seguinte = chega * (1 - q[x])
+        anos = anos + (chega + seguinte) / 2
+        chega = seguinte
+    return anos
+
+
+def peso_de_cada_ano(q_a: pd.Series, q_b: pd.Series, nome_a: str, nome_b: str) -> tuple:
+    """O que cada ano de casa explica da diferença entre duas linguagens.
+
+    Para cada ano x, troca só a chance de sair em x da linguagem A pela da B e mede o ganho.
+    Devolve a tabela e dois números de comparação: 5 pontos a menos de saída em x=0 e em x=4.
+    """
+    chega_a = _fracao_que_chega(q_a, 5)
+    chega_b = _fracao_que_chega(q_b, 5)
+    diferenca = math.log(chega_b) - math.log(chega_a)
+    base = _anos_ativos_esperados(q_a, 8)
+    linhas = []
+    for x in range(8):
+        parte = ""
+        if x < 5:
+            parte = 100 * (math.log(1 - q_b[x]) - math.log(1 - q_a[x])) / diferenca
+        trocada = q_a.copy()
+        trocada[x] = q_b[x]
+        linhas.append(
+            {
+                "x (anos)": x,
+                f"sai no ano, {nome_a} %": 100 * q_a[x],
+                f"sai no ano, {nome_b} %": 100 * q_b[x],
+                "parte da diferença da fração que chega a 5 anos %": parte,
+                "ganho em anos ativos se só este ano fosse como o do outro": (
+                    _anos_ativos_esperados(trocada, 8) - base
+                ),
+            }
+        )
+    tabela = pd.DataFrame(linhas).set_index("x (anos)")
+    ganhos = []
+    for x in (0, 4):
+        menos = q_a.copy()
+        menos[x] = menos[x] - 0.05
+        ganhos.append(_anos_ativos_esperados(menos, 8) - base)
+    return tabela, ganhos[0], ganhos[1]
+
+
 def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
     t = pd.read_csv(pasta / "csv" / "vitalidade" / "tabua_comparada.csv")
     t["fica"] = 1 - t["q"]
@@ -86,6 +143,12 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
     diferenca_total = chega.loc[5, py] / chega.loc[5, c]
     diferenca_2_anos = chega.loc[2, py] / chega.loc[2, c]
     parcela = 100 * np.log(diferenca_2_anos) / np.log(diferenca_total)
+    q_todas = por_linguagem(t, "q", "x", ordem)
+    peso, ganho_x0, ganho_x4 = peso_de_cada_ano(q_todas[c], q_todas[py], c, py)
+    peso_formatado = peso.copy()
+    peso_formatado["parte da diferença da fração que chega a 5 anos %"] = pd.to_numeric(
+        peso["parte da diferença da fração que chega a 5 anos %"], errors="coerce"
+    )
     menor_s5 = chega.loc[5].idxmin() == c
     sobe_c = 100 * (fica.loc[3, c] - fica.loc[0, c])
     sobe_py = 100 * (fica.loc[3, py] - fica.loc[0, py])
@@ -183,6 +246,19 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "### Leitura",
         "",
         *leitura,
+        "",
+        "### O peso de cada ano de casa",
+        "",
+        "Sair nos primeiros anos custa mais do que sair nos últimos, porque quem sai cedo deixa "
+        "de contar em todos os anos seguintes. A tabela troca, uma vez por linha, só a chance de "
+        f"sair do ano x de {c} pela de {py} e mede o que muda.",
+        "",
+        tabela_md(peso_formatado, 2),
+        "",
+        f"- Mesma redução de 5 pontos na chance de sair: no ano 0 dá {num(ganho_x0)} ano ativo a "
+        f"mais por pessoa nos 8 primeiros anos, no ano 4 dá {num(ganho_x4)}.",
+        "- A coluna da fração que chega a 5 anos reparte a diferença entre os anos 0 a 4 e soma "
+        "100%.",
         "",
     ]
     return "\n".join(linhas)
