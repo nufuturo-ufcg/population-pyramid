@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, NullFormatter, ScalarFormatter
 
 import carga_fonte
 import figuras_linguagem_bruta as fb
@@ -78,8 +78,8 @@ CHAVES_DE_ESTILO = {
 
 
 def _ate_o_ano_decidido(ctx: Any) -> int:
-    """Último ano completo da coleta, o último com saída (provisória) a mostrar."""
-    return int(ctx.fim.year - 1)
+    """Último ano completo antes do fim do acompanhamento: o último com saída (provisória)."""
+    return int(ctx.fim_acompanhamento.year - 1)
 
 
 def _ultimo_ano_de_contagem(ctx: Any) -> int:
@@ -91,10 +91,10 @@ def _ultimo_ano_de_contagem(ctx: Any) -> int:
 def _primeiro_provisorio(ctx: Any) -> int:
     """Primeiro ano com saída provisória: a que tem menos de `carencia_anos` anos de coleta depois.
 
-    Um ano é firme quando `fim.year - ano >= carencia_anos`. Com 1, até 2025 é firme e nada sai
-    tracejado; com 3, 2024 e 2025 saem tracejados.
+    Um ano é firme quando `fim_acompanhamento.year - ano >= carencia_anos`. Com o acompanhamento
+    indo até 2026 e carência 2, 2025 sai tracejado e 2024 e antes saem firmes.
     """
-    return int(ctx.fim.year - ctx.p.carencia_anos + 1)
+    return int(ctx.fim_acompanhamento.year - ctx.p.carencia_anos + 1)
 
 
 def _plota_datas(
@@ -441,7 +441,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         )
     ax.set_ylabel("pessoas")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: entradas e saídas por ano")
+    ax.set_title(f"{_nome()}: ativos, novatos, saídas e voltas por ano")
     ax.legend(loc="upper left", frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -481,7 +481,7 @@ def figura_crescimento_anual(ctx: Any, d: Dados) -> None:
         )
     ax.set_ylabel("% dos ativos do mesmo ano")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: crescimento por ano")
+    ax.set_title(f"{_nome()}: crescimento natural e líquido por ano")
     ax.legend(loc="lower left", frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -627,12 +627,14 @@ def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
 def figura_indice(ctx: Any, d: Dados) -> None:
     """Índice de envelhecimento por ano."""
     ind = d["indice_envelhecimento"]
+    ind = ind[ind["veteranos"] > 0]  # antes do primeiro veterano o índice é 0 por definição
     fig, ax = plt.subplots(figsize=(9, 3.5))
     ax.plot(ind["ano"], ind["indice"], color=categorica()[0], linewidth=2, marker="o", markersize=4)
-    ax.set_ylabel("ativos 5+ anos / ativos 0-1 ano")
+    ax.set_ylabel("ativos com 5 anos ou mais de casa\npara cada ativo com menos de 1 ano")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: índice de envelhecimento")
     plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, "indice_envelhecimento.png")
 
 
@@ -667,9 +669,9 @@ def figura_taxa_saida(ctx: Any, d: Dados) -> None:
             zorder=3,
         )
     ax.set_ylim(0, 1)
-    ax.set_ylabel("saídas / ativos da faixa")
+    ax.set_ylabel(f"saídas / ativos da faixa\nponto vazado = menos de {saidas_estavel} saídas")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: taxa de saída por faixa")
+    ax.set_title(f"{_nome()}: taxa de saída por faixa de tempo de casa")
     ax.legend(loc="upper right", frameon=False, ncol=3)
     plots._theme(ax)
     salva(fig, "taxa_saida_faixa.png")
@@ -686,8 +688,8 @@ def figura_tabua(ctx: Any, d: Dados) -> None:
         ax.plot(t["x"], t["S"], color=cor, linewidth=2, marker="o", markersize=4, label=str(coorte))
     ax.set_ylim(0, 1)
     ax.set_xlabel("anos desde a primeira contribuição")
-    ax.set_ylabel("fração da coorte que chega em x, S(x)")
-    ax.set_title(f"{_nome()}: tábua de vida por coorte de entrada")
+    ax.set_ylabel("fração da coorte ainda ativa")
+    ax.set_title(f"{_nome()}: fração de cada coorte de entrada ainda ativa")
     ax.legend(title="coorte", frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_coortes.png")
@@ -713,10 +715,7 @@ def figura_backtest(bt: pd.DataFrame, teto: bool, pasta: str, rotulo: str) -> No
         ax.plot(t["ano"], t[metodo], color=cor, linewidth=2, label=metodo)
     ax.set_ylabel("ativos no ano")
     ax.set_xlabel("ano previsto")
-    rotulo_teto = "com teto em 1" if teto else "sem teto"
-    ax.set_title(
-        f"{_nome()}: backtest um ano à frente, permanência {rotulo_teto}\ncenários: {rotulo}"
-    )
+    ax.set_title(f"{_nome()}: previsão de um ano à frente contra o real\nregra: {rotulo}")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -771,10 +770,7 @@ def figura_futuro(
         )
     ax.set_ylabel("ativos no ano")
     ax.set_xlabel("ano")
-    rotulo_teto = "com teto em 1" if teto else "sem teto"
-    ax.set_title(
-        f"{_nome()}: projeção a partir de {ultimo}, permanência {rotulo_teto}\ncenários: {rotulo}"
-    )
+    ax.set_title(f"{_nome()}: projeção de ativos a partir de {ultimo}\nregra: {rotulo}")
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -850,7 +846,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
     passo = "ano" if nome == "anual" else "trimestre"
     ax.set_ylabel(f"% da população viva no {passo}")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: natalidade e mortalidade, passo {nome}")
+    ax.set_title(f"{_nome()}: natalidade, mortalidade e crescimento natural por {passo}")
 
     linhas, rotulos = ax.get_legend_handles_labels()
     linhas_fundo, rotulos_fundo = fundo.get_legend_handles_labels()
@@ -903,7 +899,7 @@ def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
         )
         cobertura = t["cobre"].mean()
         anos = "1 ano" if len(t) == 1 else f"{len(t)} anos"
-        ax.set_title(f"{rotulo}\ncobertura {cobertura:.0%} em {anos}")
+        ax.set_title(f"{rotulo}\no real cai dentro da faixa em {cobertura:.0%} dos {anos}")
         plots._theme(ax)
         ax.set_xlim(t["ano"].min() - 0.7, t["ano"].max() + 0.7)
         ax.set_xticks(t["ano"].tolist())
@@ -911,7 +907,7 @@ def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
         ax.set_ylabel("ativos no ano")
     linhas, rotulos = eixos[0, 0].get_legend_handles_labels()
     fig.legend(linhas, rotulos, loc="lower center", ncol=3, frameon=False)
-    fig.suptitle(f"{_nome()}: backtest dos cenários, uma regra por painel")
+    fig.suptitle(f"{_nome()}: previsão de um ano à frente contra o real, uma regra por painel")
     fig.tight_layout(rect=(0, 0.05, 1, 1))
     salva(fig, "cenarios_comparados.png")
 
@@ -924,6 +920,7 @@ def figura_km(ctx: Any, d: Dados) -> None:
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for slug in linguagens:
         c = curvas[curvas["linguagem"] == slug]
+        c = c[c["em_risco"] >= MIN_EXPOSICAO]  # além disso a curva depende de pouca gente
         ax.step(
             c["anos"],
             c["S"],
@@ -933,9 +930,9 @@ def figura_km(ctx: Any, d: Dados) -> None:
             label=carga_fonte.LINGUAGENS[slug].nome,
         )
     ax.set_ylim(0, 1)
-    ax.set_xlabel("anos desde a primeira contribuição")
-    ax.set_ylabel("fração ainda ativa, S(t)")
-    ax.set_title("Kaplan-Meier por linguagem")
+    ax.set_xlabel(f"anos desde a primeira contribuição, curva até restarem {MIN_EXPOSICAO} pessoas")
+    ax.set_ylabel("fração das pessoas ainda ativas")
+    ax.set_title("Quanto tempo as pessoas seguem ativas, por linguagem\nmétodo Kaplan-Meier")
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "kaplan_meier.png", geral=True)
@@ -1005,13 +1002,17 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
         pad = pad[(pad["rodada"] == rodada) & (pad["ativos"] >= MIN_PESSOAS)]
         fig, eixos = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
         paineis = [
-            ("taxa_bruta", "taxa de saída bruta", "taxa"),
+            ("taxa_bruta", "1. Taxa de saída como foi observada", "saídas / ativos"),
             (
                 "taxa_padronizada_ate_5a",
-                f"taxa de saída padronizada, faixas de 0 a 5 anos, pesos de {ano_pesos}",
-                "taxa",
+                f"2. Taxa de saída com a composição de {ano_pesos} para todas, 0 a 5 anos de casa",
+                "saídas / ativos",
             ),
-            ("smr", "SMR, saídas reais / esperadas", "SMR"),
+            (
+                "smr",
+                "3. SMR, saídas observadas divididas pelas esperadas, 1 = igual à referência",
+                "SMR",
+            ),
         ]
         for ax, (coluna, titulo, rotulo) in zip(eixos, paineis, strict=True):
             for slug in linguagens:
@@ -1031,7 +1032,7 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         eixos[2].axhline(1, color="#888888", linewidth=0.8)
         eixos[0].legend(loc="upper left", frameon=False)
-        fig.suptitle("Taxa de saída corrigida pela composição")
+        fig.suptitle("Taxa de saída por ano com a mesma mistura de novatos e veteranos")
         eixos[2].set_xlabel("ano")
         fig.tight_layout(rect=(0, 0, 1, 0.97))
         salva(fig, f"padronizacao_{rodada}.png", geral=True)
@@ -1079,7 +1080,7 @@ def figura_fluxo(ctx: Any, d: Dados) -> None:
     )
     ax.set_ylabel("pessoas")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: entradas e saídas por ano")
+    ax.set_title(f"{_nome()}: novatos, voltas e saídas por ano")
     ax.legend(loc="upper left", frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -1161,8 +1162,8 @@ def figura_esperanca(ctx: Any, d: Dados) -> None:
         t = tabuas[tabuas["coorte"] == coorte]
         ax.plot(t["x"], t["e"], color=cor, linewidth=2, label=str(coorte))
     ax.set_xlabel("anos desde a primeira contribuição")
-    ax.set_ylabel("anos que ainda restam, e(x)")
-    ax.set_title(f"{_nome()}: esperança de permanência por coorte")
+    ax.set_ylabel("anos que ainda restam")
+    ax.set_title(f"{_nome()}: anos que ainda restam, por coorte de entrada")
     ax.legend(title="coorte", frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca.png")
@@ -1475,7 +1476,11 @@ def figura_magnetismo_dispersao(ctx: Any, d: Dados) -> None:
 def _linhas_por_linguagem(
     ax: Any, t: pd.DataFrame, coluna: str, desde: int, com_cauda: bool = False
 ) -> None:
-    """Uma linha por linguagem; com `com_cauda`, os anos provisórios saem tracejados."""
+    """Uma linha por linguagem; com `com_cauda`, os anos provisórios saem tracejados.
+
+    Cada linha começa quando a linguagem tem `MIN_PESSOAS` ativos, e nunca antes de `desde`.
+    """
+    t = t[t["ativos"] >= MIN_PESSOAS]
     for slug in t["slug"].drop_duplicates():
         f = t[(t["slug"] == slug) & (t["ano"] >= desde) & t[coluna].notna()]
         nome = carga_fonte.LINGUAGENS[slug].nome
@@ -1499,9 +1504,13 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(ax, d["trajetoria"], "indice", base)
     ax.axhline(100, color="#888888", linewidth=0.8)
+    if ax.get_yscale() == "log":
+        ax.yaxis.set_major_formatter(ScalarFormatter())
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        ax.set_yticks([50, 100, 200, 400, 800])
     ax.set_ylabel(f"ativos no ano, índice com {base} = 100")
     ax.set_xlabel("ano")
-    ax.set_title("Evolução do número de ativos, cada linguagem contra o próprio tamanho")
+    ax.set_title("Número de ativos de cada linguagem, com 100 no ano base")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_indice.png", geral=True)
 
@@ -1513,13 +1522,11 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
     A base são os ativos do próprio ano. Não é a variação sobre o ano anterior.
     """
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    _linhas_por_linguagem(
-        ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_base_indice, com_cauda=True
-    )
+    _linhas_por_linguagem(ax, d["trajetoria"], "crescimento_liquido_pct", 0, com_cauda=True)
     ax.axhline(0, color="#888888", linewidth=0.8)
-    ax.set_ylabel("crescimento líquido do ano, % dos ativos do mesmo ano")
+    ax.set_ylabel("% dos ativos do mesmo ano")
     ax.set_xlabel("ano")
-    ax.set_title("Crescimento líquido da comunidade")
+    ax.set_title("Crescimento líquido por ano, novatos e voltas menos saídas e pausas")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_crescimento.png", geral=True)
 
@@ -1569,16 +1576,29 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
     salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
 
 
+@figura("trajetoria", "reposicao", padrao=True)
+def figura_reposicao(ctx: Any, d: Dados) -> None:
+    """Novatos para cada pessoa que sai, por ano. Abaixo de 1 a comunidade não repõe quem sai."""
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    _linhas_por_linguagem(ax, d["trajetoria"], "reposicao", 0, com_cauda=True)
+    ax.axhline(1, color="#888888", linewidth=0.8)
+    ax.set_ylabel("novatos para cada pessoa que sai")
+    ax.set_xlabel("ano")
+    ax.set_title("Reposição: acima de 1 entra mais gente do que sai")
+    ax.legend(frameon=False)
+    salva(fig, "trajetoria_reposicao.png", geral=True)
+
+
 @figura("trajetoria", "taxas")
 def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
     """Saídas e voltas de cada ano, em % dos ativos, em dois painéis."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-    _linhas_por_linguagem(ax1, d["trajetoria"], "saida_pct", ctx.p.ano_base_indice, com_cauda=True)
-    _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", ctx.p.ano_base_indice)
+    _linhas_por_linguagem(ax1, d["trajetoria"], "saida_pct", 0, com_cauda=True)
+    _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", 0)
     ax1.set_ylabel("saídas, % dos ativos")
     ax2.set_ylabel("voltas, % dos ativos")
     ax2.set_xlabel("ano")
-    ax1.set_title("Quem saiu no ano e quem voltou depois de 12 meses")
+    ax1.set_title("Saídas por ano e voltas depois de 12 meses sem contribuir")
     ax1.legend(frameon=False, ncol=5)
     salva(fig, "trajetoria_taxas.png", geral=True)
 

@@ -96,13 +96,12 @@ piramide_lado: todos
 ano_comparacao: 2024
 ano_base_indice: 2019
 
-# Saída é definitiva: a última contribuição da vida, seguida de 12 meses sem nada até o fim da
-# coleta. Os gráficos vão até o último ano completo da coleta (2025). Quem parou há pouco ainda
-# pode voltar. Um ano tem saída firme (linha cheia) quando a coleta cobre pelo menos
-# `carencia_anos` anos de calendário depois dele: ano da coleta - ano >= carencia_anos.
-# 1: até 2025 firme, nada tracejado. 2: 2025 tracejado. 3: 2024 e 2025 tracejados (3/4 das
-# pausas terminam em até 3 anos). Muda só o desenho, nenhuma tabela.
-carencia_anos: 1
+# Saída é definitiva: a última contribuição da vida, seguida de 12 meses sem nada até o fim do
+# acompanhamento. Um ano tem saída firme (linha cheia) quando o acompanhamento cobre pelo menos
+# `carencia_anos` anos de calendário depois dele: ano do fim do acompanhamento - ano >=
+# `carencia_anos`. Com o acompanhamento até 2026, carência 2 deixa 2025 tracejado (quem parou
+# em 2025 ainda pode voltar) e 2024 e antes firmes. Muda só o desenho, nenhuma tabela.
+carencia_anos: 2
 
 # Rodadas do SMR e da taxa padronizada. A referência de cada rodada é a soma das linguagens dela
 # em `ano_pesos`. Nicho: Clojure, Elixir, Zig e OCaml (RQ2a). Python: Clojure e Python (RQ2b), para
@@ -127,3 +126,9 @@ data_de_corte: "2025-12-31"
 # Tábua de vida comparada entre linguagens: anos de casa mostrados. 8 é a última faixa das
 # pirâmides (8+). O ponto de virada do risco de sair aparece em 2 a 3 anos.
 tabua_ate_anos: 8
+
+# Acompanhamento: os eventos depois da data de corte (2026) não entram nas contagens do estudo
+# (ativos, novatos, pirâmides, CCR e NCR), e só servem para decidir quem saiu, quem pausou e quem
+# pertence à população. Com isso a saída de 2025 aparece, provisória: quem parou há menos de 12
+# meses do fim da coleta de cada linguagem ainda pode voltar. false volta ao corte seco.
+usa_acompanhamento: true

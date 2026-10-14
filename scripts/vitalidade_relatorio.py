@@ -7,6 +7,7 @@ ficam aqui e citam células da tabela, nunca um valor digitado.
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -113,14 +114,17 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "restam para somar.",
         "",
         f"**Por que {zig} tem 1,00 em x=8.** Chegaram a 8 anos {num(risco.loc[8, zig], 0)} "
-        f"pessoas, {num(censurados.loc[8, zig], 0)} delas censuradas (ainda ativas a menos de "
-        f"12 meses do fim), com {num(saidas.loc[8, zig], 0)} saídas. A exposição efetiva é "
-        f"{num(exposicao.loc[8, zig], 0)} pessoas, e com tão poucas observações o intervalo "
-        f"vai de {num(inferior.loc[8, zig])} a {num(superior.loc[8, zig])}. O 1,00 vem de "
-        "amostra pequena e de censura, não de uma retenção perfeita. Há também um limite "
-        "estrutural: o Zig tem 8 anos de casa só entre quem entrou em 2015 a 2017, e para eles "
-        "o intervalo x=8 cai em 2023 a 2025, os últimos anos, onde quase ninguém pode ter a "
-        "saída confirmada.",
+        f"pessoas. {num(censurados.loc[8, zig], 0)} delas ainda estão ativas no fim da coleta, "
+        "então não dá para saber se vão sair, e não entram como saída. As outras "
+        f"{num(risco.loc[8, zig] - censurados.loc[8, zig], 0)} tiveram "
+        f"{num(saidas.loc[8, zig], 0)} saídas. Contando metade das ainda ativas, são "
+        f"{num(exposicao.loc[8, zig], 0)} pessoas observadas, e com tão poucas a margem de "
+        f"erro vai de {num(inferior.loc[8, zig])} a {num(superior.loc[8, zig])}. "
+        "O 1,00 vem de poucas pessoas observadas.",
+        "",
+        "**Por que o fim da tabela do Zig tem tão poucas pessoas.** Quem tem 8 anos de Zig "
+        "entrou até 2017. Para essas pessoas, o ano x=8 cai nos últimos anos da coleta, e quem "
+        "ainda contribui nesses anos não pode ter a saída confirmada.",
     ]
     linhas = [
         "## 1. Tábua de vida",
@@ -129,7 +133,8 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "",
         "- **Chance de seguir mais 1 ano, tendo chegado a x**: 1 - q(x).",
         "- **Fração que chega a x**: S(x).",
-        "- **Anos que ainda restam**: e(x). É piso, a cauda censurada fica de fora.",
+        "- **Anos que ainda restam**: e(x). É um mínimo, porque não soma os anos depois do último "
+        "observado.",
         "",
         f"![chegar e ficar]({figuras}/tabua_chegar_e_ficar.png)",
         "",
@@ -151,14 +156,26 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "",
         tabela_md(risco, 0),
         "",
-        "### Intervalo de confiança de 95% da chance de seguir mais 1 ano",
+        "### Margem de erro da chance de seguir mais 1 ano",
         "",
-        "Intervalo de Wilson, com a exposição efetiva: pessoas em risco menos meia pessoa por "
-        "censurado. Cada célula traz o valor da tabela e o intervalo.",
+        "Cada célula traz o valor da tabela e a faixa em que o valor verdadeiro provavelmente "
+        "está (95% de confiança). A faixa depende só de quantas pessoas foram observadas no "
+        "ano x: com poucas pessoas ela fica larga.",
+        "",
+        "- A chance de seguir mais 1 ano olha só o ano seguinte: é 1 menos a taxa de saída do "
+        "ano x entre quem chegou a x.",
+        "- A margem de erro não olha mais anos. Ela mede quanto essa taxa poderia mudar se "
+        "tivéssemos observado outras pessoas parecidas, como a margem de erro de uma pesquisa "
+        "eleitoral.",
+        "- Conta: com n pessoas observadas e d saídas, a taxa é p = d / n. A faixa é "
+        "(p + z² / 2n ± z · raiz(p(1-p)/n + z²/4n²)) / (1 + z² / n), com z = 1,96. "
+        "É a fórmula de Wilson, que não passa de 0 nem de 1.",
+        "- Pessoas observadas no ano x = pessoas que chegaram a x menos metade das que ainda "
+        "estão ativas no fim da coleta, porque delas só se vê metade do ano em média.",
         "",
         tabela_md(intervalo),
         "",
-        "### Exposição efetiva",
+        "### Pessoas observadas no ano x",
         "",
         tabela_md(exposicao, 0),
         "",
@@ -255,22 +272,41 @@ def secao_crescimento(base: Path, p: v.Parametros, ordem: list[str]) -> str:
     return "\n".join(linhas)
 
 
-def secao_janela(p: v.Parametros) -> str:
+def fim_do_acompanhamento(base: Path, p: v.Parametros, ordem: list[str]) -> pd.DataFrame:
+    """Até quando cada linguagem foi acompanhada, lido dos resultados gravados."""
+    linhas = []
+    for slug in ordem:
+        pasta = slug if p.populacao == "todos" else f"{slug}-{p.populacao}"
+        meta = json.loads((base / pasta / "resultados" / "vitalidade" / "meta.json").read_text())
+        data = pd.Timestamp(meta.get("fim_acompanhamento") or meta["fim"])
+        linhas.append({"linguagem": carga_fonte.LINGUAGENS[slug].nome, "acompanhada até": data})
+    quadro = pd.DataFrame(linhas).set_index("linguagem")
+    quadro["acompanhada até"] = quadro["acompanhada até"].dt.strftime("%d/%m/%Y")
+    return quadro
+
+
+def secao_janela(base: Path, p: v.Parametros, ordem: list[str]) -> str:
+    corte = pd.Timestamp(p.data_de_corte)
+    quadro = fim_do_acompanhamento(base, p, ordem)
     linhas = [
         "## 5. Até onde vai a análise e por quê",
         "",
-        f"- O estudo termina em **{p.data_de_corte}** (`data_de_corte`). Os eventos de 2026 saem "
-        "de tudo.",
-        "- 2026 está incompleto: a coleta termina antes do fim do ano, e meio ano distorceria "
+        f"- O estudo termina em **{corte.strftime('%d/%m/%Y')}**. Ativos, novatos, pirâmides e "
+        "CCR/NCR vão até esse dia.",
+        "- 2026 não é um ano do estudo: a coleta acaba antes do fim dele, e meio ano distorceria "
         "as taxas anuais.",
-        "- Ativos, novatos, pirâmides e CCR/NCR vão até 2025.",
-        "- Saída, mortalidade e crescimento vão até 2024. A saída exige 12 meses sem contribuir "
-        "depois da última contribuição (Avelino et al., ESEM 2019). Para 2025 esses 12 meses "
-        "cairiam em 2026.",
-        f"- Na tábua de vida, a duração termina em {p.data_de_corte}. Quem tem o último evento "
-        "a 12 meses ou menos do fim conta como censurado: pode ainda estar ativo.",
-        "- A troca de papel (discussão para código e a volta) vai até 2024, pelo mesmo motivo "
-        "da saída.",
+        "- Os eventos de 2026 servem para acompanhar quem já estava na população: dizem se a "
+        "pessoa voltou, e com isso decidem quem saiu, quem pausou e quem pertence à população "
+        "`passou_30_dias`.",
+        "- A saída exige 12 meses sem contribuir depois da última contribuição (Avelino et al., "
+        "ESEM 2019). A saída de 2025 aparece provisória, tracejada: quem parou há menos de 12 "
+        "meses do fim da coleta ainda pode voltar.",
+        "- Até quando cada linguagem foi acompanhada (último evento coletado):",
+        "",
+        tabela_md(quadro),
+        "",
+        "- A taxa de saída por faixa de tempo de casa, a taxa padronizada, o SMR e os cenários "
+        "usam só os anos com saída confirmada, até 2024.",
         f"- População: `{p.populacao}`. Só entra quem tem 30 dias ou mais entre o primeiro e o "
         "último evento, de qualquer tipo (commit, PR, issue, comentário).",
         "- Os cortes ficam em `scripts/vitalidade.yaml` (lista em `docs/linguagem/parametros.md`).",
@@ -299,7 +335,7 @@ def main() -> None:
         secao_ccr_ncr(pasta, figuras, ordem),
         secao_piramides(figuras),
         secao_crescimento(base, p, ordem),
-        secao_janela(p),
+        secao_janela(base, p, ordem),
     ]
     destino = base / "RELATORIO.md"
     destino.write_text("\n".join(partes))

@@ -15,8 +15,9 @@ Se um parâmetro de tabela mudar, `--so-figuras` avisa que as tabelas gravadas s
 | parâmetro | padrão | configura | muda |
 |---|---|---|---|
 | `populacao` | `passou_30_dias` | quem conta como pessoa. `todos`, `codigo`, `mais_de_um_dia`, `passou_N_dias`. Cada uma grava em pasta própria (`python-passou_30_dias`). O cache dos eventos é um só. | tabela |
-| `data_de_corte` | `2025-12-31` | fim do estudo. Eventos depois dela saem de tudo. Tem de ser o último dia de um trimestre. `null` usa o último evento. | tabela |
-| `carencia_anos` | 1 | anos de coleta depois de um ano para a saída dele valer como firme. Ano mais recente que isso sai tracejado. | desenho (e a coluna `provisorio` da trajetória) |
+| `data_de_corte` | `2025-12-31` | fim do estudo: ativos, novatos, pirâmides e CCR/NCR vão até esse dia. Tem de ser o último dia de um trimestre. `null` usa o último evento. | tabela |
+| `usa_acompanhamento` | true | os eventos depois da data de corte (2026) só decidem quem saiu, quem pausou e quem pertence à população. A saída de 2025 aparece provisória. `false` corta tudo na data de corte. | tabela |
+| `carencia_anos` | 2 | anos de calendário que o acompanhamento precisa cobrir depois de um ano para a saída dele valer como firme. Com o acompanhamento até 2026 e carência 2, 2025 sai tracejado. | desenho (e a coluna `provisorio` da trajetória) |
 
 ### Cenários e projeção (RQ3)
 

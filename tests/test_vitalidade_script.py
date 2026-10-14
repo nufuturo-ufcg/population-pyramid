@@ -272,7 +272,7 @@ def test_carencia_de_um_ano_nao_tracejou_nada_e_a_de_tres_traceja_dois_anos():
     import vitalidade_figuras as f
 
     class Ctx:
-        fim = pd.Timestamp("2026-10-12")
+        fim_acompanhamento = pd.Timestamp("2026-10-12")
 
         class p:  # noqa: N801
             carencia_anos = 1
@@ -374,3 +374,29 @@ def test_piramide_em_pct_usa_o_total_das_quatro_categorias_como_base():
     assert em_pct.iloc[0].tolist() == [10, 10, 30, 50]
     # Um lado isolado mostra a parcela dele, não 100%.
     assert f._so_o_lado(em_pct, "codigo").iloc[0].tolist() == [0, 0, 30, 50]
+
+
+def test_acompanhamento_mostra_a_saida_de_2025_sem_mudar_os_ativos_do_estudo():
+    """Quem parou em 2025 e não voltou até out/2026 sai em 2025, e 2026 não vira ano do estudo."""
+    import pandas as pd
+
+    from pyramid import vitalidade
+
+    linhas = [
+        (1, "commits", "2024-03-01"),
+        (1, "commits", "2025-03-01"),  # última contribuição em 2025, sem nada depois
+        (2, "commits", "2024-06-01"),
+        (2, "commits", "2026-02-01"),  # volta em 2026, dentro dos 12 meses: não saiu
+    ]
+    ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    corte = pd.Timestamp("2025-12-31 23:59:59")
+    coleta = pd.Timestamp("2026-10-12")
+    pa = vitalidade.pessoa_ano(ev, coleta)
+    pa = pa[pa["ano"] <= corte.year].set_index(["contributor_id", "ano"])
+    assert bool(pa.loc[(1, 2025), "saida"])
+    assert not bool(pa.loc[(2, 2024), "saida"])
+    assert 2026 not in pa.index.get_level_values("ano")
+    t = vitalidade.tabela_anual(pa.reset_index(), coleta).set_index("ano")
+    assert t.loc[2025, "saidas"] == 1 and bool(t.loc[2025, "provisorio"])
+    assert not bool(t.loc[2024, "provisorio"])

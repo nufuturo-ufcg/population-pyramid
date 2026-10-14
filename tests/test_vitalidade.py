@@ -523,3 +523,10 @@ def test_categorias_da_piramide_pelo_lado_da_atividade_mais_recente():
     comp = vitalidade.composicao(pa.reset_index())
     assert list(comp.columns) == ["ano", "faixa", *vitalidade.LADOS]
     assert comp[vitalidade.LADOS].to_numpy().sum() == len(pa)
+
+
+def test_kaplan_meier_traz_quantas_pessoas_ainda_contam_em_cada_ponto():
+    dur = pd.DataFrame({"duracao_anos": [1.0, 2.0, 3.0, 4.0], "saiu": [True, True, True, False]})
+    curva = vitalidade.kaplan_meier(dur)
+    assert curva["em_risco"].is_monotonic_decreasing
+    assert curva["em_risco"].iloc[0] == 4  # no primeiro ponto todos têm 1 ano ou mais

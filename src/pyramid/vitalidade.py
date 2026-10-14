@@ -710,14 +710,19 @@ MAX_PONTOS_KM = 2_000_000
 def kaplan_meier(dur: pd.DataFrame) -> pd.DataFrame:
     """Fração estimada ainda ativa, `S`, depois de `anos` desde a primeira contribuição.
 
+    `em_risco` é quantas pessoas têm duração de `anos` ou mais: quanto menor, menos a curva vale.
     Com mais de `MAX_PONTOS_KM` pontos fica o último de cada dia, que é exato nesse instante.
     """
     sf = stats.ecdf(_amostra_censurada(dur)).sf
     curva = pd.DataFrame({"anos": sf.quantiles, "S": sf.probabilities})
-    if len(curva) <= MAX_PONTOS_KM:
-        return curva
-    dia = np.floor(curva["anos"] * DIAS_POR_ANO)
-    return curva.groupby(dia, sort=True).last().reset_index(drop=True)
+    if len(curva) > MAX_PONTOS_KM:
+        dia = np.floor(curva["anos"] * DIAS_POR_ANO)
+        curva = curva.groupby(dia, sort=True).last().reset_index(drop=True)
+    duracoes_ordenadas = np.sort(dur["duracao_anos"].to_numpy())
+    curva["em_risco"] = len(duracoes_ordenadas) - np.searchsorted(
+        duracoes_ordenadas, curva["anos"].to_numpy(), side="left"
+    )
+    return curva
 
 
 def logrank(dur_a: pd.DataFrame, dur_b: pd.DataFrame) -> tuple[float, float]:

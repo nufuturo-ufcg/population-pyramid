@@ -163,6 +163,7 @@ class Parametros:
     carencia_anos: int
     rodadas_padronizacao: dict[str, list[str]]
     data_de_corte: str | None
+    usa_acompanhamento: bool
     ccr_ncr_inatividade_meses: float
     ccr_ncr_novato_meses: float
     tabua_ate_anos: int
@@ -286,6 +287,18 @@ def aplica_populacao(p: Parametros) -> None:
     vitalidade_figuras.ESTADO.sufixo = rotulo
 
 
+def filtra_populacao(p: Parametros, compactos: pd.DataFrame) -> pd.DataFrame:
+    """Os eventos só de quem pertence à população escolhida (`todos` não tira ninguém)."""
+    achou = PASSOU_DIAS.fullmatch(p.populacao)
+    if p.populacao == "codigo":
+        return vitalidade.so_quem_codou(compactos)
+    if p.populacao == "mais_de_um_dia":
+        return vitalidade.tira_pessoas_de_um_dia(compactos)
+    if achou is not None:
+        return vitalidade.so_quem_passou_de(compactos, int(achou.group(1)))
+    return compactos
+
+
 class Contexto:
     """Dados de uma linguagem, calculados uma vez e compartilhados pelas métricas.
 
@@ -313,24 +326,30 @@ class Contexto:
             self.compactos = vitalidade.compacta(self.eventos)
         else:
             self.compactos = carrega_compactos(p, fonte, entrada)
-        # O corte vem antes da população: quem "voltou depois" só vale até o fim do estudo.
-        self.fim = fim_da_coleta(p, self.compactos["timestamp"].max())
-        self.compactos = vitalidade.ate_a_data(self.compactos, self.fim)
-        achou = PASSOU_DIAS.fullmatch(p.populacao)
-        if p.populacao == "codigo":
-            self.compactos = vitalidade.so_quem_codou(self.compactos)
-        elif p.populacao == "mais_de_um_dia":
-            self.compactos = vitalidade.tira_pessoas_de_um_dia(self.compactos)
-        elif achou is not None:
-            self.compactos = vitalidade.so_quem_passou_de(self.compactos, int(achou.group(1)))
+        # `fim` é o fim do estudo: ativos, novatos, pirâmides e CCR/NCR vão até ele. Com
+        # acompanhamento, os eventos depois dele (2026) só decidem quem saiu, quem pausou e quem
+        # entra na população; sem ele o corte vem antes de tudo.
+        self.fim_coleta = self.compactos["timestamp"].max()
+        self.fim = fim_da_coleta(p, self.fim_coleta)
+        if p.usa_acompanhamento:
+            self.compactos_coleta = filtra_populacao(p, self.compactos)
+            self.fim_acompanhamento = self.fim_coleta
+        else:
+            self.compactos_coleta = filtra_populacao(
+                p, vitalidade.ate_a_data(self.compactos, self.fim)
+            )
+            self.fim_acompanhamento = self.fim
+        self.compactos = vitalidade.ate_a_data(self.compactos_coleta, self.fim)
         pessoas = self.compactos["contributor_id"].nunique()
         print(
             f"{fb.LING.atual.nome}: {pessoas} pessoas, {len(self.compactos)} instantes "
-            f"compactados, coleta até {self.fim.date()}"
+            f"compactados, estudo até {self.fim.date()}, acompanhamento até "
+            f"{self.fim_acompanhamento.date()}"
         )
-        self.pa = vitalidade.pessoa_ano(self.compactos, self.fim)
-        self.anual = vitalidade.tabela_anual(self.pa, self.fim)
-        self.dur = vitalidade.duracoes(self.compactos, self.fim)
+        pa = vitalidade.pessoa_ano(self.compactos_coleta, self.fim_acompanhamento)
+        self.pa = pa[pa["ano"] <= self.fim.year].reset_index(drop=True)
+        self.anual = vitalidade.tabela_anual(self.pa, self.fim_acompanhamento)
+        self.dur = vitalidade.duracoes(self.compactos_coleta, self.fim_acompanhamento)
 
     @cached_property
     def pipeline(self) -> SimpleNamespace:
@@ -375,6 +394,7 @@ PARAMETROS_DO_CALCULO = (
     "carencia_anos",
     "rodadas_padronizacao",
     "data_de_corte",
+    "usa_acompanhamento",
     "tabua_ate_anos",
     "ano_base_indice",
     "ccr_ncr_inatividade_meses",
@@ -413,9 +433,15 @@ def carrega_tabelas(escopo: str, metrica_nome: str) -> Dados:
     return dados
 
 
-def salva_meta(escopo: str, p: Parametros, fim: pd.Timestamp | None) -> None:
-    """Grava o fim da coleta e os parâmetros que produziram as tabelas."""
-    meta = {"fim": None if fim is None else str(fim), "parametros": asdict(p)}
+def salva_meta(
+    escopo: str, p: Parametros, fim: pd.Timestamp | None, fim_acompanhamento: pd.Timestamp | None
+) -> None:
+    """Grava o fim do estudo, o do acompanhamento e os parâmetros que produziram as tabelas."""
+    meta = {
+        "fim": None if fim is None else str(fim),
+        "fim_acompanhamento": None if fim_acompanhamento is None else str(fim_acompanhamento),
+        "parametros": asdict(p),
+    }
     (_raiz_resultados(escopo) / "meta.json").write_text(json.dumps(meta, default=str))
 
 
@@ -441,6 +467,8 @@ class ContextoLeve:
                 file=sys.stderr,
             )
         self.fim = pd.Timestamp(meta["fim"]) if meta["fim"] else None
+        acompanhamento = meta.get("fim_acompanhamento") or meta["fim"]
+        self.fim_acompanhamento = pd.Timestamp(acompanhamento) if acompanhamento else None
 
     @cached_property
     def anual(self) -> pd.DataFrame:
@@ -466,8 +494,10 @@ def metrica_tamanho(ctx: Contexto) -> Dados:
     """
     return {
         "anual": ctx.anual,
-        "transicao_anual": vitalidade.fluxos(ctx.compactos, ctx.fim, "Y"),
-        "transicao_trimestral": vitalidade.fluxos(ctx.compactos, ctx.fim, "Q"),
+        "transicao_anual": vitalidade.fluxos(ctx.compactos_coleta, ctx.fim_acompanhamento, "Y"),
+        "transicao_trimestral": vitalidade.fluxos(
+            ctx.compactos_coleta, ctx.fim_acompanhamento, "Q"
+        ),
     }
 
 
@@ -689,9 +719,12 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         t["saida_pct"] = 100 * t["saidas"] / t["ativos"]
         t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
         t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
+        # Reposição: quantos novatos entram para cada pessoa que sai. Abaixo de 1 a comunidade
+        # não repõe quem sai.
+        t["reposicao"] = t["novatos"] / t["saidas"].where(t["saidas"] > 0)
         # Saída é definitiva, e quem parou há pouco ainda pode voltar: os últimos `carencia_anos`
         # anos são provisórios e saem tracejados.
-        t["provisorio"] = t["ano"] > lingua.fim.year - ctx.p.carencia_anos
+        t["provisorio"] = t["ano"] > lingua.fim_acompanhamento.year - ctx.p.carencia_anos
         ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice
         t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
         trajetorias.append(t)
@@ -846,7 +879,7 @@ def roda(
         else:
             bruto = any(USA_PIPELINE[n] for n in de_uma_linguagem)
             ctx = Contexto(p, slug, bruto, entrada)
-            salva_meta("linguagem", p, ctx.fim)
+            salva_meta("linguagem", p, ctx.fim, ctx.fim_acompanhamento)
         _executa(de_uma_linguagem, ctx, escolha, so_figuras)
     if comparativas:
         if so_figuras:
@@ -854,7 +887,7 @@ def roda(
         else:
             bruto = any(USA_PIPELINE[n] for n in comparativas)
             ctx_comparativo = ContextoComparativo(p, bruto, entrada, slug)
-            salva_meta("comparativo", p, None)
+            salva_meta("comparativo", p, None, None)
         _executa(comparativas, ctx_comparativo, escolha, so_figuras)
 
 
