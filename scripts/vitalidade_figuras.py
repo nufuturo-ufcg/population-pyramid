@@ -457,7 +457,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
 def figura_crescimento_anual(ctx: Any, d: Dados) -> None:
     """Crescimento natural do ano: tudo que entra menos tudo que sai, em % dos ativos do ano."""
     t = d["anual"]
-    decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
+    decidido = t[t["ano"] <= ctx.p.ultimo_ano_crescimento]
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ax.axhline(0, color="#888888", linewidth=0.8)
     _plota(
@@ -493,7 +493,7 @@ def _figura_natalidade(ctx: Any, d: Dados, com_populacao: bool) -> None:
     from matplotlib.patches import Patch
 
     t = d["anual"]
-    t = t[(t["ano"] <= _ate_o_ano_decidido(ctx)) & (t["ativos"] >= MIN_PESSOAS)]
+    t = t[(t["ano"] <= ctx.p.ultimo_ano_crescimento) & (t["ativos"] >= MIN_PESSOAS)]
     t = t[t["mortalidade_pct"].notna()]
     fig = plt.figure(figsize=(10, 5.5))
     ax = fig.add_axes((0.08, 0.22, 0.80, 0.68))
@@ -1528,8 +1528,9 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
 def figura_crescimento_comparado(ctx: Any, d: Dados) -> None:
     """Crescimento natural do ano: tudo que entra menos tudo que sai, em % dos ativos do ano."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
+    ate_o_ultimo = d["trajetoria"][d["trajetoria"]["ano"] <= ctx.p.ultimo_ano_crescimento]
     _linhas_por_linguagem(
-        ax, d["trajetoria"], "crescimento_natural_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
+        ax, ate_o_ultimo, "crescimento_natural_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
     )
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.set_ylabel(f"% da {TERMO_POPULACAO}")

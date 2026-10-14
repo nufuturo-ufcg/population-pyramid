@@ -556,7 +556,10 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         lados.rename(columns={"slug": "linguagem"}), "lado do código %", "ano", ordem
     )
     traj = pastas.csv(geral, "trajetoria.csv")
-    traj = traj[(traj["ativos"] >= 100) & (traj["ano"] >= p.ano_inicio_comparacao)]
+    traj = traj[
+        (traj["ativos"] >= 100)
+        & (traj["ano"].between(p.ano_inicio_comparacao, p.ultimo_ano_crescimento))
+    ]
     crescimento = por_linguagem(
         traj.rename(columns={"slug": "linguagem"}), "crescimento_natural_pct", "ano", ordem
     )
@@ -610,7 +613,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         "### 2.4 Crescimento natural das cinco linguagens",
         "",
         "Todo mundo que entrou menos todo mundo que saiu, em % da população do ano, "
-        f"a partir de {p.ano_inicio_comparacao}.",
+        f"de {p.ano_inicio_comparacao} a {p.ultimo_ano_crescimento}.",
         "",
         tabela_md(crescimento, 1),
         "",

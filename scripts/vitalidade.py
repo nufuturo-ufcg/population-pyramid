@@ -162,6 +162,7 @@ class Parametros:
     anos_comparacao: list[int]
     ano_base_indice: int
     ano_inicio_comparacao: int
+    ultimo_ano_crescimento: int
     carencia_anos: int
     rodadas_padronizacao: dict[str, list[str]]
     data_de_corte: str | None
