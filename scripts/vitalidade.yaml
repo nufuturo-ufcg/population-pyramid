@@ -86,11 +86,12 @@ populacao: passou_30_dias
 piramide_em_pct: true
 
 # Que categorias as pirâmides mostram. As porcentagens seguem sobre os ativos do ano todo, então um
-# lado isolado mostra a parcela dele. As quatro categorias, de quem era e é quem no fim do ano:
+# lado isolado mostra a parcela dele. As quatro categorias, pelo que cada pessoa fez até o fim do
+# ano:
 #   non_coding           só discussão: nunca fez commit nem PR
-#   moved_to_discussion  já codou e a atividade mais recente é discussão
-#   moved                começou pela discussão e hoje está do lado do código
-#   coding               o resto de quem codou
+#   moved_to_discussion  já codou em anos anteriores e neste ano só discutiu
+#   moved                começou pela discussão e fez commit ou PR neste ano
+#   coding               começou pelo código e fez commit ou PR neste ano
 # Opções: todos (as quatro), moved_para_discussao, moved_para_codigo, codigo (moved + coding),
 # discussao (non_coding + moved_to_discussion). Só muda o desenho.
 piramide_lado: todos

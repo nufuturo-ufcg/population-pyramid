@@ -189,20 +189,15 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     pa = ev.assign(ano=ev["timestamp"].dt.year)[["contributor_id", "ano"]].drop_duplicates()
     pa = pa.join(marcos, on="contributor_id")
 
-    # Último commit/PR e última discussão até o fim de cada ano: a pirâmide é um retrato do fim do
-    # ano, então olha só o passado. A compactação guarda o último evento de cada lado por
-    # trimestre, e o máximo acumulado dá o valor exato.
-    do_codigo = ev["event_type"].isin(TIPOS_CODING)
-    ts = ev["timestamp"]
-    por_ano = (
-        ev.assign(ano=ts.dt.year, _c=ts.where(do_codigo), _d=ts.where(~do_codigo))
-        .groupby(["contributor_id", "ano"])
-        .agg(last_c_ate=("_c", "max"), last_d_ate=("_d", "max"))
-    )
-    # cummax deixa NaT nos anos sem evento daquele lado; o ffill carrega o máximo adiante.
-    ate_o_ano = por_ano.groupby(level="contributor_id").cummax()
-    ate_o_ano = ate_o_ano.groupby(level="contributor_id").ffill()
-    pa = pa.join(ate_o_ano, on=["contributor_id", "ano"])
+    # Quem fez commit ou PR em cada ano. A compactação guarda o último evento de código de cada
+    # trimestre, então saber se houve código no ano é exato.
+    com_codigo = ev[ev["event_type"].isin(TIPOS_CODING)]
+    anos_com_codigo = com_codigo.assign(ano=com_codigo["timestamp"].dt.year)[
+        ["contributor_id", "ano"]
+    ].drop_duplicates()
+    anos_com_codigo["codou_no_ano"] = True
+    pa = pa.merge(anos_com_codigo, on=["contributor_id", "ano"], how="left")
+    codou_no_ano = pa.pop("codou_no_ano").fillna(False).astype(bool)
 
     fim_ano = pd.to_datetime((pa["ano"] + 1).astype(str) + "-01-01")
     # Idade em anos de calendário: cada faixa de 1 ano é exatamente uma coorte
@@ -216,10 +211,9 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     # Mesma regra de `snapshots.pyramid_at`, avaliada no fim do ano.
     codou = pa["init_c"].notna() & (pa["init_c"] < fim_ano)
     comecou_na_discussao = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
-    # O lado de volta do `moved`. Cada pessoa fica no lado da atividade mais recente: se a última
-    # discussão veio depois do último commit/PR, ela está do lado da discussão, e como já codou é
-    # `moved_to_discussion`. No lado do código, `moved` é quem começou pela discussão.
-    foi_para_discussao = codou & pa["last_d_ate"].notna() & (pa["last_d_ate"] > pa["last_c_ate"])
+    # O lado de volta do `moved`: quem já codou e neste ano só discutiu. Quem fez algum commit ou PR
+    # no ano fica do lado do código, mesmo que o último evento do ano seja um comentário.
+    foi_para_discussao = codou & ~codou_no_ano
     pa["categoria"] = np.select(
         [~codou, foi_para_discussao, comecou_na_discussao],
         ["non_coding", "moved_to_discussion", "moved"],
@@ -263,9 +257,7 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
     # Dois períodos separados por 12 meses não terminam (nem começam) no mesmo ano.
     if pa.duplicated(["contributor_id", "ano"]).any():
         raise ValueError("pessoa_ano: (pessoa, ano) repetido; mais de uma saída ou volta no ano.")
-    return pa.drop(
-        columns=["init_c", "init_d", "last_c", "last_d", "last_c_ate", "last_d_ate"]
-    ).reset_index(drop=True)
+    return pa.drop(columns=["init_c", "init_d", "last_c", "last_d"]).reset_index(drop=True)
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:

@@ -171,16 +171,17 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 ## Categorias da pirâmide
 
-No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias. O lado é o da atividade mais recente até o fim do ano.
+No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias, pelo que fez até esse ano.
 
 | categoria | lado | quem é |
 |---|---|---|
 | `non_coding` | discussão | nunca fez commit nem PR |
-| `moved_to_discussion` | discussão | já codou, e a última discussão veio depois do último commit ou PR |
-| `moved` | código | começou pela discussão e hoje o último evento é código |
-| `coding` | código | o resto de quem codou |
+| `moved_to_discussion` | discussão | já codou em anos anteriores e neste ano só discutiu |
+| `moved` | código | começou pela discussão e fez commit ou PR neste ano |
+| `coding` | código | começou pelo código e fez commit ou PR neste ano |
 
-- A pirâmide é um retrato do fim do ano: olha só o passado. Quem voltar a codar em 2019 sai de `moved_to_discussion` e entra em `coding` ou `moved`.
+- Quem fez algum commit ou PR no ano fica do lado do código, mesmo que o último evento do ano seja um comentário. A regra anterior, que olhava o último evento do ano, jogava em `moved_to_discussion` quem comentou depois do último commit. Em Clojure 2024 isso dava 1.531 pessoas, e 752 delas tinham feito commit no próprio 2024.
+- Quem volta a codar muda de categoria no ano seguinte.
 - O parâmetro `piramide_lado` limita o desenho a uma parte: `moved_para_discussao`, `moved_para_codigo`, `codigo` (moved + coding), `discussao` (non_coding + moved_to_discussion) ou `todos`. A base da % continua sendo os ativos do ano todo.
 - `moved_to_discussion` é uma situação (estoque). A coluna `deixou_codigo` da tabela anual e a figura de troca de papel contam um fluxo, olhando o futuro.
 
