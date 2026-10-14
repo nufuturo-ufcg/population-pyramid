@@ -46,6 +46,54 @@ def figura(base: Path, caminho: str, legenda: str) -> str:
     return f"![{legenda}]({caminho})"
 
 
+def glossario() -> str:
+    linhas = [
+        "## Como ler cada métrica, em palavras",
+        "",
+        "- **Ativos**: pessoas com pelo menos um evento (commit, PR, issue ou comentário) no ano.",
+        "- **Novatos**: pessoas cuja primeira contribuição na vida cai no ano.",
+        "- **Saída definitiva**: a última contribuição da vida, seguida de 12 meses sem nada. "
+        "Como precisa dos 12 meses seguintes, a saída de 2025 não existe: eles cairiam em 2026, "
+        "e o estudo termina em 31/12/2025.",
+        "- **População viva**: quem está entre o primeiro e o último evento da vida, pausas "
+        "incluídas. É a base da natalidade e da mortalidade. Os ativos são só quem contribuiu no "
+        "ano, por isso a população viva é maior.",
+        "- **Natalidade e mortalidade**: novatos do ano e saídas do ano, em % da população viva. "
+        "A diferença é o crescimento natural.",
+        "- **Crescimento natural**: (novatos - saídas) / ativos do mesmo ano.",
+        "- **Índice de envelhecimento**: ativos com 5 anos ou mais de casa dividido pelos ativos "
+        "com menos de 1 ano de casa. A idade é o tempo na linguagem, não a idade da pessoa. "
+        "Com índice 1 há tantos veteranos quanto novatos. Quando sobe, a base da pirâmide "
+        "encolhe mais rápido que o topo.",
+        "- **Coorte**: o grupo que entrou no mesmo ano. **Sobrevivência por coorte**, S(x), é a "
+        "fração desse grupo ainda ativa x anos depois. Coorte 2010 de Clojure com S(1) = 0,83 "
+        "quer dizer que de cada 100 pessoas que entraram em 2010, 83 seguiam ativas um ano depois.",
+        "- **Censura à direita**: quem ainda está ativo no fim da coleta não tem data de saída. "
+        "Conta como censurado, e não como alguém que saiu. Ignorar isso inflaria as saídas.",
+        "- **Tábua de vida**: para cada ano de casa x, l(x) pessoas em observação, d(x) saídas, "
+        "q(x) = d(x) / exposição a chance de sair no ano, S(x) a fração que chega a x e e(x) os "
+        "anos que ainda restam. A exposição desconta meio ano por pessoa censurada.",
+        "- **Taxa padronizada**: a taxa de saída de cada faixa de tempo de casa, combinada com os "
+        "pesos de uma composição de referência única. Tira o efeito de uma linguagem ter mais "
+        "novatos do que outra. Aqui só as faixas de 0 a 5 anos, que existem em todas as "
+        "linguagens cinco anos depois do nascimento delas.",
+        "- **SMR**: saídas reais divididas pelas esperadas, se a linguagem tivesse as taxas de "
+        "saída da referência em cada faixa. Acima de 1: perdeu mais gente que o esperado.",
+        "- **Kaplan-Meier**: estima a probabilidade S(t) de uma pessoa ainda estar ativa t anos "
+        "depois de entrar, usando a duração de cada pessoa (do primeiro ao último evento) e "
+        "tratando quem segue ativo como censurado. A curva desce em degraus.",
+        "- **Log-rank**: teste de que duas curvas de Kaplan-Meier são iguais. Com milhares de "
+        "pessoas o p fica minúsculo para qualquer diferença. O que informa é o tamanho dela, "
+        "por exemplo S(5) = 0,28 contra 0,36.",
+        "- **CCR e NCR**: (código - discussão) / o maior dos dois, e (novatos - experientes) / o "
+        "maior dos dois. O sinal dos dois dá o tipo: A mais código e mais novatos, B mais "
+        "discussão e mais novatos, C mais código e mais experientes, D mais discussão e mais "
+        "experientes.",
+        "",
+    ]
+    return "\n".join(linhas)
+
+
 def rq1(pastas: Pastas, p: v.Parametros) -> str:
     c = pastas.linguagem("clojure")
     ultimo = pd.Timestamp(p.data_de_corte).year
@@ -65,6 +113,37 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     envelhecimento = pastas.csv(c, "indice_envelhecimento.csv").set_index("ano")
     envelhecimento = envelhecimento[envelhecimento.index >= 2010]
     envelhecimento = envelhecimento.rename(columns={"indice": "índice de envelhecimento"})
+
+    renovacao = []
+    for slug in p.linguagens_rq2:
+        lingua = pastas.linguagem(slug)
+        i = pastas.csv(lingua, "indice_envelhecimento.csv").set_index("ano")
+        a = pastas.csv(lingua, "anual.csv").set_index("ano")
+        for ano in (2015, 2020, 2024, 2025):
+            if ano in i.index and a.loc[ano, "ativos"] >= 100:
+                renovacao.append(
+                    {
+                        "linguagem": carga_fonte.LINGUAGENS[slug].nome,
+                        "ano": ano,
+                        "ativos": a.loc[ano, "ativos"],
+                        "novatos % dos ativos": 100 * i.loc[ano, "novatos"] / a.loc[ano, "ativos"],
+                        "índice de envelhecimento": i.loc[ano, "indice"],
+                    }
+                )
+    renovacao = pd.DataFrame(renovacao).set_index("linguagem")
+
+    transicao = pastas.csv(c, "transicao_anual.csv").set_index("periodo")
+    transicao = transicao[(transicao.index >= 2010) & transicao["mortalidade_pct"].notna()]
+    transicao = transicao[["populacao", "natalidade_pct", "mortalidade_pct"]]
+    transicao["natural pontos"] = transicao["natalidade_pct"] - transicao["mortalidade_pct"]
+    transicao = transicao.rename(
+        columns={
+            "populacao": "população viva",
+            "natalidade_pct": "natalidade %",
+            "mortalidade_pct": "mortalidade %",
+        }
+    )
+    transicao.index.name = "ano"
 
     coortes = pastas.csv(c, "tabua_coortes.csv")
     retencao = pd.DataFrame()
@@ -97,6 +176,15 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         figura(pastas.base, f"{c}/vitalidade/anual.png", "tamanho"),
         "",
+        figura(pastas.base, f"{c}/vitalidade/crescimento.png", "crescimento"),
+        "",
+        "Natalidade e mortalidade, que dão o crescimento natural em outra base: a população viva "
+        "(do primeiro ao último evento da vida, pausas incluídas), não os ativos do ano.",
+        "",
+        tabela_md(transicao, 1),
+        "",
+        figura(pastas.base, f"{c}/vitalidade/transicao_anual.png", "natalidade e mortalidade"),
+        "",
         "### 1.2 Composição: estrutura etária e índice de envelhecimento",
         "",
         "- Plano: pessoas ativas por faixa de tempo de contribuição (a pirâmide) e índice de "
@@ -109,6 +197,23 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         figura(pastas.base, f"{c}/vitalidade/piramides_faixa_pct.png", "pirâmides"),
         "",
         figura(pastas.base, f"{c}/vitalidade/indice_envelhecimento.png", "índice"),
+        "",
+        "**Clojure é uma população envelhecida que se renova pouco?** O que a tabela diz:",
+        "",
+        "- Em 2025 Clojure tem o maior índice de envelhecimento das cinco e a menor parcela de "
+        "novatos entre os ativos, entre as linguagens que já têm 100 ativos ou mais.",
+        "- A natalidade ficou abaixo da mortalidade a partir de 2018 e a distância cresce "
+        "(tabela de natalidade e mortalidade, seção 1.1).",
+        "- O índice sobe em todas as linguagens à medida que a comunidade amadurece. O que "
+        "separa Clojure é o nível: a de 2025 é a mais alta, e o número de novatos por ano caiu "
+        "de 2.287 (2015) para 654 (2024) enquanto os veteranos de 5 anos ou mais passaram de 284 "
+        "para 1.748.",
+        "- Os novatos de 2025 saem subestimados: com `passou_30_dias`, quem entrou depois de "
+        "1º/dez/2025 não teve 30 dias de seguimento e fica de fora. O efeito vale para as cinco "
+        "linguagens e infla o índice de 2025 em todas. Por isso 2024 é o ano mais seguro para "
+        "comparar.",
+        "",
+        tabela_md(renovacao, 2),
         "",
         "### 1.3 Retenção: sobrevivência por coorte",
         "",
@@ -145,9 +250,9 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
     anos = [2019, 2020, 2021, 2022, 2023, 2024]
     blocos_smr = []
     for rodada, linguagens in p.rodadas_padronizacao.items():
-        d = pad[(pad["rodada"] == rodada) & pad["ano"].isin(anos)]
+        d = pad[(pad["rodada"] == rodada) & pad["ano"].isin(anos) & (pad["ativos"] >= 100)]
         smr = por_linguagem(d, "smr", "ano", linguagens)
-        taxa = por_linguagem(d, "taxa_padronizada", "ano", linguagens)
+        taxa = por_linguagem(d, "taxa_padronizada_ate_5a", "ano", linguagens)
         blocos_smr.append(
             "\n".join(
                 [
@@ -159,7 +264,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
                     "",
                     tabela_md(smr, 2),
                     "",
-                    "Taxa de saída padronizada:",
+                    "Taxa de saída padronizada, 0 a 5 anos:",
                     "",
                     tabela_md(taxa, 2),
                     "",
@@ -196,6 +301,9 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         "composição de referência. SMR = saídas reais / saídas esperadas.",
         "- Aqui: uma rodada entre as linguagens de nicho (RQ2a) e outra de Clojure com Python "
         "(RQ2b), para o Python não pesar na referência das de nicho.",
+        "- A taxa padronizada usa só as faixas de 0 a 5 anos (0-1, 1-2, 2-3, 3-5). Com as seis "
+        "faixas ela só começa quando a linguagem tem 8+, e o Zig ficaria em 2023. Cada linha "
+        "começa quando a linguagem tem 100 ativos.",
         "",
         *blocos_smr,
         figura(pastas.base, f"{geral}/vitalidade/padronizacao_nicho.png", "nicho"),
@@ -320,6 +428,7 @@ def diferencas(p: v.Parametros) -> str:
         "da rodada em 2025: nicho (4 linguagens) e Clojure com Python |",
         f"| CCR e NCR | janela e novato do IEICE16 | janela de {p.ccr_ncr_inatividade_meses:g} "
         f"meses e novato com até {p.ccr_ncr_novato_meses:g} meses |",
+        "| Faixas da taxa padronizada | as seis faixas | 0 a 5 anos, para todas começarem cedo |",
         "| Magnetismo e stickiness | métricas da RQ2 | implementados, fora da execução padrão |",
         "| Observação válida | 50% da linguagem no repositório e 10 estrelas | igual |",
         "",
@@ -340,6 +449,7 @@ def main() -> None:
         "# Métricas por pergunta de pesquisa\n",
         "Ordem e definições do Plano de Experimento. Cada métrica traz o que o plano pede, "
         "como está aqui, os números e a figura.\n",
+        glossario(),
         rq1(pastas, p),
         rq2(pastas, p),
         rq3(pastas, p),

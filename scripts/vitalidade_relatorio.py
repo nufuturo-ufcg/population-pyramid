@@ -63,6 +63,20 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
     chega = por_linguagem(t, "S", "x", ordem)
     resta = por_linguagem(t, "e", "x", ordem)
     risco = por_linguagem(t, "l", "x", ordem)
+    exposicao = por_linguagem(t, "n_efetivo", "x", ordem)
+    censurados = por_linguagem(t, "censurados", "x", ordem)
+    saidas = por_linguagem(t, "d", "x", ordem)
+    t["fica_inf"] = 1 - t["q_sup"]
+    t["fica_sup"] = 1 - t["q_inf"]
+    inferior = por_linguagem(t, "fica_inf", "x", ordem)
+    superior = por_linguagem(t, "fica_sup", "x", ordem)
+    intervalo = fica.copy().astype(object)
+    for linguagem in fica.columns:
+        for x in fica.index:
+            intervalo.loc[x, linguagem] = (
+                f"{num(fica.loc[x, linguagem])}, de {num(inferior.loc[x, linguagem])} "
+                f"a {num(superior.loc[x, linguagem])}"
+            )
 
     c = carga_fonte.LINGUAGENS["clojure"].nome
     py = carga_fonte.LINGUAGENS["python"].nome
@@ -95,9 +109,18 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         f"x=8: {num(fica.loc[8, c])} e {num(fica.loc[8, py])}. {c} fica igual ou abaixo. "
         "| Não aparece |",
         "",
-        f"{zig} tem poucas pessoas nos x altos (l(8) = {num(risco.loc[8, zig], 0)}), "
-        "e os valores dele ali oscilam. e(x) cai nos x altos por construção: quanto mais "
-        "velho o x, menos anos de coleta restam para somar.",
+        "e(x) cai nos x altos por construção: quanto mais velho o x, menos anos de coleta "
+        "restam para somar.",
+        "",
+        f"**Por que {zig} tem 1,00 em x=8.** Chegaram a 8 anos {num(risco.loc[8, zig], 0)} "
+        f"pessoas, {num(censurados.loc[8, zig], 0)} delas censuradas (ainda ativas a menos de "
+        f"12 meses do fim), com {num(saidas.loc[8, zig], 0)} saídas. A exposição efetiva é "
+        f"{num(exposicao.loc[8, zig], 0)} pessoas, e com tão poucas observações o intervalo "
+        f"vai de {num(inferior.loc[8, zig])} a {num(superior.loc[8, zig])}. O 1,00 vem de "
+        "amostra pequena e de censura, não de uma retenção perfeita. Há também um limite "
+        "estrutural: o Zig tem 8 anos de casa só entre quem entrou em 2015 a 2017, e para eles "
+        "o intervalo x=8 cai em 2023 a 2025, os últimos anos, onde quase ninguém pode ter a "
+        "saída confirmada.",
     ]
     linhas = [
         "## 1. Tábua de vida",
@@ -127,6 +150,17 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         "### Pessoas em risco, l(x)",
         "",
         tabela_md(risco, 0),
+        "",
+        "### Intervalo de confiança de 95% da chance de seguir mais 1 ano",
+        "",
+        "Intervalo de Wilson, com a exposição efetiva: pessoas em risco menos meia pessoa por "
+        "censurado. Cada célula traz o valor da tabela e o intervalo.",
+        "",
+        tabela_md(intervalo),
+        "",
+        "### Exposição efetiva",
+        "",
+        tabela_md(exposicao, 0),
         "",
         "### Leitura",
         "",

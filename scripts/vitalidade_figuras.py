@@ -1005,11 +1005,15 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
         pad = pad[(pad["rodada"] == rodada) & (pad["ativos"] >= MIN_PESSOAS)]
         fig, eixos = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
         paineis = [
-            ("taxa_bruta", "taxa de saída bruta"),
-            ("taxa_padronizada_ate_5a", f"taxa padronizada, 0 a 5 anos, pesos de {ano_pesos}"),
-            ("smr", "SMR, saídas reais / esperadas"),
+            ("taxa_bruta", "taxa de saída bruta", "taxa"),
+            (
+                "taxa_padronizada_ate_5a",
+                f"taxa de saída padronizada, faixas de 0 a 5 anos, pesos de {ano_pesos}",
+                "taxa",
+            ),
+            ("smr", "SMR, saídas reais / esperadas", "SMR"),
         ]
-        for ax, (coluna, rotulo) in zip(eixos, paineis, strict=True):
+        for ax, (coluna, titulo, rotulo) in zip(eixos, paineis, strict=True):
             for slug in linguagens:
                 t = pad[(pad["linguagem"] == slug) & pad[coluna].notna()]
                 ax.plot(
@@ -1022,12 +1026,14 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
                     label=carga_fonte.LINGUAGENS[slug].nome,
                 )
             ax.set_ylabel(rotulo)
+            ax.set_title(titulo, fontsize=10)
             plots._theme(ax)
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         eixos[2].axhline(1, color="#888888", linewidth=0.8)
         eixos[0].legend(loc="upper left", frameon=False)
-        eixos[0].set_title("Taxa de saída corrigida pela composição")
+        fig.suptitle("Taxa de saída corrigida pela composição")
         eixos[2].set_xlabel("ano")
+        fig.tight_layout(rect=(0, 0, 1, 0.97))
         salva(fig, f"padronizacao_{rodada}.png", geral=True)
 
 
