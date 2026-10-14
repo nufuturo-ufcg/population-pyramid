@@ -531,6 +531,7 @@ def _figura_natalidade(ctx: Any, d: Dados, com_ativos: bool) -> None:
         linewidth=2,
         label="mortalidade, saídas e pausas / ativos",
     )
+    ax.set_ylim(bottom=0)
     ax.set_ylabel("% dos ativos do ano")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: natalidade, mortalidade e crescimento natural por ano")
