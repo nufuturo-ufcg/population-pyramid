@@ -242,6 +242,36 @@ def test_cenarios_por_taxa_com_janela():
     assert c["otimista"][1] == pytest.approx(1.0)
 
 
+def test_conservador_pelos_extremos_pela_media_e_pelos_recentes():
+    """Novatos de 2021 a 2023 (2020 só serve de base): 25, 20, 12. Pessimista 12, otimista 25."""
+    pop = pd.DataFrame(
+        {0: [10, 25, 20, 12], 1: [0, 5, 20, 28]}, index=[2020, 2021, 2022, 2023]
+    ).reindex(columns=range(10), fill_value=0)
+    saidas = pd.DataFrame(0.0, index=pop.index, columns=range(vitalidade.BANDAS))
+
+    def conservador(modo: str) -> float:
+        regra = vitalidade.RegraCenario(conservador=modo)
+        return vitalidade.cenarios(pop, saidas, 2023, regra)["conservador"][1]
+
+    assert conservador("extremos") == pytest.approx(18.5)  # (12 + 25) / 2
+    assert conservador("media") == pytest.approx(19)  # (25 + 20 + 12) / 3
+    assert conservador("recentes") == pytest.approx(16)  # (20 + 12) / 2
+    with pytest.raises(ValueError, match="conservador"):
+        conservador("outro")
+
+
+def test_variante_do_yaml_aceita_o_conservador_como_quarto_item():
+    antiga = vitalidade.regra_da_variante(["rótulo", 5, False], 0)
+    nova = vitalidade.regra_da_variante(["rótulo", 3, True, "recentes"], 20)
+    assert (antiga.janela, antiga.novatos_por_taxa, antiga.conservador) == (5, False, "extremos")
+    assert (nova.janela, nova.novatos_por_taxa, nova.conservador, nova.min_saidas) == (
+        3,
+        True,
+        "recentes",
+        20,
+    )
+
+
 def _eventos_aleatorios() -> pd.DataFrame:
     """300 pessoas com rajadas no mesmo dia, silêncios longos e os sete tipos de evento."""
     rng = np.random.default_rng(7)

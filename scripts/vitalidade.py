@@ -583,8 +583,8 @@ def metrica_cenarios(ctx: Contexto) -> Dados:
     e do Ipea (Bonifácio e Guimarães, Texto para Discussão 2698, 2021).
     """
     tabelas = {}
-    for chave, (_rotulo, janela, por_taxa) in ctx.p.variantes.items():
-        regra = vitalidade.RegraCenario(ctx.p.min_saidas, janela, por_taxa)
+    for chave, valores in ctx.p.variantes.items():
+        regra = vitalidade.regra_da_variante(valores, ctx.p.min_saidas)
         tabelas.update(_projecao_variante(ctx, regra, chave))
     return tabelas
 

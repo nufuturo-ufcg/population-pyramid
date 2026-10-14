@@ -1200,7 +1200,8 @@ def figura_calor(ctx: Any, d: Dados) -> None:
 @figura("cenarios", "backtest", padrao=True)
 def figura_cenarios_backtest(ctx: Any, d: Dados) -> None:
     """Real contra projetado um ano à frente, uma figura por regra de `variantes`."""
-    for chave, (rotulo, _janela, _por_taxa) in ctx.p.variantes.items():
+    for chave, valores in ctx.p.variantes.items():
+        rotulo = valores[0]
         pasta = f"cenarios-{chave}"
         figura_backtest(d[f"{pasta}/projecao_backtest"], ctx.p.teto, pasta, rotulo)
 
@@ -1208,7 +1209,8 @@ def figura_cenarios_backtest(ctx: Any, d: Dados) -> None:
 @figura("cenarios", "futuro", padrao=True)
 def figura_cenarios_futuro(ctx: Any, d: Dados) -> None:
     """Projeção dos próximos `horizonte` anos, uma figura por regra de `variantes`."""
-    for chave, (rotulo, _janela, _por_taxa) in ctx.p.variantes.items():
+    for chave, valores in ctx.p.variantes.items():
+        rotulo = valores[0]
         pasta = f"cenarios-{chave}"
         futuro = d[f"{pasta}/projecao_futuro"]
         futuro = futuro[futuro["teto"] == ctx.p.teto]
@@ -1221,7 +1223,8 @@ def figura_cenarios_comparadas(ctx: Any, d: Dados) -> None:
     if len(ctx.p.variantes) < 2:
         return
     bts = {}
-    for chave, (rotulo, _janela, _por_taxa) in ctx.p.variantes.items():
+    for chave, valores in ctx.p.variantes.items():
+        rotulo = valores[0]
         bts[rotulo] = d[f"cenarios-{chave}/projecao_backtest"]
     figura_variantes(bts, ctx.p.teto)
 

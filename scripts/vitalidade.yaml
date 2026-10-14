@@ -35,9 +35,12 @@ linguagens_rq2: [clojure, elixir, zig, ocaml, python]
 anos_piramide: [2010, 2014, 2018, 2022, 2025]
 coortes_tabua: [2010, 2013, 2016, 2019, 2022]
 
-# Regras de cenário comparadas no backtest: nome da pasta: [rótulo, janela em
-# anos (null = história toda), novatos por taxa]. A primeira é a do plano.
+# Regras de cenário comparadas no backtest: nome da pasta: [rótulo, janela em anos (null = história
+# toda), novatos por taxa, conservador]. O pessimista é o menor valor da janela e o otimista o maior.
+# Conservador: `extremos` (média do menor e do maior, o padrão), `media` (média da janela) ou
+# `recentes` (média dos 2 últimos anos). A primeira regra é a que o documento por RQ mostra.
 variantes:
+  contagem-5anos-recentes: ["pessimista e otimista dos últimos 5 anos, conservador dos 2 últimos", 5, false, "recentes"]
   contagem-historia: ["novatos em contagem, história toda", null, false]
   taxa-historia: ["novatos por taxa, história toda", null, true]
   contagem-5anos: ["novatos em contagem, últimos 5 anos", 5, false]

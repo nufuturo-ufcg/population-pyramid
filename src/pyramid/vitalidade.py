@@ -819,6 +819,16 @@ class RegraCenario:
     conservador: str = "extremos"
 
 
+def regra_da_variante(valores: list, min_saidas: int) -> RegraCenario:
+    """A regra de uma variante do yaml: [rótulo, janela, novatos por taxa, conservador].
+
+    O quarto item é opcional e o padrão é `extremos`.
+    """
+    janela, por_taxa = valores[1], valores[2]
+    conservador = valores[3] if len(valores) > 3 else "extremos"
+    return RegraCenario(min_saidas, janela, por_taxa, conservador)
+
+
 def cenarios(
     pop: pd.DataFrame, saidas: pd.DataFrame, ate_ano: int, regra: RegraCenario
 ) -> dict[str, tuple[np.ndarray, float]]:
