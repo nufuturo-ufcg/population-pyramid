@@ -241,27 +241,28 @@ def secao_crescimento(base: Path, p: v.Parametros, ordem: list[str]) -> str:
         a["linguagem"] = slug
         quadros.append(a.reset_index())
     t = pd.concat(quadros, ignore_index=True)
-    ultimo = pd.Timestamp(p.data_de_corte).year - 1
+    ultimo = pd.Timestamp(p.data_de_corte).year
     t = t[(t["ano"] >= 2015) & (t["ano"] <= ultimo)]
-    liquido = por_linguagem(t, "crescimento_liquido_pct", "ano", ordem)
+    natural = por_linguagem(t, "crescimento_natural_pct", "ano", ordem)
     variacao = por_linguagem(t, "variacao", "ano", ordem)
     linhas = [
-        "## 4. Crescimento líquido: base de cálculo",
+        "## 4. Crescimento natural: base de cálculo",
         "",
-        "O crescimento líquido do ano Y **tem como base os ativos do próprio ano Y**. "
-        "Ele não é a variação sobre o ano anterior.",
+        "O crescimento natural do ano Y **tem como base os ativos do próprio ano Y**. "
+        "Ele é diferente da variação dos ativos sobre o ano anterior.",
         "",
-        "- Crescimento líquido(Y) = (novatos(Y) + voltas(Y) - saídas(Y) - pausas(Y)) / ativos(Y).",
-        "- Novatos e voltas de Y são quem entrou em Y. Saídas e pausas de Y são quem tem a "
-        "última contribuição em Y (a saída só se confirma 12 meses depois).",
-        "- Variação dos ativos(Y) = ativos(Y) / ativos(Y-1) - 1. Essa sim usa o ano anterior "
-        "como base, com as saídas e pausas de Y-1.",
+        "- Crescimento natural(Y) = tudo que entra menos tudo que sai, dividido pelos ativos de Y: "
+        "(novatos(Y) + voltas(Y) - saídas(Y) - pausas(Y)) / ativos(Y).",
+        "- Entra quem chegou em Y, como novato ou como volta. Sai quem tem a última contribuição "
+        "de um período de atividade em Y, como saída ou como pausa.",
+        "- Variação dos ativos(Y) = ativos(Y) / ativos(Y-1) - 1. Essa usa o ano anterior como "
+        "base, com as saídas e pausas de Y-1.",
         "- Os dois ficam parecidos quando a comunidade é estável e se separam quando ela "
         "muda de tamanho.",
         "",
-        "### Crescimento líquido do ano (%, base: ativos do mesmo ano)",
+        "### Crescimento natural do ano (%, base: ativos do mesmo ano)",
         "",
-        tabela_md(liquido, 1),
+        tabela_md(natural, 1),
         "",
         "### Variação dos ativos sobre o ano anterior (%)",
         "",

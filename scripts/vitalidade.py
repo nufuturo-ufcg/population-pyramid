@@ -485,21 +485,16 @@ class ContextoLeve:
 def metrica_tamanho(ctx: Contexto) -> Dados:
     """Tamanho: crescimento natural por ano, natalidade e mortalidade. Responde RQ1.1.
 
-    O que faz: (novatos - saídas) / ativos do ano, em %. Natalidade e mortalidade
-    (nascimentos e óbitos sobre a população do período) saem por ano e por
-    trimestre, com a mesma conta de fluxo.
+    O que faz: crescimento natural = tudo que entra menos tudo que sai, em % dos ativos do ano.
+    Entram os novatos e as voltas, saem as saídas e as pausas. Natalidade é o que entra sobre
+    os ativos, mortalidade é o que sai sobre os ativos, e a diferença entre as duas é o
+    crescimento natural.
     Referência: equação compensadora da demografia (IBGE, metodologia das
     projeções 1980-2050, https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf;
     PRB Population Handbook 2011). Novatos e saídas: Foucault et al., ESEC/FSE
     2015, https://doi.org/10.1145/2786805.2786870.
     """
-    return {
-        "anual": ctx.anual,
-        "transicao_anual": vitalidade.fluxos(ctx.compactos_coleta, ctx.fim_acompanhamento, "Y"),
-        "transicao_trimestral": vitalidade.fluxos(
-            ctx.compactos_coleta, ctx.fim_acompanhamento, "Q"
-        ),
-    }
+    return {"anual": ctx.anual}
 
 
 @metrica("composicao")
@@ -703,11 +698,10 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
     """Trajetória: tamanho, crescimento e composição de cada linguagem, lado a lado. Responde RQ2.
 
     O que faz: ativos por ano e o índice de ativos (100 em `ano_base_indice`), o crescimento
-    líquido (novatos + voltas - saídas - pausas) / ativos, as taxas de saída e de volta em % dos
-    ativos e a composição por faixa em % dos ativos do ano. O crescimento líquido do ano divide
-    pelos ativos do próprio ano. Não é a variação sobre o ano anterior (ver `tabela_anual`).
-    Linguagens de tamanhos muito diferentes (o Python tem mil vezes os ativos do Zig) só se
-    comparam com o tamanho tirado: índice, taxas e composição em %.
+    natural (tudo que entra menos tudo que sai) / ativos, as taxas de saída e de volta em % dos
+    ativos e a composição por faixa em % dos ativos do ano. O crescimento divide pelos ativos do
+    próprio ano. Linguagens de tamanhos muito diferentes (o Python tem mil vezes os ativos do
+    Zig) só se comparam com o tamanho tirado: índice, taxas e composição em %.
     Referência: equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050,
     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf);
     pirâmide etária em % da população (IBGE, https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95).

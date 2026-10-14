@@ -38,15 +38,14 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - `populacao: todos` conta quem teve qualquer evento. `populacao: codigo` conta só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Em cada linguagem, entre 52% e 64% das pessoas só abriram issue ou comentaram. Cada população grava em pasta própria (`python`, `python-codigo`, `geral-codigo`), e o cache dos eventos é um só.
 - Rodar a segunda população não relê os CSV: `--set populacao=codigo` usa o cache. A população `codigo` olha o que a pessoa fez em algum momento da vida, não se ela voltou, então não carrega o viés de condicionar no futuro que um corte de "pelo menos 2 dias de atividade" teria.
 - Quase metade das pessoas de toda linguagem tem vida de um dia só (Clojure 44%, Elixir 43%, Python 42%) e cerca de dois terços saem a cada ano. O público de evento único existe em todas igualmente, e é por isso que as curvas de retenção ficam próximas.
-- Com a saída como a última contribuição da vida, o crescimento natural deixa de contar como morte quem só pausou. Com a saída por período de atividade (a regra anterior), dava negativo em todas as linguagens, até no Python.
-- A métrica `trajetoria` (comparativa) tira o tamanho da comparação: índice de ativos (100 em `ano_base_indice`), crescimento líquido, taxas de saída e de volta em % dos ativos, e as pirâmides de cada linguagem em % no mesmo ano (`ano_comparacao`).
+- A métrica `trajetoria` (comparativa) tira o tamanho da comparação: índice de ativos (100 em `ano_base_indice`), crescimento natural, taxas de saída e de volta em % dos ativos, e as pirâmides de cada linguagem em % no mesmo ano (`ano_comparacao`).
 - A pirâmide por faixa sai em % dos ativos do ano (`piramide_em_pct`). A de contagem fica em `composicao.piramides_contagem`.
 - `composicao.piramides_trimestrais` desenha como o artigo: idade em bandas de 90 dias no fim do ano, só para olhar. As métricas usam as faixas de 1 ano.
 - `populacao: mais_de_um_dia` tira quem teve atividade num dia só. O corte olha o futuro da pessoa (só fica quem voltou em outro dia), então derruba a saída dos novatos e infla a retenção: serve de sensibilidade, não de população principal.
 - `populacao: passou_N_dias` (passou_30_dias, passou_60_dias, passou_90_dias) mantém quem tem uma contribuição N ou mais dias depois da primeira: a pessoa só conta como viva depois de provar presença, como a saída só vale depois de 12 meses de silêncio. Serve à composição (pirâmide). Olha o futuro da pessoa, então derruba a saída dos novatos e não serve às taxas de saída da faixa 0-1.
 - `data_de_corte` (2025-12-31) fecha o estudo: ativos, novatos, pirâmides e CCR/NCR vão até esse dia. Com `usa_acompanhamento`, os eventos depois dela (2026) só decidem quem saiu, quem pausou e quem pertence à população, e a saída de 2025 aparece e pode estar um pouco alta. Sem o acompanhamento, a saída de 2025 não existe. Tem de ser o último dia de um trimestre, para a compactação ser exata.
 - Limite de saída: 12 meses em tudo, de Avelino et al. (ESEM 2019, seção II-B e Tabela II). O CCR e o NCR usavam 3 meses de inatividade (IEICE16) e agora usam `ccr_ncr_inatividade_meses` (12). O corte de novato do CCR e NCR é `ccr_ncr_novato_meses` (12, a mesma janela da saída). Com 3 e 3 o resultado é o do motor, exatamente. Refeita com os nossos dados, a Tabela II do Avelino tem a maior média harmônica em 12 meses nas cinco linguagens.
-- `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade, até o último ano completo.
+- Natalidade e mortalidade saem da tabela anual: natalidade = (novatos + voltas) / ativos e mortalidade = (saídas + pausas) / ativos.
 
 ## Gráficos
 
@@ -142,8 +141,8 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 - Volta de Y: um período de atividade que não é o primeiro começou em Y.
 - Moved de Y: o primeiro commit ou PR caiu em Y, depois de a pessoa já ter discutido.
 - A conta fecha: ativos(Y+1) = ativos(Y) - saídas(Y) - pausas(Y) + novatos(Y+1) + voltas(Y+1). `tabela_anual` falha se não fechar.
-- `crescimento_natural_pct` = (novatos - saídas) / ativos, nascimentos menos mortes. `crescimento_liquido_pct` = (novatos + voltas - saídas - pausas) / ativos.
-- Os dois crescimentos usam os fluxos do ano Y (quem entrou em Y, quem tem a última contribuição em Y) e dividem pelos ativos do próprio Y. Nenhum dos dois é a variação sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1: essa usa os ativos de Y-1 como base e as saídas e pausas de Y-1. Clojure 2024: líquido -8,5%, variação dos ativos -18,8%. O relatório mostra as duas lado a lado.
+- `crescimento_natural_pct` = tudo que entra menos tudo que sai = (novatos + voltas - saídas - pausas) / ativos, em %. É a natalidade menos a mortalidade. É a única medida de crescimento do estudo.
+- A base são os ativos do próprio ano Y, e os fluxos são os de Y: quem entrou em Y e quem tem a última contribuição de um período de atividade em Y. A variação sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, é outra conta: usa os ativos de Y-1 como base e as saídas e pausas de Y-1. Clojure 2024: crescimento natural -8,4%, variação dos ativos -18,8%. O relatório mostra as duas lado a lado.
 - Hindsight: saber que a pessoa volta no futuro tira a saída dela. O custo é que a saída dos anos finais é provisória, porque quem parou há pouco ainda pode voltar. Das pausas que terminam, 54% a 67% duram até 2 anos, 75% a 86% até 3 e 90% a 98% até 5, nas cinco linguagens. Os gráficos vão até o último ano completo da coleta. O último ano completo conta como saída quem não contribuiu desde então, com menos de 12 meses de coleta confirmados (`provisorio` na tabela anual). Os `carencia_anos` (1) últimos anos completos saem tracejados nos gráficos de saída, mortalidade e crescimento. O ano da coleta, incompleto, fica fora.
 
 ## Escolhas feitas com o usuário (2026-10-09)
@@ -224,11 +223,7 @@ No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias. O lado é
 - Cobertura: fração de anos em que o real ficou entre o pessimista e o otimista.
 - Teto em 1 na permanência: roda das duas formas. A adotada é sem teto, como no IEICE16 (escolha do usuário, 2026-10-09). Com teto fica como sensibilidade, nos mesmos CSVs, com a coluna `teto`.
 
-## Transição demográfica
+## Natalidade e mortalidade
 
-- Natalidade: nascimentos / população do período. Mortalidade: óbitos / população do período.
-- Passo anual e trimestral (`fluxos(eventos, fim, "Y")` e `"Q"`).
-- População de um período: quem tem um período de atividade que o cobre, contando os meses sem evento no meio.
-- No passo anual a população é igual aos ativos de `tabela_anual`. Conferido em Clojure, Elixir e Zig (2026-10-09). O teste `test_fluxos_anual_bate_com_tabela_anual` cobre o caso pequeno.
-- No trimestral a mesma conta de fluxo fecha: pop(P+1) = pop(P) - óbitos(P) + nascimentos(P+1) + voltas(P+1).
-- O período em que a coleta termina fica de fora. Óbito sem 12 meses de coleta depois fica vazio.
+- Natalidade: (novatos + voltas) / ativos do ano. Mortalidade: (saídas + pausas) / ativos do ano. A diferença é o crescimento natural.
+- Saem da tabela anual, sem cálculo à parte. Dois gráficos: `tamanho.natalidade_mortalidade` e `tamanho.natalidade_mortalidade_com_ativos`, o segundo com os ativos de cada ano em barras ao fundo.

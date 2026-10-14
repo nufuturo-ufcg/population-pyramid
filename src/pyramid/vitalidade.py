@@ -269,22 +269,21 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Ativos, novatos, saídas, pausas, voltas, moved, deixou_codigo e crescimento, por ano.
+    """Ativos, novatos, saídas, pausas, voltas, moved, deixou_codigo e crescimento natural, por ano.
 
     Saída é a última contribuição da vida. Quem para por mais de 12 meses e volta
     tem uma pausa no ano em que parou e uma volta no ano em que voltou, e deixa de ser ativo
     só entre os dois. Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saídas(Y) -
     pausas(Y) + novatos(Y+1) + voltas(Y+1), para todo Y com saída decidida.
 
-    crescimento_natural_pct = (novatos - saídas) / ativos: nascimentos menos óbitos, como na
-    demografia. crescimento_liquido_pct soma o que fecha a conta de ativos:
-    (novatos + voltas - saídas - pausas) / ativos.
+    crescimento_natural_pct = (novatos + voltas - saídas - pausas) / ativos: tudo que entra menos
+    tudo que sai, em % dos ativos do mesmo ano. natalidade_pct = (novatos + voltas) / ativos e
+    mortalidade_pct = (saídas + pausas) / ativos, e a diferença entre elas é o crescimento natural.
 
-    Os dois dividem pelos ativos do PRÓPRIO ano Y e somam os fluxos de Y: quem entrou em Y e quem
-    tem a última contribuição em Y (a saída só se confirma 12 meses depois). Nenhum dos dois é a
-    variação dos ativos sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, que usa os ativos de
-    Y-1 como base e as saídas e pausas de Y-1. Clojure 2024: líquido -8,5%, variação dos ativos
-    -18,8%.
+    A base é o ano Y. Entra quem chegou em Y (novato ou volta) e sai quem tem a última contribuição
+    de um período de atividade em Y (a saída só se confirma 12 meses depois). Não é a variação dos
+    ativos sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, que usa Y-1 como base e as saídas e
+    pausas de Y-1. Clojure 2024: crescimento natural -8,4%, variação dos ativos -18,8%.
     """
     g = pa.groupby("ano")
     t = pd.DataFrame(
@@ -302,10 +301,9 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
         if not ano_completo(ano, fim):
             t.loc[ano, "saidas"] = np.nan
     t["provisorio"] = [provisorio(ano, fim) for ano in t.index]
-    t["crescimento_natural_pct"] = 100 * (t["novatos"] - t["saidas"]) / t["ativos"]
-    t["crescimento_liquido_pct"] = (
-        100 * (t["novatos"] + t["voltas"] - t["saidas"] - t["pausas"]) / t["ativos"]
-    )
+    t["natalidade_pct"] = 100 * (t["novatos"] + t["voltas"]) / t["ativos"]
+    t["mortalidade_pct"] = 100 * (t["saidas"] + t["pausas"]) / t["ativos"]
+    t["crescimento_natural_pct"] = t["natalidade_pct"] - t["mortalidade_pct"]
 
     for ano in t.index:
         if ano + 1 not in t.index or pd.isna(t.loc[ano, "saidas"]):
@@ -324,77 +322,6 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
             )
     t.index.name = "ano"
     return t.reset_index()
-
-
-def fluxos(
-    eventos: pd.DataFrame, fim: pd.Timestamp, freq: str = "Y", vida_unica: bool = True
-) -> pd.DataFrame:
-    """População, nascimentos, óbitos e voltas por período: ano (`"Y"`) ou trimestre (`"Q"`).
-
-    Com `vida_unica` (o padrão) a pessoa está viva do primeiro ao último evento da vida, inclusive
-    nas pausas: a população é a dos vivos, nascimento é o primeiro evento, óbito é o último,
-    seguido de 12 meses sem nada, e não existe volta. A conta de demografia fecha sem ela:
-    pop(P+1) = pop(P) - óbitos(P) + nascimentos(P+1).
-
-    Sem `vida_unica`, cada período de atividade conta como uma vida: quem pausa por 12 meses
-    morre e reaparece como volta. A conta fecha com ela: pop(P+1) = pop(P) - óbitos(P) +
-    nascimentos(P+1) + voltas(P+1).
-
-    O período em que a coleta termina fica de fora, e o óbito de P fica `NaN` enquanto a coleta
-    não cobre 12 meses depois de P.
-    """
-    spans = periodos(eventos[["contributor_id", "event_type", "timestamp"]])
-    if vida_unica:
-        # A pessoa está viva do primeiro ao último evento, mesmo nas pausas: a saída é a última.
-        spans = (
-            spans.groupby("contributor_id", sort=False)
-            .agg(span_start=("span_start", "min"), span_end=("span_end", "max"))
-            .reset_index()
-            .assign(span_idx=0)
-        )
-    inicio = pd.PeriodIndex(spans["span_start"], freq=freq).asi8
-    termino = pd.PeriodIndex(spans["span_end"], freq=freq).asi8
-    primeiro = int(inicio.min())
-    ultimo_completo = pd.Period(fim, freq=freq).ordinal - 1
-    n = ultimo_completo - primeiro + 1
-
-    eh_primeiro = spans["span_idx"].to_numpy() == 0
-    parou = (
-        ((fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS))
-        | (spans["span_end"].dt.year == fim.year - 1)
-    ).to_numpy()
-    entram = np.bincount(inicio - primeiro, minlength=n)[:n]
-    # Quem termina em P ainda conta em P e sai do estoque em P+1.
-    saem = np.bincount(termino - primeiro + 1, minlength=n + 1)[:n]
-    nascimentos = np.bincount(inicio[eh_primeiro] - primeiro, minlength=n)[:n]
-    voltas = np.bincount(inicio[~eh_primeiro] - primeiro, minlength=n)[:n]
-    obitos = np.bincount(termino[parou] - primeiro, minlength=n)[:n].astype(float)
-
-    calendario = pd.period_range(pd.Period(ordinal=primeiro, freq=freq), periods=n)
-    for i, periodo in enumerate(calendario):
-        if (periodo + 1).start_time > pd.Timestamp(year=fim.year, month=1, day=1):
-            obitos[i] = np.nan
-
-    t = pd.DataFrame(
-        {
-            "periodo": calendario,
-            "populacao": np.cumsum(entram - saem),
-            "nascimentos": nascimentos,
-            "obitos": obitos,
-            "voltas": voltas,
-        }
-    )
-    for i in range(n - 1):
-        if np.isnan(obitos[i]):
-            continue
-        esperado = (
-            t.loc[i, "populacao"] - obitos[i] + t.loc[i + 1, "nascimentos"] + t.loc[i + 1, "voltas"]
-        )
-        if esperado != t.loc[i + 1, "populacao"]:
-            raise ValueError(f"fluxos: conta não fecha em {calendario[i]}->{calendario[i + 1]}.")
-    t["natalidade_pct"] = 100 * t["nascimentos"] / t["populacao"]
-    t["mortalidade_pct"] = 100 * t["obitos"] / t["populacao"]
-    return t
 
 
 NOVATO_DIAS = round(

@@ -58,13 +58,11 @@ def glossario() -> str:
         "depois do ano. O estudo vai até 31/12/2025, e os eventos de 2026 só servem para decidir "
         "quem saiu, quem pausou e quem pertence à população. Quem parou há menos de 12 meses do "
         "fim da coleta ainda pode voltar, então a saída de 2025 pode estar um pouco alta.",
-        "- **População viva**: quem está entre o primeiro e o último evento da vida, pausas "
-        "incluídas. É a base da natalidade e da mortalidade. Os ativos são só quem contribuiu no "
-        "ano, por isso a população viva é maior.",
-        "- **Natalidade e mortalidade**: novatos do ano e saídas do ano, em % da população viva. "
-        "A diferença entre as duas é o crescimento natural.",
-        "- **Crescimento natural**: (novatos - saídas) / ativos do mesmo ano. É a versão do "
-        "plano, com os ativos como base.",
+        "- **Natalidade e mortalidade**: natalidade é o que entra no ano (novatos e voltas) e "
+        "mortalidade é o que sai (saídas e pausas), as duas em % dos ativos do ano.",
+        "- **Crescimento natural**: tudo que entra menos tudo que sai, em % dos ativos do ano. "
+        "É a natalidade menos a mortalidade. A base é o próprio ano, e não os ativos do ano "
+        "anterior.",
         "- **Reposição**: novatos do ano divididos pelas saídas do ano. Abaixo de 1 a "
         "comunidade não repõe quem sai.",
         "- **Índice de envelhecimento**: ativos com 5 anos ou mais de casa divididos pelos ativos "
@@ -113,10 +111,6 @@ def glossario() -> str:
         "- **Quem tem muitos anos de casa é o primeiro grupo a entrar.** Em qualquer linguagem, "
         "os veteranos de 8 anos são quem chegou cedo, e isso pode diferenciá-los dos demais. "
         "Em linguagem jovem, como o Zig, são poucas pessoas.",
-        "- **Duas bases de população.** Os ativos são quem contribuiu no ano. A população viva "
-        "é quem está entre o primeiro e o último evento, pausas incluídas. Em Clojure, 2024 "
-        "tem 3.954 ativos e 4.898 pessoas vivas. O crescimento natural do plano usa os ativos, "
-        "e natalidade e mortalidade usam a população viva.",
         "",
     ]
     return "\n".join(linhas)
@@ -175,26 +169,27 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     primeiro_provisorio = fim_acompanhamento.year - p.carencia_anos + 1
 
     anual = pastas.csv(c, "anual.csv").set_index("ano")
-    tamanho = anual[["ativos", "novatos", "saidas", "crescimento_natural_pct"]].copy()
+    tamanho = anual[
+        [
+            "ativos",
+            "novatos",
+            "voltas",
+            "saidas",
+            "pausas",
+            "natalidade_pct",
+            "mortalidade_pct",
+            "crescimento_natural_pct",
+        ]
+    ].copy()
     tamanho.index.name = "ano"
     tamanho = tamanho.rename(
-        columns={"saidas": "saídas", "crescimento_natural_pct": "crescimento natural %"}
-    )
-
-    transicao = pastas.csv(c, "transicao_anual.csv").set_index("periodo")
-    transicao = transicao[(transicao.index >= 2010) & transicao["mortalidade_pct"].notna()]
-    transicao = transicao[["populacao", "natalidade_pct", "mortalidade_pct"]].copy()
-    transicao["natalidade menos mortalidade"] = (
-        transicao["natalidade_pct"] - transicao["mortalidade_pct"]
-    )
-    transicao = transicao.rename(
         columns={
-            "populacao": "população viva",
+            "saidas": "saídas",
             "natalidade_pct": "natalidade %",
             "mortalidade_pct": "mortalidade %",
+            "crescimento_natural_pct": "crescimento natural %",
         }
     )
-    transicao.index.name = "ano"
 
     envelhecimento = pastas.csv(c, "indice_envelhecimento.csv").set_index("ano")
     envelhecimento = envelhecimento[envelhecimento["veteranos"] > 0]
@@ -237,25 +232,33 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         "### 1.1 Tamanho: natalidade, mortalidade e crescimento natural",
         "",
-        "- Plano: crescimento natural = (novatos - saídas) / ativos, em %. Positivo: entrou mais "
-        "gente do que saiu.",
-        "- Natalidade menos mortalidade é a mesma ideia, medida sobre a população viva.",
+        "- Plano: crescimento natural = (novatos - saídas) / ativos, em %.",
+        "- Aqui: crescimento natural é tudo que entra menos tudo que sai, em % dos ativos do ano. "
+        "Entram os novatos e as voltas, saem as saídas e as pausas.",
+        "- Natalidade é o que entra sobre os ativos, mortalidade é o que sai sobre os ativos, "
+        "e a diferença entre as duas é o crescimento natural.",
         f"- A saída de {ultimo} pode estar um pouco alta: quem parou há menos de 12 meses do fim "
         "da coleta ainda pode voltar.",
         "",
-        "**Natalidade, mortalidade e a diferença entre elas** (base: população viva)",
-        "",
-        tabela_md(marca_provisorios(transicao, primeiro_provisorio), 1),
-        "",
-        figura(pastas.base, f"{c}/vitalidade/transicao_anual.png", "natalidade e mortalidade"),
-        "",
-        "**Crescimento natural do plano** (base: ativos do mesmo ano)",
-        "",
         tabela_md(marca_provisorios(tamanho, primeiro_provisorio), 1),
         "",
-        figura(pastas.base, f"{c}/vitalidade/anual.png", "tamanho"),
+        "**Natalidade e mortalidade, sem os ativos ao fundo**",
         "",
-        figura(pastas.base, f"{c}/vitalidade/crescimento.png", "crescimento"),
+        figura(
+            pastas.base, f"{c}/vitalidade/natalidade_mortalidade.png", "natalidade e mortalidade"
+        ),
+        "",
+        "**O mesmo gráfico, com os ativos de cada ano ao fundo**",
+        "",
+        figura(
+            pastas.base,
+            f"{c}/vitalidade/natalidade_mortalidade_com_ativos.png",
+            "natalidade e mortalidade com os ativos",
+        ),
+        "",
+        figura(pastas.base, f"{c}/vitalidade/crescimento.png", "crescimento natural"),
+        "",
+        figura(pastas.base, f"{c}/vitalidade/anual.png", "ativos, novatos, saídas e voltas"),
         "",
         "### 1.2 Composição: estrutura etária e índice de envelhecimento",
         "",
@@ -533,6 +536,8 @@ def diferencas(p: v.Parametros) -> str:
         "(ESEM 2019) |",
         f"| Período | 2008 a 2026 | estudo de 2008 a {pd.Timestamp(p.data_de_corte).year}. "
         "2026 só acompanha quem já estava na população |",
+        "| Crescimento natural | (novatos - saídas) / ativos | tudo que entra menos tudo que sai, "
+        "(novatos + voltas - saídas - pausas) / ativos |",
         "| Saída de 2025 | não prevista | calculada com o acompanhamento até 2026 e pode estar "
         "um pouco alta |",
         f"| População | todas as pessoas que contribuíram | `{p.populacao}`: 30 dias ou mais "

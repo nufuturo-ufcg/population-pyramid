@@ -63,38 +63,6 @@ def test_tabela_anual():
     assert list(t["pausas"]) == [1, 1, 0, 0, 0]
     assert list(t["provisorio"]) == [False, False, False, True, False]
     assert np.isnan(t.loc[2024, "saidas"])
-    assert list(t.loc[[2020, 2021, 2022, 2023], "crescimento_natural_pct"]) == [100, 0, -100, 0]
-
-
-def test_fluxos_por_periodo_de_atividade_bate_com_tabela_anual():
-    f = vitalidade.fluxos(_eventos(), FIM, "Y", vida_unica=False)
-    t = vitalidade.tabela_anual(vitalidade.pessoa_ano(_eventos(), FIM), FIM)
-    t = t[t["ano"] <= 2023]
-    assert [p.year for p in f["periodo"]] == [2020, 2021, 2022, 2023]
-    assert f["populacao"].tolist() == t["ativos"].tolist()
-    assert f["nascimentos"].tolist() == t["novatos"].tolist()
-    assert f["voltas"].tolist() == t["voltas"].tolist()
-    # Cada período de atividade é uma vida: a pausa conta como óbito.
-    assert f["obitos"].iloc[:3].tolist() == (t["saidas"] + t["pausas"]).iloc[:3].tolist()
-
-
-def test_fluxos_de_vida_unica_nao_tem_volta_e_conta_os_vivos_nas_pausas():
-    f = vitalidade.fluxos(_eventos(), FIM, "Y")
-    # B está viva em 2021 (pausa) e C em 2022 e 2023: a população é a dos vivos.
-    assert f["populacao"].tolist() == [2, 3, 2, 2]
-    assert f["nascimentos"].tolist() == [2, 1, 0, 1]
-    assert (f["voltas"] == 0).all()
-    assert f["obitos"].tolist() == [0, 1, 1, 1]  # o último ano completo entra, provisório
-
-
-def test_fluxos_trimestral_conta_quem_esta_no_intervalo():
-    """A conta em 2020Q2 e 2020Q3 sem evento neles: o período de atividade dela cobre."""
-    f = vitalidade.fluxos(_eventos(), FIM, "Q", vida_unica=False).set_index("periodo")
-    seis = f.loc[pd.Period("2020Q1") : pd.Period("2021Q2")]
-    assert seis["populacao"].tolist() == [1, 2, 1, 1, 2, 1]
-    assert seis["nascimentos"].tolist() == [1, 1, 0, 0, 1, 0]
-    assert seis["obitos"].tolist() == [0, 1, 0, 0, 1, 1]
-    assert f.index[-1] == pd.Period("2024Q1")
 
 
 def test_tabela_anual_falha_quando_a_conta_nao_fecha():
@@ -312,10 +280,6 @@ def test_compacta_nao_muda_nenhuma_metrica():
         vitalidade.tabela_anual(pa_cheio, fim), vitalidade.tabela_anual(pa_pequeno, fim)
     )
     pd.testing.assert_frame_equal(vitalidade.duracoes(ev, fim), vitalidade.duracoes(pequeno, fim))
-    for freq in ("Y", "Q"):
-        pd.testing.assert_frame_equal(
-            vitalidade.fluxos(ev, fim, freq), vitalidade.fluxos(pequeno, fim, freq)
-        )
 
 
 def test_compacta_em_pedacos_da_o_mesmo_resultado():
@@ -366,14 +330,19 @@ def test_dois_eventos_no_mesmo_ano_bissexto_sao_um_periodo_so():
     vitalidade.tabela_anual(pa, fim)
 
 
-def test_crescimento_liquido_conta_as_voltas():
+def test_crescimento_natural_e_tudo_que_entra_menos_tudo_que_sai():
     t = vitalidade.tabela_anual(vitalidade.pessoa_ano(_eventos(), FIM), FIM).set_index("ano")
-    # Em 2022: 1 ativo (a pessoa 2, que volta e sai), 0 novatos, 1 saída, 1 volta, 0 pausas.
-    assert t.loc[2022, "crescimento_natural_pct"] == -100
-    assert t.loc[2022, "crescimento_liquido_pct"] == 0
-    # Em 2020 a pessoa 2 pausa: o natural não vê, o líquido sim.
-    assert t.loc[2020, "crescimento_natural_pct"] == 100
-    assert t.loc[2020, "crescimento_liquido_pct"] == 50
+    # Em 2022: 1 ativo (a pessoa 2, que volta e sai), 0 novatos, 1 volta, 1 saída, 0 pausas.
+    assert t.loc[2022, "natalidade_pct"] == 100
+    assert t.loc[2022, "mortalidade_pct"] == 100
+    assert t.loc[2022, "crescimento_natural_pct"] == 0
+    # Em 2020: 2 ativos, 2 novatos, 0 saídas e 1 pausa: entra 100% e sai 50%.
+    assert t.loc[2020, "crescimento_natural_pct"] == 50
+    assert "crescimento_liquido_pct" not in t
+    # Natalidade menos mortalidade é o crescimento natural.
+    assert (t["natalidade_pct"] - t["mortalidade_pct"]).dropna().tolist() == (
+        t["crescimento_natural_pct"].dropna().tolist()
+    )
 
 
 def test_so_quem_codou_guarda_os_eventos_de_discussao_de_quem_codou():

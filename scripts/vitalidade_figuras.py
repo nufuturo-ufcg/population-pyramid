@@ -450,42 +450,113 @@ def figura_anual(ctx: Any, d: Dados) -> None:
 
 @figura("tamanho", "crescimento", padrao=True)
 def figura_crescimento_anual(ctx: Any, d: Dados) -> None:
-    """Crescimento natural e líquido do ano, em % dos ativos do mesmo ano."""
+    """Crescimento natural do ano: tudo que entra menos tudo que sai, em % dos ativos do ano."""
     t = d["anual"]
     decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
-    prov = _primeiro_provisorio(ctx)
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ax.axhline(0, color="#888888", linewidth=0.8)
     _plota(
         ax,
         decidido["ano"],
         decidido["crescimento_natural_pct"],
-        prov,
+        _primeiro_provisorio(ctx),
         color="black",
         linewidth=2,
         marker="o",
         markersize=4,
-        label="natural: (novatos - saídas) / ativos do mesmo ano",
     )
-    if "crescimento_liquido_pct" in t:
-        _plota(
-            ax,
-            decidido["ano"],
-            decidido["crescimento_liquido_pct"],
-            prov,
-            color=categorica()[0],
-            linewidth=2,
-            marker="o",
-            markersize=4,
-            label="líquido: (novatos + voltas - saídas - pausas) / ativos do mesmo ano",
-        )
-    ax.set_ylabel("% dos ativos do mesmo ano")
+    ax.set_ylabel("% dos ativos do ano")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: crescimento natural e líquido por ano")
-    ax.legend(loc="lower left", frameon=False)
+    ax.set_title(f"{_nome()}: crescimento natural, tudo que entra menos tudo que sai")
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, "crescimento.png")
+
+
+def _figura_natalidade(ctx: Any, d: Dados, com_ativos: bool) -> None:
+    """Natalidade e mortalidade com a área entre elas; com `com_ativos`, os ativos ao fundo.
+
+    Natalidade = (novatos + voltas) / ativos. Mortalidade = (saídas + pausas) / ativos. A área
+    entre as duas é o crescimento natural.
+    """
+    t = d["anual"]
+    t = t[(t["ano"] <= _ate_o_ano_decidido(ctx)) & (t["ativos"] >= MIN_PESSOAS)]
+    t = t[t["mortalidade_pct"].notna()]
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    plots._theme(ax)
+    if com_ativos:
+        fundo = ax.twinx()
+        fundo.bar(t["ano"], t["ativos"], width=0.8, color="#9a9a9a", alpha=0.35, label="ativos")
+        fundo.set_ylabel("ativos do ano")
+        fundo.grid(False)
+        fundo.set_facecolor(ax.get_facecolor())
+        ax.set_zorder(fundo.get_zorder() + 1)
+        ax.patch.set_visible(False)
+    ax.fill_between(
+        t["ano"],
+        t["natalidade_pct"],
+        t["mortalidade_pct"],
+        where=t["natalidade_pct"] >= t["mortalidade_pct"],
+        interpolate=True,
+        color=categorica()[0],
+        alpha=0.2,
+        label="crescimento natural",
+    )
+    ax.fill_between(
+        t["ano"],
+        t["natalidade_pct"],
+        t["mortalidade_pct"],
+        where=t["natalidade_pct"] < t["mortalidade_pct"],
+        interpolate=True,
+        color=categorica()[1],
+        alpha=0.2,
+        label="queda natural",
+    )
+    primeiro = _primeiro_provisorio(ctx)
+    _plota(
+        ax,
+        t["ano"],
+        t["natalidade_pct"],
+        primeiro,
+        color=categorica()[0],
+        linewidth=2,
+        label="natalidade, novatos e voltas / ativos",
+    )
+    _plota(
+        ax,
+        t["ano"],
+        t["mortalidade_pct"],
+        primeiro,
+        color=categorica()[1],
+        linewidth=2,
+        label="mortalidade, saídas e pausas / ativos",
+    )
+    ax.set_ylabel("% dos ativos do ano")
+    ax.set_xlabel("ano")
+    ax.set_title(f"{_nome()}: natalidade, mortalidade e crescimento natural por ano")
+    linhas, rotulos = ax.get_legend_handles_labels()
+    if com_ativos:
+        extra, rotulos_extra = fundo.get_legend_handles_labels()
+        linhas, rotulos = linhas + extra, rotulos + rotulos_extra
+    ax.legend(
+        linhas, rotulos, loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False
+    )
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    salva(
+        fig, "natalidade_mortalidade_com_ativos.png" if com_ativos else "natalidade_mortalidade.png"
+    )
+
+
+@figura("tamanho", "natalidade_mortalidade", padrao=True)
+def figura_natalidade_mortalidade(ctx: Any, d: Dados) -> None:
+    """Natalidade, mortalidade e a área entre elas, sem os ativos ao fundo."""
+    _figura_natalidade(ctx, d, com_ativos=False)
+
+
+@figura("tamanho", "natalidade_mortalidade_com_ativos", padrao=True)
+def figura_natalidade_mortalidade_com_ativos(ctx: Any, d: Dados) -> None:
+    """O mesmo gráfico com os ativos de cada ano em barras ao fundo."""
+    _figura_natalidade(ctx, d, com_ativos=True)
 
 
 # O que cada `piramide_lado` deixa à vista (categorias de `vitalidade.LADOS`).
@@ -688,9 +759,11 @@ def figura_tabua(ctx: Any, d: Dados) -> None:
         ax.plot(t["x"], t["S"], color=cor, linewidth=2, marker="o", markersize=4, label=str(coorte))
     ax.set_ylim(0, 1)
     ax.set_xlabel("anos desde a primeira contribuição")
-    ax.set_ylabel("fração da coorte ainda ativa")
-    ax.set_title(f"{_nome()}: fração de cada coorte de entrada ainda ativa")
-    ax.legend(title="coorte", frameon=False)
+    ax.set_ylabel("fração do grupo ainda ativa")
+    ax.set_title(
+        f"{_nome()}: de cada 100 pessoas que entram, quantas seguem ativas depois de x anos"
+    )
+    ax.legend(title="ano de entrada", frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_coortes.png")
 
@@ -775,90 +848,6 @@ def figura_futuro(
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, f"{pasta}/projecao_futuro.png")
-
-
-def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int) -> None:
-    """Natalidade e mortalidade com a área entre elas; população ao fundo, eixo da direita.
-
-    Só os períodos até `ate_ano`, o último ano completo. O traço tracejado marca os anos de
-    saída provisória, a partir de `provisorio`.
-    """
-    f = f[f["obitos"].notna() & (f["periodo"].dt.year <= ate_ano) & (f["populacao"] >= MIN_PESSOAS)]
-    # Cada ponto e cada barra no meio do seu período.
-    meio = f["periodo"].dt.start_time + (f["periodo"].dt.end_time - f["periodo"].dt.start_time) / 2
-    nat = f["natalidade_pct"]
-    mort = f["mortalidade_pct"]
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    plots._theme(ax)
-
-    # População ao fundo, no segundo eixo (pedido do usuário).
-    fundo = ax.twinx()
-    largura = 300 if nome == "anual" else 75
-    fundo.bar(meio, f["populacao"], width=largura, color="#9a9a9a", alpha=0.35, label="população")
-    fundo.set_ylabel("população viva")
-    fundo.grid(False)
-    # Linhas na frente das barras: o fundo pega a cor do tema e o eixo das linhas fica vazado.
-    fundo.set_facecolor(ax.get_facecolor())
-    ax.set_zorder(fundo.get_zorder() + 1)
-    ax.patch.set_visible(False)
-
-    ax.fill_between(
-        meio,
-        nat,
-        mort,
-        where=nat >= mort,
-        interpolate=True,
-        color=categorica()[0],
-        alpha=0.2,
-        label="crescimento natural",
-    )
-    ax.fill_between(
-        meio,
-        nat,
-        mort,
-        where=nat < mort,
-        interpolate=True,
-        color=categorica()[1],
-        alpha=0.2,
-        label="queda natural",
-    )
-    anos = f["periodo"].dt.year
-    _plota_datas(
-        ax,
-        meio,
-        nat,
-        anos,
-        provisorio,
-        color=categorica()[0],
-        linewidth=2,
-        label="natalidade, novatos / população viva",
-    )
-    _plota_datas(
-        ax,
-        meio,
-        mort,
-        anos,
-        provisorio,
-        color=categorica()[1],
-        linewidth=2,
-        label="mortalidade, saídas / população viva",
-    )
-    passo = "ano" if nome == "anual" else "trimestre"
-    ax.set_ylabel(f"% da população viva no {passo}")
-    ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: natalidade, mortalidade e crescimento natural por {passo}")
-
-    linhas, rotulos = ax.get_legend_handles_labels()
-    linhas_fundo, rotulos_fundo = fundo.get_legend_handles_labels()
-    ax.legend(
-        linhas + linhas_fundo,
-        rotulos + rotulos_fundo,
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.13),
-        ncol=3,
-        frameon=False,
-    )
-    salva(fig, f"transicao_{nome}.png")
 
 
 def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
@@ -1036,25 +1025,6 @@ def figura_padronizacao(ctx: Any, d: Dados) -> None:
         eixos[2].set_xlabel("ano")
         fig.tight_layout(rect=(0, 0, 1, 0.97))
         salva(fig, f"padronizacao_{rodada}.png", geral=True)
-
-
-@figura("tamanho", "transicao_anual", padrao=True)
-def figura_transicao_anual(ctx: Any, d: Dados) -> None:
-    """Natalidade e mortalidade por ano, população ao fundo."""
-    _figura_transicao(
-        d["transicao_anual"], "anual", _ate_o_ano_decidido(ctx), _primeiro_provisorio(ctx)
-    )
-
-
-@figura("tamanho", "transicao_trimestral", padrao=True)
-def figura_transicao_trimestral(ctx: Any, d: Dados) -> None:
-    """Natalidade e mortalidade por trimestre, população ao fundo."""
-    _figura_transicao(
-        d["transicao_trimestral"],
-        "trimestral",
-        _ate_o_ano_decidido(ctx),
-        _primeiro_provisorio(ctx),
-    )
 
 
 @figura("tamanho", "fluxo")
@@ -1474,19 +1444,16 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
 
 
 @figura("trajetoria", "crescimento", padrao=True)
-def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
-    """Crescimento líquido do ano, (novatos + voltas - saídas - pausas) / ativos do mesmo ano, em %.
-
-    A base são os ativos do próprio ano. Não é a variação sobre o ano anterior.
-    """
+def figura_crescimento_comparado(ctx: Any, d: Dados) -> None:
+    """Crescimento natural do ano: tudo que entra menos tudo que sai, em % dos ativos do ano."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(
-        ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
+        ax, d["trajetoria"], "crescimento_natural_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
     )
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.set_ylabel("% dos ativos do mesmo ano")
     ax.set_xlabel("ano")
-    ax.set_title("Crescimento líquido por ano, novatos e voltas menos saídas e pausas")
+    ax.set_title("Crescimento natural por ano, tudo que entra menos tudo que sai")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_crescimento.png", geral=True)
 
