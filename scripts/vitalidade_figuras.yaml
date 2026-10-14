@@ -58,7 +58,7 @@ figuras:
   tamanho.anual: {figsize: [9, 4.5]}
   tamanho.crescimento: {figsize: [9, 4.5]}
   tamanho.natalidade_mortalidade: {figsize: [10, 5.5]}
-  tamanho.natalidade_mortalidade_com_ativos: {figsize: [10, 5.5]}
+  tamanho.natalidade_mortalidade_com_populacao: {figsize: [10, 5.5]}
   tamanho.fluxo: {figsize: [9, 4.5]}
   tamanho.troca_de_papel: {figsize: [9, 4.5]}
   composicao.indice: {figsize: [9, 3.5]}

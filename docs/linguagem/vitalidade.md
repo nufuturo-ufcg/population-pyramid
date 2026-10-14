@@ -226,4 +226,4 @@ No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias. O lado é
 ## Natalidade e mortalidade
 
 - Natalidade: (novatos + voltas) / ativos do ano. Mortalidade: (saídas + pausas) / ativos do ano. A diferença é o crescimento natural.
-- Saem da tabela anual, sem cálculo à parte. Dois gráficos: `tamanho.natalidade_mortalidade` e `tamanho.natalidade_mortalidade_com_ativos`, o segundo com os ativos de cada ano em barras ao fundo.
+- Saem da tabela anual, sem cálculo à parte. Dois gráficos com o mesmo tamanho e o mesmo eixo dos anos: `tamanho.natalidade_mortalidade` e `tamanho.natalidade_mortalidade_com_populacao`, o segundo com a população de cada ano em barras ao fundo. A população do ano é o mesmo grupo dos ativos.

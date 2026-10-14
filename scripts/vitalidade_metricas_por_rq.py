@@ -58,11 +58,14 @@ def glossario() -> str:
         "depois do ano. O estudo vai até 31/12/2025, e os eventos de 2026 só servem para decidir "
         "quem saiu, quem pausou e quem pertence à população. Quem parou há menos de 12 meses do "
         "fim da coleta ainda pode voltar, então a saída de 2025 pode estar um pouco alta.",
-        "- **Natalidade e mortalidade**: natalidade é o que entra no ano (novatos e voltas) e "
-        "mortalidade é o que sai (saídas e pausas), as duas em % dos ativos do ano.",
-        "- **Crescimento natural**: tudo que entra menos tudo que sai, em % dos ativos do ano. "
-        "É a natalidade menos a mortalidade. A base é o próprio ano, e não os ativos do ano "
-        "anterior.",
+        "- **População do ano**: as pessoas que contribuíram no ano. É o mesmo grupo dos ativos, "
+        "e é o nome usado nos gráficos de natalidade e mortalidade.",
+        "- **Natalidade e mortalidade**: natalidade é todo mundo que entrou no ano (novatos e "
+        "voltas) e mortalidade é todo mundo que saiu (saídas e pausas), as duas em % da "
+        "população do ano.",
+        "- **Crescimento natural**: todo mundo que entrou menos todo mundo que saiu, em % da "
+        "população do ano. É a natalidade menos a mortalidade. A base é o próprio ano, e não "
+        "o ano anterior.",
         "- **Reposição**: novatos do ano divididos pelas saídas do ano. Abaixo de 1 a "
         "comunidade não repõe quem sai.",
         "- **Índice de envelhecimento**: ativos com 5 anos ou mais de casa divididos pelos ativos "
@@ -284,18 +287,18 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         tabela_md(marca_provisorios(tamanho, primeiro_provisorio), 1),
         "",
-        "**Natalidade e mortalidade, sem os ativos ao fundo**",
+        "**Natalidade e mortalidade, sem as barras da população**",
         "",
         figura(
             pastas.base, f"{c}/vitalidade/natalidade_mortalidade.png", "natalidade e mortalidade"
         ),
         "",
-        "**O mesmo gráfico, com os ativos de cada ano ao fundo**",
+        "**O mesmo gráfico, com a população de cada ano em barras ao fundo**",
         "",
         figura(
             pastas.base,
-            f"{c}/vitalidade/natalidade_mortalidade_com_ativos.png",
-            "natalidade e mortalidade com os ativos",
+            f"{c}/vitalidade/natalidade_mortalidade_com_populacao.png",
+            "natalidade e mortalidade com a população",
         ),
         "",
         figura(pastas.base, f"{c}/vitalidade/crescimento.png", "crescimento natural"),
@@ -450,6 +453,12 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
     ccr_ano = por_linguagem(fim_de_ano, "ccr", "ano", ordem)
     ncr_ano = por_linguagem(fim_de_ano, "ncr", "ano", ordem)
 
+    traj = pastas.csv(geral, "trajetoria.csv")
+    traj = traj[(traj["ativos"] >= 100) & (traj["ano"] >= p.ano_inicio_comparacao)]
+    crescimento = por_linguagem(
+        traj.rename(columns={"slug": "linguagem"}), "crescimento_natural_pct", "ano", ordem
+    )
+
     linhas = [
         f"## {RQ2}",
         "",
@@ -496,7 +505,18 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         "",
         figura(pastas.base, f"{geral}/vitalidade/ccr_ncr_dispersao.png", "dispersão"),
         "",
-        "### 2.4 Magnetismo e stickiness",
+        "### 2.4 Crescimento natural das cinco linguagens",
+        "",
+        "Todo mundo que entrou menos todo mundo que saiu, em % da população do ano, "
+        f"a partir de {p.ano_inicio_comparacao}.",
+        "",
+        tabela_md(crescimento, 1),
+        "",
+        figura(
+            pastas.base, f"{geral}/vitalidade/trajetoria_crescimento.png", "crescimento natural"
+        ),
+        "",
+        "### 2.5 Magnetismo e stickiness",
         "",
         "- Plano: magnetismo = novatos que entraram na linguagem / total de novatos das "
         "linguagens do estudo no ano. Stickiness = quem continua ativo no ano seguinte / total "

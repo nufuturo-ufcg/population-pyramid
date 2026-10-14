@@ -393,8 +393,12 @@ def aplica_estilo(fig: Any, e: dict[str, Any]) -> None:
     _aplica_extras(eixos, e)
 
 
-def salva(fig: Any, nome: str, geral: bool = False) -> None:
-    """Aplica o estilo do gráfico atual e grava. `geral` grava na pasta das comparações."""
+def salva(fig: Any, nome: str, geral: bool = False, ajusta: bool = True) -> None:
+    """Aplica o estilo do gráfico atual e grava. `geral` grava na pasta das comparações.
+
+    `ajusta=False` mantém o tamanho e as margens que a figura já tem, para dois gráficos da
+    mesma sequência de slides ficarem com o eixo no mesmo lugar.
+    """
     e = ESTADO.atual
     aplica_estilo(fig, e)
     formato = e.get("formato") or "png"
@@ -404,7 +408,7 @@ def salva(fig: Any, nome: str, geral: bool = False) -> None:
     else:
         caminho = fb.CFG.saida / PASTA / nome
         caminho.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(caminho, dpi=e.get("dpi") or 200, bbox_inches="tight")
+    fig.savefig(caminho, dpi=e.get("dpi") or 200, bbox_inches="tight" if ajusta else None)
     plt.close(fig)
     print(f"salvo: {caminho}")
 
@@ -465,30 +469,43 @@ def figura_crescimento_anual(ctx: Any, d: Dados) -> None:
         marker="o",
         markersize=4,
     )
-    ax.set_ylabel("% dos ativos do ano")
+    ax.set_ylabel(f"% da {TERMO_POPULACAO}")
     ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: crescimento natural, tudo que entra menos tudo que sai")
+    ax.set_title(f"{_nome()}: crescimento natural, todo mundo que entrou menos todo mundo que saiu")
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, "crescimento.png")
 
 
-def _figura_natalidade(ctx: Any, d: Dados, com_ativos: bool) -> None:
-    """Natalidade e mortalidade com a área entre elas; com `com_ativos`, os ativos ao fundo.
+# Como os gráficos chamam o conjunto de pessoas que contribuíram no ano.
+TERMO_POPULACAO = "população do ano"
 
-    Natalidade = (novatos + voltas) / ativos. Mortalidade = (saídas + pausas) / ativos. A área
-    entre as duas é o crescimento natural.
+
+def _figura_natalidade(ctx: Any, d: Dados, com_populacao: bool) -> None:
+    """Natalidade e mortalidade com a área entre elas; com `com_populacao`, as barras da população.
+
+    Natalidade = todo mundo que entrou (novatos e voltas) / população do ano. Mortalidade = todo
+    mundo que saiu (saídas e pausas) / população do ano. A área entre as duas é o crescimento
+    natural. Os dois gráficos têm o mesmo tamanho, as mesmas margens e o mesmo eixo dos anos,
+    para o segundo ser o primeiro com as barras a mais.
     """
+    from matplotlib.patches import Patch
+
     t = d["anual"]
     t = t[(t["ano"] <= _ate_o_ano_decidido(ctx)) & (t["ativos"] >= MIN_PESSOAS)]
     t = t[t["mortalidade_pct"].notna()]
-    fig, ax = plt.subplots(figsize=(10, 5.5))
+    fig = plt.figure(figsize=(10, 5.5))
+    ax = fig.add_axes((0.08, 0.22, 0.80, 0.68))
     plots._theme(ax)
-    if com_ativos:
+    if com_populacao:
         fundo = ax.twinx()
-        fundo.bar(t["ano"], t["ativos"], width=0.8, color="#9a9a9a", alpha=0.35, label="ativos")
-        fundo.set_ylabel("ativos do ano")
+        fundo.bar(
+            t["ano"], t["ativos"], width=0.8, color="#9a9a9a", alpha=0.35, label=TERMO_POPULACAO
+        )
+        fundo.set_ylabel(f"pessoas na {TERMO_POPULACAO}")
         fundo.grid(False)
+        for borda in fundo.spines.values():
+            borda.set_visible(False)  # sem moldura: o eixo da esquerda fica como no outro gráfico
         fundo.set_facecolor(ax.get_facecolor())
         ax.set_zorder(fundo.get_zorder() + 1)
         ax.patch.set_visible(False)
@@ -520,7 +537,7 @@ def _figura_natalidade(ctx: Any, d: Dados, com_ativos: bool) -> None:
         primeiro,
         color=categorica()[0],
         linewidth=2,
-        label="natalidade, novatos e voltas / ativos",
+        label=f"natalidade: todo mundo que entrou / {TERMO_POPULACAO}",
     )
     _plota(
         ax,
@@ -529,35 +546,50 @@ def _figura_natalidade(ctx: Any, d: Dados, com_ativos: bool) -> None:
         primeiro,
         color=categorica()[1],
         linewidth=2,
-        label="mortalidade, saídas e pausas / ativos",
+        label=f"mortalidade: todo mundo que saiu / {TERMO_POPULACAO}",
     )
+    ax.set_xlim(t["ano"].min() - 0.6, t["ano"].max() + 0.6)
     ax.set_ylim(bottom=0)
-    ax.set_ylabel("% dos ativos do ano")
+    ax.set_ylabel(f"% da {TERMO_POPULACAO}")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: natalidade, mortalidade e crescimento natural por ano")
-    linhas, rotulos = ax.get_legend_handles_labels()
-    if com_ativos:
-        extra, rotulos_extra = fundo.get_legend_handles_labels()
-        linhas, rotulos = linhas + extra, rotulos + rotulos_extra
-    ax.legend(
-        linhas, rotulos, loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False
-    )
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    salva(
-        fig, "natalidade_mortalidade_com_ativos.png" if com_ativos else "natalidade_mortalidade.png"
+    linhas, rotulos = ax.get_legend_handles_labels()
+    if com_populacao:
+        extra, rotulos_extra = fundo.get_legend_handles_labels()
+    else:
+        # A entrada da população existe e fica invisível: a legenda tem o mesmo tamanho e a mesma
+        # posição nos dois gráficos.
+        extra, rotulos_extra = [Patch(alpha=0)], [TERMO_POPULACAO]
+    legenda = fig.legend(
+        linhas + extra,
+        rotulos + rotulos_extra,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.0),
+        ncol=3,
+        frameon=False,
+        fontsize=10,
     )
+    if not com_populacao:
+        legenda.get_texts()[-1].set_alpha(0)
+    arquivo = (
+        "natalidade_mortalidade_com_populacao.png"
+        if com_populacao
+        else "natalidade_mortalidade.png"
+    )
+    salva(fig, arquivo, ajusta=False)
 
 
 @figura("tamanho", "natalidade_mortalidade", padrao=True)
 def figura_natalidade_mortalidade(ctx: Any, d: Dados) -> None:
-    """Natalidade, mortalidade e a área entre elas, sem os ativos ao fundo."""
-    _figura_natalidade(ctx, d, com_ativos=False)
+    """Natalidade, mortalidade e a área entre elas, sem as barras da população."""
+    _figura_natalidade(ctx, d, com_populacao=False)
 
 
-@figura("tamanho", "natalidade_mortalidade_com_ativos", padrao=True)
-def figura_natalidade_mortalidade_com_ativos(ctx: Any, d: Dados) -> None:
-    """O mesmo gráfico com os ativos de cada ano em barras ao fundo."""
-    _figura_natalidade(ctx, d, com_ativos=True)
+@figura("tamanho", "natalidade_mortalidade_com_populacao", padrao=True)
+def figura_natalidade_mortalidade_com_populacao(ctx: Any, d: Dados) -> None:
+    """O mesmo gráfico com a população de cada ano em barras ao fundo."""
+    _figura_natalidade(ctx, d, com_populacao=True)
 
 
 # O que cada `piramide_lado` deixa à vista (categorias de `vitalidade.LADOS`).
@@ -1452,9 +1484,9 @@ def figura_crescimento_comparado(ctx: Any, d: Dados) -> None:
         ax, d["trajetoria"], "crescimento_natural_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
     )
     ax.axhline(0, color="#888888", linewidth=0.8)
-    ax.set_ylabel("% dos ativos do mesmo ano")
+    ax.set_ylabel(f"% da {TERMO_POPULACAO}")
     ax.set_xlabel("ano")
-    ax.set_title("Crescimento natural por ano, tudo que entra menos tudo que sai")
+    ax.set_title("Crescimento natural por ano, todo mundo que entrou menos todo mundo que saiu")
     ax.legend(frameon=False)
     salva(fig, "trajetoria_crescimento.png", geral=True)
 
