@@ -99,7 +99,8 @@ def secao_tabua(pasta: Path, figuras: str, ordem: list[str]) -> str:
         f"| Em {py} essa chance fica uniforme | Chance de seguir mais 1 ano | "
         f"Coluna {py}: x=0 {num(fica.loc[0, py])}, x=2 {num(fica.loc[2, py])}, "
         f"x=3 {num(fica.loc[3, py])}, x=5 {num(fica.loc[5, py])}. Sobe {num(sobe_py, 0)} pontos "
-        f"de x=0 a x=3, contra {num(sobe_c, 0)} em {c}. | Parcial: mais plana, não uniforme |",
+        f"de x=0 a x=3, contra {num(sobe_c, 0)} em {c}. "
+        "| Parcial: a curva de Python é mais plana e ainda sobe |",
         f"| {c} tem dificuldade de chegar à senioridade | Fração que chega a x | "
         f"S(5) = {num(chega.loc[5, c])} em {c} e {num(chega.loc[5, py])} em {py}"
         + (", o menor das cinco" if menor_s5 else "")
