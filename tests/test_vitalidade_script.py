@@ -151,7 +151,7 @@ def test_estilo_do_yaml_tem_so_figuras_e_opcoes_que_existem():
     import vitalidade_figuras as f
 
     f.carrega_estilo([])  # falha alto se o yaml cita figura ou opção inexistente
-    assert f.estilo_da("tamanho.anual")["figsize"] == [9, 7]
+    assert f.estilo_da("tamanho.anual")["figsize"] == [9, 4.5]
     assert f.estilo_da("tamanho.fluxo")["dpi"] == 200  # herdado de global
 
 

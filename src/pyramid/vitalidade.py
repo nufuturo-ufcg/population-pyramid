@@ -44,6 +44,7 @@ TIPOS_CODING = {"commits", "pull_requests"}
 FAIXAS = ["0-1", "1-2", "2-3", "3-5", "5-8", "8+"]
 _CORTES = [0, 1, 2, 3, 5, 8, math.inf]
 FAIXAS_NOVATO = ["0-1"]
+FAIXAS_CURTAS = ["0-1", "1-2", "2-3", "3-5"]  # a padronização curta, até 5 anos
 FAIXAS_VETERANO = ["5-8", "8+"]
 
 
@@ -597,19 +598,51 @@ def duracoes(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataF
     return p.reset_index()
 
 
+def _intervalo_de_wilson(eventos: float, n: float, z: float = 1.96) -> tuple[float, float]:
+    """Intervalo de confiança de 95% de Wilson para uma proporção `eventos / n`.
+
+    Vale para `n` fracionário (a exposição da tábua, com meio intervalo por censurado) e não
+    estoura em 0 ou em 1, o que o intervalo normal faz quando o número de saídas é zero.
+    """
+    if not n > 0:
+        return float("nan"), float("nan")
+    p = eventos / n
+    denominador = 1 + z * z / n
+    centro = (p + z * z / (2 * n)) / denominador
+    meia = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denominador
+    return max(0.0, centro - meia), min(1.0, centro + meia)
+
+
 def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
     """Tábua de vida atuarial em intervalos de 1 ano de casa.
 
     l(x)  pessoas ainda em observação ao chegar em x anos
     d(x)  saídas entre x e x+1
     q(x)  d(x) / (l(x) - censurados(x)/2): o censurado conta meio intervalo de exposição
+    n_efetivo(x)  a exposição l(x) - censurados(x)/2, o denominador de q
+    q_inf, q_sup  intervalo de confiança de 95% de Wilson para q(x) com `n_efetivo`
     S(x)  fração que chega em x, produto de (1 - q) até x-1
     e(x)  anos que ainda restam, em média, a quem chegou em x
+
+    Com poucas pessoas efetivamente observadas q(x) oscila: 0 saídas em 10 pessoas efetivas dá
+    q = 0 e um intervalo de 0 a 28%. Quem lê q(x) deve olhar `n_efetivo` e o intervalo.
 
     Quando a tábua termina com gente censurada (S final > 0), a cauda depois do
     último intervalo observado não entra, e e(x) é um piso. `e_truncado` marca.
     """
-    colunas = ["x", "l", "d", "censurados", "q", "S", "e", "e_truncado"]
+    colunas = [
+        "x",
+        "l",
+        "d",
+        "censurados",
+        "n_efetivo",
+        "q",
+        "q_inf",
+        "q_sup",
+        "S",
+        "e",
+        "e_truncado",
+    ]
     if dur.empty:
         return pd.DataFrame(columns=colunas)
 
@@ -623,7 +656,20 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
         c = int((aqui & ~dur["saiu"]).sum())
         exposicao = em_risco - c / 2
         q = d / exposicao if exposicao > 0 else np.nan
-        linhas.append({"x": x, "l": em_risco, "d": d, "censurados": c, "q": q, "S": sobrevivencia})
+        q_inf, q_sup = _intervalo_de_wilson(d, exposicao)
+        linhas.append(
+            {
+                "x": x,
+                "l": em_risco,
+                "d": d,
+                "censurados": c,
+                "n_efetivo": exposicao,
+                "q": q,
+                "q_inf": q_inf,
+                "q_sup": q_sup,
+                "S": sobrevivencia,
+            }
+        )
         if not np.isnan(q):
             sobrevivencia = sobrevivencia * (1 - q)
         em_risco = em_risco - d - c
@@ -696,6 +742,11 @@ def padronizacao(taxas: dict[str, pd.DataFrame], ano_pesos: int) -> pd.DataFrame
 
     Faixa sem ativos na linguagem deixa a direta `NaN`, porque falta a taxa a
     pesar. Ano aberto em qualquer linguagem deixa a referência daquele ano `NaN`.
+
+    `taxa_padronizada_ate_5a` é a direta só nas faixas `FAIXAS_CURTAS` (0 a 5 anos), com os pesos
+    renormalizados. Uma linguagem nova não tem 8+ nem 5-8 nos primeiros anos, e a direta completa
+    só começa quando todas as faixas existem (Zig em 2023). A curta começa 5 anos depois do
+    nascimento da comunidade e compara todas no mesmo intervalo de idades.
     """
     frames = []
     for linguagem, t in taxas.items():
@@ -711,6 +762,8 @@ def padronizacao(taxas: dict[str, pd.DataFrame], ano_pesos: int) -> pd.DataFrame
 
     ativos_pesos = ref.xs(ano_pesos, level="ano")["ativos"]
     pesos = ativos_pesos / ativos_pesos.sum()
+    pesos_curtos = ativos_pesos.reindex(FAIXAS_CURTAS)
+    pesos_curtos = pesos_curtos / pesos_curtos.sum()
 
     linhas = []
     for (linguagem, ano), grupo in todas.groupby(["linguagem", "ano"]):
@@ -727,6 +780,9 @@ def padronizacao(taxas: dict[str, pd.DataFrame], ano_pesos: int) -> pd.DataFrame
                 "saidas": saidas,
                 "taxa_bruta": saidas / g["ativos"].sum(),
                 "taxa_padronizada": (g["taxa_saida"] * pesos).sum(skipna=False),
+                "taxa_padronizada_ate_5a": (
+                    g["taxa_saida"].reindex(FAIXAS_CURTAS) * pesos_curtos
+                ).sum(skipna=False),
                 "saidas_esperadas": esperadas,
                 "smr": saidas / esperadas,
             }

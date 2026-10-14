@@ -171,6 +171,35 @@ def test_padronizacao_tira_o_efeito_da_composicao():
     assert t["smr"].tolist() == pytest.approx([1, 1])
 
 
+def test_padronizacao_curta_usa_so_as_faixas_de_0_a_5_anos():
+    """Com a mesma taxa por faixa, a curta é 0,5 x 0,5 + 0,25 x 0,5 normalizado: a média dos pesos.
+
+    Pesos curtos: ativos juntos [80, 24, 24, 24] / 152. A taxa é 0,5 na faixa 0-1 e 0,25 nas
+    outras três, então a padronizada curta é (80 x 0,5 + 72 x 0,25) / 152.
+    """
+    taxas = {
+        "um": _taxa([60, 8, 8, 8, 8, 8], [30, 2, 2, 2, 2, 2]),
+        "dois": _taxa([20, 16, 16, 16, 16, 16], [10, 4, 4, 4, 4, 4]),
+    }
+    t = vitalidade.padronizacao(taxas, 2020).set_index("linguagem")
+    esperado = (80 * 0.5 + 72 * 0.25) / 152
+    assert t["taxa_padronizada_ate_5a"].tolist() == pytest.approx([esperado, esperado])
+
+
+def test_intervalo_de_wilson_com_zero_saidas_nao_passa_de_28_por_cento_em_10_pessoas():
+    inferior, superior = vitalidade._intervalo_de_wilson(0, 10)
+    assert inferior == pytest.approx(0, abs=1e-6)
+    assert superior == pytest.approx(0.2775, abs=1e-3)
+    assert np.isnan(vitalidade._intervalo_de_wilson(0, 0)[0])
+
+
+def test_tabua_traz_a_exposicao_e_o_intervalo_de_cada_q():
+    dur = pd.DataFrame({"duracao_anos": [1.0, 2.0, 3.0, 4.0], "saiu": [True, True, True, False]})
+    t = vitalidade.tabua_de_vida(dur)
+    assert (t["n_efetivo"] == t["l"] - t["censurados"] / 2).all()
+    assert ((t["q_inf"] <= t["q"]) & (t["q"] <= t["q_sup"])).all()
+
+
 def test_projeta_um_ano_com_a_8_mais_aberta():
     p = np.array([10, 0, 0, 0, 0, 0, 0, 4, 5], dtype=float)
     sr = np.array([0.5, np.nan, 1, 1, 1, 1, 1, 0.25, 0.8])

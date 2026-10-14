@@ -55,7 +55,8 @@ global:
 # Tamanhos de cada gráfico. Gráfico sem tamanho aqui calcula o dele a partir dos
 # dados (um painel por ano de pirâmide, uma barra por ano, uma linha por comparação).
 figuras:
-  tamanho.anual: {figsize: [9, 7]}
+  tamanho.anual: {figsize: [9, 4.5]}
+  tamanho.crescimento: {figsize: [9, 4.5]}
   tamanho.transicao_anual: {figsize: [10, 5.5]}
   tamanho.transicao_trimestral: {figsize: [10, 5.5]}
   tamanho.fluxo: {figsize: [9, 4.5]}

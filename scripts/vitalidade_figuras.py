@@ -414,12 +414,11 @@ def salva(fig: Any, nome: str, geral: bool = False) -> None:
 
 @figura("tamanho", "anual", padrao=True)
 def figura_anual(ctx: Any, d: Dados) -> None:
-    """Ativos, novatos, saídas e voltas por ano e o crescimento embaixo, até o último ano."""
+    """Ativos, novatos, saídas e voltas por ano, até o último ano."""
     t = d["anual"]
     decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     t = t[t["ano"] <= _ultimo_ano_de_contagem(ctx)]
-    nome = _nome()
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    fig, ax = plt.subplots(figsize=(9, 4.5))
     series = [
         ("ativos", "ativos"),
         ("novatos", "novatos"),
@@ -430,7 +429,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
     for (coluna, rotulo), cor in zip(series, categorica(), strict=False):
         base = decidido if coluna == "saidas" else t
         _plota(
-            ax1,
+            ax,
             base["ano"],
             base[coluna],
             prov if coluna == "saidas" else 10_000,
@@ -440,13 +439,25 @@ def figura_anual(ctx: Any, d: Dados) -> None:
             markersize=4,
             label=rotulo,
         )
-    ax1.set_ylabel("pessoas")
-    ax1.set_title(f"{nome}: entradas e saídas por ano")
-    ax1.legend(loc="upper left", frameon=False)
+    ax.set_ylabel("pessoas")
+    ax.set_xlabel("ano")
+    ax.set_title(f"{_nome()}: entradas e saídas por ano")
+    ax.legend(loc="upper left", frameon=False)
+    plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    salva(fig, "anual.png")
 
-    ax2.axhline(0, color="#888888", linewidth=0.8)
+
+@figura("tamanho", "crescimento", padrao=True)
+def figura_crescimento_anual(ctx: Any, d: Dados) -> None:
+    """Crescimento natural e líquido do ano, em % dos ativos do mesmo ano."""
+    t = d["anual"]
+    decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
+    prov = _primeiro_provisorio(ctx)
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ax.axhline(0, color="#888888", linewidth=0.8)
     _plota(
-        ax2,
+        ax,
         decidido["ano"],
         decidido["crescimento_natural_pct"],
         prov,
@@ -454,11 +465,11 @@ def figura_anual(ctx: Any, d: Dados) -> None:
         linewidth=2,
         marker="o",
         markersize=4,
-        label="natural do ano: (novatos - saídas) / ativos do mesmo ano",
+        label="natural: (novatos - saídas) / ativos do mesmo ano",
     )
     if "crescimento_liquido_pct" in t:
         _plota(
-            ax2,
+            ax,
             decidido["ano"],
             decidido["crescimento_liquido_pct"],
             prov,
@@ -466,16 +477,15 @@ def figura_anual(ctx: Any, d: Dados) -> None:
             linewidth=2,
             marker="o",
             markersize=4,
-            label="líquido do ano: (novatos + voltas - saídas - pausas) / ativos do mesmo ano",
+            label="líquido: (novatos + voltas - saídas - pausas) / ativos do mesmo ano",
         )
-    ax2.set_ylabel("% dos ativos")
-    ax2.set_xlabel("ano")
-    ax2.set_title("crescimento")
-    ax2.legend(loc="lower left", frameon=False)
-    for ax in (ax1, ax2):
-        plots._theme(ax)
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    salva(fig, "anual.png")
+    ax.set_ylabel("% dos ativos do mesmo ano")
+    ax.set_xlabel("ano")
+    ax.set_title(f"{_nome()}: crescimento por ano")
+    ax.legend(loc="lower left", frameon=False)
+    plots._theme(ax)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    salva(fig, "crescimento.png")
 
 
 # O que cada `piramide_lado` deixa à vista (categorias de `vitalidade.LADOS`).
@@ -777,7 +787,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
     Só os períodos até `ate_ano`, o último ano completo. O traço tracejado marca os anos de
     saída provisória, a partir de `provisorio`.
     """
-    f = f[f["obitos"].notna() & (f["periodo"].dt.year <= ate_ano)]
+    f = f[f["obitos"].notna() & (f["periodo"].dt.year <= ate_ano) & (f["populacao"] >= MIN_PESSOAS)]
     # Cada ponto e cada barra no meio do seu período.
     meio = f["periodo"].dt.start_time + (f["periodo"].dt.end_time - f["periodo"].dt.start_time) / 2
     nat = f["natalidade_pct"]
@@ -825,7 +835,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
         provisorio,
         color=categorica()[0],
         linewidth=2,
-        label="natalidade (novatos / população)",
+        label="natalidade, novatos / população viva",
     )
     _plota_datas(
         ax,
@@ -835,10 +845,10 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
         provisorio,
         color=categorica()[1],
         linewidth=2,
-        label="mortalidade (saídas definitivas / população)",
+        label="mortalidade, saídas definitivas / população viva",
     )
     passo = "ano" if nome == "anual" else "trimestre"
-    ax.set_ylabel(f"% da população no {passo}")
+    ax.set_ylabel(f"% da população viva no {passo}")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: natalidade e mortalidade, passo {nome}")
 
@@ -964,6 +974,10 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
         nome = carga_fonte.LINGUAGENS[slug].nome
         ax1.plot(c["x"], c["S"], marker="o", color=cor_da(slug), linewidth=2, label=nome)
         ax2.plot(c["x"], 1 - c["q"], marker="o", color=cor_da(slug), linewidth=2, label=nome)
+        pouco = c[c["n_efetivo"] < MIN_EXPOSICAO]
+        ax2.scatter(
+            pouco["x"], 1 - pouco["q"], s=45, facecolor="white", edgecolor=cor_da(slug), zorder=4
+        )
     ax1.set_title("Chegar: fração que chega a x anos, S(x)")
     ax2.set_title("Ficar: quem chegou a x segue mais 1 ano, 1 - q(x)")
     ax1.set_ylim(0, 1)
@@ -971,6 +985,7 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
     for ax in (ax1, ax2):
         ax.set_xlabel("anos de casa x")
         plots._theme(ax)
+    ax2.set_xlabel(f"anos de casa x, ponto vazado = menos de {MIN_EXPOSICAO} pessoas observadas")
     ax1.legend(frameon=False)
     fig.suptitle("Chegar à senioridade e permanecer nela")
     fig.tight_layout()
@@ -979,15 +994,19 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
 
 @figura("comparacao_corrigida", "tres_paineis", padrao=True)
 def figura_padronizacao(ctx: Any, d: Dados) -> None:
-    """Taxa bruta, padronizada e SMR, um painel cada, uma figura por rodada."""
+    """Taxa bruta, padronizada e SMR, um painel cada, uma figura por rodada.
+
+    A padronizada usa as faixas de 0 a 5 anos, que existem em todas as linguagens cinco anos
+    depois do nascimento delas. Cada linha começa quando a linguagem tem `MIN_PESSOAS` ativos.
+    """
     ano_pesos = ctx.p.ano_pesos
     for rodada, linguagens in ctx.p.rodadas_padronizacao.items():
         pad = d["padronizacao"]
-        pad = pad[pad["rodada"] == rodada]
+        pad = pad[(pad["rodada"] == rodada) & (pad["ativos"] >= MIN_PESSOAS)]
         fig, eixos = plt.subplots(3, 1, figsize=(9, 9), sharex=True)
         paineis = [
             ("taxa_bruta", "taxa de saída bruta"),
-            ("taxa_padronizada", f"taxa padronizada (pesos de {ano_pesos})"),
+            ("taxa_padronizada_ate_5a", f"taxa padronizada, 0 a 5 anos, pesos de {ano_pesos}"),
             ("smr", "SMR, saídas reais / esperadas"),
         ]
         for ax, (coluna, rotulo) in zip(eixos, paineis, strict=True):
@@ -1233,14 +1252,17 @@ def figura_ccr_ncr_serie(ctx: Any, d: Dados) -> None:
     salva(fig, "ccr_ncr_serie.png")
 
 
-# shortcut: com menos ativos que isso o CCR e o NCR saltam entre -1 e 1 sem dizer nada, e a figura
-# começa quando a comunidade tem 100 ativos. Vira parâmetro se alguém precisar de outro corte.
-MIN_ATIVOS_CCR_NCR = 100
+# shortcut: com menos pessoas que isso as razões (CCR, NCR, taxas, SMR) saltam sem dizer nada, e
+# a figura começa quando a comunidade tem 100. Vira parâmetro se alguém precisar de outro corte.
+MIN_PESSOAS = 100
+
+# Uma taxa de saída de uma idade só vale com pelo menos isto de exposição efetiva (`n_efetivo`).
+MIN_EXPOSICAO = 30
 
 
 def _ccr_ncr_com_massa(t: pd.DataFrame) -> pd.DataFrame:
-    """Só os trimestres em que a comunidade já tem `MIN_ATIVOS_CCR_NCR` ativos."""
-    return t[t["total"] >= MIN_ATIVOS_CCR_NCR].dropna(subset=["ccr", "ncr"])
+    """Só os trimestres em que a comunidade já tem `MIN_PESSOAS` ativos."""
+    return t[t["total"] >= MIN_PESSOAS].dropna(subset=["ccr", "ncr"])
 
 
 @figura("ccr_ncr_comparado", "dispersao", padrao=True)
@@ -1285,28 +1307,45 @@ def figura_ccr_ncr_comparado(ctx: Any, d: Dados) -> None:
     salva(fig, "ccr_ncr_dispersao.png", geral=True)
 
 
+# Cor de fundo de cada tipo do CCR/NCR e o que o sinal dos dois quer dizer.
+TIPOS_CCR_NCR = {
+    "A": ("#1baf7a", "A: mais código, mais novatos"),
+    "B": ("#2a78d6", "B: mais discussão, mais novatos"),
+    "C": ("#eda100", "C: mais código, mais experientes"),
+    "D": ("#e87ba4", "D: mais discussão, mais experientes"),
+}
+
+
 @figura("ccr_ncr_comparado", "serie", padrao=True)
 def figura_ccr_ncr_comparado_serie(ctx: Any, d: Dados) -> None:
-    """CCR e NCR ao longo dos trimestres, um painel cada, cinco linguagens."""
-    t = _ccr_ncr_com_massa(d["ccr_ncr_comparado"])
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
-    for ax, coluna, rotulo in ((ax1, "ccr", "CCR"), (ax2, "ncr", "NCR")):
+    """CCR e NCR por trimestre, um painel por linguagem, com o tipo A a D no fundo."""
+    t = _ccr_ncr_com_massa(d["ccr_ncr_comparado"]).copy()
+    t["snapshot"] = pd.to_datetime(t["snapshot"])
+    slugs = [s for s in ctx.p.linguagens_rq2 if s in set(t["slug"])]
+    fig, eixos = plt.subplots(len(slugs), 1, figsize=(10, 2.1 * len(slugs)), sharex=True)
+    for ax, slug in zip(eixos, slugs, strict=True):
+        f = t[t["slug"] == slug]
+        for _, linha in f.iterrows():
+            cor = TIPOS_CCR_NCR[linha["type"]][0]
+            fim = linha["snapshot"]
+            ax.axvspan(fim - pd.Timedelta(days=91), fim, color=cor, alpha=0.18, linewidth=0)
         ax.axhline(0, color="#888888", linewidth=0.8)
-        for slug in t["slug"].drop_duplicates():
-            f = t[t["slug"] == slug].dropna(subset=[coluna])
-            ax.plot(
-                f["snapshot"],
-                f[coluna],
-                color=cor_da(slug),
-                linewidth=1.8,
-                label=carga_fonte.LINGUAGENS[slug].nome,
-            )
+        ax.plot(f["snapshot"], f["ccr"], color="#184f95", linewidth=2, label="CCR")
+        ax.plot(f["snapshot"], f["ncr"], color="black", linewidth=2, linestyle="--", label="NCR")
         ax.set_ylim(-1.05, 1.05)
-        ax.set_ylabel(rotulo)
+        ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=11)
         plots._theme(ax)
-    ax1.set_title("CCR e NCR por trimestre, cinco linguagens")
-    ax2.legend(frameon=False, ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.15))
-    ax2.set_xlabel("trimestre")
+    inicio = t["snapshot"].min() - pd.Timedelta(days=91)
+    eixos[0].set_xlim(inicio, t["snapshot"].max())
+    eixos[-1].set_xlabel("trimestre")
+    from matplotlib.patches import Patch
+
+    handles, _ = eixos[0].get_legend_handles_labels()
+    for cor, rotulo in TIPOS_CCR_NCR.values():
+        handles.append(Patch(facecolor=cor, alpha=0.18, label=rotulo))
+    fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=8)
+    fig.suptitle("CCR e NCR por trimestre, um painel por linguagem")
+    fig.tight_layout(rect=(0, 0.07, 1, 0.97))
     salva(fig, "ccr_ncr_serie.png", geral=True)
 
 
@@ -1492,7 +1531,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
     # Nenhuma passa de 50% dos ativos; se passar, a escala cresce junto.
     mostrados = []
     for _, linha in comp.iterrows():
-        grande = ativos.get((linha["slug"], linha["ano"]), 0) >= MIN_ATIVOS_CCR_NCR
+        grande = ativos.get((linha["slug"], linha["ano"]), 0) >= MIN_PESSOAS
         mostrados.append(bool(grande and linha["slug"] in slugs and linha["ano"] in anos))
     xmax = _xmax_das_piramides([_so_o_lado(comp[mostrados], lado)], minimo=50.0)
     fig, eixos = plt.subplots(
@@ -1502,7 +1541,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
         for j, ano in enumerate(anos):
             ax = eixos[i][j]
             q = comp[(comp["slug"] == slug) & (comp["ano"] == ano)].copy()
-            tem = (slug, ano) in ativos.index and ativos[(slug, ano)] >= MIN_ATIVOS_CCR_NCR
+            tem = (slug, ano) in ativos.index and ativos[(slug, ano)] >= MIN_PESSOAS
             if tem:
                 q["band"] = q["faixa"].map(codigo).astype(int)
                 plots.draw_pyramid(ax, _so_o_lado(q, lado), xmax=xmax)
