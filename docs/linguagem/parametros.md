@@ -16,8 +16,8 @@ Se um parâmetro de tabela mudar, `--so-figuras` avisa que as tabelas gravadas s
 |---|---|---|---|
 | `populacao` | `passou_30_dias` | quem conta como pessoa. `todos`, `codigo`, `mais_de_um_dia`, `passou_N_dias`. Cada uma grava em pasta própria (`python-passou_30_dias`). O cache dos eventos é um só. | tabela |
 | `data_de_corte` | `2025-12-31` | fim do estudo: ativos, novatos, pirâmides e CCR/NCR vão até esse dia. Tem de ser o último dia de um trimestre. `null` usa o último evento. | tabela |
-| `usa_acompanhamento` | true | os eventos depois da data de corte (2026) só decidem quem saiu, quem pausou e quem pertence à população. A saída de 2025 aparece provisória. `false` corta tudo na data de corte. | tabela |
-| `carencia_anos` | 2 | anos de calendário que o acompanhamento precisa cobrir depois de um ano para a saída dele valer como firme. Com o acompanhamento até 2026 e carência 2, 2025 sai tracejado. | desenho (e a coluna `provisorio` da trajetória) |
+| `usa_acompanhamento` | true | os eventos depois da data de corte (2026) só decidem quem saiu, quem pausou e quem pertence à população. A saída de 2025 aparece, e pode estar um pouco alta. `false` corta tudo na data de corte. | tabela |
+| `carencia_anos` | 1 | anos de calendário que o acompanhamento precisa cobrir depois de um ano para a saída dele sair em linha cheia. Com 1, nada sai tracejado. Com 2, 2025 sairia tracejado. | desenho (e a coluna `provisorio` da trajetória) |
 
 ### Cenários e projeção (RQ3)
 
@@ -103,7 +103,7 @@ Estas não têm chave no yaml. Mudar exige editar `src/pyramid/vitalidade.py`.
 
 | constante | valor | o que fixa |
 |---|---|---|
-| `GAP_DIAS` | 12 meses | silêncio que separa dois períodos. Saída definitiva e pausa partem dele. |
+| `GAP_DIAS` | 12 meses | silêncio que separa dois períodos. Saída e pausa partem dele. |
 | `FAIXAS` | 0-1, 1-2, 2-3, 3-5, 5-8, 8+ | faixas de tempo de casa. |
 | `BAND_DIAS` | 90 | banda das pirâmides trimestrais. |
 | `NOVATO_DIAS` | 91 | novato do motor, usado só como padrão da função. |

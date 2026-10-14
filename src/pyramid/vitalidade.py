@@ -15,7 +15,7 @@ Definições (cada uma é uma escolha registrada em docs/linguagem/vitalidade.md
   ativo do ano Y   teve pelo menos um evento em Y
   novato de Y      primeiro evento da vida caiu em Y
   saída de Y       o último evento da vida da pessoa caiu em Y, e depois dele vieram
-                   mais de 12 meses sem nada até o fim da coleta. Saída é definitiva
+                   mais de 12 meses sem nada até o fim da coleta. É a última da vida
   pausa de Y       um período de atividade terminou em Y, e a pessoa voltou depois de
                    mais de 12 meses. Quem volta não saiu
   volta de Y       começo de período de atividade depois do primeiro caiu em Y
@@ -241,10 +241,10 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
         spans["span_end"].dt.year == fim.year - 1
     )
     ultimo = spans["span_idx"] == spans.groupby("contributor_id")["span_idx"].transform("max")
-    definitiva = parou & ultimo
+    da_vida = parou & ultimo
     pausa = parou & ~ultimo
-    saidas = spans.loc[definitiva, ["contributor_id"]].assign(
-        ano=spans.loc[definitiva, "span_end"].dt.year, saida=True
+    saidas = spans.loc[da_vida, ["contributor_id"]].assign(
+        ano=spans.loc[da_vida, "span_end"].dt.year, saida=True
     )
     pausas = spans.loc[pausa, ["contributor_id"]].assign(
         ano=spans.loc[pausa, "span_end"].dt.year, pausa=True
@@ -271,7 +271,7 @@ def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.Dat
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
     """Ativos, novatos, saídas, pausas, voltas, moved, deixou_codigo e crescimento, por ano.
 
-    Saída é definitiva (a última contribuição da vida). Quem para por mais de 12 meses e volta
+    Saída é a última contribuição da vida. Quem para por mais de 12 meses e volta
     tem uma pausa no ano em que parou e uma volta no ano em que voltou, e deixa de ser ativo
     só entre os dois. Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saídas(Y) -
     pausas(Y) + novatos(Y+1) + voltas(Y+1), para todo Y com saída decidida.
@@ -345,7 +345,7 @@ def fluxos(
     """
     spans = periodos(eventos[["contributor_id", "event_type", "timestamp"]])
     if vida_unica:
-        # A pessoa está viva do primeiro ao último evento, mesmo nas pausas: morte é definitiva.
+        # A pessoa está viva do primeiro ao último evento, mesmo nas pausas: a saída é a última.
         spans = (
             spans.groupby("contributor_id", sort=False)
             .agg(span_start=("span_start", "min"), span_end=("span_end", "max"))

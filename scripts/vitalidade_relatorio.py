@@ -300,8 +300,8 @@ def secao_janela(base: Path, p: v.Parametros, ordem: list[str]) -> str:
         "pessoa voltou, e com isso decidem quem saiu, quem pausou e quem pertence à população "
         "`passou_30_dias`.",
         "- A saída exige 12 meses sem contribuir depois da última contribuição (Avelino et al., "
-        "ESEM 2019). A saída de 2025 aparece provisória, tracejada: quem parou há menos de 12 "
-        "meses do fim da coleta ainda pode voltar.",
+        "ESEM 2019). A saída de 2025 aparece como as outras e pode estar um pouco alta: quem "
+        "parou há menos de 12 meses do fim da coleta ainda pode voltar.",
         "- Até quando cada linguagem foi acompanhada (último evento coletado):",
         "",
         tabela_md(quadro),

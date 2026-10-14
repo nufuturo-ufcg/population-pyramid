@@ -422,7 +422,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
     series = [
         ("ativos", "ativos"),
         ("novatos", "novatos"),
-        ("saidas", "saídas definitivas"),
+        ("saidas", "saídas"),
         ("voltas", "voltas"),
     ]
     prov = _primeiro_provisorio(ctx)
@@ -841,7 +841,7 @@ def _figura_transicao(f: pd.DataFrame, nome: str, ate_ano: int, provisorio: int)
         provisorio,
         color=categorica()[1],
         linewidth=2,
-        label="mortalidade, saídas definitivas / população viva",
+        label="mortalidade, saídas / população viva",
     )
     passo = "ano" if nome == "anual" else "trimestre"
     ax.set_ylabel(f"% da população viva no {passo}")

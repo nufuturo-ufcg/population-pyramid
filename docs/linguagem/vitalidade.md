@@ -38,15 +38,15 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - `populacao: todos` conta quem teve qualquer evento. `populacao: codigo` conta só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Em cada linguagem, entre 52% e 64% das pessoas só abriram issue ou comentaram. Cada população grava em pasta própria (`python`, `python-codigo`, `geral-codigo`), e o cache dos eventos é um só.
 - Rodar a segunda população não relê os CSV: `--set populacao=codigo` usa o cache. A população `codigo` olha o que a pessoa fez em algum momento da vida, não se ela voltou, então não carrega o viés de condicionar no futuro que um corte de "pelo menos 2 dias de atividade" teria.
 - Quase metade das pessoas de toda linguagem tem vida de um dia só (Clojure 44%, Elixir 43%, Python 42%) e cerca de dois terços saem a cada ano. O público de evento único existe em todas igualmente, e é por isso que as curvas de retenção ficam próximas.
-- Com a saída definitiva, o crescimento natural deixa de contar como morte quem só pausou. Com a saída por período de atividade (a regra anterior), dava negativo em todas as linguagens, até no Python.
+- Com a saída como a última contribuição da vida, o crescimento natural deixa de contar como morte quem só pausou. Com a saída por período de atividade (a regra anterior), dava negativo em todas as linguagens, até no Python.
 - A métrica `trajetoria` (comparativa) tira o tamanho da comparação: índice de ativos (100 em `ano_base_indice`), crescimento líquido, taxas de saída e de volta em % dos ativos, e as pirâmides de cada linguagem em % no mesmo ano (`ano_comparacao`).
 - A pirâmide por faixa sai em % dos ativos do ano (`piramide_em_pct`). A de contagem fica em `composicao.piramides_contagem`.
 - `composicao.piramides_trimestrais` desenha como o artigo: idade em bandas de 90 dias no fim do ano, só para olhar. As métricas usam as faixas de 1 ano.
 - `populacao: mais_de_um_dia` tira quem teve atividade num dia só. O corte olha o futuro da pessoa (só fica quem voltou em outro dia), então derruba a saída dos novatos e infla a retenção: serve de sensibilidade, não de população principal.
 - `populacao: passou_N_dias` (passou_30_dias, passou_60_dias, passou_90_dias) mantém quem tem uma contribuição N ou mais dias depois da primeira: a pessoa só conta como viva depois de provar presença, como a saída só vale depois de 12 meses de silêncio. Serve à composição (pirâmide). Olha o futuro da pessoa, então derruba a saída dos novatos e não serve às taxas de saída da faixa 0-1.
-- `data_de_corte` (2025-12-31) fecha o estudo: ativos, novatos, pirâmides e CCR/NCR vão até esse dia. Com `usa_acompanhamento`, os eventos depois dela (2026) só decidem quem saiu, quem pausou e quem pertence à população, e a saída de 2025 aparece provisória. Sem o acompanhamento, a saída de 2025 não existe. Tem de ser o último dia de um trimestre, para a compactação ser exata.
+- `data_de_corte` (2025-12-31) fecha o estudo: ativos, novatos, pirâmides e CCR/NCR vão até esse dia. Com `usa_acompanhamento`, os eventos depois dela (2026) só decidem quem saiu, quem pausou e quem pertence à população, e a saída de 2025 aparece e pode estar um pouco alta. Sem o acompanhamento, a saída de 2025 não existe. Tem de ser o último dia de um trimestre, para a compactação ser exata.
 - Limite de saída: 12 meses em tudo, de Avelino et al. (ESEM 2019, seção II-B e Tabela II). O CCR e o NCR usavam 3 meses de inatividade (IEICE16) e agora usam `ccr_ncr_inatividade_meses` (12). O corte de novato do CCR e NCR é `ccr_ncr_novato_meses` (12, a mesma janela da saída). Com 3 e 3 o resultado é o do motor, exatamente. Refeita com os nossos dados, a Tabela II do Avelino tem a maior média harmônica em 12 meses nas cinco linguagens.
-- `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade definitiva, até o último ano completo, com os últimos `carencia_anos` (1) anos completos tracejados.
+- `transicao_*`: população viva (do primeiro ao último evento, nas pausas também), natalidade e mortalidade, até o último ano completo.
 
 ## Gráficos
 
@@ -137,7 +137,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 - Ativo de Y: teve pelo menos um evento em Y.
 - Novato de Y: primeiro evento da vida caiu em Y. Entra na faixa 0-1.
-- Saída de Y: o último evento da vida da pessoa caiu em Y, e depois dele vieram mais de 12 meses sem nada até o fim da coleta. Saída é definitiva, como a morte na demografia, e é o que o plano diz ("pessoas cuja última contribuição foi naquele ano").
+- Saída de Y: o último evento da vida da pessoa caiu em Y, e depois dele vieram mais de 12 meses sem nada até o fim da coleta. Quem para e volta tem uma pausa. A saída é como a morte na demografia, e é o que o plano diz ("pessoas cuja última contribuição foi naquele ano").
 - Pausa de Y: um período de atividade terminou em Y e a pessoa voltou depois de mais de 12 meses. Quem volta não saiu: a pausa não entra na mortalidade e a pessoa segue viva.
 - Volta de Y: um período de atividade que não é o primeiro começou em Y.
 - Moved de Y: o primeiro commit ou PR caiu em Y, depois de a pessoa já ter discutido.

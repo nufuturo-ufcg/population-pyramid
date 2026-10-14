@@ -54,7 +54,8 @@ def test_tabela_anual():
     assert list(t["novatos"]) == [2, 1, 0, 1, 0]
     assert list(t["voltas"]) == [0, 0, 1, 0, 1]
     assert list(t["moved"]) == [0, 0, 1, 0, 0]
-    # Saída é definitiva: B para em 2020 e volta em 2022, então 2020 é pausa, e C para em 2021
+    # Saída é a última contribuição da vida: B para em 2020 e volta em 2022, então 2020 é pausa,
+    # e C para em 2021
     # e volta em 2024, então 2021 também. Só A sai em 2021 e B em 2022.
     # 2023 é o último ano completo: D, que só abriu uma issue em dez/2023, já conta como saída,
     # com o selo de provisório. 2024 é o ano da coleta e fica sem saída.

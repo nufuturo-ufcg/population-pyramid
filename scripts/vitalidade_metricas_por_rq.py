@@ -53,11 +53,11 @@ def glossario() -> str:
         "",
         "- **Ativos**: pessoas com pelo menos um evento (commit, PR, issue ou comentário) no ano.",
         "- **Novatos**: pessoas cuja primeira contribuição na vida cai no ano.",
-        "- **Saída definitiva**: a última contribuição da vida, seguida de 12 meses sem nada. "
-        "Para confirmar os 12 meses é preciso acompanhar a pessoa depois do ano. O estudo vai "
-        "até 31/12/2025, e os eventos de 2026 só servem para decidir quem saiu, quem pausou e "
-        "quem pertence à população. A saída de 2025 aparece, provisória: quem parou há menos "
-        "de 12 meses do fim da coleta ainda pode voltar.",
+        "- **Saída**: a última contribuição da vida, seguida de 12 meses sem nada. Quem para por "
+        "12 meses e volta tem uma pausa. Para confirmar os 12 meses é preciso acompanhar a pessoa "
+        "depois do ano. O estudo vai até 31/12/2025, e os eventos de 2026 só servem para decidir "
+        "quem saiu, quem pausou e quem pertence à população. Quem parou há menos de 12 meses do "
+        "fim da coleta ainda pode voltar, então a saída de 2025 pode estar um pouco alta.",
         "- **População viva**: quem está entre o primeiro e o último evento da vida, pausas "
         "incluídas. É a base da natalidade e da mortalidade. Os ativos são só quem contribuiu no "
         "ano, por isso a população viva é maior.",
@@ -240,22 +240,18 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "- Plano: crescimento natural = (novatos - saídas) / ativos, em %. Positivo: entrou mais "
         "gente do que saiu.",
         "- Natalidade menos mortalidade é a mesma ideia, medida sobre a população viva.",
-        f"- A saída de {ultimo} é provisória e sai tracejada: quem parou há menos de 12 meses do "
-        "fim da coleta ainda pode voltar.",
+        f"- A saída de {ultimo} pode estar um pouco alta: quem parou há menos de 12 meses do fim "
+        "da coleta ainda pode voltar.",
         "",
         "**Natalidade, mortalidade e a diferença entre elas** (base: população viva)",
         "",
         tabela_md(marca_provisorios(transicao, primeiro_provisorio), 1),
-        "",
-        "\\* saída provisória: quem parou há menos de 12 meses do fim da coleta ainda pode voltar.",
         "",
         figura(pastas.base, f"{c}/vitalidade/transicao_anual.png", "natalidade e mortalidade"),
         "",
         "**Crescimento natural do plano** (base: ativos do mesmo ano)",
         "",
         tabela_md(marca_provisorios(tamanho, primeiro_provisorio), 1),
-        "",
-        "\\* saída provisória.",
         "",
         figura(pastas.base, f"{c}/vitalidade/anual.png", "tamanho"),
         "",
@@ -539,7 +535,8 @@ def diferencas(p: v.Parametros) -> str:
         "(ESEM 2019) |",
         f"| Período | 2008 a 2026 | estudo de 2008 a {pd.Timestamp(p.data_de_corte).year}. "
         "2026 só acompanha quem já estava na população |",
-        "| Saída de 2025 | não prevista | provisória, tracejada |",
+        "| Saída de 2025 | não prevista | calculada com o acompanhamento até 2026 e pode estar "
+        "um pouco alta |",
         f"| População | todas as pessoas que contribuíram | `{p.populacao}`: 30 dias ou mais "
         "entre o primeiro e o último evento |",
         "| Retenção | fração ativa 12 meses depois, por coorte | tábua de vida por coorte, S(x) "

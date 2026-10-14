@@ -723,8 +723,7 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         # Reposição: quantos novatos entram para cada pessoa que sai. Abaixo de 1 a comunidade
         # não repõe quem sai.
         t["reposicao"] = t["novatos"] / t["saidas"].where(t["saidas"] > 0)
-        # Saída é definitiva, e quem parou há pouco ainda pode voltar: os últimos `carencia_anos`
-        # anos são provisórios e saem tracejados.
+        # Quem parou há pouco ainda pode voltar: os últimos `carencia_anos` anos saem tracejados.
         t["provisorio"] = t["ano"] > lingua.fim_acompanhamento.year - ctx.p.carencia_anos
         ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice
         t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
