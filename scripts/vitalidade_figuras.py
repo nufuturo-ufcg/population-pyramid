@@ -811,17 +811,13 @@ def figura_backtest(bt: pd.DataFrame, teto: bool, pasta: str, rotulo: str) -> No
         t["ano"],
         t["pessimista"],
         t["otimista"],
-        color=categorica()[0],
+        color=FAIXA_ENTRE_CENARIOS,
         alpha=0.15,
         label="pessimista a otimista",
     )
     ax.plot(t["ano"], t["real"], color="black", linewidth=2, marker="o", markersize=4, label="real")
-    for metodo, cor in [
-        ("ingenuo", categorica()[1]),
-        ("coorte", categorica()[2]),
-        ("conservador", categorica()[0]),
-    ]:
-        ax.plot(t["ano"], t[metodo], color=cor, linewidth=2, label=metodo)
+    for metodo in ("ingenuo", "coorte", "conservador"):
+        ax.plot(t["ano"], t[metodo], color=cor_do_cenario(metodo), linewidth=2, label=metodo)
     ax.set_ylabel("ativos no ano")
     ax.set_xlabel("ano previsto")
     ax.set_title(f"{_nome()}: previsão de um ano à frente contra o real\nregra: {rotulo}")
@@ -831,9 +827,29 @@ def figura_backtest(bt: pd.DataFrame, teto: bool, pasta: str, rotulo: str) -> No
     salva(fig, f"{pasta}/projecao_backtest.png")
 
 
+def cor_do_cenario(nome: str) -> str:
+    """A cor de cada cenário, a mesma em todos os gráficos de cenário.
+
+    Pessimista, conservador e otimista têm cor própria. Ingênuo e coorte, que só comparam o
+    método no backtest, ficam em cinza para não ocupar a cor de um cenário.
+    """
+    cores = {
+        "pessimista": categorica()[1],
+        "conservador": categorica()[0],
+        "otimista": categorica()[2],
+        "ingenuo": "#888888",
+        "coorte": "#555555",
+    }
+    return cores[nome]
+
+
+FAIXA_ENTRE_CENARIOS = "#888888"
+
+
 def figura_futuro(
     anual: pd.DataFrame, futuro: pd.DataFrame, ultimo: int, teto: bool, pasta: str, rotulo: str
 ) -> None:
+    """Projeção: observado e os três cenários, pessimista, conservador e otimista."""
     observado = anual[anual["ano"] <= ultimo]
     total = futuro[futuro["faixa"] == "total"]
     fig, ax = plt.subplots(figsize=(9, 4.5))
@@ -848,9 +864,9 @@ def figura_futuro(
     )
     ponto = observado[observado["ano"] == ultimo]
     linhas = {}
-    for metodo in vitalidade.METODOS:
-        m = total[total["metodo"] == metodo]
-        linhas[metodo] = pd.concat(
+    for nome in ("pessimista", "conservador", "otimista"):
+        m = total[total["metodo"] == nome]
+        linhas[nome] = pd.concat(
             [
                 pd.DataFrame({"ano": ponto["ano"], "previsto": ponto["ativos"]}),
                 m[["ano", "previsto"]],
@@ -860,27 +876,23 @@ def figura_futuro(
         linhas["pessimista"]["ano"],
         linhas["pessimista"]["previsto"],
         linhas["otimista"]["previsto"],
-        color=categorica()[0],
+        color=FAIXA_ENTRE_CENARIOS,
         alpha=0.15,
-        label="pessimista a otimista",
     )
-    for metodo, cor in [
-        ("ingenuo", categorica()[1]),
-        ("coorte", categorica()[2]),
-        ("conservador", categorica()[0]),
-    ]:
+    for nome in ("pessimista", "conservador", "otimista"):
         ax.plot(
-            linhas[metodo]["ano"],
-            linhas[metodo]["previsto"],
-            color=cor,
-            linewidth=2,
-            linestyle="--",
-            label=metodo,
+            linhas[nome]["ano"],
+            linhas[nome]["previsto"],
+            color=cor_do_cenario(nome),
+            linewidth=2.5,
+            marker="o",
+            markersize=4,
+            label=nome,
         )
     ax.set_ylabel("ativos no ano")
     ax.set_xlabel("ano")
     ax.set_title(f"{_nome()}: projeção de ativos a partir de {ultimo}\nregra: {rotulo}")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=False)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=4, frameon=False)
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, f"{pasta}/projecao_futuro.png")
@@ -905,7 +917,7 @@ def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
             t["ano"],
             t["pessimista"],
             t["otimista"],
-            color=categorica()[0],
+            color=FAIXA_ENTRE_CENARIOS,
             alpha=0.35,
             linewidth=10,
             label="pessimista a otimista",
@@ -916,7 +928,7 @@ def figura_variantes(bts: dict[str, pd.DataFrame], teto: bool) -> None:
         ax.plot(
             t["ano"],
             t["conservador"],
-            color=categorica()[0],
+            color=cor_do_cenario("conservador"),
             linewidth=2,
             marker="s",
             markersize=5,
@@ -1218,89 +1230,11 @@ def figura_cenarios_futuro(ctx: Any, d: Dados) -> None:
         futuro = d[f"{pasta}/projecao_futuro"]
         futuro = futuro[futuro["teto"] == ctx.p.teto]
         figura_futuro(ctx.anual, futuro, ctx.fim.year - 1, ctx.p.teto, pasta, rotulo)
-
-
-def figura_tres_cenarios(
-    anual: pd.DataFrame, futuro: pd.DataFrame, ultimo: int, pasta: str, rotulo: str
-) -> None:
-    """Pessimista, conservador e otimista como três linhas, com o valor final de cada uma."""
-    observado = anual[anual["ano"] <= ultimo]
-    total = futuro[futuro["faixa"] == "total"]
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.plot(
-        observado["ano"],
-        observado["ativos"],
-        color="black",
-        linewidth=2,
-        marker="o",
-        markersize=4,
-        label="observado",
-    )
-    ponto = observado[observado["ano"] == ultimo]
-    cenarios = [
-        ("otimista", categorica()[2]),
-        ("conservador", categorica()[0]),
-        ("pessimista", categorica()[1]),
-    ]
-    linhas = {}
-    for nome, cor in cenarios:
-        m = total[total["metodo"] == nome]
-        linhas[nome] = pd.concat(
-            [
-                pd.DataFrame({"ano": ponto["ano"], "previsto": ponto["ativos"]}),
-                m[["ano", "previsto"]],
-            ]
-        )
-        ax.plot(
-            linhas[nome]["ano"],
-            linhas[nome]["previsto"],
-            color=cor,
-            linewidth=2.5,
-            marker="o",
-            markersize=4,
-            label=nome,
-        )
-        final = linhas[nome].iloc[-1]
-        ax.annotate(
-            f"{final['previsto']:,.0f}".replace(",", "."),
-            (final["ano"], final["previsto"]),
-            textcoords="offset points",
-            xytext=(8, 0),
-            va="center",
-            color=cor,
-            fontsize=10,
-        )
-    ax.fill_between(
-        linhas["pessimista"]["ano"],
-        linhas["pessimista"]["previsto"],
-        linhas["otimista"]["previsto"],
-        color="#888888",
-        alpha=0.12,
-    )
-    ax.set_xlim(observado["ano"].min() - 0.5, linhas["otimista"]["ano"].max() + 1.2)
-    ax.set_ylabel("ativos no ano")
-    ax.set_xlabel("ano")
-    ax.set_title(f"{_nome()}: três cenários a partir de {ultimo}\nregra: {rotulo}")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.13), ncol=4, frameon=False)
-    plots._theme(ax)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    salva(fig, f"{pasta}/tres_cenarios.png")
-
-
-@figura("cenarios", "tres_cenarios", padrao=True)
-def figura_cenarios_tres(ctx: Any, d: Dados) -> None:
-    """Pessimista, conservador e otimista da projeção, uma figura por regra de `variantes`."""
-    for chave, valores in ctx.p.variantes.items():
-        rotulo = valores[0]
-        pasta = f"cenarios-{chave}"
-        futuro = d[f"{pasta}/projecao_futuro"]
-        futuro = futuro[futuro["teto"] == ctx.p.teto]
-        figura_tres_cenarios(ctx.anual, futuro, ctx.fim.year - 1, pasta, rotulo)
     # A regra principal também fica na pasta da linguagem, onde é fácil de achar.
     principal = next(iter(ctx.p.variantes))
-    origem = fb.CFG.saida / PASTA / f"cenarios-{principal}" / "tres_cenarios.png"
+    origem = fb.CFG.saida / PASTA / f"cenarios-{principal}" / "projecao_futuro.png"
     if origem.exists():
-        shutil.copy(origem, fb.CFG.saida / PASTA / "tres_cenarios.png")
+        shutil.copy(origem, fb.CFG.saida / PASTA / "previsao_pessimista_conservador_otimista.png")
 
 
 @figura("cenarios", "comparadas", padrao=True)
@@ -1675,7 +1609,7 @@ def figura_lados(ctx: Any, d: Dados) -> None:
     ax.set_ylabel(f"% da {TERMO_POPULACAO} do lado do código")
     ax.set_xlabel("ano")
     ax.set_title("Lado do código: quem já fez commit ou PR, o resto discute")
-    ax.legend(frameon=False, ncol=5, loc="lower center", bbox_to_anchor=(0.5, 1.0))
+    ax.legend(frameon=False, ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.15))
     plots._theme(ax)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     salva(fig, "trajetoria_lados.png", geral=True)

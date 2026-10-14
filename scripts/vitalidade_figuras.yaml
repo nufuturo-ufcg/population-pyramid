@@ -85,5 +85,4 @@ figuras:
   tabua_comparada.chegar_e_ficar: {figsize: [12, 4.5]}
   trajetoria.linha_do_tempo: {figsize: [15, 12.5]}
   trajetoria.reposicao: {figsize: [9, 4.5]}
-  cenarios.tres_cenarios: {figsize: [9, 4.5]}
   trajetoria.lados: {figsize: [9, 4.5]}

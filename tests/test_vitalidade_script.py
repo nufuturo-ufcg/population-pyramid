@@ -405,3 +405,13 @@ def test_acompanhamento_mostra_a_saida_de_2025_sem_mudar_os_ativos_do_estudo():
     t = vitalidade.tabela_anual(pa.reset_index(), coleta).set_index("ano")
     assert t.loc[2025, "saidas"] == 1 and bool(t.loc[2025, "provisorio"])
     assert not bool(t.loc[2024, "provisorio"])
+
+
+def test_cada_cenario_tem_a_mesma_cor_em_todos_os_graficos():
+    import vitalidade_figuras as f
+
+    cores = [f.cor_do_cenario(n) for n in ("pessimista", "conservador", "otimista")]
+    assert len(set(cores)) == 3
+    # Ingênuo e coorte são cinza e não tomam a cor de nenhum cenário.
+    for nome in ("ingenuo", "coorte"):
+        assert f.cor_do_cenario(nome) not in cores
