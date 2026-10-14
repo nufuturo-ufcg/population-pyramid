@@ -808,11 +808,14 @@ class RegraCenario:
     janela            só os últimos `janela` anos até a base; `None` usa a história toda
     novatos_por_taxa  novatos viram taxa (novatos de Y / ativos de Y-1), aplicada
                       à população do ano projetado; falso usa a contagem de novatos
+    conservador       como o cenário conservador sai da janela: `extremos` é a média do menor
+                      e do maior valor, `media` é a média de todos os anos da janela
     """
 
     min_saidas: int = 0
     janela: int | None = None
     novatos_por_taxa: bool = False
+    conservador: str = "extremos"
 
 
 def cenarios(
@@ -820,7 +823,8 @@ def cenarios(
 ) -> dict[str, tuple[np.ndarray, float]]:
     """(permanência, novatos) de cada cenário, só com a série até `ate_ano`.
 
-    pessimista  menor valor histórico; otimista  maior; conservador  a média dos dois.
+    pessimista  menor valor da janela; otimista  maior; conservador  a média dos dois (`extremos`)
+    ou a média da janela toda (`media`), conforme `regra.conservador`.
     Os novatos saem em contagem ou em taxa, conforme `regra.novatos_por_taxa`;
     `_novatos_do_cenario` converte. Banda sem nenhum ano válido usa a
     permanência do último ano nos três cenários, a mesma do coorte.
@@ -847,9 +851,18 @@ def cenarios(
     if regra.novatos_por_taxa:
         ativos_antes = pop.sum(axis=1).shift(1).loc[inicio:ate_ano]
         novatos = novatos / ativos_antes
+    if regra.conservador == "media":
+        meio = (np.array(h.mean(), dtype=float), float(novatos.mean()))
+        for a in range(BANDAS):
+            if np.isnan(meio[0][a]):
+                meio[0][a] = ultimo[a]
+    elif regra.conservador == "extremos":
+        meio = ((menor + maior) / 2, float(novatos.min() + novatos.max()) / 2)
+    else:
+        raise ValueError(f"conservador {regra.conservador!r}: use 'extremos' ou 'media'.")
     return {
         "pessimista": (menor, float(novatos.min())),
-        "conservador": ((menor + maior) / 2, float(novatos.min() + novatos.max()) / 2),
+        "conservador": meio,
         "otimista": (maior, float(novatos.max())),
     }
 
