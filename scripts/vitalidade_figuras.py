@@ -637,9 +637,12 @@ def _xmax_das_piramides(quadros: list[pd.DataFrame], minimo: float = 1.0) -> flo
     return xmax
 
 
-def _regua_x_de_10_em_10(ax: Any, xmax: float) -> None:
-    """Ticks de 10 em 10 (de 5 em 5 se a escala é pequena), iguais nos dois lados e sem sinal."""
+def _regua_x_de_10_em_10(ax: Any, xmax: float, max_por_lado: int = 4, tamanho: int = 10) -> None:
+    """Ticks de 10 em 10, iguais nos dois lados e sem sinal. O passo dobra se passar de
+    `max_por_lado` ticks em cada lado (de 5 em 5 se a escala é pequena)."""
     passo = 10 if xmax >= 20 else 5
+    while xmax * 1.08 / passo > max_por_lado:
+        passo = passo * 2
     lado: list[int] = []
     valor = passo
     while valor <= xmax * 1.08:
@@ -652,7 +655,7 @@ def _regua_x_de_10_em_10(ax: Any, xmax: float) -> None:
     for t in lado:
         ticks.append(t)
     ax.set_xticks(ticks)
-    ax.set_xticklabels([f"{abs(t)}" for t in ticks])
+    ax.set_xticklabels([f"{abs(t)}" for t in ticks], fontsize=tamanho)
 
 
 def _legenda_piramide(fig: Any, lado: str, com_moved_to_discussion: bool) -> None:
@@ -672,7 +675,7 @@ def _legenda_piramide(fig: Any, lado: str, com_moved_to_discussion: bool) -> Non
                     label=ROTULO_LADO[categoria],
                 )
             )
-    fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, fontsize=8)
+    fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, fontsize=12)
 
 
 def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
@@ -1553,7 +1556,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
         mostrados.append(bool(grande and linha["slug"] in slugs and linha["ano"] in anos))
     xmax = _xmax_das_piramides([_so_o_lado(comp[mostrados], lado)], minimo=50.0)
     fig, eixos = plt.subplots(
-        len(slugs), len(anos), figsize=(3.0 * len(anos), 2.5 * len(slugs)), sharey=True
+        len(slugs), len(anos), figsize=(3.6 * len(anos), 3.1 * len(slugs)), sharey=True
     )
     for i, slug in enumerate(slugs):
         for j, ano in enumerate(anos):
@@ -1563,20 +1566,28 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
             if tem:
                 q["band"] = q["faixa"].map(codigo).astype(int)
                 plots.draw_pyramid(ax, _so_o_lado(q, lado), xmax=xmax)
-                _regua_x_de_10_em_10(ax, xmax)
+                _regua_x_de_10_em_10(ax, xmax, max_por_lado=3, tamanho=11)
             else:
-                ax.text(0.5, 0.5, "menos de 100 ativos", ha="center", va="center", color="#999999")
+                ax.text(
+                    0.5,
+                    0.5,
+                    "menos de 100\nativos",
+                    ha="center",
+                    va="center",
+                    color="#999999",
+                    fontsize=12,
+                )
                 ax.set_xticks([])
             ax.set_ylim(-0.6, len(vitalidade.FAIXAS) - 0.4)
             ax.set_yticks(range(len(vitalidade.FAIXAS)))
-            ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS], fontsize=7)
+            ax.set_yticklabels([f"{f} anos" for f in vitalidade.FAIXAS], fontsize=11)
             if i == 0:
-                ax.set_title(str(ano))
+                ax.set_title(str(ano), fontsize=18)
             if j == 0:
-                ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=11)
+                ax.set_ylabel(carga_fonte.LINGUAGENS[slug].nome, fontsize=18)
             if i == len(slugs) - 1 and tem:
-                ax.set_xlabel("% dos ativos do ano", fontsize=7)
-    fig.suptitle("Pirâmides por tempo na linguagem, linha do tempo por linguagem")
+                ax.set_xlabel("% dos ativos do ano", fontsize=11)
+    fig.suptitle("Pirâmides por tempo na linguagem, linha do tempo por linguagem", fontsize=20)
     _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
