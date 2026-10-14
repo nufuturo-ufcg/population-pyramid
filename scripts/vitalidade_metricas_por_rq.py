@@ -8,6 +8,7 @@ vem dos CSV; a seção de diferenças lista onde a implementação saiu do plano
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -121,6 +122,16 @@ def glossario() -> str:
     return "\n".join(linhas)
 
 
+def marca_provisorios(t: pd.DataFrame, primeiro_provisorio: int) -> pd.DataFrame:
+    """Põe um asterisco no ano das linhas com saída provisória."""
+    t = t.copy()
+    rotulos = []
+    for ano in t.index:
+        rotulos.append(f"{ano}*" if ano >= primeiro_provisorio else str(ano))
+    t.index = rotulos
+    return t
+
+
 def renovacao(pastas: Pastas, p: v.Parametros, ano_ref: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Medidas de renovação de Clojure por ano e das cinco linguagens no ano de referência."""
     por_linguagem_e_ano = {}
@@ -159,6 +170,9 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     c = pastas.linguagem("clojure")
     ultimo = pd.Timestamp(p.data_de_corte).year
     ano_ref = ultimo - 1
+    meta = json.loads((pastas.base / c / "resultados" / "vitalidade" / "meta.json").read_text())
+    fim_acompanhamento = pd.Timestamp(meta.get("fim_acompanhamento") or meta["fim"])
+    primeiro_provisorio = fim_acompanhamento.year - p.carencia_anos + 1
 
     anual = pastas.csv(c, "anual.csv").set_index("ano")
     tamanho = anual[["ativos", "novatos", "saidas", "crescimento_natural_pct"]].copy()
@@ -188,9 +202,12 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
 
     clojure_renovacao, comparacao = renovacao(pastas, p, ano_ref)
     ref = clojure_renovacao.loc[ano_ref]
-    abaixo = clojure_renovacao[clojure_renovacao["novatos por saída"] < 1]
     ano_1 = clojure_renovacao[clojure_renovacao["novatos por saída"] >= 1].index.max()
-    outras = comparacao.drop(index="Clojure")["novatos por saída"]
+    outras = comparacao.drop(index="Clojure")
+    por_saida = "; ".join(f"{n} {num_f(v)}" for n, v in outras["novatos por saída"].items())
+    por_topo = "; ".join(f"{n} {num_f(v, 0)}%" for n, v in outras["% com 5 anos ou mais"].items())
+    menor_reposicao = ref["novatos por saída"] < outras["novatos por saída"].min()
+    maior_topo = ref["% com 5 anos ou mais"] > outras["% com 5 anos ou mais"].max()
 
     coortes = pastas.csv(c, "tabua_coortes.csv")
     retencao = pd.DataFrame()
@@ -200,7 +217,10 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     retencao = retencao[retencao.index >= 2010]
     retencao.index.name = "coorte"
     primeira = retencao.index.min()
-    ultima_com_x3 = retencao["depois de 3 anos"].dropna().index.max()
+    # A última coorte cujos 3 anos já passaram inteiros dentro do acompanhamento.
+    ultima_com_x3 = min(
+        retencao["depois de 3 anos"].dropna().index.max(), fim_acompanhamento.year - 5
+    )
 
     ccr = pastas.csv("geral" + pastas.sufixo, "ccr_ncr_comparado.csv")
     ccr = ccr[ccr["slug"] == "clojure"].copy()
@@ -225,13 +245,17 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         "**Natalidade, mortalidade e a diferença entre elas** (base: população viva)",
         "",
-        tabela_md(transicao, 1),
+        tabela_md(marca_provisorios(transicao, primeiro_provisorio), 1),
+        "",
+        "\\* saída provisória: quem parou há menos de 12 meses do fim da coleta ainda pode voltar.",
         "",
         figura(pastas.base, f"{c}/vitalidade/transicao_anual.png", "natalidade e mortalidade"),
         "",
         "**Crescimento natural do plano** (base: ativos do mesmo ano)",
         "",
-        tabela_md(tamanho, 1),
+        tabela_md(marca_provisorios(tamanho, primeiro_provisorio), 1),
+        "",
+        "\\* saída provisória.",
         "",
         figura(pastas.base, f"{c}/vitalidade/anual.png", "tamanho"),
         "",
@@ -281,23 +305,28 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         f"1. **Reposição.** Em {ano_ref} entraram {num_i(ref['novatos'])} novatos para "
         f"{num_i(ref['saídas'])} saídas: {num_f(ref['novatos por saída'])} novato para cada "
-        f"saída. A reposição ficou abaixo de 1 em {len(abaixo)} dos anos da tabela e não "
-        f"chega a 1 desde {ano_1 + 1}. Nas outras linguagens em {ano_ref}, de "
-        f"{num_f(outras.min())} a {num_f(outras.max())}.",
+        f"saída. Desde {ano_1 + 1} a reposição fica abaixo de 1. Nas outras linguagens em "
+        f"{ano_ref}: {por_saida}.",
         f"2. **Base da pirâmide.** Os ativos com menos de 1 ano de casa eram "
         f"{num_f(clojure_renovacao['% com menos de 1 ano'].iloc[0], 0)}% em "
         f"{clojure_renovacao.index.min()} e são {num_f(ref['% com menos de 1 ano'], 0)}% em "
         f"{ano_ref}.",
         f"3. **Topo da pirâmide.** Os ativos com 5 anos ou mais de casa são "
-        f"{num_f(ref['% com 5 anos ou mais'], 0)}% em {ano_ref}. Nas outras linguagens, de "
-        f"{num_f(comparacao.drop(index='Clojure')['% com 5 anos ou mais'].min(), 0)}% a "
-        f"{num_f(comparacao.drop(index='Clojure')['% com 5 anos ou mais'].max(), 0)}%.",
+        f"{num_f(ref['% com 5 anos ou mais'], 0)}% em {ano_ref}. Nas outras: {por_topo}.",
         f"4. **Quem entra agora fica menos.** Depois de 3 anos seguiam ativos "
         f"{num_f(retencao.loc[primeira, 'depois de 3 anos'])} da coorte {primeira} e "
         f"{num_f(retencao.loc[ultima_com_x3, 'depois de 3 anos'])} da coorte {ultima_com_x3}.",
         "",
         "Leitura: os itens 1 e 2 dizem que a renovação é baixa, o 3 que o tempo de casa de quem "
-        "fica é alto, e o 4 que quem entra sai mais cedo que quem entrou antes.",
+        "fica é alto, e o 4 que quem entra sai mais cedo que quem entrou antes. Clojure tem "
+        + ("a menor reposição" if menor_reposicao else "uma reposição baixa")
+        + " e "
+        + (
+            "a maior parcela de 5 anos ou mais"
+            if maior_topo
+            else "uma parcela alta de 5 anos ou mais"
+        )
+        + f" entre as cinco em {ano_ref}.",
         "",
         "Limites:",
         "",

@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from matplotlib.ticker import MaxNLocator, NullFormatter, ScalarFormatter
+from matplotlib.ticker import FuncFormatter, MaxNLocator, NullFormatter
 
 import carga_fonte
 import figuras_linguagem_bruta as fb
@@ -1504,10 +1504,10 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(ax, d["trajetoria"], "indice", base)
     ax.axhline(100, color="#888888", linewidth=0.8)
-    if ax.get_yscale() == "log":
-        ax.yaxis.set_major_formatter(ScalarFormatter())
-        ax.yaxis.set_minor_formatter(NullFormatter())
-        ax.set_yticks([50, 100, 200, 400, 800])
+    ax.set_yscale("log")  # o Zig cresce 10 vezes, o Clojure cai 30%: só a escala log mostra os dois
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda valor, _: f"{valor:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.set_yticks([50, 100, 200, 400, 800])
     ax.set_ylabel(f"ativos no ano, índice com {base} = 100")
     ax.set_xlabel("ano")
     ax.set_title("Número de ativos de cada linguagem, com 100 no ano base")
@@ -1522,7 +1522,9 @@ def figura_crescimento_liquido(ctx: Any, d: Dados) -> None:
     A base são os ativos do próprio ano. Não é a variação sobre o ano anterior.
     """
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    _linhas_por_linguagem(ax, d["trajetoria"], "crescimento_liquido_pct", 0, com_cauda=True)
+    _linhas_por_linguagem(
+        ax, d["trajetoria"], "crescimento_liquido_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
+    )
     ax.axhline(0, color="#888888", linewidth=0.8)
     ax.set_ylabel("% dos ativos do mesmo ano")
     ax.set_xlabel("ano")
@@ -1582,6 +1584,11 @@ def figura_reposicao(ctx: Any, d: Dados) -> None:
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _linhas_por_linguagem(ax, d["trajetoria"], "reposicao", 0, com_cauda=True)
     ax.axhline(1, color="#888888", linewidth=0.8)
+    # Escala log: dobrar e cortar pela metade ficam à mesma distância de 1.
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda valor, _: f"{valor:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.set_yticks([0.25, 0.5, 1, 2, 4, 8, 12])
     ax.set_ylabel("novatos para cada pessoa que sai")
     ax.set_xlabel("ano")
     ax.set_title("Reposição: acima de 1 entra mais gente do que sai")
@@ -1593,8 +1600,10 @@ def figura_reposicao(ctx: Any, d: Dados) -> None:
 def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
     """Saídas e voltas de cada ano, em % dos ativos, em dois painéis."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
-    _linhas_por_linguagem(ax1, d["trajetoria"], "saida_pct", 0, com_cauda=True)
-    _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", 0)
+    _linhas_por_linguagem(
+        ax1, d["trajetoria"], "saida_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
+    )
+    _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", ctx.p.ano_inicio_comparacao)
     ax1.set_ylabel("saídas, % dos ativos")
     ax2.set_ylabel("voltas, % dos ativos")
     ax2.set_xlabel("ano")

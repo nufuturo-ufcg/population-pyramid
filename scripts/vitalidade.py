@@ -160,6 +160,7 @@ class Parametros:
     piramide_lado: str
     ano_comparacao: int
     ano_base_indice: int
+    ano_inicio_comparacao: int
     carencia_anos: int
     rodadas_padronizacao: dict[str, list[str]]
     data_de_corte: str | None

@@ -36,6 +36,7 @@ Se um parâmetro de tabela mudar, `--so-figuras` avisa que as tabelas gravadas s
 | `rodadas_padronizacao` | `nicho`, `python` | quais linguagens formam cada rodada do SMR e da taxa padronizada. | tabela |
 | `ano_pesos` | 2025 | ano cuja composição por faixa pesa a referência de cada rodada. | tabela |
 | `ano_base_indice` | 2019 | ano em que o índice de ativos vale 100. | tabela |
+| `ano_inicio_comparacao` | 2016 | primeiro ano dos gráficos de crescimento e de saída entre linguagens. | desenho |
 | `ano_comparacao` | 2024 | ano das pirâmides lado a lado entre linguagens. | desenho |
 
 ### CCR e NCR

@@ -96,6 +96,10 @@ piramide_lado: todos
 ano_comparacao: 2024
 ano_base_indice: 2019
 
+# Primeiro ano dos gráficos de crescimento e de saída entre linguagens. Antes dele as comunidades
+# são pequenas e as taxas saltam, o que esconde o que importa nos anos recentes.
+ano_inicio_comparacao: 2016
+
 # Saída é definitiva: a última contribuição da vida, seguida de 12 meses sem nada até o fim do
 # acompanhamento. Um ano tem saída firme (linha cheia) quando o acompanhamento cobre pelo menos
 # `carencia_anos` anos de calendário depois dele: ano do fim do acompanhamento - ano >=

@@ -77,7 +77,7 @@ figuras:
   comparacao_corrigida.smr: {figsize: [9, 4]}
   magnetismo.linhas: {figsize: [9, 4]}
   magnetismo.dispersao: {figsize: [6.5, 6]}
-  trajetoria.indice: {figsize: [9, 4.5], escala_y: log}
+  trajetoria.indice: {figsize: [9, 4.5]}
   trajetoria.crescimento: {figsize: [9, 4.5]}
   trajetoria.taxas: {figsize: [9, 7]}
   ccr_ncr_comparado.dispersao: {figsize: [8, 7]}
