@@ -86,3 +86,35 @@ def summarize(stage: str, man: dict) -> str:
     if bad:
         s += " -> " + ", ".join(list(man["failed"])[:5]) + ("..." if bad > 5 else "")
     return s
+
+
+def invalidar_se_mudou(stage: str, man: dict, escolhas: dict) -> dict:
+    """Zera o manifesto quando as escolhas que produziram os dados mudaram.
+
+    A retomada pula a unidade que já está `ok` com o artefato no disco, e a
+    chave é o id. O id não carrega a configuração que o produziu: sob
+    `analysis.unit: language` ele sai do nome da linguagem, então trocar uma
+    chave de `language:` muda os MEMBROS de cada escopo sem mudar o id.
+
+    Sem isto, a execução seguinte reusa o artefato da configuração anterior,
+    grava a configuração nova no manifesto, e reporta `ok`. O número publicado
+    vira mistura de duas configurações, sem erro nenhum.
+
+    Todo estágio chama, e não só o `extract`: reextrair os eventos e manter os
+    perfis, as pirâmides e as métricas calculados sobre os eventos velhos é a
+    mesma mistura, um estágio adiante.
+    """
+    if not man.get("ok"):
+        return man
+    antes = {k: man.get(k) for k in escolhas}
+    if antes == escolhas:
+        return man
+    logging.getLogger(__name__).warning(
+        "%s: as escolhas da fonte mudaram desde a última execução; recalculando tudo. "
+        "antes=%s agora=%s",
+        stage,
+        antes,
+        escolhas,
+        extra={"stage": stage},
+    )
+    return {"stage": stage, "ok": {}, "failed": {}}

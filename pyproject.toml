@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib>=3.8",
     "scipy>=1.13",
     "python-dotenv>=1.0",
+    "duckdb>=1.5.6",
 ]
 
 [project.scripts]
@@ -97,6 +98,9 @@ ignore = [
 # Sweep é varredura de hipótese: cada hipótese vira um parâmetro, e a contagem
 # de argumentos passa de 5 sem que isso indique desenho ruim.
 "scripts/**" = ["D", "ANN", "PLR0913", "PLR0917"]
+# Toda figura do registro de `vitalidade.py` recebe (contexto, tabelas), mesmo a que usa só um.
+"scripts/vitalidade.py" = ["D", "ANN", "ARG001", "PLR0913", "PLR0917"]
+"scripts/vitalidade_figuras.py" = ["D", "ANN", "ARG001", "PLR0913", "PLR0917"]
 # Typer declara flag como valor default do parâmetro (`typer.Option(...)`), que é
 # exatamente o que B008 proíbe. A chamada não guarda estado entre invocações.
 # A contagem de argumentos de um subcomando reflete a interface de linha de

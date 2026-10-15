@@ -14,8 +14,11 @@ razão limitada. Essa escolha é fiel à fórmula do artigo, tal como publicada.
 Lados (IEICE16 s3 + spec s2):
   coding      = category in {coding, moved}: quem já codou alguma vez até T
   non         = category == non_coding
-  new         = band 0  (idade < 3 meses de atividade acumulada)
-  experienced = band >= 1
+  new         = ver `metrics.newcomer_basis` (settings.yaml): banda 0 da
+                pirâmide (padrão, validado contra o MSR14) ou idade real abaixo
+                de `periods.newcomer_max_months`, os dois só coincidem
+                enquanto `periods.band_months` também vale 3.
+  experienced = o restante de `new`
 
 Quadrantes, citando o artigo (p.1309), que descreve cada tipo em palavras.
 A tradução para sinal, feita abaixo, é a única leitura possível:
@@ -54,8 +57,10 @@ import pandas as pd
 
 from . import logging_config as runlog
 from . import snapshots
-from .config import stage_dir
+from .classify import DAYS_PER_MONTH
+from .config import settings, stage_dir
 from .extract import label_of, source
+from .units import scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "metrics"
@@ -96,6 +101,35 @@ def _type_of(ccr: float, ncr: float) -> str | None:
     ]
 
 
+def _e_novato(act: pd.DataFrame) -> pd.Series:
+    """Quem conta como novato, segundo `metrics.newcomer_basis`.
+
+    `band` (padrão, mesmo comportamento de sempre): novato é quem cai na
+    banda 0 da pirâmide. Só é o mesmo que "menos de 3 meses" enquanto
+    `periods.band_months` também vale 3: os dois são constantes
+    independentes que hoje coincidem em valor. Mudar a largura da banda (pra
+    testar uma pirâmide com banda de 1 ou 5 anos, por exemplo) muda junto a
+    definição de novato, sem avisar, porque as duas leem a mesma coluna.
+
+    `days`: novato é quem tem `age_days` abaixo de `periods.newcomer_max_months`
+    (citação: "we define newcomers as contributors who have less than three
+    months of activity periods", IEICE16 p.1308), direto pela idade real,
+    sem depender da largura da banda que a pirâmide desenha.
+
+    O padrão é `band` para não mudar nenhum número já validado contra o
+    MSR14: trocar para `days` muda a classificação Tipo A-D e precisa passar
+    pelo procedimento de "mudança que mexe em número" do CONTRIBUTING.md
+    antes de virar padrão.
+    """
+    basis = settings()["metrics"].get("newcomer_basis", "band")
+    if basis == "band":
+        return act["band"] == 0
+    if basis == "days":
+        limite = settings()["periods"]["newcomer_max_months"] * DAYS_PER_MONTH
+        return act["age_days"] < limite
+    raise ValueError(f"metrics.newcomer_basis={basis!r}: use 'band' ou 'days'.")
+
+
 def from_pyramids(df: pd.DataFrame) -> pd.DataFrame:
     """Uma linha por snapshot a partir da pirâmide de UM projeto.
 
@@ -124,7 +158,7 @@ def from_pyramids(df: pd.DataFrame) -> pd.DataFrame:
 
     g = act.assign(
         _coding=act["category"].isin(CODING_SIDE),
-        _new=act["band"] == 0,
+        _new=_e_novato(act),
     ).groupby(["scope_id", "snapshot"], as_index=False)
 
     out = g.agg(
@@ -151,15 +185,36 @@ def load(scope_id: int) -> pd.DataFrame:
 
 
 def _ids_gravados() -> list[int]:
-    """Ids que este estágio já gravou, lidos do disco.
+    """Ids que este estágio gravou NESTA configuração, lidos do disco.
 
     Leitura não pergunta o escopo ao banco. `load_all` empilha o que existe, e o
     que existe está no disco: perguntar a lista ao MySQL só para depois filtrar
     por `path(s).exists()` amarrava `pyramid types`, `pyramid validate` e os
     testes de checkpoint a um banco de pé. Arquivo que não é `<id>.parquet` fica
     de fora (o manifesto e as tabelas do estágio começam com `_`).
+
+    O disco sozinho não basta. Quando o conjunto de escopos encolhe (mudou a
+    política de linguagem, mudou a unidade, mudou o recorte), o parquet do
+    escopo morto continua lá e voltaria em `table`, em `pyramid types`, no
+    `validate` e nas figuras agregadas, nomeado pelo próprio id, porque o
+    manifesto já não tem rótulo para ele. Por isso o manifesto filtra.
+
+    Manifesto vazio devolve tudo que está no disco: é o caso do clone que
+    recebeu os parquets prontos, sem ter rodado o estágio.
     """
-    return sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+    no_disco = sorted(int(p.stem) for p in stage_dir(STAGE).glob("*.parquet") if p.stem.isdigit())
+    registrados = {int(k) for k in runlog.load(STAGE).get("ok", {})}
+    if not registrados:
+        return no_disco
+    if orfaos := [s for s in no_disco if s not in registrados]:
+        log.warning(
+            "%d parquets de escopo que nao esta no manifesto, ignorados: %s. "
+            "Rode com --force para limpar.",
+            len(orfaos),
+            orfaos[:5],
+            extra={"stage": STAGE},
+        )
+    return [s for s in no_disco if s in registrados]
 
 
 def load_all(scopes: list[int] | None = None) -> pd.DataFrame:
@@ -193,11 +248,14 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     manifesto.
     """
     src = source()
-    targets = scopes if scopes is not None else src.list_scopes()
+    targets = scopes if scopes is not None else [e.id for e in scopes_of_unit(src)]
 
     man = runlog.load(STAGE)
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
+    prov = src.provenance()
+    man = runlog.invalidar_se_mudou(STAGE, man, prov)
+    man.update(prov)
 
     for sid in targets:
         key = str(sid)
@@ -224,13 +282,13 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             if last is None:
                 log.warning(
                     "%-38s sem população ativa em nenhum snapshot",
-                    src.scope_label(sid),
+                    label_of(sid),
                     extra={"scope_id": sid, "stage": STAGE},
                 )
             else:
                 log.info(
                     "%-38s %3d snapshots  último: CCR %+.3f  NCR %+.3f  Tipo %s",
-                    src.scope_label(sid),
+                    label_of(sid),
                     len(out),
                     last["ccr"],
                     last["ncr"],
