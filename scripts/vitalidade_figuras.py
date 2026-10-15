@@ -1121,6 +1121,7 @@ def _tabua_slide_todas(
             label=carga_fonte.LINGUAGENS[slug].nome,
         )
     plots._theme(ax)
+    ax.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
     ax.set_xticks(range(0, int(t["x"].max()) + 1))
     ax.tick_params(labelsize=13)
     ax.set_xlabel("anos desde a primeira contribuição", fontsize=15)
