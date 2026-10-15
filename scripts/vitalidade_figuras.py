@@ -1099,37 +1099,61 @@ def figura_tabua_slide_clojure(ctx: Any, d: Dados) -> None:
     salva(fig, "tabua_de_vida_clojure.png", geral=True)
 
 
-@figura("tabua_comparada", "slide_todas", padrao=True)
-def figura_tabua_slide_todas(ctx: Any, d: Dados) -> None:
-    """O gráfico de `slide_clojure` com todas as linguagens, Clojure em linha mais grossa."""
-    t = d["tabua_comparada"]
+def _tabua_slide_todas(
+    ctx: Any, d: Dados, coluna: str, titulo: str, eixo_y: str, nome: str
+) -> None:
+    """Uma medida da tábua, todas as linguagens num gráfico só, com fonte de slide."""
+    t = d["tabua_comparada"].copy()
+    t["fica"] = 100 * (1 - t["q"])
     # Abaixo de 300 pessoas observadas a chance oscila vários pontos de um ano para o outro (o
     # Zig a partir de 5 anos chega a 100%). Só o Zig cai nesse corte.
-    min_pessoas = 300
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.2))
+    t = t[t["n_efetivo"] >= 300]
+    fig, ax = plt.subplots(figsize=(10, 5.8))
     for slug in ctx.p.linguagens_rq2:
-        c = t[(t["linguagem"] == slug) & (t["n_efetivo"] >= min_pessoas)]
-        largura = 4 if slug == "clojure" else 2.5
-        estilo = {"color": cor_da(slug), "linewidth": largura, "marker": "o", "markersize": 7}
-        nome = carga_fonte.LINGUAGENS[slug].nome
-        ax1.plot(c["x"], 100 * (1 - c["q"]), label=nome, **estilo)
-        ax2.plot(c["x"], c["e"], label=nome, **estilo)
-    ax1.set_ylim(0, 100)
-    ax1.set_ylabel("% de quem chegou a x anos", fontsize=15)
-    ax1.set_title("Chance de seguir mais 1 ano", fontsize=19)
-    ax2.set_ylim(0, t["e"].max() * 1.15)
-    ax2.set_ylabel("anos, em média", fontsize=15)
-    ax2.set_title("Anos que ainda restam na linguagem", fontsize=19)
-    for ax in (ax1, ax2):
-        plots._theme(ax)
-        ax.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
-        ax.set_xticks(range(0, int(t["x"].max()) + 1))
-        ax.tick_params(labelsize=14)
-        ax.set_xlabel("anos na linguagem, x", fontsize=15)
-    ax1.legend(frameon=False, fontsize=13, loc="lower right")
-    fig.suptitle("Tábua de vida", fontsize=21)
-    fig.tight_layout()
-    salva(fig, "tabua_de_vida_todas.png", geral=True)
+        c = t[t["linguagem"] == slug]
+        ax.plot(
+            c["x"],
+            c[coluna],
+            marker="o",
+            markersize=8,
+            color=cor_da(slug),
+            linewidth=2.5,
+            label=carga_fonte.LINGUAGENS[slug].nome,
+        )
+    plots._theme(ax)
+    ax.set_xticks(range(0, int(t["x"].max()) + 1))
+    ax.tick_params(labelsize=13)
+    ax.set_xlabel("anos desde a primeira contribuição", fontsize=15)
+    ax.set_ylabel(eixo_y, fontsize=15)
+    ax.set_title(titulo, fontsize=18)
+    ax.legend(frameon=False, fontsize=13)
+    salva(fig, nome, geral=True)
+
+
+@figura("tabua_comparada", "slide_chance", padrao=True)
+def figura_tabua_slide_chance(ctx: Any, d: Dados) -> None:
+    """Chance de seguir mais 1 ano, todas as linguagens, para slide."""
+    _tabua_slide_todas(
+        ctx,
+        d,
+        "fica",
+        "Quem chegou a x anos, chance de seguir mais 1 ano",
+        "% de quem chegou a x anos",
+        "tabua_chance_de_seguir.png",
+    )
+
+
+@figura("tabua_comparada", "slide_anos", padrao=True)
+def figura_tabua_slide_anos(ctx: Any, d: Dados) -> None:
+    """Anos que ainda restam, todas as linguagens, para slide."""
+    _tabua_slide_todas(
+        ctx,
+        d,
+        "e",
+        "Quem chegou a x anos, quantos anos ainda restam",
+        "anos que ainda restam, em média",
+        "tabua_anos_que_restam.png",
+    )
 
 
 @figura("comparacao_corrigida", "tres_paineis", padrao=True)
