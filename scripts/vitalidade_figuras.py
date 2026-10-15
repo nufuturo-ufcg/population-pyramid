@@ -1051,6 +1051,54 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
     salva(fig, "tabua_chegar_e_ficar.png", geral=True)
 
 
+@figura("tabua_comparada", "slide_clojure", padrao=True)
+def figura_tabua_slide_clojure(ctx: Any, d: Dados) -> None:
+    """Tábua de vida de Clojure para slide: chance de seguir mais 1 ano e anos que ainda restam.
+
+    Fonte grande, valor escrito em cada ponto (o slide dispensa a tabela) e a faixa de 2 a 3 anos
+    sombreada, que é a da pirâmide.
+    """
+    t = d["tabua_comparada"]
+    c = t[t["linguagem"] == "clojure"]
+    cor = cor_da("clojure")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.2))
+    ax1.plot(c["x"], 100 * (1 - c["q"]), marker="o", markersize=9, color=cor, linewidth=3)
+    for x, valor in zip(c["x"], 100 * (1 - c["q"]), strict=True):
+        ax1.annotate(
+            f"{valor:.0f}%",
+            (x, valor),
+            textcoords="offset points",
+            xytext=(0, 12),
+            ha="center",
+            fontsize=14,
+        )
+    ax1.set_ylim(0, 100)
+    ax1.set_ylabel("% de quem chegou a x anos", fontsize=15)
+    ax1.set_title("Chance de seguir mais 1 ano", fontsize=19)
+    ax2.plot(c["x"], c["e"], marker="o", markersize=9, color=cor, linewidth=3)
+    for x, valor in zip(c["x"], c["e"], strict=True):
+        ax2.annotate(
+            f"{valor:.1f}".replace(".", ","),
+            (x, valor),
+            textcoords="offset points",
+            xytext=(0, 12),
+            ha="center",
+            fontsize=14,
+        )
+    ax2.set_ylim(0, c["e"].max() * 1.25)
+    ax2.set_ylabel("anos, em média", fontsize=15)
+    ax2.set_title("Anos que ainda restam na linguagem", fontsize=19)
+    for ax in (ax1, ax2):
+        plots._theme(ax)
+        ax.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
+        ax.set_xticks(c["x"].tolist())
+        ax.tick_params(labelsize=14)
+        ax.set_xlabel("anos na linguagem, x", fontsize=15)
+    fig.suptitle("Clojure: tábua de vida", fontsize=21)
+    fig.tight_layout()
+    salva(fig, "tabua_de_vida_clojure.png", geral=True)
+
+
 @figura("comparacao_corrigida", "tres_paineis", padrao=True)
 def figura_padronizacao(ctx: Any, d: Dados) -> None:
     """Taxa bruta, padronizada e SMR, um painel cada, uma figura por rodada.
