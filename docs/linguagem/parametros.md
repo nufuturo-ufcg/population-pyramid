@@ -60,7 +60,7 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 
 | parâmetro | padrão | configura | muda |
 |---|---|---|---|
-| `anos_piramide` | 2010, 2014, 2018, 2022, 2025 | anos das pirâmides por linguagem. | desenho |
+| `anos_piramide` | 2010, 2014, 2018, 2022, 2024 | anos das pirâmides por linguagem. | desenho |
 | `piramide_em_pct` | true | pirâmides em % dos ativos do ano. `false` desenha contagens. | desenho |
 | `usa_moved_to_discussion` | false | separa a categoria moved to discussion nas pirâmides. `false` usa as três categorias do artigo. | tabela |
 | `piramide_lado` | `todos` | quais categorias as pirâmides mostram: `todos` (as quatro), `moved_para_discussao`, `moved_para_codigo`, `codigo` (moved + coding), `discussao` (non_coding + moved_to_discussion). A base da % segue sendo os ativos do ano todo. | desenho |

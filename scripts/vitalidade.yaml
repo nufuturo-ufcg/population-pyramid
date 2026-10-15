@@ -32,7 +32,7 @@ ano_pesos: 2025
 linguagens_rq2: [clojure, elixir, zig, ocaml, python]
 
 # Anos mostrados nas pirâmides por faixa e coortes mostradas na tábua de vida.
-anos_piramide: [2010, 2014, 2018, 2022, 2025]
+anos_piramide: [2010, 2014, 2018, 2022, 2024]
 coortes_tabua: [2010, 2013, 2016, 2019, 2022]
 
 # Regras de cenário comparadas no backtest: nome da pasta: [rótulo, janela em anos (null = história
