@@ -1099,52 +1099,37 @@ def figura_tabua_slide_clojure(ctx: Any, d: Dados) -> None:
     salva(fig, "tabua_de_vida_clojure.png", geral=True)
 
 
-@figura("tabua_comparada", "ganho_por_ano", padrao=True)
-def figura_tabua_ganho_por_ano(ctx: Any, d: Dados) -> None:
-    """Para slide, todas as linguagens: a chance de seguir mais 1 ano e quanto ela sobe por ano.
-
-    O painel da direita é a diferença entre x e x-1 do painel da esquerda. Ela é positiva nos
-    primeiros anos e chega perto de zero depois de 2 a 3 anos, onde a curva da esquerda achata.
-    """
+@figura("tabua_comparada", "slide_todas", padrao=True)
+def figura_tabua_slide_todas(ctx: Any, d: Dados) -> None:
+    """O gráfico de `slide_clojure` com todas as linguagens, Clojure em linha mais grossa."""
     t = d["tabua_comparada"]
-    ate_x = 6
-    # Abaixo de 300 pessoas observadas a chance oscila alguns pontos de um ano para o outro (o
-    # Zig a partir de 5 anos), e a diferença entre anos vira ruído. Só o Zig cai nesse corte.
+    # Abaixo de 300 pessoas observadas a chance oscila vários pontos de um ano para o outro (o
+    # Zig a partir de 5 anos chega a 100%). Só o Zig cai nesse corte.
     min_pessoas = 300
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6.2))
     for slug in ctx.p.linguagens_rq2:
-        c = t[t["linguagem"] == slug].sort_values("x")
-        c = c[c["n_efetivo"] >= min_pessoas]
-        fica = 100 * (1 - c["q"])
+        c = t[(t["linguagem"] == slug) & (t["n_efetivo"] >= min_pessoas)]
         largura = 4 if slug == "clojure" else 2.5
         estilo = {"color": cor_da(slug), "linewidth": largura, "marker": "o", "markersize": 7}
         nome = carga_fonte.LINGUAGENS[slug].nome
-        ax1.plot(c["x"], fica, label=nome, **estilo)
-        ganho = fica.diff()
-        ate = c["x"] <= ate_x
-        ax2.plot(c["x"][ate], ganho[ate], label=nome, **estilo)
-    ax1.set_ylim(50, 100)
+        ax1.plot(c["x"], 100 * (1 - c["q"]), label=nome, **estilo)
+        ax2.plot(c["x"], c["e"], label=nome, **estilo)
+    ax1.set_ylim(0, 100)
     ax1.set_ylabel("% de quem chegou a x anos", fontsize=15)
     ax1.set_title("Chance de seguir mais 1 ano", fontsize=19)
-    ax1.set_xticks(range(0, int(t["x"].max()) + 1))
-    ax2.axhline(0, color="#555555", linewidth=1.2)
-    ax2.set_ylabel("pontos percentuais", fontsize=15)
-    ax2.set_title("Quanto essa chance sobe a cada ano a mais", fontsize=19)
-    rotulos = []
-    for x in range(1, ate_x + 1):
-        rotulos.append(f"{x - 1}→{x}")
-    ax2.set_xticks(range(1, ate_x + 1))
-    ax2.set_xticklabels(rotulos)
+    ax2.set_ylim(0, t["e"].max() * 1.15)
+    ax2.set_ylabel("anos, em média", fontsize=15)
+    ax2.set_title("Anos que ainda restam na linguagem", fontsize=19)
     for ax in (ax1, ax2):
         plots._theme(ax)
+        ax.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
+        ax.set_xticks(range(0, int(t["x"].max()) + 1))
         ax.tick_params(labelsize=14)
         ax.set_xlabel("anos na linguagem, x", fontsize=15)
-    ax1.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
-    ax2.axvspan(2.5, 3.5, color="#888888", alpha=0.18, zorder=0)  # centrada na passagem 2→3
     ax1.legend(frameon=False, fontsize=13, loc="lower right")
-    fig.suptitle("Tábua de vida: o ganho de ficar acaba depois de 2 a 3 anos", fontsize=21)
+    fig.suptitle("Tábua de vida", fontsize=21)
     fig.tight_layout()
-    salva(fig, "tabua_ganho_por_ano.png", geral=True)
+    salva(fig, "tabua_de_vida_todas.png", geral=True)
 
 
 @figura("comparacao_corrigida", "tres_paineis", padrao=True)
