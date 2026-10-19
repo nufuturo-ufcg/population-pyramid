@@ -181,7 +181,123 @@ def texto_da_amostra(titulo: str, tabela: pd.DataFrame | None) -> str:
 
 
 def amostra(pastas: Pastas, p: v.Parametros) -> str:
-    return texto_da_amostra("## Amostra", tabela_da_amostra(pastas, p))
+    return texto_da_amostra("## Amostra", tabela_da_amostra(pastas, p)) + criterios(pastas, p)
+
+
+# Contadores da carga (meta.json, "amostra") e o nome de cada filtro de evento no documento.
+FILTROS_DE_EVENTO = [
+    ("eventos_api_bruto", "eventos da API lidos (issues, PRs, comentários)"),
+    ("eventos_git_bruto", "commits lidos do clone"),
+    ("eventos_api_desta_linguagem", "eventos da API com autor, na linguagem"),
+    ("eventos_git_desta_linguagem", "commits com autor que tocam arquivo da linguagem"),
+    ("commits_duplicados_descartados", "saem: commit copiado de repositório mais antigo"),
+    ("eventos_antes_do_piso_descartados", "saem: evento antes do 1º commit da linguagem"),
+    ("eventos_fantasma_descartados", "saem: conta apagada (ghost)"),
+    ("eventos_bot_descartados", "saem: bot (login terminado em [bot])"),
+    ("eventos_data_ilegivel_descartados", "saem: data ilegível"),
+    ("eventos_futuro_descartados", "saem: data no futuro"),
+    ("eventos_antes_2008_descartados", "saem: data antes de 2008"),
+    ("eventos_finais", "eventos que ficam"),
+]
+
+
+def criterios(pastas: Pastas, p: v.Parametros) -> str:
+    """Critérios de inclusão e exclusão, extensões, recorte de tempo e limites da amostra."""
+    eventos = pd.DataFrame()
+    fim_da_coleta = []
+    extensoes = []
+    for slug in p.linguagens_rq2:
+        pasta = pastas.linguagem(slug)
+        meta = json.loads(
+            (pastas.base / pasta / "resultados" / "vitalidade" / "meta.json").read_text()
+        )
+        nome = carga_fonte.LINGUAGENS[slug].nome
+        coluna = {}
+        for chave, rotulo in FILTROS_DE_EVENTO:
+            coluna[rotulo] = meta.get("amostra", {}).get(chave)
+        eventos[nome] = pd.Series(coluna)
+        fim = pd.Timestamp(meta.get("fim_acompanhamento") or meta["fim"])
+        fim_da_coleta.append(f"{nome} {fim.strftime('%d/%m/%Y')}")
+        extensoes.append(f"| {nome} | {', '.join(carga_fonte.LINGUAGENS[slug].extensoes)} |")
+    eventos.index.name = "filtro"
+    corte = pd.Timestamp(p.data_de_corte)
+    linhas = [
+        "### Critérios de inclusão e exclusão",
+        "",
+        "**Repositórios**",
+        "",
+        "- Entram: 10 estrelas ou mais, listados pela SEART.",
+        "- Saem: 50% ou menos do código na linguagem, pela contagem de linguagens do próprio "
+        "repositório (coluna `languages` da SEART).",
+        "- Os outros filtros da busca na SEART (forks, data de criação, atividade) não estão "
+        "registrados no repositório.",
+        "",
+        "**Eventos**, na ordem em que os filtros rodam:",
+        "",
+        tabela_md(eventos),
+        "",
+        "- Célula vazia: contagem não feita. O Python é lido sem contar as linhas brutas, porque "
+        "o arquivo tem 346 GB.",
+        "- Commit: entra se tem autor e toca pelo menos um arquivo com extensão da linguagem.",
+        "- Issue, PR e comentário: entram se têm login e o repositório é da linguagem.",
+        "- Commit idêntico (mesmo autor, data e arquivos) em mais de um repositório fica só no "
+        "repositório criado antes.",
+        "",
+        "**Pessoas**",
+        "",
+        f"- População `{p.populacao}`: o último evento cai pelo menos 30 dias depois do primeiro, "
+        "contando qualquer tipo de evento.",
+        "- Pessoa = nome do autor no commit, e login do GitHub nos eventos da API. Ver o limite "
+        "de identidade abaixo.",
+        "",
+        "### Extensões que contam como arquivo da linguagem",
+        "",
+        "| linguagem | extensões |",
+        "|---|---|",
+        *extensoes,
+        "",
+        "- Definidas à mão em `scripts/figuras_linguagem_bruta.py` (`LINGUAGENS`) e "
+        "`scripts/carga_fonte.py` (OCaml). Comparação sem diferenciar maiúscula, no fim do nome do "
+        "arquivo.",
+        "",
+        "### Recorte de tempo",
+        "",
+        f"- Início: 01/01/2008. Fim do estudo: {corte.strftime('%d/%m/%Y')}. Ativos e novatos "
+        "param aí.",
+        "- Acompanhamento: os eventos depois do fim do estudo só decidem quem saiu, quem pausou e "
+        f"quem pertence à população. Fim da coleta: {'; '.join(fim_da_coleta)}.",
+        "- Saída: última contribuição da vida seguida de 12 meses sem nada. Pausa: volta depois de "
+        "mais de 12 meses.",
+        f"- Tudo que depende de saída vai até {p.ultimo_ano_com_saida}: crescimento natural, "
+        "natalidade, mortalidade, reposição, saída por faixa, retenção por coorte, CCR e NCR nas "
+        "tabelas.",
+        f"- O que conta só quem estava ativo pode ir até {corte.year}: a pirâmide de "
+        f"{corte.year} e os pesos da taxa padronizada.",
+        f"- Projeção: parte de {p.ultimo_ano_com_saida} e vai {p.horizonte} anos à frente.",
+        "",
+        "### O que a amostra pode estar perdendo",
+        "",
+        "- **Identidade.** No commit a pessoa é o nome do autor, e na API é o login. A mesma "
+        "pessoa com nome de commit diferente do login conta como duas, e quem muda o nome no git "
+        "também. "
+        "Duas pessoas com o mesmo nome de commit contam como uma. Medida em Clojure em "
+        "`docs/linguagem/vitalidade.md`, seção Identidade das pessoas.",
+        "- **Repositórios com menos de 10 estrelas** ficam de fora, e é ali que está a maior parte "
+        "da atividade pequena e de quem está começando.",
+        "- **Repositórios com 50% ou menos na linguagem** ficam de fora, mesmo com muito código "
+        "nela (projetos poliglotas, Clojure com ClojureScript e JavaScript, Python com notebooks).",
+        "- **Arquivos fora das extensões**: notebooks (`.ipynb`), arquivos de build e "
+        "configuração não contam como commit da linguagem.",
+        "- **Repositórios apagados ou que viraram privados** antes da coleta não aparecem. "
+        "Comunidades que já acabaram ficam sub-representadas nos anos antigos.",
+        "- **Fora do GitHub**: GitLab, Codeberg, SourceHut, listas de e-mail, Slack, Discord e "
+        "fóruns não entram.",
+        "- **Bots sem `[bot]` no login** e contas de serviço continuam contando como pessoas.",
+        "- **Erros da coleta**: repositórios que a API recusou (422, 403, 451) ou que sumiram "
+        "durante a coleta ficam sem parte dos eventos.",
+        "",
+    ]
+    return "\n".join(linhas)
 
 
 def marca_provisorios(t: pd.DataFrame, primeiro_provisorio: int) -> pd.DataFrame:
@@ -820,6 +936,7 @@ def main() -> None:
     ]
     (base / "AMOSTRA.md").write_text(
         texto_da_amostra("# Amostra: repositórios e pessoas", tabela_da_amostra(pastas, p))
+        + criterios(pastas, p)
     )
     destino = base / "METRICAS_POR_RQ.md"
     destino.write_text("\n".join(partes))

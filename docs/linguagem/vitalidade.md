@@ -230,3 +230,31 @@ No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias, pelo que 
 
 - Natalidade: (novatos + voltas) / ativos do ano. Mortalidade: (saídas + pausas) / ativos do ano. A diferença é o crescimento natural.
 - Saem da tabela anual, sem cálculo à parte. Dois gráficos com o mesmo tamanho e o mesmo eixo dos anos: `tamanho.natalidade_mortalidade` e `tamanho.natalidade_mortalidade_com_populacao`, o segundo com a população de cada ano em barras ao fundo. A população do ano é o mesmo grupo dos ativos.
+
+## Identidade das pessoas
+
+- Na carga (`adapters/coleta_csv/carga_duckdb.py`), a pessoa é o nome do autor no commit (`author`) e o login do GitHub nos eventos da API (`author_login`).
+- A mesma pessoa vira duas quando o nome de commit difere do login, ou quando ela usa nomes diferentes no git. Duas pessoas com o mesmo nome de commit viram uma.
+- A fusão por heurística de `scripts/figuras_linguagem_bruta.py` (`FUNDIR_IDENTIDADES`) fica desligada.
+- Medida em Clojure (2026-10-19), nos commits que tocam a linguagem:
+
+```
+uv run python adapters/coleta_csv/identidades.py \
+    --git '/home/wendell/dados-brutos/clojure/*/eventos_git.csv' \
+    --api '/home/wendell/dados-brutos/clojure/*/eventos_api.csv' \
+    --extensoes .clj .cljs .cljc .cljx .edn .bb
+```
+
+| contagem | Clojure |
+|---|---|
+| nomes de commit | 12663 |
+| e-mails de commit | 14542 |
+| e-mails com mais de um nome | 1515 |
+| nomes com mais de um e-mail | 2502 |
+| logins da API | 43666 |
+| nomes de commit iguais a algum login | 2060 |
+
+- Só 2060 dos 12663 nomes de commit (16%) coincidem com um login. Quem commita e também abre issue, PR ou comenta com nome de commit diferente do login conta como duas pessoas: uma no lado do código pelo commit e outra pelo login.
+- 1515 e-mails aparecem com mais de um nome: a mesma pessoa partida em vários nomes.
+- 2502 nomes aparecem com mais de um e-mail. Parte é a mesma pessoa com vários e-mails (sem efeito, o nome é o mesmo) e parte são pessoas diferentes com o mesmo nome, fundidas.
+- O efeito nas métricas não foi medido. Partir uma pessoa em duas aumenta pessoas, novatos e saídas. A correção exige o login do autor de cada commit, que a API de commits do GitHub devolve e o clone não tem.
