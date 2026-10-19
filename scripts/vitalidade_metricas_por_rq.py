@@ -56,8 +56,9 @@ def glossario() -> str:
         "- **Saída**: a última contribuição da vida, seguida de 12 meses sem nada. Quem para por "
         "12 meses e volta tem uma pausa. Para confirmar os 12 meses é preciso acompanhar a pessoa "
         "depois do ano. O estudo vai até 31/12/2025, e os eventos de 2026 só servem para decidir "
-        "quem saiu, quem pausou e quem pertence à população. Quem parou há menos de 12 meses do "
-        "fim da coleta ainda pode voltar, então a saída de 2025 pode estar um pouco alta.",
+        "quem saiu, quem pausou e quem pertence à população. A coleta termina entre setembro e "
+        "outubro de 2026, então quem parou nos últimos meses de 2025 ainda pode voltar. Por isso "
+        "as tabelas e os gráficos que dependem de saída param em 2024.",
         "- **População do ano**: as pessoas que contribuíram no ano. É o mesmo grupo dos ativos, "
         "e é o nome usado nos gráficos de natalidade e mortalidade.",
         "- **Natalidade e mortalidade**: natalidade é todo mundo que entrou no ano (novatos e "
@@ -236,6 +237,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     meta = json.loads((pastas.base / c / "resultados" / "vitalidade" / "meta.json").read_text())
     fim_acompanhamento = pd.Timestamp(meta.get("fim_acompanhamento") or meta["fim"])
     primeiro_provisorio = fim_acompanhamento.year - p.carencia_anos + 1
+    ate = p.ultimo_ano_com_saida
 
     anual = pastas.csv(c, "anual.csv").set_index("ano")
     tamanho = anual[
@@ -251,6 +253,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         ]
     ].copy()
     tamanho.index.name = "ano"
+    tamanho = tamanho[tamanho.index <= ate]
     tamanho = tamanho.rename(
         columns={
             "saidas": "saídas",
@@ -262,6 +265,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
 
     envelhecimento = pastas.csv(c, "indice_envelhecimento.csv").set_index("ano")
     envelhecimento = envelhecimento[envelhecimento["veteranos"] > 0]
+    envelhecimento = envelhecimento[envelhecimento.index <= ate]
     envelhecimento = envelhecimento.rename(columns={"indice": "índice de envelhecimento"})
 
     clojure_renovacao, comparacao = renovacao(pastas, p, ano_ref)
@@ -277,14 +281,13 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     retencao = pd.DataFrame()
     for x in (1, 3, 5):
         parte = coortes[coortes["x"] == x].set_index("coorte")["S"]
+        # Coorte c depois de x anos só vale se a saída de c + x já se confirma (até `ate`).
+        parte = parte[parte.index + x <= ate]
         retencao[f"depois de {x} anos"] = parte
-    retencao = retencao[retencao.index >= 2010]
+    retencao = retencao[retencao.index >= 2010].dropna(how="all")
     retencao.index.name = "coorte"
     primeira = retencao.index.min()
-    # A última coorte cujos 3 anos já passaram inteiros dentro do acompanhamento.
-    ultima_com_x3 = min(
-        retencao["depois de 3 anos"].dropna().index.max(), fim_acompanhamento.year - 5
-    )
+    ultima_com_x3 = retencao["depois de 3 anos"].dropna().index.max()
 
     ccr = pastas.csv("geral" + pastas.sufixo, "ccr_ncr_comparado.csv")
     ccr = ccr[ccr["slug"] == "clojure"].copy()
@@ -293,6 +296,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
     ccr["ano"] = ccr["snapshot"].dt.year
     ccr_tabela = ccr.set_index("ano")[["total", "ccr", "ncr", "type"]]
     ccr_tabela = ccr_tabela.rename(columns={"total": "ativos", "type": "tipo"})
+    ccr_tabela = ccr_tabela[ccr_tabela.index <= ate]
 
     linhas = [
         f"## {RQ1}",
@@ -306,8 +310,8 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "Entram os novatos e as voltas, saem as saídas e as pausas.",
         "- Natalidade é o que entra sobre os ativos, mortalidade é o que sai sobre os ativos, "
         "e a diferença entre as duas é o crescimento natural.",
-        f"- A saída de {ultimo} pode estar um pouco alta: quem parou há menos de 12 meses do fim "
-        "da coleta ainda pode voltar.",
+        f"- A tabela vai até {ate}. A saída de {ultimo} só se confirma 12 meses depois da última "
+        "contribuição, e a coleta termina entre setembro e outubro de 2026.",
         "",
         tabela_md(marca_provisorios(tamanho, primeiro_provisorio), 1),
         "",
@@ -347,8 +351,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "- Plano: fração de quem entrou junto que ainda está ativa 12 meses depois, por ano de "
         "entrada.",
         "- Aqui: a mesma fração para 1, 3 e 5 anos depois. A coluna de 1 ano é a do plano.",
-        "- As coortes mais recentes ainda têm gente ativa no fim da coleta, sem saída "
-        "confirmada. Os valores delas se leem com cautela.",
+        f"- Célula vazia: a coorte ainda não chegou a esse ano com saída confirmada (até {ate}).",
         "",
         tabela_md(retencao, 2),
         "",
@@ -436,6 +439,63 @@ def fracao_ate_5_anos(q: pd.Series) -> float:
     return chega
 
 
+def tabua_de_vida(pastas: Pastas, ordem: list[str]) -> list[str]:
+    """Seção 2.7: chance de seguir mais 1 ano e anos que ainda restam, nas cinco linguagens."""
+    geral = "geral" + pastas.sufixo
+    tabua = pastas.csv(geral, "tabua_comparada.csv")
+    # Mesmo corte dos gráficos: abaixo de 300 pessoas observadas a chance oscila (o Zig a partir
+    # de 5 anos).
+    tabua = tabua[tabua["n_efetivo"] >= 300].copy()
+    tabua["fica"] = 100 * (1 - tabua["q"])
+    fica = por_linguagem(tabua, "fica", "x", ordem)
+    resta = por_linguagem(tabua, "e", "x", ordem)
+
+    resumo = pd.DataFrame(index=fica.columns)
+    resumo.index.name = "linguagem"
+    resumo["chance aos 0 anos %"] = fica.loc[0]
+    resumo["chance aos 3 anos %"] = fica.loc[3]
+    resumo["subida de 0 a 3 anos, pontos"] = fica.loc[3] - fica.loc[0]
+    depois = fica.loc[3:]
+    resumo["menor depois de 3 anos %"] = depois.min()
+    resumo["maior depois de 3 anos %"] = depois.max()
+    resumo["x em que restam mais anos"] = resta.idxmax()
+
+    c = carga_fonte.LINGUAGENS["clojure"].nome
+    ganhos = []
+    for x in range(1, 6):
+        ganhos.append(f"{x - 1}→{x}: {num(fica.loc[x, c] - fica.loc[x - 1, c], 1)}")
+    return [
+        "### 2.7 Tábua de vida: o ponto de virada de 2 a 3 anos",
+        "",
+        "- Chance de seguir mais 1 ano: das pessoas que chegaram a x anos na linguagem, quantos % "
+        "continuam ativas no ano seguinte.",
+        "- Anos que ainda restam: quantos anos, em média, a pessoa ainda fica depois de chegar a "
+        "x. É um mínimo: a conta só soma os anos observados até o fim da coleta, por isso cai "
+        "nos x altos.",
+        "- O Zig sai da tabela a partir de 5 anos: tem menos de 300 pessoas observadas.",
+        "",
+        "Ponto de virada é onde cada ano a mais deixa de aumentar a chance de ficar. Em "
+        f"{c}, a chance sobe, em pontos, {'; '.join(ganhos)}.",
+        "",
+        tabela_md(resumo, 1),
+        "",
+        "Chance de seguir mais 1 ano, %:",
+        "",
+        tabela_md(fica, 1),
+        "",
+        figura(pastas.base, f"{geral}/vitalidade/tabua_chance_de_seguir.png", "chance de seguir"),
+        "",
+        "Anos que ainda restam, em média:",
+        "",
+        tabela_md(resta, 2),
+        "",
+        figura(pastas.base, f"{geral}/vitalidade/tabua_anos_que_restam.png", "anos que restam"),
+        "",
+        figura(pastas.base, f"{geral}/vitalidade/tabua_de_vida_clojure.png", "tábua de Clojure"),
+        "",
+    ]
+
+
 def primeiros_anos(pastas: Pastas, ordem: list[str]) -> list[str]:
     """Seção 2.7: números que mostram por que sobreviver nos primeiros anos pesa mais."""
     geral = "geral" + pastas.sufixo
@@ -467,7 +527,7 @@ def primeiros_anos(pastas: Pastas, ordem: list[str]) -> list[str]:
     parte_0_e_1 = tabela["parte da diferença da fração que chega a 5 anos %"].loc[[0, 1]].sum()
     parte_3_e_4 = tabela["parte da diferença da fração que chega a 5 anos %"].loc[[3, 4]].sum()
     return [
-        "### 2.7 Por que sobreviver nos primeiros anos pesa mais",
+        "### 2.8 Por que sobreviver nos primeiros anos pesa mais",
         "",
         "A pergunta é se a chance de seguir mais 1 ano pesa igual em qualquer tempo na "
         f"linguagem. Os números de {c} contra {py} mostram que o primeiro e o segundo ano pesam "
@@ -540,7 +600,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
     ncr = ncr.rename(columns={"slug": "linguagem"})
     fim_de_ano = ncr[(ncr["snapshot"].dt.month == 12) & (ncr["total"] >= 100)].copy()
     fim_de_ano["ano"] = fim_de_ano["snapshot"].dt.year
-    anos_ccr = [2015, 2018, 2020, 2022, 2025]
+    anos_ccr = [2015, 2018, 2020, 2022, p.ultimo_ano_com_saida]
     fim_de_ano = fim_de_ano[fim_de_ano["ano"].isin(anos_ccr)]
     ccr_ano = por_linguagem(fim_de_ano, "ccr", "ano", ordem)
     ncr_ano = por_linguagem(fim_de_ano, "ncr", "ano", ordem)
@@ -558,7 +618,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
     traj = pastas.csv(geral, "trajetoria.csv")
     traj = traj[
         (traj["ativos"] >= 100)
-        & (traj["ano"].between(p.ano_inicio_comparacao, p.ultimo_ano_crescimento))
+        & (traj["ano"].between(p.ano_inicio_comparacao, p.ultimo_ano_com_saida))
     ]
     crescimento = por_linguagem(
         traj.rename(columns={"slug": "linguagem"}), "crescimento_natural_pct", "ano", ordem
@@ -613,7 +673,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         "### 2.4 Crescimento natural das cinco linguagens",
         "",
         "Todo mundo que entrou menos todo mundo que saiu, em % da população do ano, "
-        f"de {p.ano_inicio_comparacao} a {p.ultimo_ano_crescimento}.",
+        f"de {p.ano_inicio_comparacao} a {p.ultimo_ano_com_saida}.",
         "",
         tabela_md(crescimento, 1),
         "",
@@ -642,6 +702,7 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
         "Rodam com `--metricas magnetismo` e `--metricas stickiness`, nas linguagens que cabem na "
         "memória do pipeline do motor (Python não cabe).",
         "",
+        *tabua_de_vida(pastas, ordem),
         *primeiros_anos(pastas, ordem),
     ]
     return "\n".join(linhas)
@@ -680,9 +741,9 @@ def rq3(pastas: Pastas, p: v.Parametros) -> str:
         "continua ativa (permanência) e chega gente nova. Cada cenário varia as duas taxas. A "
         "direção projetada se checa rodando o modelo em anos passados.",
         f"- Aqui: regra do plano, `{chave}` ({rotulo}). Outras ficam em `variantes` no yaml.",
-        f"- Horizonte: {p.horizonte} anos. Cenários por banda de idade: pessimista usa o menor "
-        "valor dos dois últimos anos, otimista o maior e conservador a média dos dois. Os "
-        "novatos seguem a mesma regra.",
+        f"- Horizonte: {p.horizonte} anos, a partir de {p.ultimo_ano_com_saida}, o último ano "
+        "com saída confirmada. A regra vale para cada banda de idade, e os novatos seguem a "
+        "mesma regra.",
         "",
         "Projeção do total de ativos de Clojure:",
         "",
@@ -718,8 +779,9 @@ def diferencas(p: v.Parametros) -> str:
         "2026 só acompanha quem já estava na população |",
         "| Crescimento natural | (novatos - saídas) / ativos | tudo que entra menos tudo que sai, "
         "(novatos + voltas - saídas - pausas) / ativos |",
-        "| Saída de 2025 | não prevista | calculada com o acompanhamento até 2026 e pode estar "
-        "um pouco alta |",
+        "| Saída de 2025 | não prevista | fica fora das tabelas e dos gráficos que dependem de "
+        "saída. Ela só se confirma 12 meses depois da última contribuição, e a coleta termina em "
+        "setembro e outubro de 2026 |",
         f"| População | todas as pessoas que contribuíram | `{p.populacao}`: 30 dias ou mais "
         "entre o primeiro e o último evento |",
         "| Retenção | fração ativa 12 meses depois, por coorte | tábua de vida por coorte, S(x) "

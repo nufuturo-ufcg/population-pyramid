@@ -109,11 +109,12 @@ ano_base_indice: 2019
 # são pequenas e as taxas saltam, o que esconde o que importa nos anos recentes.
 ano_inicio_comparacao: 2016
 
-# Último ano dos gráficos de crescimento natural, natalidade e mortalidade. A saída de um ano só se
-# confirma 12 meses depois da última contribuição, e a coleta termina entre setembro e outubro de
-# 2026. Quem teve a última contribuição nos últimos meses de 2025 ainda pode voltar, então 2025
-# fica de fora. Muda só o desenho.
-ultimo_ano_crescimento: 2024
+# Último ano de tudo que depende de saída: gráficos de crescimento natural, natalidade e
+# mortalidade, saídas, reposição, saída por faixa e as tabelas do METRICAS_POR_RQ.md. A saída de um
+# ano só se confirma 12 meses depois da última contribuição, e a coleta termina entre setembro e
+# outubro de 2026. Quem teve a última contribuição nos últimos meses de 2025 ainda pode voltar,
+# então 2025 fica de fora. Muda só o desenho e os documentos.
+ultimo_ano_com_saida: 2024
 
 # Saída: a última contribuição da vida, seguida de 12 meses sem nada até o fim do acompanhamento.
 # O desenho põe em linha tracejada o ano que o acompanhamento cobre por menos de `carencia_anos`

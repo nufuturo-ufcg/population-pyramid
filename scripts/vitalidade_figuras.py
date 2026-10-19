@@ -79,8 +79,9 @@ CHAVES_DE_ESTILO = {
 
 
 def _ate_o_ano_decidido(ctx: Any) -> int:
-    """Último ano completo antes do fim do acompanhamento: o último com saída (provisória)."""
-    return int(ctx.fim_acompanhamento.year - 1)
+    """Último ano com saída nos gráficos: `ultimo_ano_com_saida`, e nunca depois do último ano
+    completo antes do fim do acompanhamento."""
+    return int(min(ctx.fim_acompanhamento.year - 1, ctx.p.ultimo_ano_com_saida))
 
 
 def _ultimo_ano_de_contagem(ctx: Any) -> int:
@@ -419,10 +420,9 @@ def salva(fig: Any, nome: str, geral: bool = False, ajusta: bool = True) -> None
 
 @figura("tamanho", "anual", padrao=True)
 def figura_anual(ctx: Any, d: Dados) -> None:
-    """Ativos, novatos, saídas e voltas por ano, até o último ano."""
+    """Ativos, novatos, saídas e voltas por ano, até o último ano com saída, como a tabela."""
     t = d["anual"]
     decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
-    t = t[t["ano"] <= _ultimo_ano_de_contagem(ctx)]
     fig, ax = plt.subplots(figsize=(9, 4.5))
     series = [
         ("ativos", "ativos"),
@@ -432,11 +432,10 @@ def figura_anual(ctx: Any, d: Dados) -> None:
     ]
     prov = _primeiro_provisorio(ctx)
     for (coluna, rotulo), cor in zip(series, categorica(), strict=False):
-        base = decidido if coluna == "saidas" else t
         _plota(
             ax,
-            base["ano"],
-            base[coluna],
+            decidido["ano"],
+            decidido[coluna],
             prov if coluna == "saidas" else 10_000,
             color=cor,
             linewidth=2,
@@ -457,7 +456,7 @@ def figura_anual(ctx: Any, d: Dados) -> None:
 def figura_crescimento_anual(ctx: Any, d: Dados) -> None:
     """Crescimento natural do ano: tudo que entra menos tudo que sai, em % dos ativos do ano."""
     t = d["anual"]
-    decidido = t[t["ano"] <= ctx.p.ultimo_ano_crescimento]
+    decidido = t[t["ano"] <= _ate_o_ano_decidido(ctx)]
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ax.axhline(0, color="#888888", linewidth=0.8)
     _plota(
@@ -493,7 +492,7 @@ def _figura_natalidade(ctx: Any, d: Dados, com_populacao: bool) -> None:
     from matplotlib.patches import Patch
 
     t = d["anual"]
-    t = t[(t["ano"] <= ctx.p.ultimo_ano_crescimento) & (t["ativos"] >= MIN_PESSOAS)]
+    t = t[(t["ano"] <= _ate_o_ano_decidido(ctx)) & (t["ativos"] >= MIN_PESSOAS)]
     t = t[t["mortalidade_pct"].notna()]
     fig = plt.figure(figsize=(10, 5.5))
     ax = fig.add_axes((0.08, 0.22, 0.80, 0.68))
@@ -1634,7 +1633,7 @@ def figura_indice_de_ativos(ctx: Any, d: Dados) -> None:
 def figura_crescimento_comparado(ctx: Any, d: Dados) -> None:
     """Crescimento natural do ano: tudo que entra menos tudo que sai, em % dos ativos do ano."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    ate_o_ultimo = d["trajetoria"][d["trajetoria"]["ano"] <= ctx.p.ultimo_ano_crescimento]
+    ate_o_ultimo = d["trajetoria"][d["trajetoria"]["ano"] <= ctx.p.ultimo_ano_com_saida]
     _linhas_por_linguagem(
         ax, ate_o_ultimo, "crescimento_natural_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
     )
@@ -1704,7 +1703,8 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
 def figura_reposicao(ctx: Any, d: Dados) -> None:
     """Todo mundo que entrou para cada pessoa que saiu, por ano. Acima de 1 há crescimento."""
     fig, ax = plt.subplots(figsize=(9, 4.5))
-    _linhas_por_linguagem(ax, d["trajetoria"], "reposicao", 0, com_cauda=True)
+    ate_o_ultimo = d["trajetoria"][d["trajetoria"]["ano"] <= ctx.p.ultimo_ano_com_saida]
+    _linhas_por_linguagem(ax, ate_o_ultimo, "reposicao", 0, com_cauda=True)
     ax.axhline(1, color="#888888", linewidth=0.8)
     # Escala log: dobrar e cortar pela metade ficam à mesma distância de 1.
     ax.set_yscale("log")
@@ -1760,8 +1760,9 @@ def figura_lados(ctx: Any, d: Dados) -> None:
 def figura_taxas_de_saida_e_volta(ctx: Any, d: Dados) -> None:
     """Saídas e voltas de cada ano, em % dos ativos, em dois painéis."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    ate_o_ultimo = d["trajetoria"][d["trajetoria"]["ano"] <= ctx.p.ultimo_ano_com_saida]
     _linhas_por_linguagem(
-        ax1, d["trajetoria"], "saida_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
+        ax1, ate_o_ultimo, "saida_pct", ctx.p.ano_inicio_comparacao, com_cauda=True
     )
     _linhas_por_linguagem(ax2, d["trajetoria"], "volta_pct", ctx.p.ano_inicio_comparacao)
     ax1.set_ylabel("saídas, % dos ativos")

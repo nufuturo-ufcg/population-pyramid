@@ -281,8 +281,9 @@ def test_carencia_de_um_ano_nao_tracejou_nada_e_a_de_tres_traceja_dois_anos():
 
         class p:  # noqa: N801
             carencia_anos = 1
+            ultimo_ano_com_saida = 2024
 
-    assert f._ate_o_ano_decidido(Ctx) == 2025
+    assert f._ate_o_ano_decidido(Ctx) == 2024
     assert f._primeiro_provisorio(Ctx) == 2026  # 2025 já é firme, nada tracejado
     Ctx.p.carencia_anos = 3
     assert f._primeiro_provisorio(Ctx) == 2024  # 2024 e 2025 provisórios
