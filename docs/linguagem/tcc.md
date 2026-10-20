@@ -63,9 +63,25 @@ Lista em `AMOSTRA.md`, seção O que a amostra pode estar perdendo.
 ### 6.1 A compra da Cognitect atraiu gente para Clojure?
 
 - O Nubank comprou a Cognitect, empresa que cuidava de Clojure, em julho de 2020.
-- Novatos por trimestre, `transicao_trimestral.csv` de cada linguagem (coluna `nascimentos`): Clojure fica entre 284 e 342 de 2019T1 a 2020T4 e sobe para 353 a 422 de 2021T1 a 2022T4. Elixir e OCaml ficam estáveis ou caem no mesmo período.
-- Novatos por ano, índice com 2019 = 100 (`trajetoria.csv`): Clojure 119 em 2021 e 126 em 2022. Elixir 95 e 89. OCaml 90 e 83. Python 122 e 120.
-- A subida existe e é só de Clojure entre as de nicho. Causa não testada: pode ser contratação do próprio Nubank, assunto na comunidade ou outra coisa. Teste proposto: a parcela de novatos com primeiro evento em repositórios `nubank/*`.
+- Novatos por trimestre, `transicao_trimestral.csv` (coluna `nascimentos`): Clojure fica entre 284 e 342 de 2019T1 a 2020T4 e sobe para 339 a 422 de 2021T1 a 2022T4. Elixir e OCaml ficam estáveis ou caem.
+- Comparando 8 trimestres antes e 8 depois de cada trimestre possível, a maior diferença entre Clojure e a média de Elixir e OCaml cai em 2020T3, o trimestre da compra (+33 pontos).
+- A subida vem de aplicativos populares escritos em ClojureScript, com usuários abrindo issues. Entre os novatos de 2021T1 a 2022T2, 703 tiveram o primeiro evento em `logseq/logseq`, 116 em `penpot/penpot` e 84 em `athensresearch/athens`. No mesmo período antes (2019T1 a 2020T2) foram 0, 3 e 12.
+- Sem quem passou por esses aplicativos, os novatos caem de forma contínua: cerca de 330 por trimestre de 2018 a 2020T2, 240 em 2021 e 210 em 2022. Os novatos que fizeram commit ou PR também caem: cerca de 200, 165 e 145.
+- Repositórios `nubank/*` explicam 0 a 7 novatos por trimestre. O trabalho do Nubank em Clojure fica quase todo em repositórios privados, fora dos dados.
+- Conclusão para escrever: os dados não mostram mais programadores chegando a Clojure depois da compra. A subida de novatos coincide com a compra no tempo, e a origem dela é Logseq, Penpot e Athens.
+- Efeito no resto do estudo: "novato" inclui usuário de aplicativo que só abriu issue. Isso pesa na natalidade e no crescimento natural de Clojure em 2021 e 2022.
+- Como reproduzir (na batuta, regras simplificadas descritas no topo do script):
+
+```
+uv run python adapters/coleta_csv/novatos_por_dono.py \
+    --git '/home/wendell/dados-brutos/clojure/*/eventos_git.csv' \
+    --api '/home/wendell/dados-brutos/clojure/*/eventos_api.csv' \
+    --linguagem Clojure --extensoes .clj .cljs .cljc .cljx .edn .bb \
+    --donos nubank --excluir-repos logseq/logseq litcu/logseq penpot/penpot athensresearch/athens \
+    --saida novatos_clojure_por_dono.csv
+```
+
+- Resultado em `~/Documents/pyramid-vitalidade/geral-passou_30_dias/csv/novatos_clojure_por_dono.csv`. Figura: `geral-passou_30_dias/vitalidade/novatos_e_compra_nubank.png`.
 
 ### 6.2 Programadores experientes adotam Clojure mais que iniciantes?
 
