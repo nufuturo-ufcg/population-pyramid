@@ -176,6 +176,17 @@ def test_motor_duckdb_da_as_mesmas_metricas(zig, monkeypatch, layout, alvos_part
     assert fb.ESTATISTICAS_CARGA["zig"] == esperado_estatisticas
 
 
+def test_origem_bate_com_os_eventos_da_carga(zig, monkeypatch):
+    original = _original(zig, monkeypatch)
+    fonte = _fonte(zig, "separado", False)
+    pasta = zig / "origem"
+    carga_compacta.carrega(fonte, "duckdb", trabalho=zig / "trabalho", threads=2, origem=pasta)
+    pessoas = pd.read_parquet(pasta / "pessoas.parquet")
+    assert len(pessoas) == original["contributor_id"].nunique()
+    assert pessoas["primeiro"].min() == original["timestamp"].min()
+    assert pd.read_parquet(pasta / "repos.parquet")["codigo"].is_unique
+
+
 def test_fonte_acha_papel_e_alvos(zig):
     separado = _fonte(zig, "separado", False)
     assert [a.papel for a in separado.eventos] == ["api", "git"]

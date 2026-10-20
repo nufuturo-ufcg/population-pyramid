@@ -81,6 +81,7 @@ class Pedido:
     threads: int | None = None
     contar_brutas: bool = True  # relê o arquivo inteiro só para contar linhas: minutos por 100 GB
     agora: pd.Timestamp = field(default_factory=pd.Timestamp.now)
+    origem: Path | None = None  # pasta para `_grava_origem`; None não grava
 
 
 @dataclass
@@ -281,9 +282,42 @@ def _finaliza(
     stats["eventos_finais"] = _um(con, "SELECT count(*) FROM final")
     stats["repos_finais"] = _um(con, "SELECT count(DISTINCT codigo) FROM final")
     stats["contribuidores_finais"] = _um(con, "SELECT count(DISTINCT pessoa) FROM final")
+    if pedido.origem is not None:
+        _grava_origem(con, pedido.origem, nomes_tipo)
 
     print("duckdb: compactando", file=sys.stderr)
     return Resultado(_compacta(con, nomes_tipo), stats, fantasmas)
+
+
+def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[str]) -> None:
+    """Onde cada pessoa chegou e quantas pessoas cada repositório teve por trimestre.
+
+    `pessoas.parquet`: primeiro e último evento, repositório (`codigo`) e tipo do primeiro, e se
+    fez algum commit ou PR. `repos_por_trimestre.parquet`: pessoas distintas por repositório e
+    trimestre. Os eventos já passaram por todas as regras da carga.
+    """
+    pasta.mkdir(parents=True, exist_ok=True)
+    nomes = "[" + ", ".join(_aspas(n) for n in nomes_tipo) + "]"
+    codigos = []
+    for i, n in enumerate(nomes_tipo):
+        if n in CODIGOS_DE_CODIGO:
+            codigos.append(str(i))
+    con.execute(f"""
+        COPY (
+            SELECT pessoa, min(ts) AS primeiro, max(ts) AS ultimo,
+                   arg_min(codigo, ts) AS codigo_do_primeiro,
+                   list_extract({nomes}, arg_min(tipo, ts) + 1) AS tipo_do_primeiro,
+                   bool_or(tipo IN ({", ".join(codigos)})) AS codou
+            FROM final GROUP BY pessoa
+        ) TO {_aspas(pasta / "pessoas.parquet")} (FORMAT parquet)
+    """)
+    con.execute(f"""
+        COPY (
+            SELECT codigo, year(ts) AS ano, quarter(ts) AS trimestre,
+                   count(DISTINCT pessoa) AS pessoas
+            FROM final GROUP BY ALL
+        ) TO {_aspas(pasta / "repos_por_trimestre.parquet")} (FORMAT parquet)
+    """)
 
 
 def _compacta(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataFrame:

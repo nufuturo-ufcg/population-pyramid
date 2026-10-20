@@ -33,6 +33,7 @@ def _duckdb(
     memoria: str = "30GB",
     threads: int | None = None,
     contar_brutas: bool = True,
+    origem: Path | None = None,
     **_: object,
 ) -> pd.DataFrame:
     """O motor duckdb mora em `adapters/coleta_csv/`, onde o SQL é permitido."""
@@ -54,7 +55,11 @@ def _duckdb(
         memoria=memoria,
         threads=threads,
         contar_brutas=contar_brutas,
+        origem=origem,
     )
+    if origem is not None:
+        origem.mkdir(parents=True, exist_ok=True)
+        repos[["codigo", "repo_id"]].to_parquet(origem / "repos.parquet", index=False)
     resultado = carga_duckdb.carrega(pedido)
     fb._stats().update(resultado.estatisticas)
     if len(resultado.fantasmas):
@@ -69,7 +74,8 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
     """Eventos [contributor_id, event_type, timestamp] da fonte, lidos pelo motor escolhido.
 
     Opções do `duckdb`: `trabalho` (pasta em disco para o derrame), `memoria` ("30GB"), `threads`,
-    `contar_brutas` (relê o arquivo só para contar linhas).
+    `contar_brutas` (relê o arquivo só para contar linhas), `origem` (pasta onde grava a origem de
+    cada pessoa, ver `carga_duckdb._grava_origem`).
     """
     if motor not in MOTORES:
         raise SystemExit(f"motor {motor!r} desconhecido: use {list(MOTORES)}.")
