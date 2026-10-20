@@ -185,6 +185,8 @@ def test_origem_bate_com_os_eventos_da_carga(zig, monkeypatch):
     assert len(pessoas) == original["contributor_id"].nunique()
     assert pessoas["primeiro"].min() == original["timestamp"].min()
     assert pd.read_parquet(pasta / "repos.parquet")["codigo"].is_unique
+    meses = pd.read_parquet(pasta / "meses.parquet")
+    assert set(meses["grupo"]) <= {"codigo", "discussao"}
 
 
 def test_fonte_acha_papel_e_alvos(zig):
