@@ -63,39 +63,8 @@ Lista em `AMOSTRA.md`, seção O que a amostra pode estar perdendo.
 ### 6.1 A compra da Cognitect atraiu gente para Clojure?
 
 - O Nubank comprou a Cognitect, empresa que cuidava de Clojure, em julho de 2020.
-- Novatos por trimestre, `transicao_trimestral.csv` (coluna `nascimentos`): Clojure fica entre 284 e 342 de 2019T1 a 2020T4 e sobe para 339 a 422 de 2021T1 a 2022T4. Elixir e OCaml ficam estáveis ou caem.
-- Comparando 8 trimestres antes e 8 depois de cada trimestre possível, a maior diferença entre Clojure e a média de Elixir e OCaml cai em 2020T3, o trimestre da compra (+33 pontos).
-- Comparação sem excluir repositório, com as regras oficiais da carga (`scripts/origem_dos_novatos.py`, que grava o repositório e o tipo do primeiro evento de cada pessoa). A contagem de novatos bate com a coluna `nascimentos` (Clojure 2021: 396, 356, 362, 353).
-- Mudança da média dos 8 trimestres depois de 2020T3 sobre a dos 8 antes (`compra_mudanca_por_corte.csv`):
-
-| Medida | Clojure | Elixir | OCaml | Zig |
-|---|---|---|---|---|
-| Novatos | +15,8% | -13,1% | -21,0% | +118,5% |
-| Novatos que chegaram com commit ou PR | -21,2% | -18,4% | -14,4% | +177,9% |
-| Novatos que fizeram commit ou PR alguma vez | -18,0% | -20,3% | -16,9% | +134,6% |
-| Repositórios que receberam algum novato | -19,2% | -15,4% | -12,6% | +262,6% |
-
-- Só a contagem total separa Clojure das outras. Com as outras três medidas, Clojure acompanha Elixir e OCaml.
-- Zig fica fora da leitura: a linguagem nasceu em 2016 e cresce em qualquer corte.
-- Parte dos novatos do ano que chegou pelo repositório que mais recebeu: Elixir e OCaml ficam entre 3% e 8% em todos os anos. Clojure fica entre 4% e 7% até 2020 e vai a 25% em 2021, 40% em 2022 e 36% em 2023, sempre em `logseq/logseq`.
-- Medida de popularidade, nos próprios dados: pessoas distintas por trimestre no repositório (`repos_por_trimestre.parquet`). Logseq foi criado em maio de 2020, tinha 1 pessoa em 2020T2, 110 em 2020T3 e 774 em 2022T2. Em 2021 e 2022 Logseq somou 4.311 pessoas-trimestre, Penpot 805 e Athens 530, os três primeiros de Clojure. O quarto (`mtgred/netrunner`) teve 504.
-- Dos 1.818 novatos que chegaram por Logseq, 1.634 chegaram por issue ou comentário e 235 fizeram commit ou PR alguma vez.
-- Conclusão para escrever: os dados não mostram mais programadores chegando a Clojure depois da compra. A subida da contagem vem de um repositório só, criado dois meses antes da compra, com usuários abrindo issues. Os novatos que codaram caem no mesmo ritmo de Elixir e OCaml.
-- Repositórios `nubank/*` explicam 0 a 7 novatos por trimestre. O trabalho do Nubank em Clojure fica quase todo em repositórios privados, fora dos dados.
-- Efeito no resto do estudo: "novato" inclui quem só abriu issue. Isso pesa na natalidade e no crescimento natural de Clojure de 2021 a 2023.
-- Python entra na comparação quando a carga com origem terminar na batuta.
-- Como reproduzir (na batuta):
-
-```
-uv run python scripts/origem_dos_novatos.py --saida ~/pyramid-vitalidade-saida \
-    --linguagens clojure elixir ocaml zig python
-```
-
-- Figuras em `~/Documents/pyramid-vitalidade/geral-passou_30_dias/vitalidade/`:
-
-![Novatos por ano](../../../pyramid-vitalidade/geral-passou_30_dias/vitalidade/compra_novatos.png)
-![Novatos que chegaram codando](../../../pyramid-vitalidade/geral-passou_30_dias/vitalidade/compra_novatos_codando.png)
-![Parte dos novatos que chegou por um repositório](../../../pyramid-vitalidade/geral-passou_30_dias/vitalidade/compra_maior_repositorio.png)
+- Pergunta do gestor: os novatos de Clojure aumentaram depois da compra?
+- Em investigação. Nada desta pergunta entra no texto do TCC por enquanto.
 
 ### 6.2 Programadores experientes adotam Clojure mais que iniciantes?
 
