@@ -43,13 +43,10 @@ def grava_origem(slug: str, saida: Path, memoria: str, threads: int | None) -> N
     )
     partes = []
     for caminho in fonte.alvos:
-        partes.append(
-            pd.read_csv(
-                caminho,
-                usecols=["repo_id", "repo_name", "stars", "createdAt"],
-                dtype={"repo_id": str},
-            )
-        )
+        alvo = pd.read_csv(caminho, dtype={"repo_id": str})
+        # A coleta de Clojure chama a coluna de `stars`; as outras, de `stargazers`.
+        alvo = alvo.rename(columns={"stargazers": "stars"})
+        partes.append(alvo[["repo_id", "repo_name", "stars", "createdAt"]])
     nomes = pd.concat(partes, ignore_index=True).drop_duplicates("repo_id")
     repos = pd.read_parquet(pasta / "repos.parquet").merge(nomes, on="repo_id", how="left")
     repos.to_parquet(pasta / "repos.parquet", index=False)
