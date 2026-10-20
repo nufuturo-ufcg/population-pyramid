@@ -3,7 +3,8 @@ r"""Novatos por trimestre, separados pelo dono do repositório onde a pessoa apa
 Serve para perguntar se a subida de novatos de uma linguagem veio de uma organização (por
 exemplo `nubank`): conta, por trimestre do primeiro evento da pessoa, quantos novatos tiveram o
 primeiro evento num repositório dos donos pedidos e quantos contribuíram nesses donos em algum
-momento.
+momento. Também conta os novatos que nunca passaram pelos repositórios de `--excluir-repos`
+(por exemplo aplicativos com muitos usuários abrindo issue) e os que fizeram algum commit ou PR.
 
 Regras, mais simples que as da carga (`carga_duckdb.py`), para olhar a origem do novato:
 
@@ -20,7 +21,8 @@ Uso (na batuta):
         --git '/home/wendell/dados-brutos/clojure/*/eventos_git.csv' \
         --api '/home/wendell/dados-brutos/clojure/*/eventos_api.csv' \
         --linguagem Clojure --extensoes .clj .cljs .cljc .cljx .edn .bb \
-        --donos nubank --saida novatos_nubank.csv
+        --donos nubank --excluir-repos logseq/logseq penpot/penpot \
+        --saida novatos_nubank.csv
 """
 
 import argparse
@@ -47,7 +49,8 @@ def _texto(valor: str) -> str:
 def novatos(args: argparse.Namespace) -> duckdb.DuckDBPyRelation:
     """Uma linha por trimestre: novatos, os que começaram nos donos e os que passaram por eles.
 
-    `args` traz git, api, linguagem, extensoes, donos e fim, como na linha de comando.
+    `args` traz git, api, linguagem, extensoes, donos, excluir_repos e fim, como na linha de
+    comando.
     """
     alternativas = []
     for extensao in args.extensoes:
@@ -56,19 +59,22 @@ def novatos(args: argparse.Namespace) -> duckdb.DuckDBPyRelation:
     lista_donos = []
     for dono in args.donos:
         lista_donos.append(_texto(dono.lower()))
+    lista_excluidos = ["''"]
+    for repo in args.excluir_repos:
+        lista_excluidos.append(_texto(repo.lower()))
     leitura = "delim='|', header=true, all_varchar=true, ignore_errors=true"
     con = duckdb.connect()
     con.execute(
         f"""CREATE TABLE ev AS
-        SELECT pessoa, lower(split_part(repo_name, '/', 1)) AS dono,
-               try_cast(created_at AS TIMESTAMPTZ) AS ts
+        SELECT pessoa, lower(repo_name) AS repo, lower(split_part(repo_name, '/', 1)) AS dono,
+               try_cast(created_at AS TIMESTAMPTZ) AS ts, codigo
         FROM (
-            SELECT author AS pessoa, repo_name, created_at
+            SELECT author AS pessoa, repo_name, created_at, true AS codigo
             FROM read_csv({_lista(args.git)}, {leitura})
             WHERE event_type = 'commit' AND author IS NOT NULL
               AND regexp_matches(lower(files), {_texto(toca)})
             UNION ALL
-            SELECT author_login AS pessoa, repo_name, created_at
+            SELECT author_login AS pessoa, repo_name, created_at, event_type = 'pr' AS codigo
             FROM read_csv({_lista(args.api)}, {leitura})
             WHERE event_type <> 'commit' AND author_login IS NOT NULL
               AND (language IS NULL OR language = {_texto(args.linguagem)})
@@ -83,7 +89,9 @@ def novatos(args: argparse.Namespace) -> duckdb.DuckDBPyRelation:
         f"""CREATE TABLE pessoas AS
         SELECT pessoa, min(ts) AS primeiro, max(ts) AS ultimo,
                arg_min(dono, ts) AS dono_do_primeiro,
-               bool_or(dono IN ({", ".join(lista_donos)})) AS passou_pelos_donos
+               bool_or(dono IN ({", ".join(lista_donos)})) AS passou_pelos_donos,
+               bool_or(repo IN ({", ".join(lista_excluidos)})) AS passou_pelos_excluidos,
+               bool_or(codigo) AS codou
         FROM ev GROUP BY pessoa"""
     )
     return con.sql(
@@ -91,7 +99,9 @@ def novatos(args: argparse.Namespace) -> duckdb.DuckDBPyRelation:
                count(*) AS novatos,
                count(*) FILTER (WHERE dono_do_primeiro IN ({", ".join(lista_donos)}))
                    AS comecaram_nos_donos,
-               count(*) FILTER (WHERE passou_pelos_donos) AS passaram_pelos_donos
+               count(*) FILTER (WHERE passou_pelos_donos) AS passaram_pelos_donos,
+               count(*) FILTER (WHERE NOT passou_pelos_excluidos) AS sem_os_repos_excluidos,
+               count(*) FILTER (WHERE codou) AS fizeram_commit_ou_pr
         FROM pessoas
         WHERE ultimo - primeiro >= INTERVAL 30 DAY
         GROUP BY 1 ORDER BY 1"""
@@ -106,6 +116,7 @@ def main() -> None:
     parser.add_argument("--linguagem", required=True, help="valor de `language`, ex. Clojure")
     parser.add_argument("--extensoes", nargs="+", required=True)
     parser.add_argument("--donos", nargs="+", required=True, help="donos de repositório")
+    parser.add_argument("--excluir-repos", nargs="*", default=[], help="dono/nome")
     parser.add_argument("--fim", default="2025-12-31 23:59:59+00")
     parser.add_argument("--saida", required=True, help="CSV de saída")
     args = parser.parse_args()
