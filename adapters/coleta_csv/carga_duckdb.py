@@ -293,9 +293,10 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
     """Onde cada pessoa chegou e quantas pessoas cada repositório teve por trimestre.
 
     `pessoas.parquet`: primeiro e último evento, repositório (`codigo`) e tipo do primeiro, e se
-    fez algum commit ou PR. `repos_por_trimestre.parquet`: pessoas distintas por repositório e
-    trimestre. `meses.parquet`: eventos e pessoas distintas por mês, separados em código (commit
-    e PR) e discussão (o resto). Os eventos já passaram por todas as regras da carga.
+    fez algum commit ou PR, e quantos eventos fez (todos e só de código).
+    `repos_por_trimestre.parquet`: pessoas distintas por repositório e trimestre.
+    `meses.parquet`: eventos e pessoas distintas por mês, separados em código (commit e PR) e
+    discussão (o resto). Os eventos já passaram por todas as regras da carga.
     """
     pasta.mkdir(parents=True, exist_ok=True)
     nomes = "[" + ", ".join(_aspas(n) for n in nomes_tipo) + "]"
@@ -308,7 +309,9 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
             SELECT pessoa, min(ts) AS primeiro, max(ts) AS ultimo,
                    arg_min(codigo, ts) AS codigo_do_primeiro,
                    list_extract({nomes}, arg_min(tipo, ts) + 1) AS tipo_do_primeiro,
-                   bool_or(tipo IN ({", ".join(codigos)})) AS codou
+                   bool_or(tipo IN ({", ".join(codigos)})) AS codou,
+                   count(*) AS eventos,
+                   count(*) FILTER (WHERE tipo IN ({", ".join(codigos)})) AS eventos_de_codigo
             FROM final GROUP BY pessoa
         ) TO {_aspas(pasta / "pessoas.parquet")} (FORMAT parquet)
     """)
