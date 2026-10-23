@@ -311,8 +311,13 @@ def pessoas_da_origem(compactos: pd.DataFrame) -> pd.DataFrame:
     if not arquivo.exists():
         raise SystemExit(f"{arquivo} não existe: rode scripts/origem_dos_novatos.py antes.")
     pessoas = pd.read_parquet(arquivo, columns=["pessoa", "eventos", "commits"])
-    if len(pessoas) != compactos["contributor_id"].nunique():
-        raise SystemExit(f"{arquivo} não bate com o cache: rode scripts/origem_dos_novatos.py.")
+    mesmas = len(pessoas) == compactos["contributor_id"].nunique()
+    if not mesmas or not compactos["contributor_id"].isin(pessoas["pessoa"]).all():
+        # A origem sai sempre do duckdb, e o motor pandas numera as pessoas de outro jeito.
+        raise SystemExit(
+            f"{arquivo} não bate com o cache: use --set motor=duckdb e rode "
+            "scripts/origem_dos_novatos.py de novo."
+        )
     return pessoas
 
 
