@@ -293,7 +293,7 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
     """Onde cada pessoa chegou e quantas pessoas cada repositório teve por trimestre.
 
     `pessoas.parquet`: primeiro e último evento, repositório (`codigo`) e tipo do primeiro, e se
-    fez algum commit ou PR, e quantos eventos fez (todos e só de código).
+    fez algum commit ou PR, e quantos eventos fez (todos, de código e commits).
     `repos_por_trimestre.parquet`: pessoas distintas por repositório e trimestre.
     `meses.parquet`: eventos e pessoas distintas por mês, separados em código (commit e PR) e
     discussão (o resto). Os eventos já passaram por todas as regras da carga.
@@ -311,7 +311,8 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
                    list_extract({nomes}, arg_min(tipo, ts) + 1) AS tipo_do_primeiro,
                    bool_or(tipo IN ({", ".join(codigos)})) AS codou,
                    count(*) AS eventos,
-                   count(*) FILTER (WHERE tipo IN ({", ".join(codigos)})) AS eventos_de_codigo
+                   count(*) FILTER (WHERE tipo IN ({", ".join(codigos)})) AS eventos_de_codigo,
+                   count(*) FILTER (WHERE tipo = {nomes_tipo.index("commits")}) AS commits
             FROM final GROUP BY pessoa
         ) TO {_aspas(pasta / "pessoas.parquet")} (FORMAT parquet)
     """)

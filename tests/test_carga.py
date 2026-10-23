@@ -186,6 +186,7 @@ def test_origem_bate_com_os_eventos_da_carga(zig, monkeypatch):
     assert pessoas["primeiro"].min() == original["timestamp"].min()
     assert (pessoas["eventos"] >= 1).all()
     assert (pessoas["codou"] == (pessoas["eventos_de_codigo"] > 0)).all()
+    assert (pessoas["commits"] <= pessoas["eventos_de_codigo"]).all()
     assert pd.read_parquet(pasta / "repos.parquet")["codigo"].is_unique
     meses = pd.read_parquet(pasta / "meses.parquet")
     assert set(meses["grupo"]) <= {"codigo", "discussao"}
