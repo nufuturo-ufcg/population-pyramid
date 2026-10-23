@@ -103,6 +103,7 @@ def _leitura(caminho: Path, papel: str) -> str:
     nulos = "[" + ", ".join(_aspas(n) for n in NULOS) + "]"
     return f"""
         SELECT repo_id, event_type, author, author_login, created_at, files, language,
+               number, sha, url,
                {eh_commit} AS eh_commit
         FROM read_csv({_aspas(caminho)}, delim='|', quote='"', escape='"', header=true,
                       all_varchar=true, ignore_errors=true, strict_mode=false,
@@ -126,6 +127,22 @@ def _pessoa(coluna: str) -> str:
 
 def _marca(coluna: str) -> str:
     return f"CASE WHEN {coluna} = 'ghost' THEN 1 WHEN {coluna} LIKE '%[bot]' THEN 2 ELSE 0 END"
+
+
+def _ocasiao() -> str:
+    """Em qual ocasião o evento aconteceu, como um número: o mesmo para a mesma ocasião.
+
+    Ocasião é uma conversa (issue ou PR, que dividem a numeração no repositório), um commit
+    comentado ou um dia de commits no repositório. Comentário não traz o número da conversa, só a
+    URL (`.../issues/12#issuecomment-...`).
+    """
+    conversa = "coalesce(number, regexp_extract(url, '/(?:issues|pull)/([0-9]+)', 1))"
+    dia = f"CAST(CAST({_ts('created_at')} AS DATE) AS VARCHAR)"
+    return (
+        "hash(b.repo_id, CASE WHEN eh_commit THEN 'dia ' || " + dia + " "
+        "WHEN event_type = 'commit_comment' THEN 'commit ' || sha "
+        "ELSE 'conversa ' || " + conversa + " END)"
+    )
 
 
 def _um(con: duckdb.DuckDBPyConnection, sql: str) -> int:
@@ -173,7 +190,8 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
                {_case_tipo(pedido.tipos, nomes_tipo)} AS tipo,
                {_pessoa(autor)} AS pessoa, {_marca(autor)} AS marca,
                {_ts("created_at")} AS ts,
-               CASE WHEN eh_commit THEN hash(author, created_at, files) END AS h
+               CASE WHEN eh_commit THEN hash(author, created_at, files) END AS h,
+               {_ocasiao()} AS ocasiao
         FROM bruto b LEFT JOIN repos r ON b.repo_id = r.repo_id
         WHERE (NOT eh_commit AND author_login IS NOT NULL
                AND coalesce(b.language, r.principal) = {_aspas(nome)})
@@ -195,7 +213,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     print("duckdb: commits copiados entre repositórios", file=sys.stderr)
     con.execute("""
         CREATE TABLE git_ok AS
-        SELECT codigo, tipo, pessoa, marca, ts
+        SELECT codigo, tipo, pessoa, marca, ts, ocasiao
         FROM (SELECT *, min(criado) OVER (PARTITION BY h) AS mais_antigo FROM leve WHERE eh_commit)
         WHERE NOT coalesce(criado > mais_antigo, false)
     """)
@@ -228,12 +246,12 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
         )
     con.execute("""
         CREATE TABLE elegiveis AS
-        SELECT t.codigo, t.tipo, t.pessoa, t.marca, t.ts FROM (
-            SELECT a.codigo, a.tipo, a.pessoa, a.marca, a.ts
+        SELECT t.codigo, t.tipo, t.pessoa, t.marca, t.ts, t.ocasiao FROM (
+            SELECT a.codigo, a.tipo, a.pessoa, a.marca, a.ts, a.ocasiao
             FROM leve a LEFT JOIN piso p ON a.codigo = p.codigo
             WHERE NOT a.eh_commit AND NOT coalesce(a.ts < p.piso, false)
             UNION ALL
-            SELECT codigo, tipo, pessoa, marca, ts FROM git_ok
+            SELECT codigo, tipo, pessoa, marca, ts, ocasiao FROM git_ok
         ) t JOIN repos r ON t.codigo = r.codigo
         WHERE r.elegivel
     """)
@@ -258,7 +276,7 @@ def _finaliza(
     )
 
     con.execute(
-        "CREATE TABLE base AS SELECT codigo, tipo, pessoa, ts FROM elegiveis "
+        "CREATE TABLE base AS SELECT codigo, tipo, pessoa, ts, ocasiao FROM elegiveis "
         "WHERE marca = 0 AND tipo >= 0"
     )
     con.execute("DROP TABLE elegiveis")
@@ -293,7 +311,8 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
     """Onde cada pessoa chegou e quantas pessoas cada repositório teve por trimestre.
 
     `pessoas.parquet`: primeiro e último evento, repositório (`codigo`) e tipo do primeiro, e se
-    fez algum commit ou PR, e quantos eventos fez (todos, de código e commits).
+    fez algum commit ou PR, quantos eventos fez (todos, de código e commits) e em quantas
+    ocasiões (`_ocasiao`).
     `repos_por_trimestre.parquet`: pessoas distintas por repositório e trimestre.
     `meses.parquet`: eventos e pessoas distintas por mês, separados em código (commit e PR) e
     discussão (o resto). Os eventos já passaram por todas as regras da carga.
@@ -312,7 +331,8 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
                    bool_or(tipo IN ({", ".join(codigos)})) AS codou,
                    count(*) AS eventos,
                    count(*) FILTER (WHERE tipo IN ({", ".join(codigos)})) AS eventos_de_codigo,
-                   count(*) FILTER (WHERE tipo = {nomes_tipo.index("commits")}) AS commits
+                   count(*) FILTER (WHERE tipo = {nomes_tipo.index("commits")}) AS commits,
+                   count(DISTINCT ocasiao) AS ocasioes
             FROM final GROUP BY pessoa
         ) TO {_aspas(pasta / "pessoas.parquet")} (FORMAT parquet)
     """)

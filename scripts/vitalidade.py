@@ -268,7 +268,14 @@ def le_estatisticas_da_carga() -> dict[str, Any]:
 
 
 # A população não entra no título dos gráficos: ela já nomeia a pasta (`python-passou_30_dias`).
-POPULACOES = ("todos", "codigo", "mais_de_um_dia", "mais_de_um_evento", "sem_patch_unico")
+POPULACOES = (
+    "todos",
+    "codigo",
+    "mais_de_um_dia",
+    "mais_de_um_evento",
+    "sem_patch_unico",
+    "mais_de_uma_ocasiao",
+)
 PASSOU_DIAS = re.compile(r"passou_(\d+)_dias")
 
 
@@ -302,15 +309,15 @@ def aplica_populacao(p: Parametros) -> None:
 
 
 def pessoas_da_origem(compactos: pd.DataFrame) -> pd.DataFrame:
-    """Eventos e commits de cada pessoa, da saída de `scripts/origem_dos_novatos.py`.
+    """Eventos, commits e ocasiões de cada pessoa, da saída de `scripts/origem_dos_novatos.py`.
 
-    Os eventos compactados perdem a contagem, então essas duas populações leem a origem. A origem
+    Os eventos compactados perdem a contagem, então essas populações leem a origem. A origem
     tem de vir da mesma carga do cache: o número de pessoas confere.
     """
     arquivo = Path(fb.TMP_BASE) / fb.LING.atual.slug / "origem" / "pessoas.parquet"
     if not arquivo.exists():
         raise SystemExit(f"{arquivo} não existe: rode scripts/origem_dos_novatos.py antes.")
-    pessoas = pd.read_parquet(arquivo, columns=["pessoa", "eventos", "commits"])
+    pessoas = pd.read_parquet(arquivo, columns=["pessoa", "eventos", "commits", "ocasioes"])
     mesmas = len(pessoas) == compactos["contributor_id"].nunique()
     if not mesmas or not compactos["contributor_id"].isin(pessoas["pessoa"]).all():
         # A origem sai sempre do duckdb, e o motor pandas numera as pessoas de outro jeito.
@@ -321,6 +328,20 @@ def pessoas_da_origem(compactos: pd.DataFrame) -> pd.DataFrame:
     return pessoas
 
 
+POPULACOES_DA_ORIGEM = ("mais_de_um_evento", "sem_patch_unico", "mais_de_uma_ocasiao")
+
+
+def fica_pela_origem(populacao: str, pessoas: pd.DataFrame) -> pd.Series:
+    """Quem fica nas populações que contam eventos, commits ou ocasiões."""
+    if populacao == "mais_de_um_evento":
+        return pessoas["eventos"] > 1
+    if populacao == "sem_patch_unico":
+        # Patch aceito é commit no histórico clonado. Tira quem tem exatamente um (Lee et al. 2017).
+        return pessoas["commits"] != 1
+    # Ocasião: uma conversa (issue ou PR), um commit comentado ou um dia de commits no repositório.
+    return pessoas["ocasioes"] > 1
+
+
 def filtra_populacao(p: Parametros, compactos: pd.DataFrame) -> pd.DataFrame:
     """Os eventos só de quem pertence à população escolhida (`todos` não tira ninguém)."""
     achou = PASSOU_DIAS.fullmatch(p.populacao)
@@ -328,14 +349,9 @@ def filtra_populacao(p: Parametros, compactos: pd.DataFrame) -> pd.DataFrame:
         return vitalidade.so_quem_codou(compactos)
     if p.populacao == "mais_de_um_dia":
         return vitalidade.tira_pessoas_de_um_dia(compactos)
-    if p.populacao == "mais_de_um_evento":
+    if p.populacao in POPULACOES_DA_ORIGEM:
         pessoas = pessoas_da_origem(compactos)
-        fica = pessoas.loc[pessoas["eventos"] > 1, "pessoa"]
-        return compactos[compactos["contributor_id"].isin(fica)]
-    if p.populacao == "sem_patch_unico":
-        # Patch aceito é commit no histórico clonado. Tira quem tem exatamente um (Lee et al. 2017).
-        pessoas = pessoas_da_origem(compactos)
-        fica = pessoas.loc[pessoas["commits"] != 1, "pessoa"]
+        fica = pessoas.loc[fica_pela_origem(p.populacao, pessoas), "pessoa"]
         return compactos[compactos["contributor_id"].isin(fica)]
     if achou is not None:
         return vitalidade.so_quem_passou_de(compactos, int(achou.group(1)))
