@@ -1,0 +1,1047 @@
+{
+  "janela": {
+    "start": "2013-09-30",
+    "end": "2026-06-30",
+    "freq_months": 3,
+    "classification_snapshot": "2026-06-30",
+    "projection_base": [
+      "2025-12-31",
+      "2026-03-31"
+    ],
+    "projection_target": "2026-06-30"
+  },
+  "coleta": {
+    "coletado_em": "2026-08-21T13:09:30+00:00",
+    "corte": "2026-08-21T13:09:30+00:00",
+    "criterio": "amostra de desenvolvimento, escolhida à mão",
+    "coletor": "adapters/ghapi/coleta_amostra.py",
+    "repos": [
+      176829714,
+      204736531,
+      12380040
+    ],
+    "contagens": {
+      "176829714": {
+        "commits": 2774,
+        "issues": 2894,
+        "issue_comments": 6412,
+        "commit_comments": 30,
+        "pull_request_comments": 654,
+        "issue_events": 19752,
+        "commit_files": 12100
+      },
+      "204736531": {
+        "commits": 297,
+        "issues": 148,
+        "issue_comments": 94,
+        "commit_comments": 3,
+        "pull_request_comments": 2,
+        "issue_events": 483,
+        "commit_files": 705
+      },
+      "12380040": {
+        "commits": 253,
+        "issues": 103,
+        "issue_comments": 377,
+        "commit_comments": 5,
+        "pull_request_comments": 106,
+        "issue_events": 366,
+        "commit_files": 437
+      }
+    }
+  },
+  "escopos": {
+    "Clojure": {
+      "scope_id": 3788768076,
+      "repositorios": 3,
+      "eventos": 25436,
+      "contribuidores": 624,
+      "primeiro_evento": "2013-08-25 23:22:56",
+      "ultimo_evento": "2026-08-21 10:03:17",
+      "por_tipo": {
+        "issue_events": 13469,
+        "issue_comments": 6458,
+        "commits": 3282,
+        "pull_requests": 1429,
+        "pull_request_comments": 761,
+        "commit_comments": 37
+      },
+      "plotavel": true,
+      "no_snapshot": {
+        "coding": 22,
+        "non_coding": 6,
+        "new": 9,
+        "experienced": 19,
+        "ccr": 0.7273,
+        "ncr": -0.5263,
+        "tipo": "C",
+        "spans": 1014
+      },
+      "na_figura": {
+        "janela_meses": 12.0,
+        "non_coding": 39,
+        "coding": 42,
+        "bandas": 53
+      }
+    },
+    "Emacs Lisp": {
+      "scope_id": 2104084547,
+      "repositorios": 2,
+      "eventos": 4,
+      "contribuidores": 2,
+      "primeiro_evento": "2021-12-15 18:16:49",
+      "ultimo_evento": "2024-08-22 15:59:48",
+      "por_tipo": {
+        "commits": 4
+      },
+      "plotavel": true,
+      "no_snapshot": {},
+      "na_figura": {
+        "janela_meses": 12.0,
+        "non_coding": 0,
+        "coding": 0,
+        "bandas": 0
+      }
+    },
+    "Batchfile": {
+      "scope_id": 2247655640,
+      "repositorios": 1,
+      "eventos": 23,
+      "contribuidores": 4,
+      "primeiro_evento": "2019-05-15 16:11:48",
+      "ultimo_evento": "2026-07-17 18:58:38",
+      "por_tipo": {
+        "commits": 23
+      },
+      "plotavel": true,
+      "no_snapshot": {},
+      "na_figura": {
+        "janela_meses": 12.0,
+        "non_coding": 0,
+        "coding": 2,
+        "bandas": 29
+      }
+    },
+    "Dockerfile": {
+      "scope_id": 1716641279,
+      "repositorios": 1,
+      "eventos": 20,
+      "contribuidores": 6,
+      "primeiro_evento": "2019-04-06 21:44:13",
+      "ultimo_evento": "2026-02-15 23:02:53",
+      "por_tipo": {
+        "commits": 19,
+        "commit_comments": 1
+      },
+      "plotavel": true,
+      "no_snapshot": {},
+      "na_figura": {
+        "janela_meses": 12.0,
+        "non_coding": 0,
+        "coding": 1,
+        "bandas": 2
+      }
+    },
+    "Java": {
+      "scope_id": 3760711030,
+      "repositorios": 1,
+      "eventos": 10,
+      "contribuidores": 3,
+      "primeiro_evento": "2022-03-26 19:53:06",
+      "ultimo_evento": "2025-11-20 19:16:39",
+      "por_tipo": {
+        "commits": 10
+      },
+      "plotavel": true,
+      "no_snapshot": {},
+      "na_figura": {
+        "janela_meses": 12.0,
+        "non_coding": 0,
+        "coding": 2,
+        "bandas": 14
+      }
+    },
+    "Shell": {
+      "scope_id": 3183607133,
+      "repositorios": 1,
+      "eventos": 6,
+      "contribuidores": 3,
+      "primeiro_evento": "2019-03-26 09:39:11",
+      "ultimo_evento": "2026-07-20 20:40:45",
+      "por_tipo": {
+        "commits": 6
+      },
+      "plotavel": true,
+      "no_snapshot": {
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C",
+        "spans": 5
+      },
+      "na_figura": {
+        "janela_meses": 12.0,
+        "non_coding": 0,
+        "coding": 2,
+        "bandas": 30
+      }
+    }
+  },
+  "serie": {
+    "Dockerfile": [
+      {
+        "snapshot": "2019-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2019-09-30",
+        "coding": 3,
+        "non_coding": 0,
+        "new": 2,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.5,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2019-12-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2020-03-31",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 2,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2020-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2020-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2020-12-31",
+        "coding": 1,
+        "non_coding": 1,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 0.0,
+        "ncr": 0.0,
+        "tipo": "D"
+      },
+      {
+        "snapshot": "2021-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2021-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2026-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      }
+    ],
+    "Emacs Lisp": [
+      {
+        "snapshot": "2021-12-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2023-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2024-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2024-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      }
+    ],
+    "Batchfile": [
+      {
+        "snapshot": "2019-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2019-09-30",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2019-12-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2020-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2020-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2021-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2021-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2021-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2022-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-09-30",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      }
+    ],
+    "Shell": [
+      {
+        "snapshot": "2019-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2023-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2026-06-30",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      }
+    ],
+    "Java": [
+      {
+        "snapshot": "2022-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2023-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2023-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2023-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-12-31",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      }
+    ],
+    "Clojure": [
+      {
+        "snapshot": "2013-09-30",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 2,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2013-12-31",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2014-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2014-06-30",
+        "coding": 2,
+        "non_coding": 1,
+        "new": 2,
+        "experienced": 1,
+        "ccr": 0.5,
+        "ncr": 0.5,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2014-09-30",
+        "coding": 2,
+        "non_coding": 1,
+        "new": 2,
+        "experienced": 1,
+        "ccr": 0.5,
+        "ncr": 0.5,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2014-12-31",
+        "coding": 1,
+        "non_coding": 1,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 0.0,
+        "ncr": 0.0,
+        "tipo": "D"
+      },
+      {
+        "snapshot": "2015-03-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2015-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2015-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2015-12-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2016-03-31",
+        "coding": 1,
+        "non_coding": 1,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 0.0,
+        "ncr": 0.0,
+        "tipo": "D"
+      },
+      {
+        "snapshot": "2016-06-30",
+        "coding": 2,
+        "non_coding": 1,
+        "new": 2,
+        "experienced": 1,
+        "ccr": 0.5,
+        "ncr": 0.5,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2016-09-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2016-12-31",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2017-03-31",
+        "coding": 3,
+        "non_coding": 1,
+        "new": 2,
+        "experienced": 2,
+        "ccr": 0.6667,
+        "ncr": 0.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2017-06-30",
+        "coding": 4,
+        "non_coding": 1,
+        "new": 3,
+        "experienced": 2,
+        "ccr": 0.75,
+        "ncr": 0.3333,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2017-12-31",
+        "coding": 2,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": 0.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2018-03-31",
+        "coding": 3,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 2,
+        "ccr": 1.0,
+        "ncr": -0.5,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2018-06-30",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 1,
+        "experienced": 0,
+        "ccr": 1.0,
+        "ncr": 1.0,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2018-09-30",
+        "coding": 1,
+        "non_coding": 1,
+        "new": 0,
+        "experienced": 2,
+        "ccr": 0.0,
+        "ncr": -1.0,
+        "tipo": "D"
+      },
+      {
+        "snapshot": "2018-12-31",
+        "coding": 1,
+        "non_coding": 0,
+        "new": 0,
+        "experienced": 1,
+        "ccr": 1.0,
+        "ncr": -1.0,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2019-03-31",
+        "coding": 3,
+        "non_coding": 7,
+        "new": 7,
+        "experienced": 3,
+        "ccr": -0.5714,
+        "ncr": 0.5714,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2019-06-30",
+        "coding": 8,
+        "non_coding": 51,
+        "new": 54,
+        "experienced": 5,
+        "ccr": -0.8431,
+        "ncr": 0.9074,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2019-09-30",
+        "coding": 20,
+        "non_coding": 32,
+        "new": 37,
+        "experienced": 15,
+        "ccr": -0.375,
+        "ncr": 0.5946,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2019-12-31",
+        "coding": 28,
+        "non_coding": 43,
+        "new": 51,
+        "experienced": 20,
+        "ccr": -0.3488,
+        "ncr": 0.6078,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2020-03-31",
+        "coding": 25,
+        "non_coding": 27,
+        "new": 33,
+        "experienced": 19,
+        "ccr": -0.0741,
+        "ncr": 0.4242,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2020-06-30",
+        "coding": 29,
+        "non_coding": 34,
+        "new": 41,
+        "experienced": 22,
+        "ccr": -0.1471,
+        "ncr": 0.4634,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2020-09-30",
+        "coding": 30,
+        "non_coding": 43,
+        "new": 47,
+        "experienced": 26,
+        "ccr": -0.3023,
+        "ncr": 0.4468,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2020-12-31",
+        "coding": 29,
+        "non_coding": 18,
+        "new": 22,
+        "experienced": 25,
+        "ccr": 0.3793,
+        "ncr": -0.12,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2021-03-31",
+        "coding": 28,
+        "non_coding": 38,
+        "new": 34,
+        "experienced": 32,
+        "ccr": -0.2632,
+        "ncr": 0.0588,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2021-06-30",
+        "coding": 26,
+        "non_coding": 17,
+        "new": 21,
+        "experienced": 22,
+        "ccr": 0.3462,
+        "ncr": -0.0455,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2021-09-30",
+        "coding": 16,
+        "non_coding": 17,
+        "new": 17,
+        "experienced": 16,
+        "ccr": -0.0588,
+        "ncr": 0.0588,
+        "tipo": "B"
+      },
+      {
+        "snapshot": "2021-12-31",
+        "coding": 23,
+        "non_coding": 32,
+        "new": 22,
+        "experienced": 33,
+        "ccr": -0.2812,
+        "ncr": -0.3333,
+        "tipo": "D"
+      },
+      {
+        "snapshot": "2022-03-31",
+        "coding": 32,
+        "non_coding": 22,
+        "new": 31,
+        "experienced": 23,
+        "ccr": 0.3125,
+        "ncr": 0.2581,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2022-06-30",
+        "coding": 32,
+        "non_coding": 18,
+        "new": 20,
+        "experienced": 30,
+        "ccr": 0.4375,
+        "ncr": -0.3333,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2022-09-30",
+        "coding": 20,
+        "non_coding": 14,
+        "new": 16,
+        "experienced": 18,
+        "ccr": 0.3,
+        "ncr": -0.1111,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2022-12-31",
+        "coding": 27,
+        "non_coding": 16,
+        "new": 18,
+        "experienced": 25,
+        "ccr": 0.4074,
+        "ncr": -0.28,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2023-03-31",
+        "coding": 24,
+        "non_coding": 18,
+        "new": 20,
+        "experienced": 22,
+        "ccr": 0.25,
+        "ncr": -0.0909,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2023-06-30",
+        "coding": 24,
+        "non_coding": 18,
+        "new": 16,
+        "experienced": 26,
+        "ccr": 0.25,
+        "ncr": -0.3846,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2023-09-30",
+        "coding": 17,
+        "non_coding": 14,
+        "new": 17,
+        "experienced": 14,
+        "ccr": 0.1765,
+        "ncr": 0.1765,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2023-12-31",
+        "coding": 20,
+        "non_coding": 13,
+        "new": 17,
+        "experienced": 16,
+        "ccr": 0.35,
+        "ncr": 0.0588,
+        "tipo": "A"
+      },
+      {
+        "snapshot": "2024-03-31",
+        "coding": 21,
+        "non_coding": 17,
+        "new": 15,
+        "experienced": 23,
+        "ccr": 0.1905,
+        "ncr": -0.3478,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2024-06-30",
+        "coding": 14,
+        "non_coding": 8,
+        "new": 5,
+        "experienced": 17,
+        "ccr": 0.4286,
+        "ncr": -0.7059,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2024-09-30",
+        "coding": 19,
+        "non_coding": 17,
+        "new": 13,
+        "experienced": 23,
+        "ccr": 0.1053,
+        "ncr": -0.4348,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2024-12-31",
+        "coding": 19,
+        "non_coding": 6,
+        "new": 8,
+        "experienced": 17,
+        "ccr": 0.6842,
+        "ncr": -0.5294,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-03-31",
+        "coding": 13,
+        "non_coding": 9,
+        "new": 5,
+        "experienced": 17,
+        "ccr": 0.3077,
+        "ncr": -0.7059,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-06-30",
+        "coding": 11,
+        "non_coding": 9,
+        "new": 4,
+        "experienced": 16,
+        "ccr": 0.1818,
+        "ncr": -0.75,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-09-30",
+        "coding": 20,
+        "non_coding": 13,
+        "new": 14,
+        "experienced": 19,
+        "ccr": 0.35,
+        "ncr": -0.2632,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2025-12-31",
+        "coding": 11,
+        "non_coding": 12,
+        "new": 6,
+        "experienced": 17,
+        "ccr": -0.0833,
+        "ncr": -0.6471,
+        "tipo": "D"
+      },
+      {
+        "snapshot": "2026-03-31",
+        "coding": 16,
+        "non_coding": 12,
+        "new": 11,
+        "experienced": 17,
+        "ccr": 0.25,
+        "ncr": -0.3529,
+        "tipo": "C"
+      },
+      {
+        "snapshot": "2026-06-30",
+        "coding": 22,
+        "non_coding": 6,
+        "new": 9,
+        "experienced": 19,
+        "ccr": 0.7273,
+        "ncr": -0.5263,
+        "tipo": "C"
+      }
+    ]
+  }
+}
