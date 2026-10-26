@@ -4,7 +4,7 @@ Roda a carga oficial (`carga_duckdb`, mesmas regras da pirâmide) e grava, por l
 `<saida>/<linguagem>/origem/`:
 
   - `pessoas.parquet`: uma linha por pessoa, com primeiro e último evento, repositório e tipo do
-    primeiro evento e se fez algum commit ou PR;
+    primeiro evento, se fez algum commit ou PR e quantos eventos, commits e ocasiões teve;
   - `repos_por_trimestre.parquet`: pessoas distintas por repositório e trimestre;
   - `repos.parquet`: `codigo`, `repo_id`, nome, estrelas e data de criação de cada repositório.
 

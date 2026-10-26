@@ -1,0 +1,205 @@
+"""Visitantes: quem participou da linguagem numa ocasião só. Uma análise olhando para eles.
+
+Ocasião é uma conversa (issue ou PR), um commit comentado ou um dia de commits num repositório
+(`carga_duckdb._ocasiao`). Visitante é quem tem uma ocasião só na vida; residente, quem tem duas ou
+mais (a população `mais_de_uma_ocasiao`).
+
+    uv run python scripts/visitantes.py --saida ~/pyramid-vitalidade-saida \\
+        --linguagens clojure elixir ocaml zig python
+
+Lê `<saída>/<linguagem>/origem/` (de `scripts/origem_dos_novatos.py`) e grava em
+`<saída>/geral-visitantes/`:
+
+  - `visitantes_por_ano.csv`: chegadas, visitantes e % de visitantes por ano de chegada;
+  - `visitantes_por_tipo.csv`: o mesmo pelo tipo do primeiro evento;
+  - `portas_de_entrada.csv`: os repositórios por onde mais chegam visitantes;
+  - `visitantes_por_ano.png` e `visitantes_por_tipo.png`.
+
+Quem chegou nos 12 meses antes do fim da coleta ainda pode voltar, então só entram anos de
+chegada inteiros com 12 meses de folga, a mesma regra da saída.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pandas as pd
+
+import carga_fonte
+from pyramid import plots
+
+COLUNAS = ["primeiro", "ultimo", "codigo_do_primeiro", "tipo_do_primeiro", "codou", "ocasioes"]
+TIPOS = ["issues", "issue_comments", "issue_events", "pull_requests", "commits"]
+ROTULO_TIPO = {
+    "issues": "abriu issue",
+    "issue_comments": "comentou issue",
+    "issue_events": "ação em issue",
+    "pull_requests": "abriu PR",
+    "commits": "commit",
+}
+
+
+def ultimo_ano_com_folga(pessoas: pd.DataFrame) -> int:
+    """Último ano de chegada em que todos tiveram 12 meses para voltar."""
+    fim = pessoas["ultimo"].max()
+    return (fim - pd.Timedelta(days=365)).year - 1
+
+
+def marca_visitantes(pessoas: pd.DataFrame) -> pd.DataFrame:
+    """Ano de chegada e se a pessoa é visitante, só nos anos com folga."""
+    ano_max = ultimo_ano_com_folga(pessoas)
+    p = pessoas.assign(ano=pessoas["primeiro"].dt.year, visitante=pessoas["ocasioes"] == 1)
+    return p[p["ano"] <= ano_max]
+
+
+def por_ano(p: pd.DataFrame) -> pd.DataFrame:
+    """Chegadas, visitantes e visitantes que só discutiram, por ano de chegada."""
+    linhas = []
+    for ano, grupo in p.groupby("ano"):
+        visitantes = grupo[grupo["visitante"]]
+        linhas.append(
+            {
+                "ano": ano,
+                "chegadas": len(grupo),
+                "visitantes": len(visitantes),
+                "visitantes_so_discussao": int((~visitantes["codou"]).sum()),
+                "pct_visitantes": 100 * len(visitantes) / len(grupo),
+            }
+        )
+    return pd.DataFrame(linhas)
+
+
+def por_tipo(p: pd.DataFrame) -> pd.DataFrame:
+    """Chegadas e % de visitantes pelo tipo do primeiro evento."""
+    linhas = []
+    for tipo, grupo in p.groupby("tipo_do_primeiro"):
+        linhas.append(
+            {
+                "tipo_do_primeiro": tipo,
+                "chegadas": len(grupo),
+                "visitantes": int(grupo["visitante"].sum()),
+                "pct_visitantes": 100 * grupo["visitante"].mean(),
+            }
+        )
+    return pd.DataFrame(linhas)
+
+
+def portas_de_entrada(p: pd.DataFrame, repos: pd.DataFrame, quantos: int = 10) -> pd.DataFrame:
+    """Os repositórios que mais recebem visitantes, com a parte deles no total da linguagem."""
+    total_visitantes = int(p["visitante"].sum())
+    linhas = []
+    for codigo, grupo in p.groupby("codigo_do_primeiro"):
+        visitantes = int(grupo["visitante"].sum())
+        linhas.append(
+            {
+                "codigo": codigo,
+                "chegadas": len(grupo),
+                "visitantes": visitantes,
+                "pct_dos_visitantes_da_linguagem": 100 * visitantes / total_visitantes,
+                "pct_visitantes_no_repo": 100 * visitantes / len(grupo),
+            }
+        )
+    tabela = pd.DataFrame(linhas).sort_values("visitantes", ascending=False).head(quantos)
+    nomes = repos[["codigo", "repo_name"]]
+    return tabela.merge(nomes, on="codigo", how="left")
+
+
+def figura_por_ano(tabelas: dict[str, pd.DataFrame], pasta: Path) -> None:
+    fig, ax = plt.subplots(figsize=(12, 5.4))
+    plots._theme(ax)
+    for slug, tabela in tabelas.items():
+        t = tabela[tabela["ano"] >= 2012]
+        ax.plot(
+            t["ano"],
+            t["pct_visitantes"],
+            color=carga_fonte.cor_da_linguagem(slug),
+            linewidth=3,
+            marker="o",
+            markersize=5,
+            label=carga_fonte.LINGUAGENS[slug].nome,
+        )
+    ax.set_ylim(0, 100)
+    ax.tick_params(labelsize=12)
+    ax.set_ylabel("% das chegadas do ano", fontsize=13)
+    ax.set_title("Quem chega e participa numa ocasião só (visitantes)", fontsize=16)
+    ax.legend(frameon=False, fontsize=12, ncol=5, loc="lower center")
+    fig.tight_layout()
+    fig.savefig(pasta / "visitantes_por_ano.png", dpi=200)
+    plt.close(fig)
+
+
+def figura_por_tipo(tabelas: dict[str, pd.DataFrame], pasta: Path) -> None:
+    fig, ax = plt.subplots(figsize=(12, 5.4))
+    plots._theme(ax)
+    largura = 0.8 / len(tabelas)
+    for i, (slug, tabela) in enumerate(tabelas.items()):
+        t = tabela.set_index("tipo_do_primeiro").reindex(TIPOS)
+        posicoes = []
+        for j in range(len(TIPOS)):
+            posicoes.append(j + i * largura - 0.4 + largura / 2)
+        ax.bar(
+            posicoes,
+            t["pct_visitantes"],
+            width=largura,
+            color=carga_fonte.cor_da_linguagem(slug),
+            label=carga_fonte.LINGUAGENS[slug].nome,
+        )
+    rotulos = []
+    for tipo in TIPOS:
+        rotulos.append(ROTULO_TIPO[tipo])
+    ax.set_xticks(range(len(TIPOS)))
+    ax.set_xticklabels(rotulos, fontsize=12)
+    ax.set_ylim(0, 100)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.set_ylabel("% que não voltou", fontsize=13)
+    ax.set_title("Visitantes pela primeira coisa que a pessoa fez na linguagem", fontsize=16)
+    ax.legend(frameon=False, fontsize=12, ncol=5, loc="upper center")
+    fig.tight_layout()
+    fig.savefig(pasta / "visitantes_por_tipo.png", dpi=200)
+    plt.close(fig)
+
+
+def main() -> None:
+    """Lê a origem de cada linguagem e grava as tabelas e as figuras dos visitantes."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--saida", required=True, type=Path)
+    parser.add_argument(
+        "--linguagens", nargs="+", required=True, choices=sorted(carga_fonte.LINGUAGENS)
+    )
+    args = parser.parse_args()
+    saida = args.saida.expanduser()
+    pasta = saida / "geral-visitantes"
+    pasta.mkdir(parents=True, exist_ok=True)
+
+    anos = {}
+    tipos = {}
+    portas = []
+    for slug in args.linguagens:
+        origem = saida / slug / "origem"
+        pessoas = pd.read_parquet(origem / "pessoas.parquet", columns=COLUNAS)
+        p = marca_visitantes(pessoas)
+        anos[slug] = por_ano(p)
+        tipos[slug] = por_tipo(p)
+        repos = pd.read_parquet(origem / "repos.parquet")
+        portas.append(portas_de_entrada(p, repos).assign(linguagem=slug))
+
+    linhas_ano = []
+    linhas_tipo = []
+    for slug in args.linguagens:
+        linhas_ano.append(anos[slug].assign(linguagem=slug))
+        linhas_tipo.append(tipos[slug].assign(linguagem=slug))
+    pd.concat(linhas_ano).to_csv(pasta / "visitantes_por_ano.csv", index=False)
+    pd.concat(linhas_tipo).to_csv(pasta / "visitantes_por_tipo.csv", index=False)
+    pd.concat(portas).to_csv(pasta / "portas_de_entrada.csv", index=False)
+    figura_por_ano(anos, pasta)
+    figura_por_tipo(tipos, pasta)
+    print(pasta)
+
+
+if __name__ == "__main__":
+    main()
