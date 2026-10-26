@@ -48,7 +48,9 @@ def grava_origem(slug: str, saida: Path, memoria: str, threads: int | None) -> N
         alvo = alvo.rename(columns={"stargazers": "stars"})
         partes.append(alvo[["repo_id", "repo_name", "stars", "createdAt"]])
     nomes = pd.concat(partes, ignore_index=True).drop_duplicates("repo_id")
-    repos = pd.read_parquet(pasta / "repos.parquet").merge(nomes, on="repo_id", how="left")
+    # Só as colunas da carga: rodar de novo sobre uma pasta antiga não duplica os nomes.
+    repos = pd.read_parquet(pasta / "repos.parquet", columns=["codigo", "repo_id"])
+    repos = repos.merge(nomes, on="repo_id", how="left")
     repos.to_parquet(pasta / "repos.parquet", index=False)
     print(f"{slug}: {pasta}")
 
