@@ -212,3 +212,21 @@ def test_fonte_com_arquivo_que_nao_existe_diz_qual(zig):
 def test_motor_desconhecido_falha_alto(zig):
     with pytest.raises(SystemExit):
         carga_compacta.carrega(_fonte(zig, "separado", False), "motor_que_nao_existe")
+
+
+def test_acoes_ignoradas_tiram_quem_so_foi_marcado(zig):
+    fonte = _fonte(zig, "separado", False)
+    marcada = _linha("1", "issue_event", "eve", "2022-04-08T00:00:00Z", None, "Zig", True)
+    marcada["message"] = "mentioned"
+    api = zig / "separado-False" / "eventos_api.csv"
+    pd.DataFrame([marcada], columns=COLUNAS).to_csv(
+        api, sep="|", index=False, header=False, mode="a"
+    )
+
+    com = carga_compacta.carrega(fonte, "duckdb", trabalho=zig / "t1", threads=2)
+    sem = carga_compacta.carrega(
+        fonte, "duckdb", trabalho=zig / "t2", threads=2, acoes_ignoradas=("mentioned",)
+    )
+    assert sem["contributor_id"].nunique() == com["contributor_id"].nunique() - 1
+    with pytest.raises(SystemExit):
+        carga_compacta.carrega(fonte, "pandas", acoes_ignoradas=("mentioned",))

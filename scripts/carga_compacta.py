@@ -34,6 +34,7 @@ def _duckdb(
     threads: int | None = None,
     contar_brutas: bool = True,
     origem: Path | None = None,
+    acoes_ignoradas: tuple[str, ...] = (),
     **_: object,
 ) -> pd.DataFrame:
     """O motor duckdb mora em `adapters/coleta_csv/`, onde o SQL é permitido."""
@@ -56,6 +57,7 @@ def _duckdb(
         threads=threads,
         contar_brutas=contar_brutas,
         origem=origem,
+        acoes_ignoradas=acoes_ignoradas,
     )
     if origem is not None:
         origem.mkdir(parents=True, exist_ok=True)
@@ -75,8 +77,11 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
 
     Opções do `duckdb`: `trabalho` (pasta em disco para o derrame), `memoria` ("30GB"), `threads`,
     `contar_brutas` (relê o arquivo só para contar linhas), `origem` (pasta onde grava a origem de
-    cada pessoa, ver `carga_duckdb._grava_origem`).
+    cada pessoa, ver `carga_duckdb._grava_origem`), `acoes_ignoradas` (ações de issue_event que
+    saem, como `("mentioned",)`).
     """
     if motor not in MOTORES:
         raise SystemExit(f"motor {motor!r} desconhecido: use {list(MOTORES)}.")
+    if opcoes.get("acoes_ignoradas") and motor != "duckdb":
+        raise SystemExit("acoes_ignoradas só existe no motor duckdb: use --set motor=duckdb.")
     return MOTORES[motor](fonte, **opcoes)

@@ -77,6 +77,7 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 | `threads` | 16 | núcleos do duckdb. `null` usa todos. |
 | `processos` | 4 | tarefas em paralelo em `vitalidade_grade.py`, um processo cada. Cada tarefa do Python usa uns 8 GB. |
 | `contar_linhas_brutas` | false | releitura do arquivo só para contar linhas brutas (estatística do filtro, sem efeito nas métricas). |
+| `acoes_ignoradas` | `[]` | ações de `issue_event` que a carga ignora, como `[mentioned, subscribed]`. Só no motor duckdb. |
 
 Origem dos dados: `scripts/vitalidade_fontes.yaml`, `--dados`, `--eventos`, `--alvo`.
 

@@ -9,6 +9,7 @@ Roda a carga oficial (`carga_duckdb`, mesmas regras da pirâmide) e grava, por l
   - `repos.parquet`: `codigo`, `repo_id`, nome, estrelas e data de criação de cada repositório.
 
 Serve para perguntar de onde veio uma subida de novatos, comparando as linguagens.
+`--sem-acoes mentioned subscribed` ignora essas ações de issue_event (`Pedido.acoes_ignoradas`).
 
     uv run python scripts/origem_dos_novatos.py --saida ~/pyramid-vitalidade-saida \\
         --linguagens clojure elixir ocaml zig python
@@ -26,7 +27,9 @@ import carga_fonte
 import figuras_linguagem_bruta as fb
 
 
-def grava_origem(slug: str, saida: Path, memoria: str, threads: int | None) -> None:
+def grava_origem(
+    slug: str, saida: Path, memoria: str, threads: int | None, sem_acoes: tuple[str, ...] = ()
+) -> None:
     """Carga de uma linguagem com a origem de cada pessoa gravada à parte."""
     carga_fonte.aplica_linguagem(slug)
     fb.CFG.aplica(fb.RODADA)
@@ -40,6 +43,7 @@ def grava_origem(slug: str, saida: Path, memoria: str, threads: int | None) -> N
         threads=threads,
         contar_brutas=False,
         origem=pasta,
+        acoes_ignoradas=sem_acoes,
     )
     partes = []
     for caminho in fonte.alvos:
@@ -64,10 +68,13 @@ def main() -> None:
     )
     parser.add_argument("--memoria", default="30GB")
     parser.add_argument("--threads", type=int, default=None)
+    parser.add_argument("--sem-acoes", nargs="*", default=[], help="ações de issue_event ignoradas")
     args = parser.parse_args()
     fb.TMP_BASE = args.saida.expanduser()
     for slug in args.linguagens:
-        grava_origem(slug, args.saida.expanduser(), args.memoria, args.threads)
+        grava_origem(
+            slug, args.saida.expanduser(), args.memoria, args.threads, tuple(args.sem_acoes)
+        )
 
 
 if __name__ == "__main__":

@@ -70,6 +70,10 @@ processos: 4
 # do filtro, sem efeito nas métricas). Em centenas de GB isso custa uns 20 minutos.
 contar_linhas_brutas: false
 
+# Ações de issue_event (coluna message da coleta) que a carga ignora, como [mentioned, subscribed].
+# Nelas o login é o de quem foi marcado ou inscrito. Só no motor duckdb. [] mantém todas.
+acoes_ignoradas: []
+
 # População de cada linguagem. O padrão é passou_30_dias: 30 dias já tira a maior parte do efeito de
 # quem aparece uma vez (de 30 a 90 dias pouco muda). todos: quem teve algum evento (commit, PR, issue, comentário).
 # passou_N_dias (passou_30_dias, passou_60_dias, passou_90_dias...): só quem tem uma contribuição N

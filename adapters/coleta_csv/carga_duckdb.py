@@ -14,6 +14,8 @@ Aplica as regras de `scripts/figuras_linguagem_bruta.py` (`carrega_eventos`), em
   4. Só repositório elegível.
   5. Conta apagada (`ghost`) e bot (`[bot]`) saem. Datas ilegíveis, futuras ou anteriores a
      2008 saem.
+  6. Ação de `issue_event` listada em `Pedido.acoes_ignoradas` sai. Em `mentioned` e
+     `subscribed` o login é o de quem foi marcado ou inscrito, que não fez nada. Padrão: nenhuma.
 
 Diferenças em relação ao motor `pandas` de `scripts/carga_pandas.py`, sem efeito nas métricas:
 
@@ -82,6 +84,7 @@ class Pedido:
     contar_brutas: bool = True  # relê o arquivo inteiro só para contar linhas: minutos por 100 GB
     agora: pd.Timestamp = field(default_factory=pd.Timestamp.now)
     origem: Path | None = None  # pasta para `_grava_origem`; None não grava
+    acoes_ignoradas: tuple[str, ...] = ()  # ações de issue_event (coluna message) que saem
 
 
 @dataclass
@@ -103,7 +106,7 @@ def _leitura(caminho: Path, papel: str) -> str:
     nulos = "[" + ", ".join(_aspas(n) for n in NULOS) + "]"
     return f"""
         SELECT repo_id, event_type, author, author_login, created_at, files, language,
-               number, sha, url,
+               number, sha, url, message,
                {eh_commit} AS eh_commit
         FROM read_csv({_aspas(caminho)}, delim='|', quote='"', escape='"', header=true,
                       all_varchar=true, ignore_errors=true, strict_mode=false,
@@ -184,6 +187,10 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     # filtro do papel delas, API e git juntas.
     print("duckdb: lendo os eventos", file=sys.stderr)
     autor = "CASE WHEN eh_commit THEN author ELSE author_login END"
+    ignora = ""
+    if pedido.acoes_ignoradas:
+        acoes = ", ".join(_aspas(a) for a in pedido.acoes_ignoradas)
+        ignora = f"AND NOT (event_type = 'issue_event' AND coalesce(message, '') IN ({acoes}))"
     con.execute(f"""
         CREATE TABLE leve AS
         SELECT coalesce(r.codigo, -1) AS codigo, r.criado AS criado, eh_commit,
@@ -194,7 +201,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
                {_ocasiao()} AS ocasiao
         FROM bruto b LEFT JOIN repos r ON b.repo_id = r.repo_id
         WHERE (NOT eh_commit AND author_login IS NOT NULL
-               AND coalesce(b.language, r.principal) = {_aspas(nome)})
+               AND coalesce(b.language, r.principal) = {_aspas(nome)} {ignora})
            OR (eh_commit AND author IS NOT NULL
                AND regexp_matches(lower(files), {toca_a_linguagem}))
     """)

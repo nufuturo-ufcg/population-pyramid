@@ -154,6 +154,7 @@ class Parametros:
     memoria: str
     threads: int | None
     contar_linhas_brutas: bool
+    acoes_ignoradas: list[str]
     processos: int
     populacao: str
     piramide_em_pct: bool
@@ -198,13 +199,18 @@ def carrega_parametros(sobrepostos: list[str]) -> Parametros:
 VERSAO_CACHE = 3
 
 
-def _selo_dos_dados(fonte: carga_fonte.Fonte, motor: str) -> dict[str, Any]:
+def _selo_dos_dados(
+    fonte: carga_fonte.Fonte, motor: str, acoes_ignoradas: list[str]
+) -> dict[str, Any]:
     """Tamanho e data de cada arquivo de entrada. Mudou um byte, o cache perde a validade."""
     arquivos = {}
     for caminho in [a.caminho for a in fonte.eventos] + fonte.alvos:
         info = caminho.stat()
         arquivos[str(caminho)] = [info.st_size, info.st_mtime_ns]
-    return {"versao": VERSAO_CACHE, "motor": motor, "arquivos": arquivos}
+    selo = {"versao": VERSAO_CACHE, "motor": motor, "arquivos": arquivos}
+    if acoes_ignoradas:
+        selo["acoes_ignoradas"] = sorted(acoes_ignoradas)
+    return selo
 
 
 def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> str:
@@ -227,7 +233,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     pasta = Path(fb.TMP_BASE) / fb.LING.atual.slug / "cache"
     parquet = pasta / "vitalidade_eventos.parquet"
     arquivo_selo = pasta / "vitalidade_eventos.json"
-    selo = _selo_dos_dados(fonte, motor)
+    selo = _selo_dos_dados(fonte, motor, p.acoes_ignoradas)
     cache_valido = (
         entrada.usar_cache
         and parquet.exists()
@@ -247,6 +253,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         memoria=p.memoria,
         threads=p.threads,
         contar_brutas=p.contar_linhas_brutas,
+        acoes_ignoradas=tuple(p.acoes_ignoradas),
     )
     compactos = vitalidade.compacta(eventos)
     del eventos
