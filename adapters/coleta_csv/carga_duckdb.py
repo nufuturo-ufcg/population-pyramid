@@ -16,6 +16,11 @@ Aplica as regras de `scripts/figuras_linguagem_bruta.py` (`carrega_eventos`), em
      2008 saem.
   6. Ação de `issue_event` listada em `Pedido.acoes_ignoradas` sai. Em `mentioned` e
      `subscribed` o login é o de quem foi marcado ou inscrito, que não fez nada. Padrão: nenhuma.
+  7. Com `Pedido.fundir_identidades`, o nome de commit vira o login da mesma pessoa de duas
+     formas. Exata: e-mail `[id+]login@users.noreply.github.com`. Heurística (a de
+     `candidatos_mesma_pessoa` em `scripts/figuras_linguagem_bruta.py`): quem só commita e quem
+     só abre issue/PR, com 5 ou mais eventos cada, 5 ou mais repositórios em comum e Jaccard
+     dos repositórios de 0,5 ou mais. Padrão: desligada.
 
 Diferenças em relação ao motor `pandas` de `scripts/carga_pandas.py`, sem efeito nas métricas:
 
@@ -85,6 +90,9 @@ class Pedido:
     agora: pd.Timestamp = field(default_factory=pd.Timestamp.now)
     origem: Path | None = None  # pasta para `_grava_origem`; None não grava
     acoes_ignoradas: tuple[str, ...] = ()  # ações de issue_event (coluna message) que saem
+    fundir_identidades: bool = False  # nome de commit -> login, regra 7 do topo
+    fusao_repos_min: int = 5
+    fusao_jaccard_min: float = 0.5
 
 
 @dataclass
@@ -105,7 +113,7 @@ def _leitura(caminho: Path, papel: str) -> str:
     eh_commit = {"api": "false", "git": "true", "misto": "event_type = 'commit'"}[papel]
     nulos = "[" + ", ".join(_aspas(n) for n in NULOS) + "]"
     return f"""
-        SELECT repo_id, event_type, author, author_login, created_at, files, language,
+        SELECT repo_id, event_type, author, author_login, author_email, created_at, files, language,
                number, sha, url, message,
                {eh_commit} AS eh_commit
         FROM read_csv({_aspas(caminho)}, delim='|', quote='"', escape='"', header=true,
@@ -187,6 +195,15 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     # filtro do papel delas, API e git juntas.
     print("duckdb: lendo os eventos", file=sys.stderr)
     autor = "CASE WHEN eh_commit THEN author ELSE author_login END"
+    pessoa = _pessoa(autor)
+    if pedido.fundir_identidades:
+        noreply = (
+            "nullif(regexp_extract(author_email, "
+            "'^(?:[0-9]+\\+)?([^@]+)@users\\.noreply\\.github\\.com$', 1), '')"
+        )
+        pessoa = _pessoa(
+            f"CASE WHEN eh_commit THEN coalesce({noreply}, author) ELSE author_login END"
+        )
     ignora = ""
     if pedido.acoes_ignoradas:
         acoes = ", ".join(_aspas(a) for a in pedido.acoes_ignoradas)
@@ -195,7 +212,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
         CREATE TABLE leve AS
         SELECT coalesce(r.codigo, -1) AS codigo, r.criado AS criado, eh_commit,
                {_case_tipo(pedido.tipos, nomes_tipo)} AS tipo,
-               {_pessoa(autor)} AS pessoa, {_marca(autor)} AS marca,
+               {pessoa} AS pessoa, {_marca(autor)} AS marca,
                {_ts("created_at")} AS ts,
                CASE WHEN eh_commit THEN hash(author, created_at, files) END AS h,
                {_ocasiao()} AS ocasiao
@@ -264,8 +281,49 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     """)
     con.execute("DROP TABLE leve")
     con.execute("DROP TABLE git_ok")
+    if pedido.fundir_identidades:
+        _funde_por_repositorios(con, pedido, nomes_tipo, stats)
     stats["eventos_apos_elegibilidade"] = _um(con, "SELECT count(*) FROM elegiveis")
     return _finaliza(con, pedido, nomes_tipo, stats)
+
+
+def _funde_por_repositorios(
+    con: duckdb.DuckDBPyConnection, pedido: Pedido, nomes_tipo: list[str], stats: dict[str, int]
+) -> None:
+    """Quem só commita vira o login de quem só abre issue/PR nos mesmos repositórios."""
+    commit = nomes_tipo.index("commits")
+    issue_pr = f"{nomes_tipo.index('issues')}, {nomes_tipo.index('pull_requests')}"
+    minimo = int(pedido.fusao_repos_min)
+    con.execute(f"""
+        CREATE TABLE perfil AS
+        SELECT pessoa, bool_and(tipo = {commit}) AS so_commit,
+               bool_and(tipo IN ({issue_pr})) AS so_issue_pr,
+               count(DISTINCT codigo) AS n_repos
+        FROM elegiveis WHERE marca = 0
+        GROUP BY pessoa HAVING count(*) >= {minimo}
+    """)
+    con.execute(f"""
+        CREATE TABLE mapa AS
+        WITH repos_de AS (
+            SELECT DISTINCT e.pessoa, e.codigo, p.so_commit, p.n_repos
+            FROM elegiveis e JOIN perfil p ON e.pessoa = p.pessoa
+            WHERE e.marca = 0 AND (p.so_commit OR p.so_issue_pr)
+        ), pares AS (
+            SELECT c.pessoa AS de, a.pessoa AS para,
+                   count(*) / (any_value(c.n_repos) + any_value(a.n_repos) - count(*)) AS jaccard
+            FROM repos_de c JOIN repos_de a ON c.codigo = a.codigo
+            WHERE c.so_commit AND NOT a.so_commit
+            GROUP BY c.pessoa, a.pessoa
+            HAVING count(*) >= {minimo}
+        )
+        SELECT de, arg_max(para, jaccard) AS para FROM pares
+        WHERE jaccard >= {float(pedido.fusao_jaccard_min)}
+        GROUP BY de
+    """)
+    stats["identidades_fundidas_por_repositorios"] = _um(con, "SELECT count(*) FROM mapa")
+    con.execute("UPDATE elegiveis SET pessoa = m.para FROM mapa m WHERE elegiveis.pessoa = m.de")
+    con.execute("DROP TABLE perfil")
+    con.execute("DROP TABLE mapa")
 
 
 def _finaliza(

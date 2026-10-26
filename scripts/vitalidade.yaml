@@ -74,6 +74,10 @@ contar_linhas_brutas: false
 # Nelas o login é o de quem foi marcado ou inscrito. Só no motor duckdb. [] mantém todas.
 acoes_ignoradas: []
 
+# Junta o nome de commit ao login da mesma pessoa (regra 7 de adapters/coleta_csv/carga_duckdb.py):
+# pelo e-mail noreply do GitHub e pela heurística dos repositórios em comum. Só no motor duckdb.
+fundir_identidades: false
+
 # População de cada linguagem. O padrão é passou_30_dias: 30 dias já tira a maior parte do efeito de
 # quem aparece uma vez (de 30 a 90 dias pouco muda). todos: quem teve algum evento (commit, PR, issue, comentário).
 # passou_N_dias (passou_30_dias, passou_60_dias, passou_90_dias...): só quem tem uma contribuição N

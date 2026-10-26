@@ -10,6 +10,7 @@ Roda a carga oficial (`carga_duckdb`, mesmas regras da pirâmide) e grava, por l
 
 Serve para perguntar de onde veio uma subida de novatos, comparando as linguagens.
 `--sem-acoes mentioned subscribed` ignora essas ações de issue_event (`Pedido.acoes_ignoradas`).
+`--fundir-identidades` junta nome de commit e login da mesma pessoa (`Pedido.fundir_identidades`).
 
     uv run python scripts/origem_dos_novatos.py --saida ~/pyramid-vitalidade-saida \\
         --linguagens clojure elixir ocaml zig python
@@ -28,7 +29,12 @@ import figuras_linguagem_bruta as fb
 
 
 def grava_origem(
-    slug: str, saida: Path, memoria: str, threads: int | None, sem_acoes: tuple[str, ...] = ()
+    slug: str,
+    saida: Path,
+    memoria: str,
+    threads: int | None,
+    sem_acoes: tuple[str, ...] = (),
+    fundir: bool = False,
 ) -> None:
     """Carga de uma linguagem com a origem de cada pessoa gravada à parte."""
     carga_fonte.aplica_linguagem(slug)
@@ -44,6 +50,7 @@ def grava_origem(
         contar_brutas=False,
         origem=pasta,
         acoes_ignoradas=sem_acoes,
+        fundir_identidades=fundir,
     )
     partes = []
     for caminho in fonte.alvos:
@@ -69,11 +76,17 @@ def main() -> None:
     parser.add_argument("--memoria", default="30GB")
     parser.add_argument("--threads", type=int, default=None)
     parser.add_argument("--sem-acoes", nargs="*", default=[], help="ações de issue_event ignoradas")
+    parser.add_argument("--fundir-identidades", action="store_true")
     args = parser.parse_args()
     fb.TMP_BASE = args.saida.expanduser()
     for slug in args.linguagens:
         grava_origem(
-            slug, args.saida.expanduser(), args.memoria, args.threads, tuple(args.sem_acoes)
+            slug,
+            args.saida.expanduser(),
+            args.memoria,
+            args.threads,
+            tuple(args.sem_acoes),
+            args.fundir_identidades,
         )
 
 

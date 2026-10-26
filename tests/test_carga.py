@@ -15,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 import pytest
 
@@ -230,3 +231,53 @@ def test_acoes_ignoradas_tiram_quem_so_foi_marcado(zig):
     assert sem["contributor_id"].nunique() == com["contributor_id"].nunique() - 1
     with pytest.raises(SystemExit):
         carga_compacta.carrega(fonte, "pandas", acoes_ignoradas=("mentioned",))
+
+
+def test_fundir_identidades_junta_commit_e_login(zig):
+    fonte = _fonte(zig, "separado", False)
+    pasta = zig / "separado-False"
+    commit = _linha("1", "commit", "Eva Lima", "2023-03-01T00:00:00Z", "e.zig")
+    commit["author_email"] = "123+eva@users.noreply.github.com"
+    issue = _linha("1", "issue", "eva", "2023-03-02T00:00:00Z", None, "Zig", True)
+    pd.DataFrame([commit], columns=COLUNAS).to_csv(
+        pasta / "eventos_git.csv", sep="|", index=False, header=False, mode="a"
+    )
+    pd.DataFrame([issue], columns=COLUNAS).to_csv(
+        pasta / "eventos_api.csv", sep="|", index=False, header=False, mode="a"
+    )
+
+    def pessoas(trabalho, **opcoes):
+        ev = carga_compacta.carrega(fonte, "duckdb", trabalho=zig / trabalho, threads=2, **opcoes)
+        return ev["contributor_id"].nunique()
+
+    separadas = pessoas("t1")
+    # O fixture é pequeno demais para 5 repositórios em comum: só o e-mail noreply junta.
+    assert pessoas("t2", fundir_identidades=True) == separadas - 1
+    with pytest.raises(SystemExit):
+        carga_compacta.carrega(fonte, "pandas", fundir_identidades=True)
+
+
+def test_fusao_por_repositorios_pega_o_par_de_maior_jaccard():
+    from adapters.coleta_csv import carga_duckdb
+
+    con = duckdb.connect()
+    # tipos: 0 commit, 1 issue, 2 comentário. 10 só commita; 20 e 30 só abrem issue; 40 mistura.
+    elegiveis = pd.DataFrame(
+        {
+            "codigo": [1, 2, 1, 2, 1, 9, 1, 1],
+            "tipo": [0, 0, 1, 1, 1, 1, 0, 2],
+            "pessoa": [10, 10, 20, 20, 30, 30, 40, 40],
+            "marca": [0] * 8,
+        }
+    )
+    con.from_df(elegiveis).create("elegiveis")
+    pedido = carga_duckdb.Pedido(
+        eventos=[], repos=pd.DataFrame(), linguagem="", extensoes=(), tipos={},
+        trabalho=Path(), fundir_identidades=True, fusao_repos_min=1,
+    )  # fmt: skip
+    stats: dict[str, int] = {}
+    nomes = ["commits", "issues", "issue_comments", "pull_requests"]
+    carga_duckdb._funde_por_repositorios(con, pedido, nomes, stats)
+    pessoas = sorted(con.table("elegiveis").df()["pessoa"].unique())
+    assert stats["identidades_fundidas_por_repositorios"] == 1
+    assert pessoas == [20, 30, 40]
