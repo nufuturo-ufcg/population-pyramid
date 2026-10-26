@@ -78,7 +78,8 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 | `processos` | 4 | tarefas em paralelo em `vitalidade_grade.py`, um processo cada. Cada tarefa do Python usa uns 8 GB. |
 | `contar_linhas_brutas` | false | releitura do arquivo só para contar linhas brutas (estatística do filtro, sem efeito nas métricas). |
 | `fundir_identidades` | false | junta o nome de commit ao login da mesma pessoa: e-mail noreply do GitHub e heurística dos repositórios em comum. Só no motor duckdb. |
-| `acoes_ignoradas` | `[]` | ações de `issue_event` que a carga ignora, como `[mentioned, subscribed]`. Só no motor duckdb. |
+| `acoes_ignoradas` | `[mentioned, subscribed]` | ações de `issue_event` que a carga ignora. Nelas o login é o de quem foi marcado ou inscrito. Exige o motor duckdb. |
+| `ligar_autores` | false | liga o commit ao login que o GitHub associa ao e-mail do autor (`autores:` em `vitalidade_fontes.yaml`). Exige o motor duckdb. |
 
 Origem dos dados: `scripts/vitalidade_fontes.yaml`, `--dados`, `--eventos`, `--alvo`.
 

@@ -236,7 +236,7 @@ No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias, pelo que 
 - Na carga (`adapters/coleta_csv/carga_duckdb.py`), a pessoa é o nome do autor no commit (`author`) e o login do GitHub nos eventos da API (`author_login`).
 - A mesma pessoa vira duas quando o nome de commit difere do login, ou quando ela usa nomes diferentes no git. Duas pessoas com o mesmo nome de commit viram uma.
 - A fusão fica desligada por padrão. `fundir_identidades: true` (motor duckdb) junta o nome de commit ao login pelo e-mail noreply do GitHub e pela heurística dos repositórios em comum de `scripts/figuras_linguagem_bruta.py` (`FUNDIR_IDENTIDADES`).
-- Com `autores:` em `scripts/vitalidade_fontes.yaml`, o commit conta para o login que o GitHub liga ao e-mail do autor (`autores_commits.csv`, coletado por GraphQL) ou ao e-mail noreply. E-mail sem conta (cerca de 32%) segue com o nome do autor. Esse caminho não usa a heurística e força o motor duckdb. As cinco linguagens da batuta têm `autores:` desde 2026-10-26.
+- Com `autores:` em `scripts/vitalidade_fontes.yaml`, o commit conta para o login que o GitHub liga ao e-mail do autor (`autores_commits.csv`, coletado por GraphQL) ou ao e-mail noreply. E-mail sem conta (cerca de 32%) segue com o nome do autor. Esse caminho não usa a heurística e força o motor duckdb. Liga com `ligar_autores: true` (padrão false até a decisão, 2026-10-26).
 - Medida em Clojure (2026-10-19), nos commits que tocam a linguagem:
 
 ```

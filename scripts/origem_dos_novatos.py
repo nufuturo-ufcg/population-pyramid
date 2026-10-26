@@ -9,7 +9,10 @@ Roda a carga oficial (`carga_duckdb`, mesmas regras da pirâmide) e grava, por l
   - `repos.parquet`: `codigo`, `repo_id`, nome, estrelas e data de criação de cada repositório.
 
 Serve para perguntar de onde veio uma subida de novatos, comparando as linguagens.
-`--sem-acoes mentioned subscribed` ignora essas ações de issue_event (`Pedido.acoes_ignoradas`).
+`--sem-acoes` lista as ações de issue_event ignoradas (`Pedido.acoes_ignoradas`). O padrão é o
+`acoes_ignoradas` de `vitalidade.yaml`; `--sem-acoes` sozinho mantém todas.
+`--autores` liga o commit ao login pelo `autores:` de `vitalidade_fontes.yaml`. O padrão é o
+`ligar_autores` de `vitalidade.yaml`.
 `--fundir-identidades` junta nome de commit e login da mesma pessoa (`Pedido.fundir_identidades`).
 
     uv run python scripts/origem_dos_novatos.py --saida ~/pyramid-vitalidade-saida \\
@@ -22,6 +25,7 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 import carga_compacta
 import carga_fonte
@@ -35,11 +39,14 @@ def grava_origem(
     threads: int | None,
     sem_acoes: tuple[str, ...] = (),
     fundir: bool = False,
+    autores: bool = False,
 ) -> None:
     """Carga de uma linguagem com a origem de cada pessoa gravada à parte."""
     carga_fonte.aplica_linguagem(slug)
     fb.CFG.aplica(fb.RODADA)
     fonte = carga_fonte.resolve_fonte(slug)
+    if not autores:
+        fonte.autores = None
     pasta = saida / slug / "origem"
     carga_compacta.carrega(
         fonte,
@@ -75,8 +82,16 @@ def main() -> None:
     )
     parser.add_argument("--memoria", default="30GB")
     parser.add_argument("--threads", type=int, default=None)
-    parser.add_argument("--sem-acoes", nargs="*", default=[], help="ações de issue_event ignoradas")
+    # A origem tem de sair da mesma carga da pirâmide: os padrões vêm do vitalidade.yaml.
+    padrao = yaml.safe_load((Path(__file__).parent / "vitalidade.yaml").read_text())
+    parser.add_argument(
+        "--sem-acoes", nargs="*", default=padrao["acoes_ignoradas"],
+        help="ações de issue_event ignoradas",
+    )  # fmt: skip
     parser.add_argument("--fundir-identidades", action="store_true")
+    parser.add_argument(
+        "--autores", action=argparse.BooleanOptionalAction, default=padrao["ligar_autores"]
+    )
     args = parser.parse_args()
     fb.TMP_BASE = args.saida.expanduser()
     for slug in args.linguagens:
@@ -87,6 +102,7 @@ def main() -> None:
             args.threads,
             tuple(args.sem_acoes),
             args.fundir_identidades,
+            args.autores,
         )
 
 

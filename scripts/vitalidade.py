@@ -156,6 +156,7 @@ class Parametros:
     contar_linhas_brutas: bool
     acoes_ignoradas: list[str]
     fundir_identidades: bool
+    ligar_autores: bool
     processos: int
     populacao: str
     piramide_em_pct: bool
@@ -220,13 +221,13 @@ def _selo_dos_dados(
 def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> str:
     """O motor pedido; em `auto`, pandas até `limite_pandas_gb` de eventos e duckdb acima.
 
-    Fonte com `autores` vai sempre para o duckdb.
+    Fonte com `autores` ou `acoes_ignoradas` preenchido vai sempre para o duckdb.
     """
     motor = entrada.motor or p.motor
     if motor != "auto":
         return motor
-    if fonte.autores:
-        return "duckdb"  # só o duckdb liga o e-mail de commit ao login
+    if fonte.autores or p.acoes_ignoradas:
+        return "duckdb"  # só o duckdb liga o e-mail de commit ao login e ignora ações
     grande = fonte.bytes_de_eventos() > p.limite_pandas_gb * 1e9
     return "duckdb" if grande else "pandas"
 
@@ -389,6 +390,8 @@ class Contexto:
         self.p = p
         self.eventos: pd.DataFrame | None = None
         fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
+        if not p.ligar_autores:
+            fonte.autores = None
         if bruto:
             if not fonte.cabe_no_carregador_original(p.limite_bruto_gb):
                 raise SystemExit(

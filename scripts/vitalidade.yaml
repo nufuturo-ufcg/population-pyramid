@@ -71,12 +71,17 @@ processos: 4
 contar_linhas_brutas: false
 
 # Ações de issue_event (coluna message da coleta) que a carga ignora, como [mentioned, subscribed].
-# Nelas o login é o de quem foi marcado ou inscrito. Só no motor duckdb. [] mantém todas.
-acoes_ignoradas: []
+# Nelas o login é o de quem foi marcado ou inscrito, que não escreveu nada. Exige o motor duckdb
+# (auto escolhe duckdb). [] mantém todas.
+acoes_ignoradas: [mentioned, subscribed]
 
 # Junta o nome de commit ao login da mesma pessoa (regra 7 de adapters/coleta_csv/carga_duckdb.py):
 # pelo e-mail noreply do GitHub e pela heurística dos repositórios em comum. Só no motor duckdb.
 fundir_identidades: false
+
+# Liga o commit ao login que o GitHub associa ao e-mail do autor (`autores:` em
+# vitalidade_fontes.yaml, regra 8 de adapters/coleta_csv/carga_duckdb.py). Exige o motor duckdb.
+ligar_autores: false
 
 # População de cada linguagem. O padrão é passou_30_dias: 30 dias já tira a maior parte do efeito de
 # quem aparece uma vez (de 30 a 90 dias pouco muda). todos: quem teve algum evento (commit, PR, issue, comentário).
