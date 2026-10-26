@@ -34,6 +34,7 @@ import carga_fonte
 from pyramid import plots
 
 COLUNAS = ["primeiro", "ultimo", "codigo_do_primeiro", "tipo_do_primeiro", "codou", "ocasioes"]
+MINIMO_DE_CHEGADAS = 100
 TIPOS = ["issues", "issue_comments", "issue_events", "pull_requests", "commits"]
 ROTULO_TIPO = {
     "issues": "abriu issue",
@@ -113,7 +114,8 @@ def figura_por_ano(tabelas: dict[str, pd.DataFrame], pasta: Path) -> None:
     fig, ax = plt.subplots(figsize=(12, 5.4))
     plots._theme(ax)
     for slug, tabela in tabelas.items():
-        t = tabela[tabela["ano"] >= 2012]
+        # Ano com poucas chegadas vira ruído na porcentagem (Zig tem 2 chegadas em 2015).
+        t = tabela[(tabela["ano"] >= 2012) & (tabela["chegadas"] >= MINIMO_DE_CHEGADAS)]
         ax.plot(
             t["ano"],
             t["pct_visitantes"],
@@ -126,7 +128,10 @@ def figura_por_ano(tabelas: dict[str, pd.DataFrame], pasta: Path) -> None:
     ax.set_ylim(0, 100)
     ax.tick_params(labelsize=12)
     ax.set_ylabel("% das chegadas do ano", fontsize=13)
-    ax.set_title("Quem chega e participa numa ocasião só (visitantes)", fontsize=16)
+    ax.set_title(
+        "Quem chega e participa numa ocasião só (visitantes), anos com 100 chegadas ou mais",
+        fontsize=15,
+    )
     ax.legend(frameon=False, fontsize=12, ncol=5, loc="lower center")
     fig.tight_layout()
     fig.savefig(pasta / "visitantes_por_ano.png", dpi=200)
