@@ -257,6 +257,35 @@ def test_fundir_identidades_junta_commit_e_login(zig):
         carga_compacta.carrega(fonte, "pandas", fundir_identidades=True)
 
 
+def test_autores_ligam_commit_ao_login(zig):
+    fonte = _fonte(zig, "separado", False)
+    pasta = zig / "separado-False"
+    commit = _linha("1", "commit", "Eva Lima", "2023-03-01T00:00:00Z", "e.zig")
+    commit["author_email"] = " Eva@Exemplo.com"
+    sem_conta = _linha("1", "commit", "Ivo", "2023-03-03T00:00:00Z", "i.zig")
+    sem_conta["author_email"] = "ivo@exemplo.com"
+    issue = _linha("1", "issue", "eva", "2023-03-02T00:00:00Z", None, "Zig", True)
+    pd.DataFrame([commit, sem_conta], columns=COLUNAS).to_csv(
+        pasta / "eventos_git.csv", sep="|", index=False, header=False, mode="a"
+    )
+    pd.DataFrame([issue], columns=COLUNAS).to_csv(
+        pasta / "eventos_api.csv", sep="|", index=False, header=False, mode="a"
+    )
+    autores = pasta / "autores_commits.csv"
+    autores.write_text(
+        "author_email|author_name|repo_id|sha|login|user_id|status|coletado_em\n"
+        "eva@exemplo.com|Eva Lima|1|abc|eva|99|ok|2026-10-26\n"
+        "ivo@exemplo.com|Ivo|1|def|||sem_conta|2026-10-26\n"
+    )
+
+    separadas = carga_compacta.carrega(fonte, "duckdb", trabalho=zig / "t1", threads=2)
+    fonte.autores = autores
+    ligadas = carga_compacta.carrega(fonte, "duckdb", trabalho=zig / "t2", threads=2)
+    assert ligadas["contributor_id"].nunique() == separadas["contributor_id"].nunique() - 1
+    with pytest.raises(SystemExit):
+        carga_compacta.carrega(fonte, "pandas")
+
+
 def test_fusao_por_repositorios_pega_o_par_de_maior_jaccard():
     from adapters.coleta_csv import carga_duckdb
 

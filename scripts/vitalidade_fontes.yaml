@@ -12,6 +12,10 @@
 # `pasta:` procura na pasta eventos_api.csv + eventos_git.csv (senão o arquivo único) e
 # repositorios_<linguagem>_alvo.csv. Use `eventos:` e `alvos:` quando os arquivos estão
 # em pastas diferentes, como no Python.
+#
+# `autores:` é o autores_commits.csv da coleta de autores (coleta-dados/scripts/autores_commits.py):
+# liga o e-mail de cada autor de commit à conta do GitHub. Com ele, o commit conta para o login da
+# pessoa (regra 8 de adapters/coleta_csv/carga_duckdb.py) e a carga usa o motor duckdb.
 
 linguagens:
   python:
@@ -25,13 +29,18 @@ linguagens:
       - /home/wendell/dados-brutos/python/run-vm2-1/repositorios_python_alvo.csv
       - /home/wendell/dados-brutos/python/run-batuta-1/repositorios_python_alvo.csv
       - /home/wendell/dados-brutos/python/run-batuta-2/repositorios_python_alvo.csv
+    autores: /home/wendell/autores/python/autores_commits_completo.csv
   clojure:
     # A coleta de 2026-09-03 é a de segunda rodada que a pirâmide usa. As outras
     # (2026-08-23 só com o merge, 2026-09-01 e 2026-09-02 parciais) ficam de fora.
     pasta: /home/wendell/dados-brutos/clojure/2026-09-03-clojure
+    autores: /home/wendell/autores/clojure/autores_commits.csv
   elixir:
     pasta: /home/wendell/dados-brutos/elixir/2026-09-04-elixir
+    autores: /home/wendell/autores/elixir/autores_commits.csv
   zig:
     pasta: /home/wendell/dados-brutos/zig/2026-09-06-zig
+    autores: /home/wendell/autores/zig/autores_commits.csv
   ocaml:
     pasta: /home/wendell/dados-brutos/ocaml/2026-10-10-ocaml
+    autores: /home/wendell/autores/ocaml/autores_commits.csv

@@ -205,7 +205,8 @@ def _selo_dos_dados(
 ) -> dict[str, Any]:
     """Tamanho e data de cada arquivo de entrada. Mudou um byte, o cache perde a validade."""
     arquivos = {}
-    for caminho in [a.caminho for a in fonte.eventos] + fonte.alvos:
+    autores = [fonte.autores] if fonte.autores else []
+    for caminho in [a.caminho for a in fonte.eventos] + fonte.alvos + autores:
         info = caminho.stat()
         arquivos[str(caminho)] = [info.st_size, info.st_mtime_ns]
     selo = {"versao": VERSAO_CACHE, "motor": motor, "arquivos": arquivos}
@@ -217,10 +218,15 @@ def _selo_dos_dados(
 
 
 def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> str:
-    """O motor pedido; em `auto`, pandas até `limite_pandas_gb` de eventos e duckdb acima."""
+    """O motor pedido; em `auto`, pandas até `limite_pandas_gb` de eventos e duckdb acima.
+
+    Fonte com `autores` vai sempre para o duckdb.
+    """
     motor = entrada.motor or p.motor
     if motor != "auto":
         return motor
+    if fonte.autores:
+        return "duckdb"  # só o duckdb liga o e-mail de commit ao login
     grande = fonte.bytes_de_eventos() > p.limite_pandas_gb * 1e9
     return "duckdb" if grande else "pandas"
 

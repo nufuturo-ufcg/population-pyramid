@@ -60,6 +60,7 @@ def _duckdb(
         origem=origem,
         acoes_ignoradas=acoes_ignoradas,
         fundir_identidades=fundir_identidades,
+        autores=fonte.autores,
     )
     if origem is not None:
         origem.mkdir(parents=True, exist_ok=True)
@@ -89,4 +90,6 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
         raise SystemExit("acoes_ignoradas só existe no motor duckdb: use --set motor=duckdb.")
     if opcoes.get("fundir_identidades") and motor != "duckdb":
         raise SystemExit("fundir_identidades só existe no motor duckdb: use --set motor=duckdb.")
+    if fonte.autores and motor != "duckdb":
+        raise SystemExit("autores (vitalidade_fontes.yaml) só existe no motor duckdb.")
     return MOTORES[motor](fonte, **opcoes)

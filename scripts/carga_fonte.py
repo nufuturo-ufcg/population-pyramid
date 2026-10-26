@@ -61,6 +61,7 @@ class Fonte:
     alvos: list[Path]
     origem: str = ""  # de onde a fonte veio (linha de comando, yaml, pasta do repositório)
     pasta_dados: Path | None = field(default=None)  # só se o layout é o de `carrega_eventos`
+    autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login (só duckdb)
 
     def bytes_de_eventos(self) -> int:
         return sum(a.caminho.stat().st_size for a in self.eventos)
@@ -115,15 +116,21 @@ def _do_yaml(slug: str) -> Fonte | None:
     if not entrada:
         return None
     if "pasta" in entrada:
-        return descobre_na_pasta(slug, Path(entrada["pasta"]))
-    eventos = [_arquivo(item) for item in entrada["eventos"]]
-    alvos = [Path(a).expanduser() for a in entrada["alvos"]]
-    return Fonte(slug, eventos, alvos, f"{YAML_FONTES.name}")
+        fonte = descobre_na_pasta(slug, Path(entrada["pasta"]))
+    else:
+        eventos = [_arquivo(item) for item in entrada["eventos"]]
+        alvos = [Path(a).expanduser() for a in entrada["alvos"]]
+        fonte = Fonte(slug, eventos, alvos, f"{YAML_FONTES.name}")
+    if entrada.get("autores"):
+        fonte.autores = Path(entrada["autores"]).expanduser()
+    return fonte
 
 
 def _confere_que_existe(fonte: Fonte) -> None:
     faltam = [a.caminho for a in fonte.eventos if not a.caminho.exists()]
     faltam += [a for a in fonte.alvos if not a.exists()]
+    if fonte.autores and not fonte.autores.exists():
+        faltam.append(fonte.autores)
     if faltam:
         lista = "\n  ".join(str(f) for f in faltam)
         raise SystemExit(

@@ -21,6 +21,9 @@ Aplica as regras de `scripts/figuras_linguagem_bruta.py` (`carrega_eventos`), em
      `candidatos_mesma_pessoa` em `scripts/figuras_linguagem_bruta.py`): quem só commita e quem
      só abre issue/PR, com 5 ou mais eventos cada, 5 ou mais repositórios em comum e Jaccard
      dos repositórios de 0,5 ou mais. Padrão: desligada.
+  8. Com `Pedido.autores`, o commit vira o login da conta que o GitHub liga ao e-mail do autor
+     (arquivo `autores_commits.csv`, linhas com status `ok`). E-mail noreply também vira login.
+     E-mail sem conta segue com o nome do autor. Não usa a heurística da regra 7.
 
 Diferenças em relação ao motor `pandas` de `scripts/carga_pandas.py`, sem efeito nas métricas:
 
@@ -93,6 +96,7 @@ class Pedido:
     fundir_identidades: bool = False  # nome de commit -> login, regra 7 do topo
     fusao_repos_min: int = 5
     fusao_jaccard_min: float = 0.5
+    autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login, regra 8 do topo
 
 
 @dataclass
@@ -179,6 +183,35 @@ def carrega(pedido: Pedido) -> Resultado:
         shutil.rmtree(pedido.trabalho, ignore_errors=True)
 
 
+def _quem_commitou(
+    con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str, int]
+) -> tuple[str, str]:
+    """Quem é a pessoa de um commit (regras 7 e 8 do topo) e o JOIN que essa escolha pede."""
+    noreply = (
+        "nullif(regexp_extract(author_email, "
+        "'^(?:[0-9]+\\+)?([^@]+)@users\\.noreply\\.github\\.com$', 1), '')"
+    )
+    quem_commitou = "author"
+    if pedido.fundir_identidades:
+        quem_commitou = f"coalesce({noreply}, author)"
+    junta_autores = ""
+    if pedido.autores:
+        con.execute(f"""
+            CREATE TABLE autores AS
+            SELECT author_email AS email_autor, any_value(login) AS login_autor
+            FROM read_csv({_aspas(pedido.autores)}, delim='|', quote='"', escape='"',
+                          header=true, all_varchar=true, ignore_errors=true, strict_mode=false)
+            WHERE status = 'ok' AND login IS NOT NULL
+            GROUP BY author_email
+        """)
+        stats["autores_com_login"] = _um(con, "SELECT count(*) FROM autores")
+        junta_autores = (
+            "LEFT JOIN autores au ON eh_commit AND au.email_autor = lower(trim(b.author_email))"
+        )
+        quem_commitou = f"coalesce({noreply}, au.login_autor, author)"
+    return quem_commitou, junta_autores
+
+
 def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     stats: dict[str, int] = {}
     nome = pedido.linguagem
@@ -195,15 +228,8 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     # filtro do papel delas, API e git juntas.
     print("duckdb: lendo os eventos", file=sys.stderr)
     autor = "CASE WHEN eh_commit THEN author ELSE author_login END"
-    pessoa = _pessoa(autor)
-    if pedido.fundir_identidades:
-        noreply = (
-            "nullif(regexp_extract(author_email, "
-            "'^(?:[0-9]+\\+)?([^@]+)@users\\.noreply\\.github\\.com$', 1), '')"
-        )
-        pessoa = _pessoa(
-            f"CASE WHEN eh_commit THEN coalesce({noreply}, author) ELSE author_login END"
-        )
+    quem_commitou, junta_autores = _quem_commitou(con, pedido, stats)
+    pessoa = _pessoa(f"CASE WHEN eh_commit THEN {quem_commitou} ELSE author_login END")
     ignora = ""
     if pedido.acoes_ignoradas:
         acoes = ", ".join(_aspas(a) for a in pedido.acoes_ignoradas)
@@ -216,7 +242,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
                {_ts("created_at")} AS ts,
                CASE WHEN eh_commit THEN hash(author, created_at, files) END AS h,
                {_ocasiao()} AS ocasiao
-        FROM bruto b LEFT JOIN repos r ON b.repo_id = r.repo_id
+        FROM bruto b LEFT JOIN repos r ON b.repo_id = r.repo_id {junta_autores}
         WHERE (NOT eh_commit AND author_login IS NOT NULL
                AND coalesce(b.language, r.principal) = {_aspas(nome)} {ignora})
            OR (eh_commit AND author IS NOT NULL
