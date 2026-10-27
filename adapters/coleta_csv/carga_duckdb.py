@@ -206,9 +206,9 @@ def _quem_commitou(
             GROUP BY author_email
         """)
         stats["autores_com_login"] = _um(con, "SELECT count(*) FROM autores")
-        junta_autores = (
-            "LEFT JOIN autores au ON eh_commit AND au.email_autor = lower(trim(b.author_email))"
-        )
+        # Sem `eh_commit AND` no ON: o duckdb trocaria o hash join por laço aninhado (12h+ em
+        # python). O CASE WHEN eh_commit em volta de quem_commitou já restringe aos commits.
+        junta_autores = "LEFT JOIN autores au ON au.email_autor = lower(trim(b.author_email))"
         quem_commitou = f"coalesce({noreply}, au.login_autor, author)"
     return quem_commitou, junta_autores
 
