@@ -97,13 +97,14 @@ class Pedido:
     fusao_repos_min: int = 5
     fusao_jaccard_min: float = 0.5
     autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login, regra 8 do topo
+    completos: bool = False  # devolve um evento por linha, com repositório, sem compactar
 
 
 @dataclass
 class Resultado:
     """O que a carga devolve: os eventos, as contagens de cada filtro e as contas apagadas."""
 
-    eventos: pd.DataFrame  # contributor_id, event_type, timestamp, já compactados
+    eventos: pd.DataFrame  # contributor_id, event_type, timestamp, já compactados (ou completos)
     estatisticas: dict[str, int]  # quanto sobrou em cada filtro
     fantasmas: pd.DataFrame  # coluna created_at das contas apagadas, que saem da pirâmide
 
@@ -394,8 +395,21 @@ def _finaliza(
     if pedido.origem is not None:
         _grava_origem(con, pedido.origem, nomes_tipo)
 
+    if pedido.completos:
+        return Resultado(_completos(con, nomes_tipo), stats, fantasmas)
     print("duckdb: compactando", file=sys.stderr)
     return Resultado(_compacta(con, nomes_tipo), stats, fantasmas)
+
+
+def _completos(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataFrame:
+    """Um evento por linha, nas colunas de `carrega_eventos`, para o pipeline do motor."""
+    nomes = "[" + ", ".join(_aspas(n) for n in nomes_tipo) + "]"
+    return con.execute(f"""
+        SELECT f.codigo AS scope_id, f.pessoa AS contributor_id,
+               {nomes}[f.tipo + 1] AS event_type, f.ts AS timestamp, r.repo_id
+        FROM final f JOIN repos r ON f.codigo = r.codigo
+        ORDER BY f.ts
+    """).df()
 
 
 def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[str]) -> None:

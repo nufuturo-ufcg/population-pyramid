@@ -232,6 +232,28 @@ def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> 
     return "duckdb" if grande else "pandas"
 
 
+def carrega_completos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> pd.DataFrame:
+    """Um evento por linha, com repositório, para o pipeline do motor (stickiness, magnetismo).
+
+    No duckdb valem as mesmas regras da pirâmide (`acoes_ignoradas`, `fundir_identidades`,
+    `autores`). O pandas usa `carrega_eventos`, que não conhece essas opções.
+    """
+    motor = escolhe_motor(p, fonte, entrada)
+    if motor != "duckdb":
+        return fb.carrega_eventos(fb.RODADA)
+    return carga_compacta.carrega(
+        fonte,
+        "duckdb",
+        trabalho=Path(fb.TMP_BASE) / fb.LING.atual.slug / "trabalho",
+        memoria=p.memoria,
+        threads=p.threads,
+        contar_brutas=p.contar_linhas_brutas,
+        acoes_ignoradas=tuple(p.acoes_ignoradas),
+        fundir_identidades=p.fundir_identidades,
+        completos=True,
+    )
+
+
 def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> pd.DataFrame:
     """Eventos compactados da linguagem atual (`vitalidade.compacta`).
 
@@ -401,7 +423,7 @@ class Contexto:
                     "limite_bruto_gb."
                 )
             fb.CFG.dados = fonte.pasta_dados
-            self.eventos = fb.carrega_eventos(fb.RODADA)
+            self.eventos = carrega_completos(p, fonte, entrada)
             self.compactos = vitalidade.compacta(self.eventos)
         else:
             self.compactos = carrega_compactos(p, fonte, entrada)

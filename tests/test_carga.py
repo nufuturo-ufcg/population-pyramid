@@ -195,6 +195,24 @@ def test_origem_bate_com_os_eventos_da_carga(zig, monkeypatch):
     assert set(meses["grupo"]) <= {"codigo", "discussao"}
 
 
+def test_completos_do_duckdb_iguais_a_carrega_eventos(zig, monkeypatch):
+    """O pipeline do motor recebe do duckdb os mesmos eventos, repositório por repositório."""
+    pasta = zig / "original"
+    _escreve(pasta, "separado", False)
+    monkeypatch.setattr(fb.CFG, "dados", pasta, raising=False)
+    original = fb.carrega_eventos(2)
+    fonte = _fonte(zig, "separado", False)
+    novo = carga_compacta.carrega(
+        fonte, "duckdb", trabalho=zig / "trabalho", threads=2, completos=True
+    )
+    colunas = ["repo_id", "event_type", "timestamp"]
+    esperado = original[colunas].astype(str).sort_values(colunas).reset_index(drop=True)
+    obtido = novo[colunas].astype(str).sort_values(colunas).reset_index(drop=True)
+    pd.testing.assert_frame_equal(obtido, esperado)
+    assert novo["contributor_id"].nunique() == original["contributor_id"].nunique()
+    assert novo.groupby("repo_id")["scope_id"].nunique().eq(1).all()
+
+
 def test_fonte_acha_papel_e_alvos(zig):
     separado = _fonte(zig, "separado", False)
     assert [a.papel for a in separado.eventos] == ["api", "git"]
