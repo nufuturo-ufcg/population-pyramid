@@ -373,7 +373,7 @@ def secao_janela(base: Path, p: v.Parametros, ordem: list[str]) -> str:
         "as taxas anuais.",
         "- Os eventos de 2026 servem para acompanhar quem já estava na população: dizem se a "
         "pessoa voltou, e com isso decidem quem saiu, quem pausou e quem pertence à população "
-        "`passou_30_dias`.",
+        "`mais_de_uma_ocasiao`.",
         "- A saída exige 12 meses sem contribuir depois da última contribuição (Avelino et al., "
         "ESEM 2019). A saída de 2025 aparece como as outras e pode estar um pouco alta: quem "
         "parou há menos de 12 meses do fim da coleta ainda pode voltar.",

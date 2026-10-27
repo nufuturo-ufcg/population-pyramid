@@ -173,8 +173,8 @@ def texto_da_amostra(titulo: str, tabela: pd.DataFrame | None) -> str:
         "  - Repositório vazio.",
         "- A causa de cada repositório sem evento não foi medida.",
         "- **Pessoas com algum evento**: quem aparece nos repositórios com evento. "
-        "**Pessoas na população**: quem sobra com a população do estudo (`passou_30_dias`: 30 dias "
-        "ou mais entre o primeiro e o último evento).",
+        "**Pessoas na população**: quem sobra com a população do estudo "
+        "(`mais_de_uma_ocasiao`: mais de uma contribuição em ocasiões diferentes).",
         "",
     ]
     return "\n".join(linhas)
@@ -519,7 +519,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "Clojure é o nível e a velocidade, comparados com as outras linguagens no mesmo ano.",
         "- Os números contam todas as pessoas da amostra coletada. Não há margem de erro de "
         "amostragem. O que pode mudar o resultado são as definições: saída de 12 meses e "
-        "população `passou_30_dias`.",
+        "população `mais_de_uma_ocasiao`.",
         "",
         "**Clojure por ano**",
         "",

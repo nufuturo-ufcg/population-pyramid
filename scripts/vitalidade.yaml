@@ -83,15 +83,17 @@ fundir_identidades: false
 # vitalidade_fontes.yaml, regra 8 de adapters/coleta_csv/carga_duckdb.py). Exige o motor duckdb.
 ligar_autores: false
 
-# População de cada linguagem. O padrão é passou_30_dias: 30 dias já tira a maior parte do efeito de
-# quem aparece uma vez (de 30 a 90 dias pouco muda). todos: quem teve algum evento (commit, PR, issue, comentário).
+# População de cada linguagem. O padrão é mais_de_uma_ocasiao (residentes, decisão de 2026-10-26):
+# quem tem mais de uma contribuição em ocasiões diferentes. Ocasião é uma conversa de issue ou PR,
+# um commit comentado ou um dia de commits num repositório. Lê <saída>/<linguagem>/origem/pessoas.parquet,
+# que scripts/origem_dos_novatos.py grava. todos: quem teve algum evento (commit, PR, issue, comentário).
 # passou_N_dias (passou_30_dias, passou_60_dias, passou_90_dias...): só quem tem uma contribuição N
 # dias ou mais depois da primeira (a pessoa
 # só conta como viva depois de provar presença). mais_de_um_dia: só quem teve atividade em mais de um
 # dia. codigo: só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Metade das
 # pessoas de cada linguagem só abriu issue ou comentou uma vez; `codigo` tira esse público.
 # Cada população grava em pasta própria (python, python-codigo).
-populacao: passou_30_dias
+populacao: mais_de_uma_ocasiao
 
 # Pirâmides por faixa em % dos ativos do ano (a soma dos dois lados e de todas as faixas é
 # 100). false desenha contagens. A pirâmide de contagem fica sempre disponível em

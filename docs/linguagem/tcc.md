@@ -29,7 +29,7 @@ Números e tabela por filtro: `AMOSTRA.md`, seção Critérios de inclusão e ex
 - Commit entra com autor e tocando pelo menos um arquivo com extensão da linguagem.
 - Issue, PR e comentário entram com login e no repositório da linguagem.
 - Saem: commit copiado de repositório mais antigo, evento anterior ao primeiro commit da linguagem no repositório, conta apagada (`ghost`), bot (`[bot]`), data ilegível, futura ou anterior a 2008.
-- População `passou_30_dias`: o último evento cai pelo menos 30 dias depois do primeiro.
+- População `mais_de_uma_ocasiao` (residentes): mais de uma contribuição em ocasiões diferentes. Ocasião é uma conversa de issue ou PR, um commit comentado ou um dia de commits num repositório.
 
 ## 3. Extensões
 

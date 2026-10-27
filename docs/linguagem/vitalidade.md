@@ -108,7 +108,7 @@ cd ~/pyramid-vitalidade && uv sync
 # a cada rodada: todas as linguagens e populações em paralelo, um processo por tarefa
 cd ~/pyramid-vitalidade && git pull && export MPLBACKEND=Agg
 nohup setsid uv run python scripts/vitalidade_grade.py --saida ~/pyramid-vitalidade-saida \
-    --populacoes passou_30_dias,todos > ~/pyramid-vitalidade-saida/grade.log 2>&1 < /dev/null &
+    --populacoes mais_de_uma_ocasiao,todos > ~/pyramid-vitalidade-saida/grade.log 2>&1 < /dev/null &
 uv run python scripts/vitalidade.py --saida ~/pyramid-vitalidade-saida --empacota
 
 # no Mac
