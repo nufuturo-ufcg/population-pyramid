@@ -47,9 +47,9 @@ Ambas dão "six development activities".
 | Variante | A | B | C | D | classif. | erro |
 |---|---|---|---|---|---|---|
 | `table1` (`issues` dentro, `issue_events` fora) | 27 | 42 | 12 | 1 | 84 | 12 |
-| `prose` (`issue_events` dentro, `issues` fora) | 27 | 39 | 14 | 3 | 85 | **11** |
+| `prosa` (`issue_events` dentro, `issues` fora) | 27 | 39 | 14 | 3 | 85 | **11** |
 
-Escolhida: `prose`. Ganha por pouco no L1, mas ganha por muito no argumento:
+Escolhida: `prosa`. Ganha por pouco no L1, mas ganha por muito no argumento:
 `issues` mistura PRs com issues de verdade (69.633 de 150.362 linhas são PRs
 disfarçados), então contá-la infla a discussão com o que já foi contado como
 coding. O ESEM14 seção 3 concorda com a prosa.
@@ -1424,7 +1424,7 @@ verificada. Não há tabela numérica da Fig.2 no ESEM14 para conferir contra.
 Investigação aberta pelo pedido de "ver o quanto a regra precisa mexer para
 esses caras sumirem" (buraco do blueprint-css) e por "clojure nunca bate o
 número 10". Tudo abaixo é medido em `2011-12-31` (a data da Fig.2, ver seção 18),
-por `project.id`, com `taxonomy.variant: prose` e `band_days: 90`.
+por `project.id`, com `taxonomy.variant: prosa` e `band_days: 90`.
 
 ### 19.1 O mecanismo
 
@@ -1561,7 +1561,7 @@ Consequência prática: tirar `issue_events` da taxonomia (variante `table1`) n�
 move um único contribuidor no clojure nem no blueprint-css, e move muito nos
 outros dois:
 
-| projeto | pop. estoque `prose` | sem `issue_events` | efeito |
+| projeto | pop. estoque `prosa` | sem `issue_events` | efeito |
 |---|---|---|---|
 | homebrew | 4801 | 4419 | −8% (maior barra 733 → 579) |
 | paperclip | 889 | 807 | −9% (maior barra 114 → 81) |
@@ -1570,7 +1570,7 @@ outros dois:
 
 Como a maior barra do homebrew sem `issue_events` (579) fica bem abaixo do eixo
 de 750 do artigo e com `issue_events` encosta (733), a Fig.2 continua apoiando
-a leitura `prose`. Registrado como mais um voto. A decisão da AMBIGUIDADE 1
+a leitura `prosa`. Registrado como mais um voto. A decisão da AMBIGUIDADE 1
 continua com os Tipos A-D.
 
 ## 20. Como a Fig.2 do ESEM14 foi medida em pixel (método e limites)
@@ -1671,7 +1671,7 @@ painel da Fig.2 com parâmetros próprios (largura de banda, janela, definição
 população), o que explicaria os quatro painéis baterem com qualidade diferente.
 
 Teste: com **um único jogo de parâmetros** (`band_days: 90`, janela de 365,25
-dias, população = ativo no snapshot, taxonomia `prose`) comparar banda a banda,
+dias, população = ativo no snapshot, taxonomia `prosa`) comparar banda a banda,
 lado a lado, contra os pixels medidos em seção 20. Snapshot 2011-12-31.
 
 | painel | bandas | esquerda (non_coding) | direita (moved+coding) |
@@ -2187,8 +2187,8 @@ Comando: `uv run python /tmp/sweep_tax.py` (o script monta `profile()` +
 
 | taxonomia | `pull_requests` | L1 total | homebrew | paperclip | clojure | blueprint-css |
 |---|---|---|---|---|---|---|
-| **`prose` (ativa)** | **coding** | **411** | 363 | 38 | 11 | **0** |
-| `prose` | discussão | 1165 | 1081 | 58 | 13 | 14 |
+| **`prosa` (ativa)** | **coding** | **411** | 363 | 38 | 11 | **0** |
+| `prosa` | discussão | 1165 | 1081 | 58 | 13 | 14 |
 | `table1` | coding | 647 | 550 | 86 | 11 | 0 |
 | `table1` | discussão | 1016 | 904 | 85 | 13 | 14 |
 | `union` | coding | 432 | 361 | 60 | 11 | 0 |
@@ -2204,7 +2204,7 @@ Comando: `uv run python /tmp/sweep_tax.py` (o script monta `profile()` +
 2. **A prosa vence a Tabela 1.** Contar `issues` como atividade (variante
    `table1`) piora L1 de 411 para 647. A hipótese era que `issues` traria gente
    para o lado da discussão do homebrew. Traz, mas na banda errada. `union`
-   (contar os dois) também piora (432). Mantida `taxonomy.variant: prose`.
+   (contar os dois) também piora (432). Mantida `taxonomy.variant: prosa`.
 3. `AMBIGUIDADE 3` sai de "aberta" para **fechada por evidência**: as duas
    leituras eram defensáveis no texto, mas só uma reproduz a figura.
 

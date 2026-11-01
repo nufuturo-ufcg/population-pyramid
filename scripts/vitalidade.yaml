@@ -1,0 +1,169 @@
+# Parâmetros das métricas de vitalidade (Plano de Experimento).
+#
+# Editar um número aqui muda o default sem tocar em código. Uma execução também
+# sobrepõe qualquer chave pela linha de comando:
+#
+#     uv run python scripts/vitalidade.py --set min_saidas=20 --set horizonte=3
+#
+# A régua do plano (saída = 12 meses, faixas 0-1 a 8+, passo anual) mora em
+# src/pyramid/vitalidade.py e não aparece aqui.
+
+# Cenários: a permanência de uma banda num ano só entra quando a banda teve
+# pelo menos esse número de saídas no ano anterior. 0 desliga o filtro.
+# Referência do plano: 20 (NCHS/CDC, CDC WONDER Presentation Standards 2024).
+min_saidas: 0
+
+# Taxa de saída por faixa: ponto vazado na figura quando a célula tem menos
+# saídas que isso. Mesmo critério do CDC.
+saidas_estavel: 20
+
+# Permanência da projeção usada nas figuras. false = sem teto, como o IEICE16;
+# true = com teto em 1. Os CSVs trazem as duas, na coluna `teto`.
+teto: false
+
+# Anos projetados à frente na projeção futura.
+horizonte: 5
+
+# Ano cuja composição por faixa serve de peso na taxa padronizada e no SMR.
+ano_pesos: 2025
+
+# Linguagens do comparativo (Kaplan-Meier, log-rank, padronização). A primeira
+# é a referência do log-rank. As cinco do plano: nicho (Elixir, Zig, OCaml) e Python.
+linguagens_rq2: [clojure, elixir, zig, ocaml, python]
+
+# Anos mostrados nas pirâmides por faixa e coortes mostradas na tábua de vida.
+anos_piramide: [2010, 2014, 2018, 2022, 2024]
+coortes_tabua: [2010, 2013, 2016, 2019, 2022]
+
+# Regras de cenário comparadas no backtest: nome da pasta: [rótulo, janela em anos (null = história
+# toda), novatos por taxa, conservador]. O pessimista é o menor valor da janela e o otimista o maior.
+# Conservador: `extremos` (média do menor e do maior, o padrão), `media` (média da janela) ou
+# `recentes` (média dos 2 últimos anos). A primeira regra é a que o documento por RQ mostra.
+variantes:
+  contagem-5anos-recentes: ["pessimista e otimista dos últimos 5 anos, conservador dos 2 últimos", 5, false, "recentes"]
+  contagem-historia: ["novatos em contagem, história toda", null, false]
+  taxa-historia: ["novatos por taxa, história toda", null, true]
+  contagem-5anos: ["novatos em contagem, últimos 5 anos", 5, false]
+  taxa-5anos: ["novatos por taxa, últimos 5 anos", 5, true]
+
+# Carga dos eventos. De onde ler fica em vitalidade_fontes.yaml (ou --dados / --eventos).
+#
+# Motor da carga: pandas (tudo em memória, um núcleo), duckdb (paralelo, derrama em disco,
+# para centenas de GB) ou auto, que escolhe duckdb acima de limite_pandas_gb de eventos.
+motor: auto
+limite_pandas_gb: 20
+
+# Acima disso o pipeline do motor (ccr_ncr, stickiness, magnetismo), que lê tudo para a
+# memória, sai da execução padrão e recusa o pedido explícito.
+limite_bruto_gb: 20
+
+# Memória e núcleos do duckdb. A batuta tem 40 núcleos e 94 GB, compartilhados com as
+# coletas: deixe folga. threads null usa todos.
+memoria: 30GB
+threads: 16
+
+# Tarefas em paralelo em vitalidade_grade.py (um processo cada). O Python inteiro usa uns 8 GB de
+# memória por tarefa; as outras linguagens, bem menos.
+processos: 4
+
+# O duckdb relê o arquivo inteiro só para contar as linhas brutas de cada papel (estatística
+# do filtro, sem efeito nas métricas). Em centenas de GB isso custa uns 20 minutos.
+contar_linhas_brutas: false
+
+# Ações de issue_event (coluna message da coleta) que a carga ignora, como [mentioned, subscribed].
+# Nelas o login é o de quem foi marcado ou inscrito, que não escreveu nada. Exige o motor duckdb
+# (auto escolhe duckdb). [] mantém todas.
+acoes_ignoradas: [mentioned, subscribed]
+
+# Junta o nome de commit ao login da mesma pessoa (regra 7 de adapters/coleta_csv/carga_duckdb.py):
+# pelo e-mail noreply do GitHub e pela heurística dos repositórios em comum. Só no motor duckdb.
+fundir_identidades: false
+
+# Liga o commit ao login que o GitHub associa ao e-mail do autor (`autores:` em
+# vitalidade_fontes.yaml, regra 8 de adapters/coleta_csv/carga_duckdb.py). Exige o motor duckdb.
+ligar_autores: false
+
+# População de cada linguagem. O padrão é mais_de_uma_ocasiao (residentes, decisão de 2026-10-26):
+# quem tem mais de uma contribuição em ocasiões diferentes. Ocasião é uma conversa de issue ou PR,
+# um commit comentado ou um dia de commits num repositório. Lê <saída>/<linguagem>/origem/pessoas.parquet,
+# que scripts/origem_dos_novatos.py grava. todos: quem teve algum evento (commit, PR, issue, comentário).
+# passou_N_dias (passou_30_dias, passou_60_dias, passou_90_dias...): só quem tem uma contribuição N
+# dias ou mais depois da primeira (a pessoa
+# só conta como viva depois de provar presença). mais_de_um_dia: só quem teve atividade em mais de um
+# dia. codigo: só quem fez ao menos um commit ou PR na vida, com todos os eventos dela. Metade das
+# pessoas de cada linguagem só abriu issue ou comentou uma vez; `codigo` tira esse público.
+# Cada população grava em pasta própria (python, python-codigo).
+populacao: mais_de_uma_ocasiao
+
+# Pirâmides por faixa em % dos ativos do ano (a soma dos dois lados e de todas as faixas é
+# 100). false desenha contagens. A pirâmide de contagem fica sempre disponível em
+# composicao.piramides_contagem.
+piramide_em_pct: true
+
+# Que categorias as pirâmides mostram. As porcentagens seguem sobre os ativos do ano todo, então um
+# lado isolado mostra a parcela dele. As quatro categorias, pelo que cada pessoa fez até o fim do
+# ano:
+#   non_coding           só discussão: nunca fez commit nem PR
+#   moved_to_discussion  já codou em anos anteriores e neste ano só discutiu
+#   moved                começou pela discussão e fez commit ou PR neste ano
+#   coding               começou pelo código e fez commit ou PR neste ano
+# Opções: todos (as quatro), moved_para_discussao, moved_para_codigo, codigo (moved + coding),
+# discussao (non_coding + moved_to_discussion). Só muda o desenho.
+piramide_lado: todos
+
+# Se a pirâmide separa moved_to_discussion (quem já codou e neste ano só discutiu). false: as três
+# categorias do artigo, discussão, moved to coding e coding, com essas pessoas onde a história
+# delas as põe. Muda as tabelas.
+usa_moved_to_discussion: false
+
+# Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
+anos_comparacao: [2024, 2025]
+ano_base_indice: 2019
+
+# Primeiro ano dos gráficos de crescimento e de saída entre linguagens. Antes dele as comunidades
+# são pequenas e as taxas saltam, o que esconde o que importa nos anos recentes.
+ano_inicio_comparacao: 2016
+
+# Último ano de tudo que depende de saída: gráficos de crescimento natural, natalidade e
+# mortalidade, saídas, reposição, saída por faixa e as tabelas do METRICAS_POR_RQ.md. A saída de um
+# ano só se confirma 12 meses depois da última contribuição, e a coleta termina entre setembro e
+# outubro de 2026. Quem teve a última contribuição nos últimos meses de 2025 ainda pode voltar,
+# então 2025 fica de fora. Muda só o desenho e os documentos.
+ultimo_ano_com_saida: 2024
+
+# Saída: a última contribuição da vida, seguida de 12 meses sem nada até o fim do acompanhamento.
+# O desenho põe em linha tracejada o ano que o acompanhamento cobre por menos de `carencia_anos`
+# anos de calendário depois dele: ano do fim do acompanhamento - ano < `carencia_anos`. Com o
+# acompanhamento até 2026, carência 1 desenha tudo em linha cheia e carência 2 tracejaria 2025.
+# Muda só o desenho, nenhuma tabela.
+carencia_anos: 1
+
+# Rodadas do SMR e da taxa padronizada. A referência de cada rodada é a soma das linguagens dela
+# em `ano_pesos`. Nicho: Clojure, Elixir, Zig e OCaml (RQ2a). Python: Clojure e Python (RQ2b), para
+# o Python não pesar na referência das de nicho.
+rodadas_padronizacao:
+  nicho: [clojure, elixir, zig, ocaml]
+  python: [clojure, python]
+
+
+# CCR e NCR. Inatividade: quem não contribuiu nesse tempo já saiu, 12 meses como Avelino et al.
+# (ESEM 2019). Novato: quem tem esse tempo de idade ou menos, 12 meses, a mesma janela da saída.
+# O IEICE16 usa 3 e 3; com 3 e 3 o resultado é o do motor, exatamente.
+ccr_ncr_inatividade_meses: 12
+ccr_ncr_novato_meses: 12
+
+# Fim do estudo. Os eventos depois dessa data saem de tudo, como se a coleta tivesse terminado ali
+# (2026 está incompleto). Tem de ser o último dia de um trimestre. Sem acompanhamento depois, a
+# saída de 2025 não existe: ativos, novatos e pirâmides vão até 2025, e saída, mortalidade e
+# crescimento até 2024. null usa todos os eventos até o último.
+data_de_corte: "2025-12-31"
+
+# Tábua de vida comparada entre linguagens: anos na linguagem mostrados. 8 é a última faixa das
+# pirâmides (8+). O ponto de virada do risco de sair aparece em 2 a 3 anos.
+tabua_ate_anos: 8
+
+# Acompanhamento: os eventos depois da data de corte (2026) não entram nas contagens do estudo
+# (ativos, novatos, pirâmides, CCR e NCR), e só servem para decidir quem saiu, quem pausou e quem
+# pertence à população. Com isso a saída de 2025 aparece, provisória: quem parou há menos de 12
+# meses do fim da coleta de cada linguagem ainda pode voltar. false volta ao corte seco.
+usa_acompanhamento: true

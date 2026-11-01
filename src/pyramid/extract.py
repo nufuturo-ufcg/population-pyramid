@@ -10,7 +10,8 @@ import pandas as pd
 from . import logging_config as runlog
 from . import sources
 from .config import analysis_unit, settings, stage_dir
-from .sources.base import ActivityDataSource
+from .sources.base import EVENT_COLUMNS, ActivityDataSource
+from .units import Escopo, scopes_of_unit
 
 log = logging.getLogger(__name__)
 STAGE = "extract"
@@ -62,7 +63,7 @@ def scope_meta() -> dict[int, dict]:
     }
     if not out:
         src = source()
-        return {sid: serializa_meta(src.scope_meta(sid)) for sid in src.list_scopes()}
+        return {e.id: serializa_meta(e.meta) for e in scopes_of_unit(src)}
     return out
 
 
@@ -81,6 +82,21 @@ def load_events(scope_id: int) -> pd.DataFrame:
     return pd.read_parquet(events_path(scope_id))
 
 
+def _eventos_do_escopo(src: ActivityDataSource, sid: int, escopo: Escopo | None) -> pd.DataFrame:
+    """Eventos de um escopo lógico, já com o `scope_id` dele.
+
+    Com um membro só, é o que o adaptador devolveu. Com vários, é a união, e o
+    `scope_id` de cada linha passa a ser o do escopo lógico, senão o `classify`
+    agruparia por repositório e desfaria a soma.
+    """
+    if escopo is None or escopo.membros == (sid,):
+        return src.get_events(sid)
+    partes = [src.get_events(m) for m in escopo.membros]
+    df = pd.concat(partes, ignore_index=True) if partes else pd.DataFrame(columns=EVENT_COLUMNS)
+    df["scope_id"] = sid
+    return df
+
+
 def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = False) -> dict:
     """Executa o estágio extract nos projetos pedidos.
 
@@ -95,9 +111,16 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
     if force:
         man = {"stage": STAGE, "ok": {}, "failed": {}}
 
-    man.update(src.provenance())
+    prov = src.provenance()
+    man = runlog.invalidar_se_mudou(STAGE, man, prov)
+    man.update(prov)
 
-    targets = scopes if scopes is not None else src.list_scopes()
+    # Um escopo lógico é uma pirâmide. Com `unit: project` ele é um escopo do
+    # adaptador. Com `unit: language` ele soma os escopos que compartilham a
+    # linguagem, e essa soma acontece AQUI, antes do `classify`, porque é o
+    # `profile` que decide quem nasceu quando.
+    logicos = {e.id: e for e in scopes_of_unit(src)}
+    targets = scopes if scopes is not None else list(logicos)
     if scopes is not None:
         src.list_scopes()  # popula rótulos e roda o sanity check do adaptador
 
@@ -106,8 +129,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
         if not force and key in man["ok"] and events_path(sid).exists():
             log.debug("pulando %s (ja extraido)", sid)
             continue
+        escopo = logicos.get(sid)
         try:
-            df = src.get_events(sid)
+            df = _eventos_do_escopo(src, sid, escopo)
             # Ordem canonica: o SGBD nao garante ordem sem ORDER BY (as linhas
             # saem na ordem fisica do InnoDB, que muda entre importacoes do
             # dump). Sem isso o parquet de um mesmo projeto muda de md5 entre
@@ -117,8 +141,9 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
                 kind="mergesort",
             ).reset_index(drop=True)
             df.to_parquet(events_path(sid), index=False)
+            meta = escopo.meta if escopo is not None else src.scope_meta(sid)
             man["ok"][key] = {
-                **serializa_meta(src.scope_meta(sid)),
+                **serializa_meta(meta),
                 "events": len(df),
                 "contributors": int(df["contributor_id"].nunique()),
                 "first": str(df["timestamp"].min()),
@@ -127,7 +152,7 @@ def run(scopes: list[int] | None = None, force: bool = False, fail_fast: bool = 
             man["failed"].pop(key, None)
             log.info(
                 "%-38s %7d eventos  %5d contribuidores",
-                src.scope_label(sid),
+                escopo.label if escopo is not None else src.scope_label(sid),
                 len(df),
                 df["contributor_id"].nunique(),
                 extra={"scope_id": sid, "stage": STAGE},

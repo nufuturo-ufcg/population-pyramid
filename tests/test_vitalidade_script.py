@@ -1,0 +1,418 @@
+"""Registro de métricas e parâmetros de `scripts/vitalidade.py`."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+import vitalidade as script  # noqa: E402
+
+# As linhas da tabela de variáveis dependentes do plano. O magnetismo existe, mas
+# o plano o adia: fica fora da execução padrão.
+ESPERADAS = {
+    "tamanho",
+    "composicao",
+    "retencao",
+    "saida_por_faixa",
+    "cenarios",
+    "ccr_ncr",
+    "stickiness",
+    "significancia",
+    "comparacao_corrigida",
+    "trajetoria",
+    "ccr_ncr_comparado",
+    "tabua_comparada",
+    "magnetismo",
+}
+
+
+def test_registro_tem_as_metricas_do_plano():
+    assert set(script.METRICAS) == ESPERADAS
+
+
+def test_toda_metrica_diz_o_que_faz_e_cita_a_referencia():
+    for nome, funcao in script.METRICAS.items():
+        assert "O que faz:" in funcao.__doc__, nome
+        assert "Referência:" in funcao.__doc__, nome
+
+
+def test_set_troca_um_parametro():
+    p = script.carrega_parametros(["min_saidas=20", "teto=true", "linguagens_rq2=[clojure, zig]"])
+    assert p.min_saidas == 20
+    assert p.teto is True
+    assert p.linguagens_rq2 == ["clojure", "zig"]
+    assert p.horizonte == 5
+
+
+def test_set_com_chave_desconhecida_falha_alto():
+    with pytest.raises(SystemExit):
+        script.carrega_parametros(["nao_existe=1"])
+
+
+def test_magnetismo_fica_fora_da_execucao_padrao():
+    assert not script.PADRAO["magnetismo"]
+    assert all(script.PADRAO[n] for n in ESPERADAS - {"magnetismo"})
+
+
+def test_toda_metrica_tem_figura_e_ao_menos_uma_por_padrao():
+    for nome in script.METRICAS:
+        assert script.FIGURAS[nome], nome
+        padrao = [f for f in script.FIGURAS[nome] if (nome, f) in script.FIGURAS_PADRAO]
+        assert padrao, nome
+
+
+# A série trimestral do CCR e NCR entre linguagens foi descartada, sobra a dispersão por ano.
+COM_UMA_FIGURA_SO = {"ccr_ncr_comparado"}
+
+
+def test_toda_metrica_oferece_uma_figura_alternativa():
+    for nome in script.METRICAS:
+        minimo = 1 if nome in COM_UMA_FIGURA_SO else 2
+        assert len(script.FIGURAS[nome]) >= minimo, nome
+
+
+def test_escolha_de_figuras():
+    nomes = ["tamanho", "composicao"]
+    assert script.escolhe_figuras("nenhuma", nomes) == {"tamanho": [], "composicao": []}
+    um = script.escolhe_figuras("tamanho.fluxo", nomes)
+    assert um == {"tamanho": ["fluxo"], "composicao": []}
+    todas = script.escolhe_figuras("todas", nomes)
+    assert set(todas["tamanho"]) == set(script.FIGURAS["tamanho"])
+    padrao = script.escolhe_figuras("padrao", nomes)
+    assert "fluxo" not in padrao["tamanho"]
+    assert "anual" in padrao["tamanho"]
+    inteira = script.escolhe_figuras("composicao", nomes)
+    assert set(inteira["composicao"]) == set(script.FIGURAS["composicao"])
+    assert inteira["tamanho"] == []
+    with pytest.raises(SystemExit):
+        script.escolhe_figuras("tamanho.nao_existe", nomes)
+
+
+def _figura_de_teste():
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.plot([0, 1], [0, 1], label="serie")
+    ax.set_title("original")
+    ax.set_xlabel("x original")
+    ax.legend(loc="upper left")
+    return fig, ax
+
+
+def test_estilo_troca_titulo_rotulo_limite_e_tamanho():
+    from vitalidade_figuras import aplica_estilo
+
+    fig, ax = _figura_de_teste()
+    aplica_estilo(
+        fig,
+        {
+            "figsize": [8, 2],
+            "titulo": "{linguagem}: novo",
+            "rotulo_x": "ano",
+            "ylim": [0, 5],
+            "fontes": {"titulo": 20},
+            "linha": {"largura": 4},
+            "linhas_horizontais": [{"y": 2, "rotulo": "meta"}],
+            "textos": [{"x": 0.5, "y": 0.5, "texto": "aqui"}],
+        },
+    )
+    assert ax.get_title().endswith(": novo")
+    assert "{linguagem}" not in ax.get_title()
+    assert ax.get_xlabel() == "ano"
+    assert ax.get_ylim() == (0, 5)
+    assert list(fig.get_size_inches()) == [8, 2]
+    assert ax.title.get_fontsize() == 20
+    assert ax.get_lines()[0].get_linewidth() == 4
+    assert len(ax.get_lines()) == 2  # a série e a linha horizontal
+    assert [t.get_text() for t in ax.texts] == ["meta", "aqui"]
+
+
+def test_estilo_sem_opcoes_nao_muda_nada():
+    from vitalidade_figuras import aplica_estilo
+
+    fig, ax = _figura_de_teste()
+    aplica_estilo(fig, {"fontes": {"titulo": None}})
+    assert ax.get_title() == "original"
+    assert list(fig.get_size_inches()) == [5, 3]
+    assert ax.get_legend() is not None
+
+
+def test_estilo_move_e_esconde_a_legenda():
+    from vitalidade_figuras import aplica_estilo
+
+    fig, ax = _figura_de_teste()
+    aplica_estilo(fig, {"legenda": {"posicao": "abaixo", "colunas": 2}})
+    legenda = ax.get_legend()
+    assert [t.get_text() for t in legenda.get_texts()] == ["serie"]
+    aplica_estilo(fig, {"legenda": {"mostrar": False}})
+    assert ax.get_legend() is None
+
+
+def test_estilo_do_yaml_tem_so_figuras_e_opcoes_que_existem():
+    import vitalidade_figuras as f
+
+    f.carrega_estilo([])  # falha alto se o yaml cita figura ou opção inexistente
+    assert f.estilo_da("tamanho.anual")["figsize"] == [9, 4.5]
+    assert f.estilo_da("tamanho.fluxo")["dpi"] == 200  # herdado de global
+
+
+def test_estilo_na_linha_de_comando_vence_o_yaml():
+    import vitalidade_figuras as f
+
+    try:
+        f.carrega_estilo(["tamanho.anual:legenda.posicao=abaixo", "global:dpi=300"])
+        e = f.estilo_da("tamanho.anual")
+        assert e["legenda"]["posicao"] == "abaixo"
+        assert e["dpi"] == 300
+        with pytest.raises(SystemExit):
+            f.carrega_estilo(["tamanho.anual:opcao_inventada=1"])
+        with pytest.raises(SystemExit):
+            f.carrega_estilo(["figura.que.nao.existe:dpi=1"])
+    finally:
+        f.carrega_estilo([])
+
+
+def test_toda_figura_registrada_pertence_a_uma_metrica():
+    import vitalidade_figuras as f
+
+    assert set(f.FIGURAS) <= set(script.METRICAS)
+
+
+def test_tabelas_gravadas_voltam_iguais(tmp_path, monkeypatch):
+    import pandas as pd
+
+    monkeypatch.setattr(script.fb.CFG, "saida", tmp_path, raising=False)
+    tabelas = {
+        "anual": pd.DataFrame({"ano": [2020, 2021], "ativos": [3, 4]}),
+        "cenarios-x/projecao_backtest": pd.DataFrame({"faixa": pd.Categorical(["a", "b"])}),
+        "periodos": pd.DataFrame(
+            {"periodo": pd.period_range("2020Q1", periods=2), "v": [1.0, 2.0]}
+        ),
+    }
+    script.salva_tabelas("linguagem", "tamanho", tabelas)
+    lidas = script.carrega_tabelas("linguagem", "tamanho")
+    assert set(lidas) == set(tabelas)
+    for chave, tabela in tabelas.items():
+        pd.testing.assert_frame_equal(lidas[chave], tabela)
+    with pytest.raises(SystemExit):
+        script.carrega_tabelas("linguagem", "metrica_sem_resultado")
+
+
+def test_largura_de_linha_nao_engrossa_linha_de_referencia():
+    from vitalidade_figuras import aplica_estilo
+
+    fig, ax = _figura_de_teste()
+    referencia = ax.axhline(0.5, linewidth=1)
+    aplica_estilo(fig, {"linha": {"largura": 5}})
+    assert ax.get_lines()[0].get_linewidth() == 5
+    assert referencia.get_linewidth() == 1
+
+
+def test_pacote_leva_so_as_tabelas_e_abre_em_outra_pasta(tmp_path):
+    import vitalidade_pacote as pacote
+
+    origem = tmp_path / "origem"
+    for relativo in [
+        "clojure/resultados/vitalidade/tamanho/anual.parquet",
+        "clojure/resultados/vitalidade/meta.json",
+        "clojure/csv/vitalidade/anual.csv",
+        "geral/resultados/vitalidade/significancia/logrank.parquet",
+        "clojure/cache/vitalidade_eventos.parquet",
+        "clojure/vitalidade/anual.png",
+        "clojure/trabalho/carga.duckdb",
+    ]:
+        arquivo = origem / relativo
+        arquivo.parent.mkdir(parents=True, exist_ok=True)
+        arquivo.write_text(relativo)
+
+    arquivo_pacote = pacote.empacota(origem, tmp_path / "tudo.tar.gz")
+    destino = tmp_path / "destino"
+    pacote.importa(arquivo_pacote, destino)
+
+    abertos = sorted(str(p.relative_to(destino)) for p in destino.rglob("*") if p.is_file())
+    assert abertos == [
+        "MANIFESTO-vitalidade.json",
+        "clojure/csv/vitalidade/anual.csv",
+        "clojure/resultados/vitalidade/meta.json",
+        "clojure/resultados/vitalidade/tamanho/anual.parquet",
+        "geral/resultados/vitalidade/significancia/logrank.parquet",
+    ]
+    conteudo = (destino / "clojure/csv/vitalidade/anual.csv").read_text()
+    assert conteudo == "clojure/csv/vitalidade/anual.csv"
+
+
+def test_pacote_sem_resultados_falha_alto(tmp_path):
+    import vitalidade_pacote as pacote
+
+    with pytest.raises(SystemExit):
+        pacote.empacota(tmp_path, tmp_path / "x.tar.gz")
+
+
+def test_populacao_desconhecida_falha_alto():
+    p = script.carrega_parametros(["populacao=ninguem"])
+    with pytest.raises(SystemExit):
+        script.aplica_populacao(p)
+
+
+def test_populacao_de_codigo_grava_em_pasta_propria(tmp_path, monkeypatch):
+    script.carga_fonte.aplica_linguagem("zig")
+    monkeypatch.setattr(script.fb, "TMP_BASE", tmp_path)
+    monkeypatch.setattr(script.fb.CFG, "saida", tmp_path / "zig", raising=False)
+    monkeypatch.setattr(script.fb.ESTADO_PASTA_GERAL, "pasta", tmp_path / "geral")
+    script.aplica_populacao(script.carrega_parametros(["populacao=codigo"]))
+    assert script.fb.CFG.saida == tmp_path / "zig-codigo"
+    assert script.fb.ESTADO_PASTA_GERAL.pasta == tmp_path / "geral-codigo"
+    assert script.vitalidade_figuras.ESTADO.sufixo == ""
+    script.aplica_populacao(script.carrega_parametros(["populacao=todos"]))
+    assert script.vitalidade_figuras.ESTADO.sufixo == ""
+
+
+def test_carencia_de_um_ano_nao_tracejou_nada_e_a_de_tres_traceja_dois_anos():
+    import pandas as pd
+
+    import vitalidade_figuras as f
+
+    class Ctx:
+        fim_acompanhamento = pd.Timestamp("2026-10-12")
+
+        class p:  # noqa: N801
+            carencia_anos = 1
+            ultimo_ano_com_saida = 2024
+
+    assert f._ate_o_ano_decidido(Ctx) == 2024
+    assert f._primeiro_provisorio(Ctx) == 2026  # 2025 já é firme, nada tracejado
+    Ctx.p.carencia_anos = 3
+    assert f._primeiro_provisorio(Ctx) == 2024  # 2024 e 2025 provisórios
+
+
+def test_populacao_passou_n_dias_aceita_qualquer_n():
+    assert script.rotulo_da_populacao("passou_30_dias") == ""
+    assert script.rotulo_da_populacao("passou_60_dias") == ""
+    with pytest.raises(SystemExit):
+        script.rotulo_da_populacao("passou_dias")
+
+
+def test_data_de_corte_fecha_o_estudo_no_fim_do_dia_e_exige_fim_de_trimestre():
+    import pandas as pd
+
+    p = script.carrega_parametros(["data_de_corte=2025-12-31"])
+    fim = script.fim_da_coleta(p, pd.Timestamp("2026-10-12"))
+    assert fim == pd.Timestamp("2025-12-31 23:59:59")
+    # Se a coleta termina antes do corte, vale o último evento.
+    assert script.fim_da_coleta(p, pd.Timestamp("2025-05-01")) == pd.Timestamp("2025-05-01")
+    assert script.fim_da_coleta(script.carrega_parametros(["data_de_corte=null"]), fim) == fim
+    with pytest.raises(SystemExit):
+        script.fim_da_coleta(script.carrega_parametros(["data_de_corte=2025-11-30"]), fim)
+
+
+def test_grade_respeita_as_dependencias():
+    """O comparativo espera o cache de todas as linguagens; uma população extra espera a sua."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import vitalidade_grade as grade
+
+    ordem = []
+
+    def linguagem(config, slug, populacao):
+        ordem.append(("l", slug, populacao))
+
+    def comparativo(config, populacao):
+        ordem.append(("c", populacao))
+
+    with ThreadPoolExecutor(3) as pool:
+        falhas = grade.executa(pool, {}, ["a", "b"], ["x", "y"], linguagem, comparativo)
+    assert falhas == []
+    assert sorted(ordem) == sorted(
+        [("l", "a", "x"), ("l", "b", "x"), ("l", "a", "y"), ("l", "b", "y"), ("c", "x"), ("c", "y")]
+    )
+    primeiras = [ordem.index(("l", "a", "x")), ordem.index(("l", "b", "x"))]
+    assert ordem.index(("l", "a", "y")) > primeiras[0]
+    assert ordem.index(("l", "b", "y")) > primeiras[1]
+    assert min(ordem.index(("c", "x")), ordem.index(("c", "y"))) > max(primeiras)
+
+
+def test_grade_conta_a_tarefa_que_falha_e_segue():
+    from concurrent.futures import ThreadPoolExecutor
+
+    import vitalidade_grade as grade
+
+    def linguagem(config, slug, populacao):
+        if slug == "b":
+            raise ValueError("quebrou")
+
+    with ThreadPoolExecutor(2) as pool:
+        falhas = grade.executa(pool, {}, ["a", "b"], ["x"], linguagem, lambda c, p: None)
+    assert len(falhas) == 1 and "linguagem b x" in falhas[0]
+
+
+def test_piramide_lado_deixa_so_as_categorias_pedidas():
+    import pandas as pd
+
+    import vitalidade_figuras as f
+
+    q = pd.DataFrame({"non_coding": [1], "moved_to_discussion": [2], "moved": [3], "coding": [4]})
+    esperado = {
+        "todos": [1, 2, 3, 4],
+        "moved_para_discussao": [0, 2, 0, 0],
+        "moved_para_codigo": [0, 0, 3, 0],
+        "codigo": [0, 0, 3, 4],
+        "discussao": [1, 2, 0, 0],
+    }
+    for lado, valores in esperado.items():
+        assert f._so_o_lado(q, lado).iloc[0].tolist() == valores, lado
+    with pytest.raises(SystemExit):
+        f._so_o_lado(q, "inexistente")
+
+
+def test_piramide_em_pct_usa_o_total_das_quatro_categorias_como_base():
+    import pandas as pd
+
+    import vitalidade_figuras as f
+
+    q = pd.DataFrame(
+        {"non_coding": [10], "moved_to_discussion": [10], "moved": [30], "coding": [50]}
+    )
+    em_pct = f._em_pct(q)
+    assert em_pct.iloc[0].tolist() == [10, 10, 30, 50]
+    # Um lado isolado mostra a parcela dele, não 100%.
+    assert f._so_o_lado(em_pct, "codigo").iloc[0].tolist() == [0, 0, 30, 50]
+
+
+def test_acompanhamento_mostra_a_saida_de_2025_sem_mudar_os_ativos_do_estudo():
+    """Quem parou em 2025 e não voltou até out/2026 sai em 2025, e 2026 não vira ano do estudo."""
+    import pandas as pd
+
+    from pyramid import vitalidade
+
+    linhas = [
+        (1, "commits", "2024-03-01"),
+        (1, "commits", "2025-03-01"),  # última contribuição em 2025, sem nada depois
+        (2, "commits", "2024-06-01"),
+        (2, "commits", "2026-02-01"),  # volta em 2026, dentro dos 12 meses: não saiu
+    ]
+    ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
+    ev["timestamp"] = pd.to_datetime(ev["timestamp"])
+    corte = pd.Timestamp("2025-12-31 23:59:59")
+    coleta = pd.Timestamp("2026-10-12")
+    pa = vitalidade.pessoa_ano(ev, coleta)
+    pa = pa[pa["ano"] <= corte.year].set_index(["contributor_id", "ano"])
+    assert bool(pa.loc[(1, 2025), "saida"])
+    assert not bool(pa.loc[(2, 2024), "saida"])
+    assert 2026 not in pa.index.get_level_values("ano")
+    t = vitalidade.tabela_anual(pa.reset_index(), coleta).set_index("ano")
+    assert t.loc[2025, "saidas"] == 1 and bool(t.loc[2025, "provisorio"])
+    assert not bool(t.loc[2024, "provisorio"])
+
+
+def test_cada_cenario_tem_a_mesma_cor_em_todos_os_graficos():
+    import vitalidade_figuras as f
+
+    cores = [f.cor_do_cenario(n) for n in ("pessimista", "conservador", "otimista")]
+    assert len(set(cores)) == 3
+    # Ingênuo e coorte são cinza e não tomam a cor de nenhum cenário.
+    for nome in ("ingenuo", "coorte"):
+        assert f.cor_do_cenario(nome) not in cores

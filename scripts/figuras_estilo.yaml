@@ -1,0 +1,24 @@
+# Tamanho de fonte (pontos), por elemento visual, das figuras deste script
+# que aceitam controle de fonte via flag (scripts/figuras_linguagem_bruta.py,
+# fora do motor auditado: por isso este arquivo mora em scripts/, não em
+# config/, que é só do motor).
+#
+# Editar um número aqui muda o default sem tocar em código. Toda figura
+# também aceita sobrepor cada valor por execução via flag de CLI
+# (--fonte-*), e multiplicar tudo de uma vez via --escala-fonte-* (aplicado
+# por cima do valor daqui ou da flag, o que valer no momento).
+
+anos_distintos_ao_longo_do_tempo:
+  titulo_coluna: 11 # ano no topo de cada coluna (2016, 2019, ...)
+  tick: 10 # números dos eixos (idade, contribuidores)
+  rotulo_x: 8 # "contribuidores" / "% desta pirâmide"
+  rotulo_y: 9 # nome da linguagem + "anos distintos"
+  titulo_geral: 14 # título da figura inteira
+  legenda: 10 # discussion / moved to coding / coding
+
+piramide_comparativa:
+  titulo_painel: 12 # nome da linguagem no topo de cada painel (Clojure, Elixir, ...)
+  tick: 10 # números dos eixos (idade, contribuidores)
+  rotulo_x: 10 # "contribuidores" / "% desta pirâmide"
+  titulo_geral: 14 # título da figura inteira
+  legenda: 8 # discussion / moved to coding / coding

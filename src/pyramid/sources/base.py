@@ -39,7 +39,7 @@ EVENT_COLUMNS = ["scope_id", "contributor_id", "event_type", "timestamp"]
 #
 # São 7 tipos. A spec, na seção 8, lista 6. O sétimo é `issues` (abrir uma
 # issue), que existe porque a variante `table1` da taxonomia (IEICE16 Tabela 1)
-# conta abertura de issue como não-coding, enquanto a variante `prose` a exclui.
+# conta abertura de issue como não-coding, enquanto a variante `prosa` a exclui.
 # Os nomes ficam no plural, como no dump, para não invalidar os parquets já
 # extraídos. O contrato exige que o conjunto seja fechado. A grafia fica livre
 # (docs/replicacao/discrepancias.md, seção 17).
