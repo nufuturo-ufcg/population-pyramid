@@ -1,28 +1,49 @@
-"""Catálogo das métricas da ferramenta: o que são, o que entra, o que sai e o cálculo.
+"""Catálogo das métricas de vitalidade de uma comunidade de software.
 
-Cada métrica tem um bloco de comentário (`# Métrica: nome`) com quatro partes: O que é,
-Referência, Entrada e Resultado esperado. O código que calcula vem logo abaixo, na ordem do
-Plano de Experimento. O arquivo roda sozinho, só com pandas, numpy e scipy. Não importa nada
-do pacote `pyramid`.
+Este arquivo reúne tudo que se calcula sobre uma comunidade de desenvolvedores: quantas pessoas
+entram e saem por ano, qual a idade da comunidade, quanto tempo cada pessoa fica e como a
+população deve evoluir nos próximos anos. Quem nunca viu o estudo consegue ler aqui o que cada
+métrica mede, de onde a ideia vem e como a conta é feita.
 
-Este código repete o do motor (`src/pyramid/vitalidade.py`, `projection.py` e
-`attractiveness.py`). Um teste (`tests/test_catalogo_metricas.py`) roda o catálogo e o motor
-nos mesmos eventos e exige o mesmo resultado, então uma mudança no motor quebra o teste até
-este arquivo ser atualizado. `compacta`, a redução dos eventos para coletas de centenas de GB,
-fica de fora: ela não muda nenhum resultado, e as funções daqui aceitam os eventos inteiros.
+Perguntas do estudo (Plano de Experimento):
 
-`CATALOGO` leva cada métrica à função que a calcula e à coluna do resultado onde ela aparece.
-`REGISTRO` leva cada linha do registro `METRICAS` de `scripts/vitalidade.py` às métricas dela.
+- RQ1: Como evoluíram as entradas e saídas de desenvolvedores de uma linguagem ao longo dos anos?
+- RQ2: A linguagem atrai e retém desenvolvedores melhor ou pior que outras?
+- RQ3: Qual método de projeção estima com mais acerto a população futura?
 
-Entrada comum a todas: eventos canônicos, um DataFrame com três colunas.
+Como ler este arquivo
+
+Cada métrica tem um bloco de comentário que começa com `# Métrica: nome` e traz quatro partes:
+
+- O que é: a definição em palavras simples.
+- Referência: o artigo ou a norma de onde a ideia vem.
+- Entrada: o que a função recebe.
+- Resultado esperado: o que ela devolve e como ler o número.
+
+O código que calcula vem logo abaixo do bloco, na ordem do Plano de Experimento. O arquivo roda
+sozinho, só com pandas, numpy e scipy, e não importa nada do pacote `pyramid`.
+
+O código repete o do motor (`src/pyramid/vitalidade.py`, `projection.py` e `attractiveness.py`).
+O teste `tests/test_catalogo_metricas.py` roda o catálogo e o motor sobre os mesmos eventos e exige
+o mesmo resultado. Se o motor mudar, o teste falha até este arquivo ser atualizado. Uma etapa do
+motor fica de fora: a `compacta`, que reduz os eventos de coletas de centenas de GB para caber na
+memória. Ela não muda nenhum resultado, e as funções daqui aceitam os eventos inteiros.
+
+`CATALOGO` liga cada métrica à função que a calcula e à coluna do resultado onde ela aparece.
+`REGISTRO` agrupa as métricas do mesmo jeito que o registro `METRICAS` de `scripts/vitalidade.py`.
+
+O que entra: os eventos
+
+Entrada comum a todas as métricas. É um DataFrame em que cada linha é uma ação de uma pessoa (um
+commit, um comentário numa issue e assim por diante), com três colunas:
 
     contributor_id  identificador estável da pessoa
     event_type      commits, pull_requests, commit_comments, issue_comments,
                     pull_request_comments, issue_events ou issues
     timestamp       data e hora do evento (datetime64)
 
-Código é `commits` e `pull_requests` (`TIPOS_CODING`). Os outros cinco tipos são discussão.
-O contrato completo está em `docs/ferramenta/FONTES.md`.
+Eventos de código são `commits` e `pull_requests` (`TIPOS_CODING`). Os outros cinco tipos são
+discussão. O contrato completo da entrada está em `docs/ferramenta/FONTES.md`.
 
 Do evento à métrica:
 
@@ -31,20 +52,41 @@ Do evento à métrica:
     dur = duracoes(eventos, fim)
     anual = tabela_anual(pa, fim)
 
-`fim` é o último instante coberto pela coleta. O estudo para em `data_de_corte` (2025-12-31)
-e os eventos de 2026 só decidem quem saiu e quem pausou.
+`fim` é a data e hora do último evento da coleta. O estudo analisa até 31/12/2025
+(`data_de_corte`). Os eventos de 2026 só servem para saber quem saiu e quem fez pausa em 2025.
+
+Tabelas que passam de uma função para outra:
+
+- `pa` (de `pessoa_ano`): uma linha por pessoa e por ano em que ela contribuiu. Traz a idade na
+  linguagem, a faixa de idade e se a pessoa é novata, saiu, fez pausa ou voltou naquele ano.
+- `anual` (de `tabela_anual`): uma linha por ano, com os totais.
+- `dur` (de `duracoes`): uma linha por pessoa, com quando entrou, quando fez o último evento,
+  quantos anos ficou e se já saiu.
+- `tabua` (de `tabua_de_vida`): como um grupo que entrou junto vai diminuindo com os anos.
+- `bt` (de `backtest`): a previsão de anos que já passaram, comparada ao que aconteceu.
+- `pairs` (de `pares_de_codigo`): a lista de (escopo, pessoa, ano) em que houve commit ou PR.
+  Escopo é a unidade analisada: uma linguagem ou um projeto.
+
+Vocabulário emprestado da demografia, usado como analogia:
+
+- Idade: o tempo desde a primeira contribuição na linguagem.
+- Nascimento: a primeira contribuição.
+- Saída (óbito): 12 meses sem contribuir.
+- Coorte: o grupo de pessoas que entrou no mesmo ano.
 
 Convenções do estudo, valem para todas as métricas:
 
-    saída    12 meses sem contribuir (Avelino et al., ESEM 2019). A replicação do IEICE16 usa 3
-    faixas   0-1, 1-2, 2-3, 3-5, 5-8 e 8+ anos na linguagem. A idade no ano Y é Y menos o ano da
-             primeira contribuição, então quem entrou em Y está na faixa 0-1
-    censura  a saída de Y só se decide 12 meses depois de 31/12/Y. Ano que a coleta não cobre
-             até lá fica com saída vazia (NaN). Anualizar um ano aberto é proibido
-    pessoa   a pirâmide conta os residentes (população `mais_de_uma_ocasiao`): quem tem mais de
-             uma contribuição em ocasiões diferentes. O filtro lê `origem/pessoas.parquet` e mora
-             em `scripts/vitalidade.py` (`filtra_populacao`). As funções daqui recebem os
-             eventos que sobraram depois dele
+- Saída: 12 meses sem contribuir (Avelino et al., ESEM 2019). A replicação do IEICE16 usa 3
+  meses.
+- Faixas de idade: 0-1, 1-2, 2-3, 3-5, 5-8 e 8+ anos na linguagem. A idade no ano Y é Y menos o
+  ano da primeira contribuição. Quem entrou em Y está na faixa 0-1.
+- Ano em aberto: a saída do ano Y só se decide 12 meses depois de 31/12/Y, porque é preciso
+  esperar para ver se a pessoa volta. Se a coleta termina antes, a saída desse ano fica vazia
+  (NaN). Estimar o ano inteiro a partir de um ano incompleto é proibido.
+- Quem entra na conta: a pirâmide conta os residentes (população `mais_de_uma_ocasiao`), que são
+  as pessoas com mais de uma contribuição em ocasiões diferentes. O filtro lê
+  `origem/pessoas.parquet` e mora em `scripts/vitalidade.py` (`filtra_populacao`). As funções
+  daqui recebem os eventos que sobraram depois dele.
 
 As definições com todas as escolhas registradas estão em `docs/linguagem/vitalidade.md`.
 """
@@ -69,20 +111,24 @@ FAIXAS_NOVATO = ["0-1"]
 FAIXAS_CURTAS = ["0-1", "1-2", "2-3", "3-5"]  # a padronização curta, até 5 anos
 FAIXAS_VETERANO = ["5-8", "8+"]
 
-# As quatro categorias da pirâmide no fim do ano. Esquerda: só discussão e quem codou e passou a
-# discutir. Direita: quem discutiu primeiro e passou a codar (`moved`) e o resto de quem codou.
+# As quatro categorias da pirâmide no fim do ano. Lado esquerdo: quem só discute (`non_coding`)
+# e quem já fez código e passou a só discutir (`moved_to_discussion`). Lado direito: quem
+# começou pela discussão e passou a fazer código (`moved`) e quem começou pelo código
+# (`coding`).
 LADOS = ["non_coding", "moved_to_discussion", "moved", "coding"]
-BAND_DIAS = 90  # trimestre de 90 dias, como o `band_days` da replicação do IEICE16
+BAND_DIAS = 90  # fatia de idade de 90 dias (um trimestre), como o `band_days` do IEICE16
 
-NOVATO_DIAS = round(3 * DAYS_PER_MONTH)  # 91, a banda de 3 meses do IEICE16
-INATIVIDADE_CCR_DIAS = 3 * DAYS_PER_MONTH  # "did not give any contribution for more than 3 months"
+NOVATO_DIAS = round(3 * DAYS_PER_MONTH)  # 91 dias: novato tem até 3 meses de idade (IEICE16)
+# Quem passa mais de 3 meses sem contribuir sai do trimestre (IEICE16: "did not give any
+# contribution for more than 3 months").
+INATIVIDADE_CCR_DIAS = 3 * DAYS_PER_MONTH
 
-BANDAS = 9
+BANDAS = 9  # idades 0 a 7 e 8 ou mais, uma posição por idade
 METODOS = ["ingenuo", "coorte", "pessimista", "conservador", "otimista"]
 METODOS_COM_ERRO = ["ingenuo", "coorte", "conservador"]
 
-# Acima disso a curva de Kaplan-Meier sai com um ponto por dia: milhões de pessoas dariam um
-# ponto por pessoa.
+# Acima desse número de pontos, a curva de Kaplan-Meier guarda um ponto por dia. Sem isso,
+# milhões de pessoas dariam um ponto por pessoa.
 MAX_PONTOS_KM = 2_000_000
 
 QUADRANTES = {
@@ -97,45 +143,52 @@ REGISTRO: dict[str, tuple[str, ...]] = {}
 
 
 # ================================================================================================
-# Base: períodos de atividade e uma linha por pessoa e ano
+# Base: períodos de atividade de cada pessoa e uma linha por pessoa e ano
 # ================================================================================================
 
-# Base, sem métrica própria. `pessoa_ano` é a tabela de onde saem os dados registrados por
-# observação (ativos, novatos, saídas, pausas, voltas, moved) e a pirâmide. `periodos` parte a
-# vida de cada pessoa em períodos de atividade, separados por mais de 12 meses de silêncio.
+# Base, sem métrica própria. `pessoa_ano` é a tabela de onde saem os totais por ano (ativos,
+# novatos, saídas, pausas, voltas e moved) e a pirâmide. `periodos` parte a vida de cada pessoa
+# em períodos de atividade, separados por mais de 12 meses sem contribuir.
 
 
 def faixa_de(anos: pd.Series) -> pd.Series:
-    """Faixa de tempo na linguagem, fechada embaixo: 1 ano cai em 1-2."""
+    """Faixa de idade na linguagem. Quem tem exatamente 1 ano cai em 1-2."""
     return pd.cut(anos, bins=_CORTES, right=False, labels=FAIXAS)
 
 
 def ano_fechado(ano: int, fim: pd.Timestamp) -> bool:
-    """A coleta cobre 12 meses depois do fim de `ano`, então toda saída dele se decide."""
+    """Verdadeiro se a coleta cobre os 12 meses seguintes ao fim de `ano`.
+
+    Nesse caso já dá para saber quem saiu naquele ano.
+    """
     return fim > pd.Timestamp(f"{ano + 1}-01-01") + pd.Timedelta(days=GAP_DIAS)
 
 
 def ano_completo(ano: int, fim: pd.Timestamp) -> bool:
-    """O ano de calendário acabou antes do fim da coleta. Só o ano da coleta fica de fora."""
+    """Verdadeiro se `ano` terminou antes do fim da coleta. O ano da coleta fica de fora."""
     return ano < fim.year
 
 
 def provisorio(ano: int, fim: pd.Timestamp) -> bool:
-    """Ano completo cuja saída ainda não passou por 12 meses de coleta: vale como estimativa.
+    """Ano que já acabou, mas sem os 12 meses de coleta depois dele. Vale como estimativa.
 
-    Quem teve a última contribuição nele conta como saída, com menos de 12 meses de silêncio
-    confirmados. Quem voltar depois do fim da coleta ainda aparece como saída.
+    Quem fez a última contribuição nesse ano conta como saída, mesmo sem 12 meses de silêncio
+    confirmados. Quem voltar depois do fim da coleta continua contado como saída.
     """
     return ano_completo(ano, fim) and not ano_fechado(ano, fim)
 
 
 def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
-    """Um período de atividade por linha, com o primeiro evento de código e de discussão da pessoa.
+    """Parte a vida de cada pessoa em períodos de atividade, um período por linha.
 
-    Mesma saída de `classify.profile(eventos, TIPOS_CODING, GAP_DIAS)`, numa
-    passada vetorizada em vez de um laço Python por pessoa, com uma diferença: eventos do
-    mesmo ano de calendário ficam no mesmo período, mesmo com mais de 365,25 dias entre eles
-    (só acontece em ano bissexto). Um teste confere as duas nos demais casos.
+    Um período termina quando a pessoa passa mais de 12 meses sem contribuir. Quem volta depois
+    começa outro período. Cada linha traz também o primeiro e o último evento de código e de
+    discussão da pessoa.
+
+    Dá o mesmo resultado de `classify.profile(eventos, TIPOS_CODING, GAP_DIAS)`, em uma passada
+    só, sem laço por pessoa. Há uma diferença: dois eventos do mesmo ano de calendário ficam
+    sempre no mesmo período, mesmo com mais de 365,25 dias entre eles. Isso só acontece em ano
+    bissexto. Um teste confere as duas versões nos demais casos.
     """
     ev = eventos.sort_values(["contributor_id", "timestamp"], kind="stable")
     ts = ev["timestamp"]
@@ -155,9 +208,10 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
 
     pessoa_nova = pessoa != pessoa.shift()
     anterior = ts.shift()
-    # Dois eventos do mesmo ano de calendário nunca são dois períodos: num ano bissexto, 1/jan e
-    # 31/dez distam mais de 365,25 dias, e sem esta guarda a pessoa teria duas saídas no mesmo
-    # ano, que a tabela anual não sabe contar. Em 4,2 milhões de pessoas do Python, uma só caiu aí.
+    # Dois eventos do mesmo ano de calendário ficam sempre no mesmo período. Num ano bissexto,
+    # 1/jan e 31/dez distam mais de 365,25 dias. Sem esta regra a pessoa teria duas saídas no
+    # mesmo ano, e a tabela anual não sabe contar isso. Entre 4,2 milhões de pessoas do Python,
+    # só uma caiu nesse caso.
     silencio = ((ts - anterior) / np.timedelta64(1, "D") > GAP_DIAS) & (
         ts.dt.year != anterior.dt.year
     )
@@ -174,11 +228,12 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
 def pessoa_ano(
     eventos: pd.DataFrame, fim: pd.Timestamp | None = None, com_moved_to_discussion: bool = True
 ) -> pd.DataFrame:
-    """Uma linha por (pessoa, ano em que contribuiu). Base de toda métrica anual.
+    """Uma linha por pessoa e por ano em que ela contribuiu. Toda métrica anual sai daqui.
 
-    `fim` é o último instante coberto pela coleta. Padrão: o evento mais recente.
-    Sem `com_moved_to_discussion` a categoria `moved_to_discussion` não existe: quem já codou e
-    neste ano só discutiu fica onde a história dele o põe, em `moved` ou `coding`.
+    `fim` é a data e hora do último evento coletado. Sem ele, vale o evento mais recente.
+    Com `com_moved_to_discussion=False` a categoria `moved_to_discussion` some. Quem já fez
+    commit ou PR e neste ano só discutiu fica na categoria que a história dele indica, `moved`
+    ou `coding`.
     """
     if fim is None:
         fim = eventos["timestamp"].max()
@@ -196,8 +251,8 @@ def pessoa_ano(
     pa = ev.assign(ano=ev["timestamp"].dt.year)[["contributor_id", "ano"]].drop_duplicates()
     pa = pa.join(marcos, on="contributor_id")
 
-    # Quem fez commit ou PR em cada ano. A compactação guarda o último evento de código de cada
-    # trimestre, então saber se houve código no ano é exato.
+    # Marca quem fez commit ou PR em cada ano. A redução dos eventos guarda o último evento de
+    # código de cada trimestre, então saber se houve código no ano continua exato.
     com_codigo = ev[ev["event_type"].isin(TIPOS_CODING)]
     anos_com_codigo = com_codigo.assign(ano=com_codigo["timestamp"].dt.year)[
         ["contributor_id", "ano"]
@@ -207,36 +262,39 @@ def pessoa_ano(
     codou_no_ano = pa.pop("codou_no_ano").fillna(False).astype(bool)
 
     fim_ano = pd.to_datetime((pa["ano"] + 1).astype(str) + "-01-01")
-    # Idade em anos de calendário: cada faixa de 1 ano é exatamente uma coorte
-    # de entrada, que é o que a projeção por coorte precisa para envelhecer 1 por ano.
+    # Idade em anos de calendário: ano da contribuição menos ano da primeira contribuição. Cada
+    # idade é uma coorte de entrada, e a projeção por coorte precisa disso para envelhecer a
+    # população 1 ano por vez.
     pa["idade_anos"] = pa["ano"] - pa["primeiro"].dt.year
-    # Idade em dias no fim do ano, para a pirâmide em faixas de trimestre (como no artigo).
+    # Idade em dias no fim do ano, usada na pirâmide de fatias de 90 dias do artigo.
     pa["idade_dias"] = (fim_ano.clip(upper=fim) - pa["primeiro"]).dt.days
     pa["faixa"] = faixa_de(pa["idade_anos"])
     pa["novato"] = pa["primeiro"].dt.year == pa["ano"]
 
-    # Mesma regra de `snapshots.pyramid_at`, avaliada no fim do ano.
+    # O lado da pirâmide sai da mesma regra de `snapshots.pyramid_at`, aplicada no fim do ano.
+    # `codou`: já fez commit ou PR até o fim do ano. `comecou_na_discussao`: o primeiro evento
+    # de discussão veio antes do primeiro commit ou PR.
     codou = pa["init_c"].notna() & (pa["init_c"] < fim_ano)
     comecou_na_discussao = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
-    # O lado de volta do `moved`: quem já codou e neste ano só discutiu. Quem fez algum commit ou PR
-    # no ano fica do lado do código, mesmo que o último evento do ano seja um comentário.
+    # O caminho de volta do `moved`: quem já fez código antes e neste ano só discutiu. Quem fez
+    # algum commit ou PR no ano fica do lado do código, mesmo que o último evento do ano seja
+    # um comentário.
     foi_para_discussao = codou & ~codou_no_ano & com_moved_to_discussion
     pa["categoria"] = np.select(
         [~codou, foi_para_discussao, comecou_na_discussao],
         ["non_coding", "moved_to_discussion", "moved"],
         default="coding",
     )
-    # Fluxo: o ano em que quem começou pela discussão fez o primeiro commit/PR.
+    # O ano em que quem começou pela discussão fez o primeiro commit ou PR.
     pa["moved_no_ano"] = comecou_na_discussao & (pa["init_c"].dt.year == pa["ano"])
-    # O caminho de volta: a pessoa para de codar e depois só discute. O ano é o do último
-    # commit ou PR, e só existe olhando o futuro (quem codar de novo deixa de contar).
+    # A pessoa para de fazer código e depois só discute. O ano é o do último commit ou PR. Isso
+    # só se sabe olhando o futuro, porque quem voltar a fazer commit deixa de contar.
     deixou = pa["last_c"].notna() & pa["last_d"].notna() & (pa["last_d"] > pa["last_c"])
     pa["deixou_codigo_no_ano"] = deixou & (pa["last_c"].dt.year == pa["ano"])
 
-    # Todo período que não é o último já termina com mais de 12 meses de silêncio
-    # (é o que o separou do seguinte), então basta medir a distância até `fim`.
-    # Saída é o fim do último período, o da vida inteira: quem para e depois volta
-    # não saiu, só fez uma pausa.
+    # Todo período que não é o último já termina com mais de 12 meses de silêncio (foi isso que o
+    # separou do seguinte), então basta medir a distância até `fim`.
+    # Saída é o fim do último período, o da vida inteira. Quem para e depois volta fez uma pausa.
     # O último ano completo entra com a regra provisória: o último evento nele já conta como saída.
     parou = ((fim - spans["span_end"]) > pd.Timedelta(days=GAP_DIAS)) | (
         spans["span_end"].dt.year == fim.year - 1
@@ -261,179 +319,205 @@ def pessoa_ano(
     pa["pausa"] = pa["pausa"].eq(True)
     pa["volta"] = pa["volta"].eq(True)
 
-    # Dois períodos separados por 12 meses não terminam (nem começam) no mesmo ano.
+    # Dois períodos separados por mais de 12 meses não terminam nem começam no mesmo ano.
     if pa.duplicated(["contributor_id", "ano"]).any():
         raise ValueError("pessoa_ano: (pessoa, ano) repetido; mais de uma saída ou volta no ano.")
     return pa.drop(columns=["init_c", "init_d", "last_c", "last_d"]).reset_index(drop=True)
 
 
 # ================================================================================================
-# Tamanho (RQ1.1): dados registrados por observação e crescimento natural
+# Tamanho (RQ1.1): quantas pessoas entram e saem por ano
 # ================================================================================================
 
 # Métrica: ativos
 #   O que é:
-#     Pessoas que contribuíram naquele ano. Um evento no ano basta.
+#     Quantas pessoas contribuíram na linguagem naquele ano. Uma contribuição basta para a pessoa
+#     contar.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `ativos`. Inteiro, um por
-#     pessoa que apareceu no ano.
+#     Coluna `ativos` da `tabela_anual`, um número inteiro por ano.
+#     Exemplo: 1.200 em 2021 quer dizer que 1.200 pessoas diferentes contribuíram em 2021.
 
 # Métrica: novatos
 #   O que é:
-#     Pessoas cuja primeira contribuição da vida na linguagem caiu naquele ano. Entram na
-#     faixa 0-1.
+#     Quantas pessoas fizeram, naquele ano, a primeira contribuição da vida na linguagem. Elas
+#     ficam na faixa de idade 0-1.
 #   Referência:
-#     Foucault et al., ESEC/FSE 2015. https://doi.org/10.1145/2786805.2786870
+#     Foucault et al., ESEC/FSE 2015.
+#     https://doi.org/10.1145/2786805.2786870
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `novatos`. Soma sobre o
-#     primeiro evento de cada pessoa.
+#     Coluna `novatos` da `tabela_anual`, um número inteiro por ano.
+#     Exemplo: 300 em 2021 quer dizer que 300 pessoas contribuíram pela primeira vez em 2021.
 
 # Métrica: saidas
 #   O que é:
-#     Pessoas cuja última contribuição da vida caiu naquele ano e que ficaram mais de 12
-#     meses sem contribuir depois dela. Quem para e volta tem uma pausa, que fica fora das
-#     saídas.
+#     Quantas pessoas fizeram a última contribuição da vida naquele ano e passaram mais de 12
+#     meses sem contribuir depois dela.
+#     Quem para e volta mais tarde fez uma pausa (veja `pausas`) e fica fora das saídas.
 #   Referência:
-#     Foucault et al., ESEC/FSE 2015. https://doi.org/10.1145/2786805.2786870
-#     Avelino et al., ESEM 2019 (limite de 12 meses). https://arxiv.org/abs/1906.08058
+#     Foucault et al., ESEC/FSE 2015.
+#     https://doi.org/10.1145/2786805.2786870
+#     Avelino et al., ESEM 2019 (limite de 12 meses).
+#     https://arxiv.org/abs/1906.08058
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `saidas`. Fica vazia (NaN) no
-#     ano que a coleta ainda não cobre com 12 meses depois.
+#     Coluna `saidas` da `tabela_anual`.
+#     Exemplo: 450 em 2021 quer dizer que 450 pessoas pararam em 2021 e passaram mais de 12 meses
+#     sem contribuir.
+#     Fica vazia (NaN) no ano em que a coleta ainda não cobre os 12 meses seguintes, porque ainda
+#     não dá para saber se a pessoa vai voltar.
 
 # Métrica: pausas
 #   O que é:
-#     Um período de atividade terminou naquele ano e a pessoa voltou depois de mais de 12
-#     meses. Quem volta não saiu, então a pausa não entra na saída e a pessoa segue viva.
+#     Quantas pessoas pararam de contribuir naquele ano, ficaram mais de 12 meses sem contribuir e
+#     depois voltaram.
+#     Quem volta não saiu, então a pausa fica fora das saídas. Entre o ano da pausa e o ano da
+#     volta, a pessoa não conta como ativa.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
-#     Avelino et al., ESEM 2019 (limite de 12 meses). https://arxiv.org/abs/1906.08058
+#     Avelino et al., ESEM 2019 (limite de 12 meses).
+#     https://arxiv.org/abs/1906.08058
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `pausas`.
+#     Coluna `pausas` da `tabela_anual`.
+#     Exemplo: 40 em 2019 quer dizer que 40 pessoas pararam em 2019 e voltaram depois de mais de
+#     12 meses.
 
 # Métrica: voltas
 #   O que é:
-#     Pessoas que retomam a atividade naquele ano, depois de um período sem contribuir.
+#     Quantas pessoas voltaram a contribuir naquele ano, depois de mais de 12 meses sem
+#     contribuir.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `voltas`. Conta o começo de
-#     todo período depois do primeiro.
+#     Coluna `voltas` da `tabela_anual`. Cada volta é o começo de um período de atividade que não
+#     é o primeiro da pessoa.
+#     Exemplo: 25 em 2022 quer dizer que 25 pessoas retomaram a atividade em 2022.
 
 # Métrica: moved
 #   O que é:
-#     Pessoas que só participavam sem escrever código (revisão, discussão) e passam a ter
-#     atividade de código naquele ano. O ano é o do primeiro commit ou PR.
+#     Quantas pessoas só participavam da discussão (revisão, comentários) e fizeram o primeiro
+#     commit ou PR naquele ano.
+#     O nome vem do artigo e quer dizer que a pessoa mudou do lado da discussão para o lado do
+#     código. O ano é o do primeiro commit ou PR.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `moved`.
+#     Coluna `moved` da `tabela_anual`.
+#     Exemplo: 60 em 2020 quer dizer que 60 pessoas que antes só discutiam fizeram o primeiro
+#     commit ou PR em 2020.
 
 # Métrica: deixou_codigo
 #   O que é:
-#     O caminho de volta do moved: a última atividade de discussão vem depois do último
-#     commit ou PR. O ano é o do último commit ou PR.
+#     O caminho de volta do `moved`: pessoas cuja última atividade foi de discussão, depois do
+#     último commit ou PR.
+#     O ano é o do último commit ou PR.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Uma linha por ano na tabela de `tabela_anual`, coluna `deixou_codigo`. Olha o
-#     futuro: quem voltar a codar deixa de contar. No último ano da coleta o valor sobe,
-#     porque quem ainda vai codar entra como quem deixou o código.
+#     Coluna `deixou_codigo` da `tabela_anual`.
+#     O valor depende do futuro: quem voltar a fazer commit ou PR deixa de contar. Por isso, no
+#     último ano da coleta o valor sobe. Quem ainda vai voltar a fazer código entra como quem
+#     deixou o código.
 
 # Métrica: natalidade
 #   O que é:
-#     Tudo que entra no ano (novatos e voltas) sobre os ativos do mesmo ano, em %.
+#     Quantas pessoas entraram no ano (novatos e voltas) para cada 100 pessoas ativas no mesmo
+#     ano. Na demografia, é a taxa de natalidade.
 #   Referência:
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Coluna `natalidade_pct` de `tabela_anual`. Com 55, entraram 55 pessoas para cada 100
-#     ativas no ano.
+#     Coluna `natalidade_pct` da `tabela_anual`.
+#     Exemplo: 55 quer dizer que entraram 55 pessoas para cada 100 ativas no ano.
 
 # Métrica: mortalidade
 #   O que é:
-#     Tudo que sai no ano (saídas e pausas) sobre os ativos do mesmo ano, em %.
+#     Quantas pessoas saíram no ano (saídas e pausas) para cada 100 pessoas ativas no mesmo ano.
+#     Na demografia, é a taxa de mortalidade.
 #   Referência:
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Coluna `mortalidade_pct` de `tabela_anual`. Fica vazia no ano que a coleta ainda não
-#     cobre.
+#     Coluna `mortalidade_pct` da `tabela_anual`.
+#     Exemplo: 40 quer dizer que saíram 40 pessoas para cada 100 ativas no ano.
+#     Fica vazia no ano que a coleta ainda não cobre.
 
 # Métrica: crescimento_natural
 #   O que é:
-#     Tudo que entra menos tudo que sai, em % dos ativos do ano: (novatos + voltas -
-#     saídas - pausas) / ativos. É a natalidade menos a mortalidade. Responde a RQ1.1.
+#     Tudo que entra menos tudo que sai, em % das pessoas ativas do ano:
+#     (novatos + voltas - saídas - pausas) / ativos.
+#     É a natalidade menos a mortalidade. Responde a RQ1.1 (quantos entraram e saíram por ano e
+#     qual foi o saldo).
 #   Referência:
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `pa` (de `pessoa_ano`) e `fim`. `pa` traz contributor_id, ano, primeiro, idade_anos,
-#     idade_dias, faixa, novato, categoria, moved_no_ano, deixou_codigo_no_ano, saida,
-#     pausa e volta.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Coluna `crescimento_natural_pct` de `tabela_anual`. Positivo: entrou mais gente do
-#     que saiu. Negativo: saiu mais do que entrou.
+#     Coluna `crescimento_natural_pct` da `tabela_anual`.
+#     - Positivo: entrou mais gente do que saiu.
+#     - Negativo: saiu mais gente do que entrou.
 #     A base é o próprio ano. A variação dos ativos sobre o ano anterior é outra conta.
-#     `provisorio` verdadeiro marca o último ano completo, porque quem parou há pouco
+#     A coluna `provisorio` verdadeira marca o último ano completo, porque quem parou há pouco
 #     ainda pode voltar.
-#     A função falha alto se ativos(Y+1) não for ativos(Y) menos saídas e pausas, mais
-#     novatos e voltas de Y+1.
+#     A função para com erro se a conta de ativos não fechar: os ativos de Y+1 precisam ser os
+#     ativos de Y, menos as saídas e pausas de Y, mais os novatos e voltas de Y+1.
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Ativos, novatos, saídas, pausas, voltas, moved, deixou_codigo e crescimento natural, por ano.
+    """Os totais de cada ano: quem estava ativo, quem entrou, quem saiu e o crescimento natural.
 
-    Saída é a última contribuição da vida. Quem para por mais de 12 meses e volta
-    tem uma pausa no ano em que parou e uma volta no ano em que voltou, e deixa de ser ativo
-    só entre os dois. Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saídas(Y) -
-    pausas(Y) + novatos(Y+1) + voltas(Y+1), para todo Y com saída decidida.
+    Colunas: ativos, novatos, saídas, pausas, voltas, moved e deixou_codigo (contagens) e as três
+    taxas em % dos ativos do mesmo ano.
 
-    crescimento_natural_pct = (novatos + voltas - saídas - pausas) / ativos: tudo que entra menos
-    tudo que sai, em % dos ativos do mesmo ano. natalidade_pct = (novatos + voltas) / ativos e
-    mortalidade_pct = (saídas + pausas) / ativos, e a diferença entre elas é o crescimento natural.
+    Saída é a última contribuição da vida da pessoa. Quem para por mais de 12 meses e volta
+    tem uma pausa no ano em que parou e uma volta no ano em que voltou. Entre os dois anos ela
+    não conta como ativa.
 
-    A base é o ano Y. Entra quem chegou em Y (novato ou volta) e sai quem tem a última contribuição
-    de um período de atividade em Y (a saída só se confirma 12 meses depois). Não é a variação dos
-    ativos sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, que usa Y-1 como base e as saídas e
-    pausas de Y-1. Clojure 2024: crescimento natural -8,4%, variação dos ativos -18,8%.
+    A conta de ativos precisa fechar, e a função para com erro se ela não fechar:
+    ativos(Y+1) = ativos(Y) - saídas(Y) - pausas(Y) + novatos(Y+1) + voltas(Y+1),
+    para todo ano Y com saída decidida.
+
+    As taxas:
+      natalidade_pct           (novatos + voltas) / ativos
+      mortalidade_pct          (saídas + pausas) / ativos
+      crescimento_natural_pct  natalidade menos mortalidade, ou seja, tudo que entra menos tudo
+                               que sai
+
+    A base é o próprio ano Y. Entra quem chegou em Y (novato ou volta). Sai quem fez em Y a
+    última contribuição de um período de atividade (a saída só se confirma 12 meses depois).
+    Esta conta é diferente da variação dos ativos sobre o ano anterior, ativos(Y) / ativos(Y-1)
+    - 1, que usa Y-1 como base e as saídas e pausas de Y-1.
+    Exemplo, Clojure 2024: crescimento natural de -8,4% e variação dos ativos de -18,8%.
     """
     g = pa.groupby("ano")
     t = pd.DataFrame(
@@ -475,7 +559,7 @@ def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
 
 
 def trajetoria(anual: pd.DataFrame, ano_base_indice: int = 2019) -> pd.DataFrame:
-    """Tamanho sem o efeito do tamanho: índice de ativos e taxas em % dos ativos do ano.
+    """Compara linguagens de tamanhos diferentes: taxas em % dos ativos do ano e índice de ativos.
 
     Mesma conta de `metrica_trajetoria` em `scripts/vitalidade.py`.
     """
@@ -484,11 +568,12 @@ def trajetoria(anual: pd.DataFrame, ano_base_indice: int = 2019) -> pd.DataFrame
     t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
     t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
     # Reposição: todo mundo que entrou (novatos e voltas) para cada pessoa que saiu (saídas e
-    # pausas). Acima de 1 o crescimento natural é positivo.
+    # pausas). Acima de 1, o crescimento natural é positivo.
     t["reposicao"] = (t["novatos"] + t["voltas"]) / (t["saidas"] + t["pausas"]).where(
         t["saidas"].notna()
     )
-    ativos_na_base = t.set_index("ano")["ativos"].get(ano_base_indice)  # sem o ano base, sem índice
+    # Sem ativos no ano base, não há índice.
+    ativos_na_base = t.set_index("ano")["ativos"].get(ano_base_indice)
     t["indice"] = 100 * t["ativos"] / ativos_na_base if ativos_na_base else float("nan")
     return t
 
@@ -500,108 +585,122 @@ def trajetoria(anual: pd.DataFrame, ano_base_indice: int = 2019) -> pd.DataFrame
 
 # Métrica: saida_pct
 #   O que é:
-#     Saídas do ano em % dos ativos do mesmo ano. Tira o tamanho da linguagem da
+#     Saídas do ano para cada 100 pessoas ativas no mesmo ano. Tira o tamanho da linguagem da
 #     comparação.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `anual` (de `tabela_anual`) e `ano_base_indice` (2019).
+#     `anual`, a tabela de totais por ano (`tabela_anual`), e `ano_base_indice` (2019).
 #   Resultado esperado:
-#     Coluna `saida_pct` de `trajetoria`. Com 40, saíram 40 pessoas para cada 100 ativas.
-#     Vazia no ano sem saída decidida.
+#     Coluna `saida_pct` da `trajetoria`. Exemplo: 40 quer dizer que saíram 40 pessoas para cada
+#     100 ativas.
+#     Fica vazia no ano sem saída decidida.
 
 # Métrica: volta_pct
 #   O que é:
-#     Voltas do ano em % dos ativos do mesmo ano.
+#     Voltas do ano para cada 100 pessoas ativas no mesmo ano.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `anual` (de `tabela_anual`) e `ano_base_indice` (2019).
+#     `anual`, a tabela de totais por ano (`tabela_anual`), e `ano_base_indice` (2019).
 #   Resultado esperado:
-#     Coluna `volta_pct` de `trajetoria`. Com 8, voltaram 8 pessoas para cada 100 ativas.
+#     Coluna `volta_pct` da `trajetoria`. Exemplo: 8 quer dizer que voltaram 8 pessoas para cada
+#     100 ativas.
 
 # Métrica: novato_pct
 #   O que é:
-#     Novatos do ano em % dos ativos do mesmo ano.
+#     Novatos do ano para cada 100 pessoas ativas no mesmo ano.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `anual` (de `tabela_anual`) e `ano_base_indice` (2019).
+#     `anual`, a tabela de totais por ano (`tabela_anual`), e `ano_base_indice` (2019).
 #   Resultado esperado:
-#     Coluna `novato_pct` de `trajetoria`. Com 30, 30 de cada 100 ativas são novatas.
+#     Coluna `novato_pct` da `trajetoria`. Exemplo: 30 quer dizer que 30 de cada 100 ativas são
+#     novatas.
 
 # Métrica: reposicao
 #   O que é:
-#     O que entrou no ano (novatos e voltas) dividido pelo que saiu (saídas e pausas).
+#     Quantas pessoas entraram no ano (novatos e voltas) para cada pessoa que saiu (saídas e
+#     pausas).
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `anual` (de `tabela_anual`) e `ano_base_indice` (2019).
+#     `anual`, a tabela de totais por ano (`tabela_anual`), e `ano_base_indice` (2019).
 #   Resultado esperado:
-#     Coluna `reposicao` de `trajetoria`. Acima de 1 o crescimento natural é positivo.
-#     Abaixo de 1 o saldo é de perda. Vazia no ano sem saída decidida.
+#     Coluna `reposicao` da `trajetoria`.
+#     - Acima de 1: entrou mais gente do que saiu, e o crescimento natural é positivo.
+#     - Abaixo de 1: saiu mais gente do que entrou.
+#     Exemplo: 0,8 quer dizer 8 entradas para cada 10 saídas.
+#     Fica vazia no ano sem saída decidida.
 
 # Métrica: indice_de_ativos
 #   O que é:
-#     Ativos de cada ano divididos pelos ativos do ano base, vezes 100. O Python tem mil
-#     vezes os ativos do Zig. Só o índice compara a trajetória das duas.
+#     Ativos de cada ano divididos pelos ativos do ano base, vezes 100.
+#     O Python tem cerca de mil vezes os ativos do Zig. Só o índice permite comparar a evolução
+#     das duas.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     Equação compensadora da demografia (IBGE, metodologia das projeções 1980-2050).
 #     https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf
 #   Entrada:
-#     `anual` (de `tabela_anual`) e `ano_base_indice` (2019).
+#     `anual`, a tabela de totais por ano (`tabela_anual`), e `ano_base_indice` (2019).
 #   Resultado esperado:
-#     Coluna `indice` de `trajetoria`. 100 no ano base (`ano_base_indice`). 80 quer dizer
-#     20% menos ativos que no ano base. Sem ativos no ano base, sem índice.
+#     Coluna `indice` da `trajetoria`. Vale 100 no ano base (`ano_base_indice`).
+#     Exemplo: 80 quer dizer 20% menos ativos do que no ano base.
+#     Sem ativos no ano base, não há índice.
 
 # ================================================================================================
-# Composição (RQ1.2): pirâmide e índice de envelhecimento
+# Composição (RQ1.2): novatos e veteranos, pirâmide e índice de envelhecimento
 # ================================================================================================
 
 # Métrica: piramide
 #   O que é:
-#     Ativos por faixa de tempo na linguagem (0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos), separados
-#     em quem faz código e quem só discute.
-#     Categorias: non_coding (nunca fez commit nem PR), moved (começou pela discussão e
-#     fez commit ou PR neste ano) e coding (começou pelo código). A quarta,
-#     moved_to_discussion (já codou e neste ano só discutiu), só existe com
-#     `com_moved_to_discussion=True`.
+#     Uma tabela que conta os ativos de cada ano por faixa de idade na linguagem (0-1, 1-2, 2-3,
+#     3-5, 5-8 e 8+ anos) e por categoria. As categorias separam quem escreve código de quem só
+#     participa da discussão:
+#     - Quem nunca fez commit nem PR (`non_coding`).
+#     - Quem começou pela discussão e fez commit ou PR neste ano (`moved`).
+#     - Quem começou pelo código (`coding`).
+#     - Quem já fez código antes e neste ano só discutiu (`moved_to_discussion`). Esta categoria
+#       só existe com `com_moved_to_discussion=True`.
 #   Referência:
 #     Pirâmide etária e índice de envelhecimento (IBGE).
 #     https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `pa`, a tabela de `pessoa_ano`: uma linha por pessoa e ano em que ela contribuiu.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`): uma linha por pessoa e por ano em que ela
+#     contribuiu.
 #   Resultado esperado:
-#     Tabela de `composicao`: ano, faixa e uma coluna de contagem por categoria.
-#     Quem fez commit ou PR no ano fica do lado do código, mesmo que o último evento seja
+#     Tabela `composicao`: ano, faixa e uma coluna de contagem por categoria.
+#     Quem fez commit ou PR no ano fica do lado do código, mesmo que o último evento do ano seja
 #     um comentário.
 
 # Métrica: piramide_trimestral
 #   O que é:
-#     A pirâmide com idade em bandas de 90 dias no fim do ano, como no artigo, só para
-#     olhar. As métricas usam as faixas de 1 ano.
+#     A mesma pirâmide, com a idade em fatias de 90 dias (cerca de um trimestre) no lugar de anos,
+#     como no artigo. Serve para olhar a forma da pirâmide. As métricas usam as faixas de 1 ano.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363 (ESEM14 e
-#     IEICE16).
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363 (ESEM14 e IEICE16)
 #   Entrada:
-#     `pa`, a tabela de `pessoa_ano`: uma linha por pessoa e ano em que ela contribuiu.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`): uma linha por pessoa e por ano em que ela
+#     contribuiu.
 #   Resultado esperado:
-#     Tabela de `composicao_trimestral`: ano, band (0 é até 90 dias de idade) e uma coluna
-#     de contagem por categoria.
+#     Tabela `composicao_trimestral`: ano, `band` e uma coluna de contagem por categoria.
+#     A fatia 0 vai de 0 a 90 dias de idade, a fatia 1 de 91 a 180 dias, e assim por diante.
 
 
 def composicao(pa: pd.DataFrame) -> pd.DataFrame:
-    """Ativos por (ano, faixa) nas quatro categorias da pirâmide (ver `LADOS`)."""
+    """Quantos ativos há por ano e faixa de idade, nas quatro categorias da pirâmide (`LADOS`)."""
     t = pa.groupby(["ano", "faixa", "categoria"], observed=False).size().unstack(fill_value=0)
     for coluna in LADOS:
         if coluna not in t.columns:
@@ -610,10 +709,11 @@ def composicao(pa: pd.DataFrame) -> pd.DataFrame:
 
 
 def composicao_trimestral(pa: pd.DataFrame, band_dias: int = BAND_DIAS) -> pd.DataFrame:
-    """Ativos por (ano, banda de 3 meses de idade) em cada lado da pirâmide, como no artigo.
+    """Ativos por ano e por fatia de 90 dias de idade, em cada categoria da pirâmide.
 
-    A idade é o tempo desde a primeira contribuição até o fim do ano, em bandas de `band_dias`
-    dias; a banda 0 vai de 0 a 90 dias. Os lados são os de `composicao`.
+    A idade é o tempo desde a primeira contribuição até o fim do ano, em fatias de `band_dias`
+    dias. A fatia 0 vai de 0 a 90 dias, a fatia 1 de 91 a 180, e assim por diante. As categorias
+    são as de `composicao`.
     """
     lados = LADOS
     banda = (np.ceil((pa["idade_dias"] / band_dias).round(9)) - 1).clip(lower=0).astype(int)
@@ -626,21 +726,23 @@ def composicao_trimestral(pa: pd.DataFrame, band_dias: int = BAND_DIAS) -> pd.Da
 
 # Métrica: piramide_em_pct
 #   O que é:
-#     A pirâmide com as contagens em % dos ativos do ano, para comparar linguagens de
+#     A pirâmide com cada número em % do total de ativos do ano. Serve para comparar linguagens de
 #     tamanhos diferentes.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     Pirâmide etária e índice de envelhecimento (IBGE).
 #     https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95
 #   Entrada:
-#     `pa`, a tabela de `pessoa_ano`: uma linha por pessoa e ano em que ela contribuiu.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`): uma linha por pessoa e por ano em que ela
+#     contribuiu.
 #   Resultado esperado:
-#     Tabela de `composicao_em_pct`: as colunas de `composicao`, cada uma em % do total do
-#     ano. As quatro categorias de um ano somam 100.
+#     Tabela `composicao_em_pct`: as mesmas colunas da `composicao`, cada uma em % do total do
+#     ano.
+#     Somando todas as faixas e categorias de um ano, o resultado é 100.
 
 
 def composicao_em_pct(pa: pd.DataFrame) -> pd.DataFrame:
-    """`composicao` com as contagens em % dos ativos do ano (o `composicao_pct` da trajetória)."""
+    """`composicao` com cada contagem em % dos ativos do ano (o `composicao_pct` da trajetória)."""
     c = composicao(pa)
     total_do_ano = c[LADOS].sum(axis=1).groupby(c["ano"]).transform("sum")
     c[LADOS] = 100 * c[LADOS].div(total_do_ano, axis=0)
@@ -649,18 +751,22 @@ def composicao_em_pct(pa: pd.DataFrame) -> pd.DataFrame:
 
 # Métrica: indice_envelhecimento
 #   O que é:
-#     Ativos com 5 anos ou mais na linguagem (faixas 5-8 e 8+) divididos pelos ativos com
-#     menos de 1 ano (faixa 0-1), por ano.
+#     Ativos com 5 anos ou mais na linguagem (faixas 5-8 e 8+) divididos pelos ativos com menos de
+#     1 ano (faixa 0-1), por ano.
+#     Na demografia, mede quantos idosos existem para cada jovem.
 #   Referência:
 #     Pirâmide etária e índice de envelhecimento (IBGE).
 #     https://seriesestatisticas.ibge.gov.br/series.aspx?vcodigo=CD95
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `pa`, a tabela de `pessoa_ano`: uma linha por pessoa e ano em que ela contribuiu.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`): uma linha por pessoa e por ano em que ela
+#     contribuiu.
 #   Resultado esperado:
-#     Tabela de `indice_envelhecimento`: ano, veteranos, novatos e indice.
-#     Índice 1: tantos veteranos quanto novatos. Quando sobe, a base encolhe mais rápido
-#     que o topo. Fica vazio no ano sem novatos.
+#     Tabela `indice_envelhecimento`: ano, veteranos, novatos e indice.
+#     - Índice 1: tantos veteranos quanto novatos.
+#     - Índice subindo: a base da pirâmide (os novatos) encolhe mais rápido que o topo.
+#     Fica vazio no ano sem novatos.
 
 
 def indice_envelhecimento(pa: pd.DataFrame) -> pd.DataFrame:
@@ -677,16 +783,17 @@ def indice_envelhecimento(pa: pd.DataFrame) -> pd.DataFrame:
 # Retenção (RQ1.3): duração de cada pessoa e tábua de vida
 # ================================================================================================
 
-# Base, sem métrica própria. `duracoes` dá uma linha por pessoa: entrada, último evento, anos
-# entre os dois, se saiu e a coorte de entrada. Quem tem o último evento a 12 meses ou menos
-# de `fim` ainda pode voltar e fica censurado (`saiu` falso), com a duração observada até ali.
+# Base, sem métrica própria. `duracoes` dá uma linha por pessoa: quando entrou, o último evento,
+# os anos entre os dois, se já saiu e a coorte de entrada. Quem fez o último evento há 12 meses
+# ou menos de `fim` ainda pode voltar. Essa pessoa fica em observação (`saiu` falso), com a
+# duração medida até ali. Na estatística, isso se chama censura à direita.
 
 
 def duracoes(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataFrame:
-    """Uma linha por pessoa: coorte de entrada, anos entre primeiro e último evento, e se saiu.
+    """Uma linha por pessoa: coorte de entrada, anos entre o primeiro e o último evento e se saiu.
 
-    Quem tem o último evento a 12 meses ou menos de `fim` ainda pode voltar a
-    contribuir: fica censurado (`saiu` falso) na duração observada até ali.
+    Quem fez o último evento há 12 meses ou menos de `fim` ainda pode voltar a contribuir. Essa
+    pessoa fica em observação (`saiu` falso), com a duração medida até o último evento.
     """
     if fim is None:
         fim = eventos["timestamp"].max()
@@ -700,10 +807,10 @@ def duracoes(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataF
 
 
 def _intervalo_de_wilson(eventos: float, n: float, z: float = 1.96) -> tuple[float, float]:
-    """Intervalo de confiança de 95% de Wilson para uma proporção `eventos / n`.
+    """Faixa de 95% de confiança (método de Wilson) para a proporção `eventos / n`.
 
-    Vale para `n` fracionário (a exposição da tábua, com meio intervalo por censurado) e não
-    estoura em 0 ou em 1, o que o intervalo normal faz quando o número de saídas é zero.
+    Aceita `n` fracionário, porque na tábua quem está em observação conta meio ano. A faixa
+    nunca passa de 0 nem de 1. O intervalo normal passa quando o número de saídas é zero.
     """
     if not n > 0:
         return float("nan"), float("nan")
@@ -716,117 +823,139 @@ def _intervalo_de_wilson(eventos: float, n: float, z: float = 1.96) -> tuple[flo
 
 # Métrica: sobreviventes
 #   O que é:
-#     l(x): pessoas ainda em observação ao chegar em x anos de contribuição.
-#     Responde a RQ1.3. Quem entrou no mesmo ano forma uma coorte.
+#     l(x): quantas pessoas da coorte ainda estão em observação ao chegar em x anos de
+#     contribuição. Quem entrou no mesmo ano forma uma coorte.
+#     Em observação quer dizer que a pessoa não saiu antes de x e a coleta ainda a acompanhava.
+#     Faz parte da tábua de vida, que responde a RQ1.3 (em que ponto da vida na linguagem as
+#     pessoas saem).
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Coluna `l` da tabela de `tabua_de_vida`, uma linha por x. Começa no total da coorte
-#     e só desce.
+#     Coluna `l` da `tabua_de_vida`, uma linha por x (0 é o primeiro ano de contribuição).
+#     Começa no total da coorte e só desce.
 
 # Métrica: saidas_da_tabua
 #   O que é:
-#     d(x): saídas entre x e x+1 anos de contribuição.
-#     Responde a RQ1.3. Quem entrou no mesmo ano forma uma coorte.
+#     d(x): quantas pessoas saíram entre x e x+1 anos de contribuição.
+#     Faz parte da tábua de vida, que responde a RQ1.3 (em que ponto da vida na linguagem as
+#     pessoas saem).
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Coluna `d` da tabela de `tabua_de_vida`, uma linha por x. Contagem. Soma das saídas
-#     de todos os x é o total de quem saiu.
+#     Coluna `d` da `tabua_de_vida`, uma linha por x. É uma contagem.
+#     Somando todos os x, o resultado é o total de quem saiu.
 
 # Métrica: chance_de_sair
 #   O que é:
-#     q(x) = d(x) / (l(x) - censurados(x) / 2): a chance de sair estando no ano x. O
-#     censurado conta meio intervalo de exposição. É a taxa de saída da faixa, no nível do
-#     ano.
-#     Responde a RQ1.3. Quem entrou no mesmo ano forma uma coorte.
+#     q(x): a chance de uma pessoa sair no ano x, sabendo que ela chegou até ele. Na demografia, é
+#     a probabilidade de morte.
+#     A conta é q(x) = d(x) / (l(x) - censurados(x) / 2). Censurado é quem ainda pode voltar (o
+#     último evento foi há 12 meses ou menos do fim da coleta). Essa pessoa conta como meio ano de
+#     observação em vez de um ano inteiro.
+#     É a taxa de saída da faixa, no nível do ano. Faz parte da tábua de vida, que responde a
+#     RQ1.3 (em que ponto da vida na linguagem as pessoas saem).
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Coluna `q` da tabela de `tabua_de_vida`, uma linha por x. q vai de 0 a 1. Com q =
-#     0,4 em x = 2, 40% de quem chegou a 2 anos sai antes de completar 3. `n_efetivo` é a
-#     exposição de q: com poucas pessoas q oscila.
+#     Coluna `q` da `tabua_de_vida`, uma linha por x, de 0 a 1.
+#     Exemplo: q = 0,4 em x = 2 quer dizer que 40% de quem chegou a 2 anos sai antes de completar
+#     3.
+#     A coluna `n_efetivo` mostra quantas pessoas pesam na conta. Com poucas, q oscila muito.
 
 # Métrica: fracao_que_chega
 #   O que é:
-#     S(x): fração da coorte que chega a x. Produto de (1 - q) até x - 1.
-#     Responde a RQ1.3. Quem entrou no mesmo ano forma uma coorte.
+#     S(x): a fração da coorte que chega a x anos de contribuição. É o produto de (1 - q) de todos
+#     os anos antes de x. Faz parte da tábua de vida, que responde a RQ1.3 (em que ponto da vida
+#     na linguagem as pessoas saem).
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Coluna `S` da tabela de `tabua_de_vida`, uma linha por x. Começa em 1 e desce. S =
-#     0,3 em x = 5: 30% da coorte chega a 5 anos.
+#     Coluna `S` da `tabua_de_vida`, uma linha por x. Começa em 1 e desce.
+#     Exemplo: S = 0,3 em x = 5 quer dizer que 30% da coorte chega a 5 anos.
 
 # Métrica: esperanca_restante
 #   O que é:
-#     e(x): anos que ainda restam, em média, a quem chegou a x anos de contribuição.
-#     Responde a pergunta de quem já está há x anos: quanto tempo ainda fica.
-#     Responde a RQ1.3. Quem entrou no mesmo ano forma uma coorte.
+#     e(x): quantos anos a mais, em média, ainda contribui uma pessoa que chegou a x anos.
+#     Responde: quem já está há x anos ainda fica quanto tempo?
+#     Faz parte da tábua de vida, que responde a RQ1.3 (em que ponto da vida na linguagem as
+#     pessoas saem).
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Coluna `e` da tabela de `tabua_de_vida`, uma linha por x. Anos. `e_truncado`
-#     verdadeiro: a cauda censurada fica de fora. Nesse caso e(x) é um valor mínimo.
+#     Coluna `e` da `tabua_de_vida`, uma linha por x, em anos.
+#     Quando `e_truncado` é verdadeiro, ainda há gente em observação no fim da tábua. A parte da
+#     vida depois do último ano observado não entra na conta, e e(x) vale como valor mínimo.
 
 # Métrica: intervalo_de_q
 #   O que é:
-#     Intervalo de 95% de Wilson para q(x), calculado com a exposição `n_efetivo`. Não
-#     estoura em 0 ou em 1 quando não há saída.
-#     Responde a RQ1.3. Quem entrou no mesmo ano forma uma coorte.
+#     A faixa de valores em que q(x) provavelmente está: um intervalo de confiança de 95%, pelo
+#     método de Wilson, calculado com `n_efetivo`.
+#     Com poucas pessoas a faixa é larga. Ela nunca passa de 0 nem de 1, mesmo quando ninguém
+#     saiu. Faz parte da tábua de vida, que responde a RQ1.3 (em que ponto da vida na linguagem as
+#     pessoas saem).
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Coluna `q_inf` da tabela de `tabua_de_vida`, uma linha por x. `q_inf` e `q_sup`,
-#     entre 0 e 1. Com 10 pessoas efetivas e 0 saídas o intervalo vai de 0 a 28%. Quem lê
-#     q(x) deve olhar `n_efetivo` e o intervalo.
+#     Colunas `q_inf` e `q_sup` da `tabua_de_vida`, uma linha por x, entre 0 e 1.
+#     Exemplo: com 10 pessoas e nenhuma saída, q vale 0 e a faixa vai de 0 a 28%.
+#     Quem lê q(x) deve olhar também `n_efetivo` e a faixa.
 
 
 def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
-    """Tábua de vida atuarial em intervalos de 1 ano na linguagem.
+    """Tábua de vida: como um grupo que entrou junto vai diminuindo a cada ano de contribuição.
 
-    l(x)  pessoas ainda em observação ao chegar em x anos
-    d(x)  saídas entre x e x+1
-    q(x)  d(x) / (l(x) - censurados(x)/2): o censurado conta meio intervalo de exposição
-    n_efetivo(x)  a exposição l(x) - censurados(x)/2, o denominador de q
-    q_inf, q_sup  intervalo de confiança de 95% de Wilson para q(x) com `n_efetivo`
-    S(x)  fração que chega em x, produto de (1 - q) até x-1
-    e(x)  anos que ainda restam, em média, a quem chegou em x
+    Colunas (x é o ano de contribuição, e 0 é o primeiro):
+      l(x)          pessoas em observação ao chegar em x anos
+      d(x)          saídas entre x e x+1
+      censurados    pessoas que ainda podem voltar e saem da observação em x
+      q(x)          chance de sair: d(x) / (l(x) - censurados(x)/2). Quem está em observação
+                    conta meio ano
+      n_efetivo(x)  o denominador de q: l(x) - censurados(x)/2
+      q_inf, q_sup  faixa de 95% de confiança (Wilson) para q(x), calculada com `n_efetivo`
+      S(x)          fração da coorte que chega a x: produto de (1 - q) até x-1
+      e(x)          anos que ainda restam, em média, a quem chegou a x
 
-    Com poucas pessoas efetivamente observadas q(x) oscila: 0 saídas em 10 pessoas efetivas dá
-    q = 0 e um intervalo de 0 a 28%. Quem lê q(x) deve olhar `n_efetivo` e o intervalo.
+    Com poucas pessoas, q(x) oscila: 0 saídas em 10 pessoas dá q = 0 e uma faixa de 0 a 28%.
+    Quem lê q(x) deve olhar `n_efetivo` e a faixa.
 
-    Quando a tábua termina com gente censurada (S final > 0), a cauda depois do
-    último intervalo observado não entra, e e(x) é um piso. `e_truncado` marca.
+    Se a tábua termina com gente em observação (S final > 0), a parte da vida depois do último
+    ano observado fica de fora, e e(x) vale como valor mínimo. A coluna `e_truncado` avisa.
     """
     colunas = [
         "x",
@@ -883,18 +1012,20 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
 
 # Métrica: tabua_por_coorte
 #   O que é:
-#     A tábua de vida de cada coorte de entrada. Comparando coortes, vê-se se cada geração
-#     fica mais ou menos tempo que a anterior.
+#     A tábua de vida de cada coorte de entrada. Comparando as coortes, dá para ver se cada
+#     geração fica mais ou menos tempo que a anterior.
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
-#     Hannemann e Klamma, OSS 2013. https://doi.org/10.1007/978-3-642-38928-3_6
+#     Hannemann e Klamma, OSS 2013.
+#     https://doi.org/10.1007/978-3-642-38928-3_6
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Tabela de `tabuas_por_coorte`: as colunas de `tabua_de_vida` com a coluna coorte na
-#     frente. As coortes mais recentes ficam incompletas por causa da censura.
+#     Tabela `tabuas_por_coorte`: as colunas da `tabua_de_vida` com a coluna `coorte` na frente.
+#     As coortes mais recentes ficam incompletas, porque a coleta ainda não viu o que acontece com
+#     elas depois.
 
 
 def tabuas_por_coorte(dur: pd.DataFrame) -> pd.DataFrame:
@@ -909,7 +1040,8 @@ def tabuas_por_coorte(dur: pd.DataFrame) -> pd.DataFrame:
 
 # Métrica: chance_de_seguir
 #   O que é:
-#     Chance de seguir mais 1 ano tendo chegado a x: 1 - q(x). Olha só o ano seguinte.
+#     A chance de seguir contribuindo por mais 1 ano, para quem chegou a x anos: 1 - q(x). Olha só
+#     o ano seguinte.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #     IBGE, Tábua Completa de Mortalidade 2023.
@@ -917,9 +1049,9 @@ def tabuas_por_coorte(dur: pd.DataFrame) -> pd.DataFrame:
 #   Entrada:
 #     `tabua`, a tabela de `tabua_de_vida`.
 #   Resultado esperado:
-#     Uma série entre 0 e 1, uma por x. 0,6 em x = 3: 60% de quem chegou a 3 anos segue
-#     mais um ano. Abaixo de 300 pessoas efetivas (`n_efetivo`) a chance oscila vários
-#     pontos.
+#     Uma série de 0 a 1, uma por x.
+#     Exemplo: 0,6 em x = 3 quer dizer que 60% de quem chegou a 3 anos segue por mais um ano.
+#     Com menos de 300 pessoas em `n_efetivo`, o valor oscila vários pontos.
 
 
 def chance_de_seguir(tabua: pd.DataFrame) -> pd.Series:
@@ -928,32 +1060,33 @@ def chance_de_seguir(tabua: pd.DataFrame) -> pd.Series:
 
 
 # ================================================================================================
-# Saída por faixa (RQ1.3)
+# Saída por faixa de idade (RQ1.3)
 # ================================================================================================
 
 # Métrica: taxa_saida_por_faixa
 #   O que é:
-#     Saídas da faixa dividido pelos ativos da faixa, por ano e faixa de tempo na
-#     linguagem. É o q(x) da tábua de vida, faixa por faixa. Mostra em que fase a
-#     comunidade perde mais gente, novatos ou veteranos.
+#     De cada faixa de idade na linguagem, que fração saiu no ano: saídas da faixa divididas pelos
+#     ativos da faixa.
+#     É o q(x) da tábua de vida, calculado por faixa. Mostra em que fase a comunidade perde mais
+#     gente: entre os novatos ou entre os veteranos.
 #   Referência:
 #     IBGE, Tábua Completa de Mortalidade 2023.
 #     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf
 #     CDC WONDER, Presentation Standards for Mortality Data, 2024.
 #     https://wonder.cdc.gov/controller/pdf/presentation-standards-mortality-2024.pdf
 #   Entrada:
-#     `pa`, a tabela de `pessoa_ano`: uma linha por pessoa e ano em que ela contribuiu. E
-#     `fim`.
+#     `pa`, a tabela de pessoas por ano (`pessoa_ano`), e `fim`, a data e hora do último evento
+#     coletado.
 #   Resultado esperado:
-#     Tabela de `taxa_saida_por_faixa`: ano, faixa, ativos, saidas e taxa_saida.
-#     taxa_saida vai de 0 a 1. Com 0,3, a cada 10 ativos da faixa 3 saíram no ano.
-#     Ano que a coleta não cobre fica sem saídas e sem taxa. Faixa sem ativos fica sem
-#     taxa. Os gráficos marcam como instável a célula com menos de 20 saídas
-#     (`saidas_estavel`).
+#     Tabela `taxa_saida_por_faixa`: ano, faixa, ativos, saidas e taxa_saida.
+#     A `taxa_saida` vai de 0 a 1. Exemplo: 0,3 quer dizer que, a cada 10 ativos da faixa, 3
+#     saíram no ano.
+#     Ano que a coleta não cobre fica sem saídas e sem taxa. Faixa sem ativos fica sem taxa.
+#     Os gráficos do estudo marcam como instável a célula com menos de 20 saídas.
 
 
 def taxa_saida_por_faixa(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Saídas da faixa / ativos da faixa, por (ano, faixa). Ano aberto fica `NaN`."""
+    """Saídas da faixa divididas pelos ativos da faixa, por ano. Ano em aberto fica `NaN`."""
     t = (
         pa.groupby(["ano", "faixa"], observed=False)
         .agg(ativos=("contributor_id", "size"), saidas=("saida", "sum"))
@@ -973,101 +1106,111 @@ def taxa_saida_por_faixa(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
 
 # Métrica: taxa_bruta
 #   O que é:
-#     Saídas do ano sobre os ativos do ano da linguagem, sem corrigir a composição.
-#     Responde a RQ2.
+#     Saídas do ano divididas pelos ativos do ano na linguagem, sem corrigir a composição.
+#     Responde a RQ2 (a linguagem retém melhor ou pior que outras).
+#     Quem é novo sai mais. Uma linguagem com muita gente nova tem taxa bruta alta mesmo que
+#     retenha tão bem quanto as outras. A taxa padronizada corrige isso.
 #   Referência:
 #     Ahmad et al., Age Standardization of Rates: A New WHO Standard, OMS, 2001.
 #     https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf
 #   Entrada:
-#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025). A
-#     referência é a soma das linguagens do dict.
+#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025), o ano cuja
+#     mistura de faixas de idade serve de peso. A população de referência é a soma de todas as
+#     linguagens do dict.
 #   Resultado esperado:
-#     Coluna `taxa_bruta` da tabela de `padronizacao`, uma linha por linguagem e ano. 0 a
-#     1. Mistura a diferença real de retenção com a diferença de composição entre
+#     Coluna `taxa_bruta` da tabela `padronizacao`, uma linha por linguagem e ano, de 0 a 1.
+#     O número mistura a diferença real de retenção com a diferença de composição entre as
 #     linguagens.
 
 # Métrica: taxa_padronizada
 #   O que é:
-#     Taxa direta: soma, por faixa, de (taxa de saída da faixa na linguagem x peso da
-#     faixa na população de referência). Compara as linguagens como se todas tivessem a
-#     mesma mistura de novatos e veteranos. O que sobra de diferença vem da retenção.
-#     Responde a RQ2.
+#     A taxa de saída da linguagem refeita como se ela tivesse a mesma mistura de faixas de idade
+#     da população de referência. Para cada faixa, multiplica a taxa de saída da linguagem pelo
+#     peso da faixa na referência e soma tudo (taxa direta).
+#     A diferença que sobra entre as linguagens vem da retenção. Responde a RQ2.
 #   Referência:
 #     Ahmad et al., Age Standardization of Rates: A New WHO Standard, OMS, 2001.
 #     https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf
 #   Entrada:
-#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025). A
-#     referência é a soma das linguagens do dict.
+#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025), o ano cuja
+#     mistura de faixas de idade serve de peso. A população de referência é a soma de todas as
+#     linguagens do dict.
 #   Resultado esperado:
-#     Coluna `taxa_padronizada` da tabela de `padronizacao`, uma linha por linguagem e
-#     ano. 0 a 1. Fica vazia no ano em que alguma faixa não tem ninguém (linguagem jovem).
+#     Coluna `taxa_padronizada` da tabela `padronizacao`, uma linha por linguagem e ano, de 0 a 1.
+#     Fica vazia no ano em que alguma faixa não tem ninguém na linguagem (linguagem jovem), porque
+#     falta a taxa para pesar.
 
 # Métrica: taxa_padronizada_ate_5a
 #   O que é:
-#     A taxa direta só nas faixas de 0 a 5 anos, com os pesos renormalizados. Começa 5
-#     anos depois do nascimento da comunidade e compara todas no mesmo intervalo de
-#     idades.
-#     Responde a RQ2.
+#     A taxa direta só nas faixas de 0 a 5 anos, com os pesos reajustados para somar 1.
+#     Uma linguagem nova ainda não tem as faixas 5-8 e 8+, e a taxa padronizada completa só começa
+#     quando todas as faixas existem. Esta começa 5 anos depois do nascimento da comunidade e
+#     compara todas no mesmo intervalo de idades. Responde a RQ2.
 #   Referência:
 #     Ahmad et al., Age Standardization of Rates: A New WHO Standard, OMS, 2001.
 #     https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf
 #   Entrada:
-#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025). A
-#     referência é a soma das linguagens do dict.
+#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025), o ano cuja
+#     mistura de faixas de idade serve de peso. A população de referência é a soma de todas as
+#     linguagens do dict.
 #   Resultado esperado:
-#     Coluna `taxa_padronizada_ate_5a` da tabela de `padronizacao`, uma linha por
-#     linguagem e ano. 0 a 1. Existe em linguagens novas, que ainda não têm as faixas 5-8
-#     e 8+.
+#     Coluna `taxa_padronizada_ate_5a` da tabela `padronizacao`, uma linha por linguagem e ano, de
+#     0 a 1.
+#     Existe em linguagens novas, que ainda não têm as faixas 5-8 e 8+.
 
 # Métrica: saidas_esperadas
 #   O que é:
-#     Quantas saídas a linguagem teria se tivesse as taxas de saída da referência em cada
-#     faixa: soma, por faixa, de (taxa da referência x ativos da linguagem).
-#     Responde a RQ2.
+#     Quantas saídas a linguagem teria se cada faixa dela saísse na taxa da população de
+#     referência: soma, por faixa, de (taxa da referência x ativos da linguagem). Responde a RQ2.
 #   Referência:
 #     Ahmad et al., Age Standardization of Rates: A New WHO Standard, OMS, 2001.
 #     https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf
 #   Entrada:
-#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025). A
-#     referência é a soma das linguagens do dict.
+#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025), o ano cuja
+#     mistura de faixas de idade serve de peso. A população de referência é a soma de todas as
+#     linguagens do dict.
 #   Resultado esperado:
-#     Coluna `saidas_esperadas` da tabela de `padronizacao`, uma linha por linguagem e
-#     ano. Contagem fracionária. Fica vazia se a referência do ano tem faixa aberta.
+#     Coluna `saidas_esperadas` da tabela `padronizacao`, uma linha por linguagem e ano.
+#     É uma contagem com casas decimais.
+#     Fica vazia se a referência do ano tem alguma faixa em aberto (coleta incompleta).
 
 # Métrica: smr
 #   O que é:
-#     Razão padronizada de saídas: saídas reais divididas pelas saídas esperadas.
-#     Responde a RQ2.
+#     Razão padronizada de saídas (SMR, do inglês Standardized Mortality Ratio): as saídas reais
+#     divididas pelas saídas esperadas. Responde a RQ2.
 #   Referência:
 #     Ahmad et al., Age Standardization of Rates: A New WHO Standard, OMS, 2001.
 #     https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf
 #   Entrada:
-#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025). A
-#     referência é a soma das linguagens do dict.
+#     Um dict {linguagem: tabela de `taxa_saida_por_faixa`} e `ano_pesos` (2025), o ano cuja
+#     mistura de faixas de idade serve de peso. A população de referência é a soma de todas as
+#     linguagens do dict.
 #   Resultado esperado:
-#     Coluna `smr` da tabela de `padronizacao`, uma linha por linguagem e ano. 1: saiu o
-#     esperado. Acima de 1: saiu mais do que o esperado. Abaixo de 1: saiu menos. O
-#     resultado depende da referência escolhida.
+#     Coluna `smr` da tabela `padronizacao`, uma linha por linguagem e ano.
+#     - 1: saiu o esperado.
+#     - Acima de 1: saiu mais do que o esperado. Exemplo: 1,2 quer dizer 20% mais saídas.
+#     - Abaixo de 1: saiu menos do que o esperado.
+#     O resultado depende da referência escolhida.
 
 
 def padronizacao(taxas: dict[str, pd.DataFrame], ano_pesos: int) -> pd.DataFrame:
     """Taxa de saída bruta, padronizada (direta) e SMR (indireta), por linguagem e ano.
 
-    `taxas` traz a saída de `taxa_saida_por_faixa` de cada linguagem. A
-    referência é a soma das linguagens: os pesos vêm da composição por faixa de
-    todas juntas em `ano_pesos`, e a taxa da referência em Y é a de todas juntas em Y.
+    `taxas` traz a saída de `taxa_saida_por_faixa` de cada linguagem. A população de referência
+    é a soma das linguagens: os pesos vêm da composição por faixa de todas juntas em
+    `ano_pesos`, e a taxa da referência em Y é a de todas juntas em Y.
 
       direta  soma, por faixa, de taxa da linguagem vezes peso da faixa
       SMR     saídas da linguagem / soma, por faixa, de taxa da referência vezes
               ativos da linguagem
 
-    Faixa sem ativos na linguagem deixa a direta `NaN`, porque falta a taxa a
-    pesar. Ano aberto em qualquer linguagem deixa a referência daquele ano `NaN`.
+    Faixa sem ativos na linguagem deixa a direta `NaN`, porque falta a taxa para pesar. Ano em
+    aberto em qualquer linguagem deixa a referência daquele ano `NaN`.
 
     `taxa_padronizada_ate_5a` é a direta só nas faixas `FAIXAS_CURTAS` (0 a 5 anos), com os pesos
-    renormalizados. Uma linguagem nova não tem 8+ nem 5-8 nos primeiros anos, e a direta completa
-    só começa quando todas as faixas existem (Zig em 2023). A curta começa 5 anos depois do
-    nascimento da comunidade e compara todas no mesmo intervalo de idades.
+    reajustados. Uma linguagem nova não tem as faixas 5-8 e 8+ nos primeiros anos, e a direta
+    completa só começa quando todas as faixas existem (Zig em 2023). A curta começa 5 anos
+    depois do nascimento da comunidade e compara todas no mesmo intervalo de idades.
     """
     frames = []
     for linguagem, t in taxas.items():
@@ -1112,53 +1255,56 @@ def padronizacao(taxas: dict[str, pd.DataFrame], ano_pesos: int) -> pd.DataFrame
 
 
 # ================================================================================================
-# Significância (RQ2): Kaplan-Meier e log-rank
+# Diferença entre linguagens além do acaso (RQ2): Kaplan-Meier e log-rank
 # ================================================================================================
 
 # Métrica: kaplan_meier
 #   O que é:
-#     A probabilidade estimada de uma pessoa ainda estar ativa t anos depois de entrar.
-#     Quem segue ativo no fim da coleta entra como ainda sem saída (censura à direita).
+#     A estimativa da chance de uma pessoa ainda estar ativa t anos depois de entrar.
+#     Quem ainda está ativo no fim da coleta entra na conta como ainda sem saída, porque não se
+#     sabe quando vai sair. Na estatística, isso se chama censura à direita.
 #   Referência:
 #     Constantinou e Mens, Innovations in Systems and Software Engineering, 2017.
 #     https://doi.org/10.1007/s11334-017-0303-4
 #   Entrada:
-#     `dur`, a tabela de `duracoes`: uma linha por pessoa, com contributor_id, entrada,
-#     ultimo, duracao_anos, saiu (falso é censurado) e coorte.
+#     `dur`, a tabela de durações (`duracoes`): uma linha por pessoa, com quando entrou, quando
+#     fez o último evento, quantos anos ficou, se já saiu e a coorte de entrada.
 #   Resultado esperado:
-#     Tabela de `kaplan_meier`: anos, S (a fração ainda ativa, que começa em 1 e desce em
-#     degraus) e em_risco (quantas pessoas têm duração de `anos` ou mais: quanto menos,
-#     menos a curva vale).
-#     Uma amostra com mais de 2 milhões de pontos sai com um ponto por dia, exato nesse
-#     instante.
+#     Tabela `kaplan_meier` com três colunas:
+#     - `anos`: o tempo desde a primeira contribuição.
+#     - `S`: a fração ainda ativa. Começa em 1 e desce em degraus.
+#     - `em_risco`: quantas pessoas têm duração de `anos` ou mais. Quanto menor, menos a curva
+#       vale.
+#     Uma amostra com mais de 2 milhões de pontos sai com um ponto por dia, exato nesse instante.
 
 # Métrica: logrank
 #   O que é:
-#     Teste que diz se duas curvas de Kaplan-Meier diferem além do acaso. O plano compara
-#     Clojure com cada outra linguagem.
+#     Teste que diz se duas curvas de Kaplan-Meier diferem além do acaso. O plano compara Clojure
+#     com cada outra linguagem.
 #   Referência:
 #     Constantinou e Mens, Innovations in Systems and Software Engineering, 2017.
 #     https://doi.org/10.1007/s11334-017-0303-4
 #   Entrada:
-#     `dur_a` e `dur_b`, as tabelas de `duracoes` das duas linguagens.
+#     `dur_a` e `dur_b`, as tabelas de durações (`duracoes`) das duas linguagens.
 #   Resultado esperado:
-#     Uma tupla (estatística, p). P abaixo de 0,05: a diferença passa do acaso.
-#     Com milhares de pessoas o p fica minúsculo para qualquer diferença. O que informa é
-#     o tamanho dela, por exemplo 0,28 contra 0,36 de fração ativa depois de 5 anos.
+#     Uma tupla (estatística, p).
+#     - p abaixo de 0,05: a diferença passa do acaso.
+#     Com milhares de pessoas, p fica minúsculo para qualquer diferença. O que informa é o tamanho
+#     dela, por exemplo 0,28 contra 0,36 de fração ativa depois de 5 anos.
 
 
 def _amostra_censurada(dur: pd.DataFrame) -> stats.CensoredData:
-    """Duração de `duracoes`, com quem não saiu marcado como censura à direita."""
+    """Durações de `duracoes`. Quem ainda não saiu entra marcado como em observação."""
     return stats.CensoredData.right_censored(
         dur["duracao_anos"].to_numpy(), ~dur["saiu"].to_numpy()
     )
 
 
 def kaplan_meier(dur: pd.DataFrame) -> pd.DataFrame:
-    """Fração estimada ainda ativa, `S`, depois de `anos` desde a primeira contribuição.
+    """Fração estimada ainda ativa, `S`, `anos` depois da primeira contribuição.
 
     `em_risco` é quantas pessoas têm duração de `anos` ou mais: quanto menor, menos a curva vale.
-    Com mais de `MAX_PONTOS_KM` pontos fica o último de cada dia, que é exato nesse instante.
+    Com mais de `MAX_PONTOS_KM` pontos, fica o último de cada dia, que é exato nesse instante.
     """
     sf = stats.ecdf(_amostra_censurada(dur)).sf
     curva = pd.DataFrame({"anos": sf.quantiles, "S": sf.probabilities})
@@ -1173,7 +1319,7 @@ def kaplan_meier(dur: pd.DataFrame) -> pd.DataFrame:
 
 
 def logrank(dur_a: pd.DataFrame, dur_b: pd.DataFrame) -> tuple[float, float]:
-    """Log-rank bilateral entre duas curvas de Kaplan-Meier: (estatística, p-valor)."""
+    """Teste log-rank entre duas curvas de Kaplan-Meier. Devolve (estatística, p)."""
     r = stats.logrank(_amostra_censurada(dur_a), _amostra_censurada(dur_b))
     return float(r.statistic), float(r.pvalue)
 
@@ -1182,14 +1328,14 @@ def logrank(dur_a: pd.DataFrame, dur_b: pd.DataFrame) -> tuple[float, float]:
 # Cenários futuros (RQ3): projeção, erro e cobertura
 # ================================================================================================
 
-# Base, sem métrica própria. A projeção usa faixas de 1 ano de contribuição (0 a 7 e 8+) e
-# avança um ano por vez. `populacao_por_idade` dá ativos por ano e idade. `saidas_por_banda`
-# dá as saídas por ano e banda. `regra_da_variante` monta a regra de cenário a partir de
-# `variantes` no yaml.
+# Base, sem métrica própria. A projeção trabalha com a idade em anos de contribuição (0 a 7 e
+# 8 ou mais) e avança um ano por vez. Banda é uma dessas idades. `populacao_por_idade` conta os
+# ativos por ano e idade. `saidas_por_banda` conta as saídas por ano e banda.
+# `regra_da_variante` monta a regra de um cenário a partir de `variantes` no yaml.
 
 
 def populacao_por_idade(pa: pd.DataFrame) -> pd.DataFrame:
-    """Ativos por ano (linhas) e idade exata em anos (colunas), sem fechar a 8+."""
+    """Ativos por ano (linhas) e por idade exata em anos (colunas), sem agrupar o 8+."""
     pop = pa.groupby(["ano", "idade_anos"]).size().unstack(fill_value=0)
     anos = range(int(pop.index.min()), int(pop.index.max()) + 1)
     idades = range(int(pop.columns.max()) + 1)
@@ -1197,7 +1343,7 @@ def populacao_por_idade(pa: pd.DataFrame) -> pd.DataFrame:
 
 
 def _bandas(linha: pd.Series) -> np.ndarray:
-    """Contagem por idade exata vira vetor de 0 a 7 e 8+."""
+    """Transforma a contagem por idade exata num vetor de 9 posições: idades 0 a 7 e 8 ou mais."""
     v = np.zeros(BANDAS)
     for idade, n in linha.items():
         v[min(int(idade), BANDAS - 1)] += n
@@ -1205,7 +1351,7 @@ def _bandas(linha: pd.Series) -> np.ndarray:
 
 
 def saidas_por_banda(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Saídas por ano (linhas) e banda de 0 a 8 (colunas). Ano aberto fica `NaN`."""
+    """Saídas por ano (linhas) e banda de 0 a 8 (colunas). Ano em aberto fica `NaN`."""
     saiu = pa[pa["saida"]].assign(banda=pa["idade_anos"].clip(upper=BANDAS - 1))
     t = saiu.groupby(["ano", "banda"]).size().unstack(fill_value=0)
     anos = range(int(pa["ano"].min()), int(pa["ano"].max()) + 1)
@@ -1218,16 +1364,16 @@ def saidas_por_banda(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
 
 @dataclass(frozen=True)
 class RegraCenario:
-    """Como os cenários leem a série histórica.
+    """Como os cenários leem a história.
 
-    min_saidas        a permanência da banda a de Y-1 para Y só entra se a banda
-                      teve pelo menos essas saídas em Y-1
-    janela            só os últimos `janela` anos até a base; `None` usa a história toda
-    novatos_por_taxa  novatos viram taxa (novatos de Y / ativos de Y-1), aplicada
-                      à população do ano projetado; falso usa a contagem de novatos
-    conservador       como o cenário conservador sai da janela: `extremos` é a média do menor
-                      e do maior valor, `media` é a média de todos os anos da janela e
-                      `recentes` é a média dos 2 últimos anos da janela
+    min_saidas        a taxa de permanência de uma banda de Y-1 para Y só entra na conta se a
+                      banda teve pelo menos essas saídas em Y-1
+    janela            usa só os últimos `janela` anos até o ano base; `None` usa a história toda
+    novatos_por_taxa  verdadeiro: os novatos viram taxa (novatos de Y / ativos de Y-1), aplicada
+                      à população do ano projetado. Falso: usa a contagem de novatos
+    conservador       como o cenário conservador é calculado: `extremos` é a média do menor e
+                      do maior valor, `media` é a média de todos os anos da janela e `recentes`
+                      é a média dos 2 últimos anos da janela
     """
 
     min_saidas: int = 0
@@ -1248,22 +1394,26 @@ def regra_da_variante(valores: list, min_saidas: int) -> RegraCenario:
 
 # Métrica: taxa_de_permanencia
 #   O que é:
-#     Para cada faixa de 1 ano, a população da faixa seguinte neste ano dividida pela da
-#     faixa anterior no ano passado. Pode passar de 1, porque quem volta a contribuir
-#     reaparece na faixa seguinte sem ter sido contado na anterior.
+#     Para cada idade de 0 a 7 anos e para 8 ou mais: quantas pessoas aparecem neste ano na idade
+#     seguinte para cada pessoa que estava na idade anterior no ano passado.
+#     O valor pode passar de 1, porque quem volta a contribuir reaparece na idade seguinte sem ter
+#     sido contado na anterior.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363 Adaptado do
-#     método de componentes por coorte de Isserman.
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
+#     Adaptado do método de componentes por coorte de Isserman.
 #   Entrada:
 #     `pop` (de `populacao_por_idade`) e o `ano`.
 #   Resultado esperado:
-#     Um vetor de 9 posições (faixas 0 a 7 e 8+). Banda de origem vazia deixa a taxa vazia
-#     (NaN). 0,8 quer dizer que 80% da faixa chegou à seguinte.
+#     Um vetor de 9 posições (idades 0 a 7 e 8 ou mais).
+#     Exemplo: 0,8 quer dizer que 80% da faixa chegou à faixa seguinte.
+#     Faixa de origem vazia deixa a taxa vazia (NaN).
 
 
 def permanencia(pop: pd.DataFrame, ano: int) -> np.ndarray:
     """Taxa de permanência de `ano - 1` para `ano`, por banda de origem.
 
+    P(idade, ano) é o número de ativos daquela idade naquele ano.
     sr[a], a de 0 a 7: P(idade a+1, ano) / P(idade a, ano - 1).
     sr[8]: P(idade 9 ou mais, ano) / P(idade 8 ou mais, ano - 1).
     Banda de origem vazia deixa a taxa `NaN`.
@@ -1281,10 +1431,10 @@ def permanencia(pop: pd.DataFrame, ano: int) -> np.ndarray:
 
 
 def projeta_um_ano(p: np.ndarray, sr: np.ndarray, novatos: float, teto: bool) -> np.ndarray:
-    """Pirâmide de T+1 a partir da de T. `teto` limita a permanência em 1.
+    """Calcula a pirâmide de T+1 a partir da de T. Com `teto`, a taxa de permanência não passa de 1.
 
-    Banda vazia em T não leva ninguém adiante, mesmo com taxa `NaN`. Banda com
-    gente e taxa `NaN` deixa o destino `NaN`: o método não tem resposta ali.
+    Banda vazia em T não leva ninguém adiante, mesmo com taxa `NaN`. Banda com gente e taxa
+    `NaN` deixa o destino `NaN`: o método não tem resposta ali.
     """
     if teto:
         sr = np.minimum(sr, 1.0)
@@ -1300,101 +1450,112 @@ def projeta_um_ano(p: np.ndarray, sr: np.ndarray, novatos: float, teto: bool) ->
 
 # Métrica: projecao_ingenua
 #   O que é:
-#     A pirâmide do próximo ano é igual à do último ano observado.
-#     Responde a RQ3. O backtest usa só os anos anteriores ao ano previsto.
+#     A pirâmide do próximo ano é igual à do último ano observado. É a base de comparação:
+#     qualquer método útil precisa errar menos que ela.
+#     Responde a RQ3. O teste de previsão (`backtest`) usa só os anos anteriores ao ano previsto.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #     Variantes de projeção da ONU.
 #     https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/
 #     Bonifácio e Guimarães, Texto para Discussão 2698, Ipea, 2021.
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`.
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`).
 #   Resultado esperado:
-#     Coluna `ingenuo` da tabela de `backtest` (uma linha por ano e faixa, com a faixa
-#     `total`) e linhas do `metodo` correspondente em `projeta_futuro`.
+#     Coluna `ingenuo` da tabela `backtest` (uma linha por ano e faixa, com a faixa extra `total`)
+#     e, para o futuro, as linhas desse método em `projeta_futuro`.
 
 # Métrica: projecao_coorte
 #   O que é:
-#     Cada faixa do próximo ano recebe a população da faixa anterior vezes a taxa de
-#     permanência do último par de anos. Os novatos são a média dos dois últimos anos.
-#     Responde a RQ3. O backtest usa só os anos anteriores ao ano previsto.
+#     Cada faixa do próximo ano recebe a população da faixa anterior vezes a taxa de permanência
+#     do último par de anos. Os novatos são a média dos dois últimos anos.
+#     Coorte é o grupo que entrou no mesmo ano e envelhece junto. Responde a RQ3. O teste de
+#     previsão (`backtest`) usa só os anos anteriores ao ano previsto.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #     Variantes de projeção da ONU.
 #     https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/
 #     Bonifácio e Guimarães, Texto para Discussão 2698, Ipea, 2021.
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`.
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`).
 #   Resultado esperado:
-#     Coluna `coorte` da tabela de `backtest` (uma linha por ano e faixa, com a faixa
-#     `total`) e linhas do `metodo` correspondente em `projeta_futuro`.
+#     Coluna `coorte` da tabela `backtest` (uma linha por ano e faixa, com a faixa extra `total`)
+#     e, para o futuro, as linhas desse método em `projeta_futuro`.
 
 # Métrica: cenario_pessimista
 #   O que é:
-#     A mesma conta do coorte com a permanência de cada faixa e os novatos no menor valor
-#     da série histórica. Só entram anos em que a faixa teve o mínimo de saídas
+#     A mesma conta do coorte, com a taxa de permanência de cada faixa e o número de novatos no
+#     menor valor da história. Só entram anos em que a faixa teve o mínimo de saídas
 #     (`min_saidas`).
-#     Responde a RQ3. O backtest usa só os anos anteriores ao ano previsto.
+#     Responde a RQ3. O teste de previsão (`backtest`) usa só os anos anteriores ao ano previsto.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #     Variantes de projeção da ONU.
 #     https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/
 #     Bonifácio e Guimarães, Texto para Discussão 2698, Ipea, 2021.
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`.
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`).
 #   Resultado esperado:
-#     Coluna `pessimista` da tabela de `backtest` (uma linha por ano e faixa, com a faixa
-#     `total`) e linhas do `metodo` correspondente em `projeta_futuro`.
+#     Coluna `pessimista` da tabela `backtest` (uma linha por ano e faixa, com a faixa extra
+#     `total`) e, para o futuro, as linhas desse método em `projeta_futuro`.
 
 # Métrica: cenario_conservador
 #   O que é:
-#     A mesma conta do coorte com a média entre o maior e o menor valor histórico (regra
-#     `extremos`) ou outra regra da variante: média da janela, ou dos 2 últimos anos.
-#     Responde a RQ3. O backtest usa só os anos anteriores ao ano previsto.
+#     A mesma conta do coorte, com o valor do meio: a média entre o maior e o menor valor da
+#     história (regra `extremos`). A variante pode usar a média da janela (`media`) ou a média dos
+#     2 últimos anos (`recentes`).
+#     Responde a RQ3. O teste de previsão (`backtest`) usa só os anos anteriores ao ano previsto.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #     Variantes de projeção da ONU.
 #     https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/
 #     Bonifácio e Guimarães, Texto para Discussão 2698, Ipea, 2021.
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`.
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`).
 #   Resultado esperado:
-#     Coluna `conservador` da tabela de `backtest` (uma linha por ano e faixa, com a faixa
-#     `total`) e linhas do `metodo` correspondente em `projeta_futuro`.
+#     Coluna `conservador` da tabela `backtest` (uma linha por ano e faixa, com a faixa extra
+#     `total`) e, para o futuro, as linhas desse método em `projeta_futuro`.
 
 # Métrica: cenario_otimista
 #   O que é:
-#     A mesma conta do coorte com a permanência de cada faixa e os novatos no maior valor
-#     da série histórica. Junta o melhor ano de cada faixa, então funciona como limite
+#     A mesma conta do coorte, com a taxa de permanência de cada faixa e o número de novatos no
+#     maior valor da história. Junta o melhor ano de cada faixa, então funciona como limite
 #     superior da projeção.
-#     Responde a RQ3. O backtest usa só os anos anteriores ao ano previsto.
+#     Responde a RQ3. O teste de previsão (`backtest`) usa só os anos anteriores ao ano previsto.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #     Variantes de projeção da ONU.
 #     https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/
 #     Bonifácio e Guimarães, Texto para Discussão 2698, Ipea, 2021.
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`.
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`).
 #   Resultado esperado:
-#     Coluna `otimista` da tabela de `backtest` (uma linha por ano e faixa, com a faixa
-#     `total`) e linhas do `metodo` correspondente em `projeta_futuro`.
+#     Coluna `otimista` da tabela `backtest` (uma linha por ano e faixa, com a faixa extra
+#     `total`) e, para o futuro, as linhas desse método em `projeta_futuro`.
 
 
 def cenarios(
     pop: pd.DataFrame, saidas: pd.DataFrame, ate_ano: int, regra: RegraCenario
 ) -> dict[str, tuple[np.ndarray, float]]:
-    """(permanência, novatos) de cada cenário, só com a série até `ate_ano`.
+    """(taxa de permanência, novatos) de cada cenário, usando só a história até `ate_ano`.
 
-    pessimista  menor valor da janela; otimista  maior; conservador  a média dos dois (`extremos`)
-    ou a média da janela toda (`media`), conforme `regra.conservador`.
-    Os novatos saem em contagem ou em taxa, conforme `regra.novatos_por_taxa`;
-    `_novatos_do_cenario` converte. Banda sem nenhum ano válido usa a
-    permanência do último ano nos três cenários, a mesma do coorte.
+      pessimista   menor valor da janela
+      otimista     maior valor da janela
+      conservador  a média dos dois (`extremos`) ou a média da janela toda (`media`), conforme
+                   `regra.conservador`
+
+    Os novatos saem em contagem ou em taxa, conforme `regra.novatos_por_taxa`, e
+    `_novatos_do_cenario` converte. Banda sem nenhum ano válido usa nos três cenários a taxa de
+    permanência do último ano, a mesma do coorte.
     """
     inicio = int(pop.index.min()) + 1
     if regra.janela is not None:
@@ -1461,7 +1622,7 @@ def _projecoes(
 
 
 def _por_faixa(v: np.ndarray) -> dict[str, float]:
-    """Vetor de bandas de 1 ano somado nas faixas de apresentação, mais o total."""
+    """Soma o vetor de bandas de 1 ano nas faixas de 0-1 a 8+ e acrescenta o total."""
     faixas = faixa_de(pd.Series(range(BANDAS)))
     soma = dict.fromkeys(FAIXAS, 0.0)
     for banda in range(BANDAS):
@@ -1472,35 +1633,38 @@ def _por_faixa(v: np.ndarray) -> dict[str, float]:
 
 # Métrica: abre
 #   O que é:
-#     Erro relativo equilibrado de uma previsão: a diferença absoluta dividida pelo menor
-#     dos dois valores, o real e o previsto.
+#     ABRE (Absolute Balanced Relative Error), o erro relativo equilibrado de uma previsão: a
+#     diferença absoluta entre o previsto e o real, dividida pelo menor dos dois valores.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363 Miyazaki et al.
-#     definem o BRE.
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
+#     Miyazaki et al. definem o BRE.
 #   Entrada:
-#     `actual` e `predicted`, duas contagens não negativas.
+#     `actual` (o valor real) e `predicted` (o previsto), duas contagens não negativas.
 #   Resultado esperado:
-#     Um número. 0 é acerto. 0,5 é um erro de metade do menor dos dois valores. Vale igual
-#     para quem previu a mais e para quem previu a menos. Vazio (NaN) se qualquer lado é
-#     vazio ou zero.
+#     Um número.
+#     - 0: acerto.
+#     - 0,5: erro de metade do menor dos dois valores.
+#     Vale igual para quem previu a mais e para quem previu a menos.
+#     Fica vazio (NaN) se qualquer lado é vazio ou zero.
 
 
 def abre(actual: float, predicted: float) -> float:
-    """Absolute Balanced Relative Error.
+    """ABRE (Absolute Balanced Relative Error): erro relativo equilibrado de uma previsão.
 
-    IEICE16 p.1311 escreve os dois ramos com o denominador trocando de lado
-    conforme o sinal de (x̂ − x). Como o ramo de cima vale quando x̂ ≥ x e usa x,
-    e o de baixo vale quando x̂ < x e usa x̂, o denominador é sempre o MENOR dos
-    dois, que é o BRE de Miyazaki et al. tal como publicado. Escrito com `min`
-    aqui de propósito: a forma de dois ramos convida a inverter um sinal em
-    revisão e o teste não pegaria (os ramos coincidem quando x = x̂).
+    É a diferença absoluta entre o previsto e o real, dividida pelo MENOR dos dois valores.
+    O IEICE16 (p.1311) escreve a fórmula em dois ramos, com o denominador trocando de lado
+    conforme o sinal de (previsto - real). Juntos, os dois ramos usam sempre o menor valor, que
+    é o BRE de Miyazaki et al. tal como publicado. Aqui a conta usa `min` de propósito: a
+    forma de dois ramos convida a inverter um sinal numa revisão, e o teste não pegaria,
+    porque os ramos coincidem quando previsto e real são iguais.
 
-    Simétrico por construção: abre(a, b) == abre(b, a).
+    A conta é simétrica: abre(a, b) == abre(b, a).
 
-    `nan` em qualquer lado propaga: é o canal por onde `project` sinaliza que o
-    método não tem resposta para a célula (coorte órfã). Tratado explicitamente
-    porque `min(x, nan)` em Python devolve o primeiro argumento em vez de nan,
-    então sem esta guarda o resultado dependeria da ordem dos parâmetros.
+    `nan` em qualquer lado propaga. É assim que `project` avisa que o método não tem resposta
+    para a célula (coorte órfã). O caso é tratado de forma explícita porque `min(x, nan)` em
+    Python devolve x, o primeiro argumento. Sem a guarda, o resultado dependeria da ordem dos
+    parâmetros.
     """
     if math.isnan(actual) or math.isnan(predicted):
         return float("nan")
@@ -1508,60 +1672,65 @@ def abre(actual: float, predicted: float) -> float:
         raise ValueError(f"ABRE em contagem negativa: actual={actual} pred={predicted}")
     denom = min(actual, predicted)
     if denom == 0:
-        # Uma das duas contagens é zero: o erro relativo não existe (divisão por
-        # zero) e cravar 0.0 ou 1.0 aqui inventaria um acerto ou um erro máximo.
-        # A mediana do artigo é sobre projetos onde os dois lados existem.
+        # Uma das duas contagens é zero, então a divisão não existe. Devolver 0.0 inventaria um
+        # acerto e devolver 1.0 inventaria um erro máximo. A mediana do artigo considera só
+        # projetos onde os dois lados existem.
         return float("nan")
     return abs(predicted - actual) / denom
 
 
 # Métrica: cobertura
 #   O que é:
-#     Em quantos casos o valor real ficou entre o pessimista e o otimista do backtest.
+#     Em quantos casos o valor real ficou entre o pessimista e o otimista da previsão.
 #   Referência:
 #     Da pesquisa (Plano de Experimento).
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`.
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`).
 #   Resultado esperado:
-#     Coluna `cobre` da tabela de `backtest`: 1 quando o real ficou entre os dois, 0
-#     quando não, vazia se faltou cenário. `resumo_backtest` traz a média por faixa e por
-#     total.
+#     Coluna `cobre` da tabela `backtest`: 1 quando o real ficou entre os dois, 0 quando ficou
+#     fora e vazia se faltou cenário.
+#     `resumo_backtest` traz a média por faixa e por total. Exemplo: 0,8 quer dizer que o real
+#     ficou entre os dois cenários em 80% dos casos.
 
 # Métrica: erro_mediano
 #   O que é:
-#     A mediana do ABRE de cada método (ingenuo, coorte e conservador), sobre as mesmas
-#     células de faixa. Mede qual método acerta mais.
+#     A mediana (o valor do meio) do ABRE de cada método (ingênuo, coorte e conservador), sobre as
+#     mesmas células de faixa. Mede qual método acerta mais.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #   Entrada:
-#     `bt`, a tabela de `backtest`.
+#     `bt`, a tabela `backtest`.
 #   Resultado esperado:
-#     Tabela `abre` de `resumo_backtest`: teto, celulas, cobertura_faixas, cobertura_total
-#     e uma coluna por método com a mediana do ABRE. Menor é melhor.
+#     Tabela `abre` de `resumo_backtest`: teto, celulas, cobertura_faixas, cobertura_total e uma
+#     coluna por método com a mediana do ABRE.
+#     Menor é melhor.
 
 # Métrica: wilcoxon
 #   O que é:
-#     Teste pareado entre métodos sobre o ABRE de cada célula: coorte contra ingênuo,
-#     conservador contra ingênuo e conservador contra coorte.
+#     Teste que compara dois métodos pelo ABRE de cada célula, emparelhando os dois erros da mesma
+#     célula. As comparações são coorte contra ingênuo, conservador contra ingênuo e conservador
+#     contra coorte.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #   Entrada:
-#     `bt`, a tabela de `backtest`.
+#     `bt`, a tabela `backtest`.
 #   Resultado esperado:
-#     Tabela `wilcoxon` de `resumo_backtest`: teto, comparacao e p. P abaixo de 0,05: um
-#     método erra menos que o outro além do acaso. Vazio (NaN) quando a amostra não
-#     sustenta o teste.
+#     Tabela `wilcoxon` de `resumo_backtest`: teto, comparacao e p.
+#     - p abaixo de 0,05: um método erra menos que o outro além do acaso.
+#     Fica vazio (NaN) quando a amostra não sustenta o teste.
 
 
 def backtest(
     pa: pd.DataFrame, fim: pd.Timestamp, ultimo_ano: int, teto: bool, regra: RegraCenario
 ) -> pd.DataFrame:
-    """Prevê cada ano até `ultimo_ano` com a série anterior a ele, e mede o erro.
+    """Prevê cada ano até `ultimo_ano` usando só os anos anteriores a ele e mede o erro.
 
-    Uma linha por (ano previsto, faixa de apresentação ou `total`): o real, o
-    previsto por cada método, o ABRE de `METODOS_COM_ERRO` e `cobre`: 1 se o
-    real ficou entre o pessimista e o otimista, 0 se não, `NaN` se faltou cenário.
+    Uma linha por ano previsto e faixa (ou `total`). Colunas: o valor real, o previsto por cada
+    método, o ABRE de `METODOS_COM_ERRO` e `cobre`. A coluna `cobre` vale 1 se o real ficou
+    entre o pessimista e o otimista, 0 se ficou fora e `NaN` se faltou cenário.
     """
     pop = populacao_por_idade(pa)
     saidas = saidas_por_banda(pa, fim)
@@ -1590,7 +1759,7 @@ def backtest(
 
 
 def _wilcoxon(a: np.ndarray, b: np.ndarray) -> float:
-    """Wilcoxon pareado, bilateral. `nan` quando a amostra não sustenta o teste."""
+    """Wilcoxon pareado: compara os dois erros da mesma célula. `nan` se a amostra não basta."""
     from scipy.stats import wilcoxon
 
     par = np.isfinite(a) & np.isfinite(b)
@@ -1600,16 +1769,16 @@ def _wilcoxon(a: np.ndarray, b: np.ndarray) -> float:
     try:
         return float(wilcoxon(a, b).pvalue)
     except ValueError:
-        # Todos os pares com diferença zero: o teste não tem o que ranquear.
+        # Todos os pares têm diferença zero: o teste não tem o que ordenar.
         return float("nan")
 
 
 def resumo_backtest(bt: pd.DataFrame) -> dict[str, pd.DataFrame]:
     """Mediana do ABRE e cobertura por método, e Wilcoxon pareado entre métodos.
 
-    ABRE e Wilcoxon usam as células de faixa (a linha `total` fica de fora) e
-    só onde os três métodos têm ABRE, para que todos sejam medidos nas mesmas
-    células. A cobertura sai das faixas e, à parte, do total de cada ano.
+    O ABRE e o Wilcoxon usam as células de faixa (a linha `total` fica de fora) e só onde os
+    três métodos têm ABRE, para que todos sejam medidos nas mesmas células. A cobertura sai
+    das faixas e, separada, do total de cada ano.
     """
     medianas = []
     testes = []
@@ -1637,19 +1806,20 @@ def resumo_backtest(bt: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 # Métrica: projecao_futura
 #   O que é:
-#     A projeção dos próximos `anos` anos depois do último ano observado, um ano por vez,
-#     por cada método.
+#     A projeção dos próximos `anos` anos depois do último ano observado, um ano por vez, por cada
+#     método.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #     Variantes de projeção da ONU.
 #     https://www.prb.org/resource/understanding-population-projections-assumptions-behind-the-numbers/
 #     Bonifácio e Guimarães, Texto para Discussão 2698, Ipea, 2021.
 #   Entrada:
-#     `pa`, `fim`, o último ano com saída decidida (`fim.year - 1`), `teto` (limita a
-#     permanência em 1) e `regra`, um `RegraCenario`. E `anos`, o horizonte (5).
+#     `pa`, `fim`, `ultimo_ano` (o último ano com saída decidida, `fim.year - 1`), `teto`
+#     (verdadeiro limita a taxa de permanência em 1) e `regra` (um `RegraCenario`). E `anos`, o
+#     horizonte (5).
 #   Resultado esperado:
-#     Tabela de `projeta_futuro`: ano, metodo, faixa e previsto. A faixa `total` soma as
-#     outras.
+#     Tabela de `projeta_futuro`: ano, metodo, faixa e previsto. A faixa `total` soma as outras.
 
 
 def projeta_futuro(  # noqa: PLR0913, PLR0917
@@ -1662,9 +1832,9 @@ def projeta_futuro(  # noqa: PLR0913, PLR0917
 ) -> pd.DataFrame:
     """Projeta `anos` anos depois de `ultimo_ano`, um ano por vez.
 
-    O coorte usa a permanência do último par observado e, como novatos, a
-    média dos dois anos anteriores (já projetados, depois do primeiro passo).
-    Cada cenário fixa a sua permanência e os seus novatos.
+    O coorte usa a taxa de permanência do último par de anos observado e, como novatos, a média
+    dos dois anos anteriores (já projetados, depois do primeiro passo). Cada cenário fixa a sua
+    taxa de permanência e os seus novatos.
     """
     pop = populacao_por_idade(pa)
     p_ultimo = _bandas(pop.loc[ultimo_ano])
@@ -1688,61 +1858,77 @@ def projeta_futuro(  # noqa: PLR0913, PLR0917
 
 
 # ================================================================================================
-# CCR e NCR (RQ1 e RQ2): equilíbrio da população por trimestre
+# CCR e NCR (RQ1 e RQ2): código contra discussão e novatos contra experientes, por trimestre
 # ================================================================================================
 
 # Métrica: ccr
 #   O que é:
-#     CCR = (código - discussão) / o maior dos dois. Compara quem faz código com quem só
-#     discute. Lado do código: o primeiro commit ou PR é de antes do fim do trimestre.
-#     População do trimestre: quem contribuiu na janela de inatividade até o fim dele.
+#     CCR é o índice do IEICE16 que compara quem faz código com quem só discute:
+#     CCR = (código - discussão) / o maior dos dois.
+#     Lado do código: a pessoa fez o primeiro commit ou PR antes do fim do trimestre. População do
+#     trimestre: quem contribuiu na janela de inatividade (3 meses por padrão) até o fim dele.
 #     A replicação faz a mesma conta sobre pirâmides em `metrics.from_pyramids`.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #   Entrada:
-#     `eventos`, `inatividade_dias`, `novato_dias` e `fim`. O estudo usa 12 meses nos dois
-#     cortes (`ccr_ncr_inatividade_meses` e `ccr_ncr_novato_meses`). Os padrões da função,
-#     3 e 3 meses, reproduzem o IEICE16.
+#     `eventos`, `inatividade_dias` (quanto tempo sem contribuir tira a pessoa do trimestre),
+#     `novato_dias` (idade máxima de um novato) e `fim`. O estudo usa 12 meses nos dois cortes
+#     (`ccr_ncr_inatividade_meses` e `ccr_ncr_novato_meses`). Os padrões da função, 3 e 3 meses,
+#     reproduzem o IEICE16.
 #   Resultado esperado:
-#     Coluna `ccr` da tabela de `ccr_ncr_trimestral`, uma linha por trimestre (snapshot,
-#     coding, non_coding, new, experienced, total, ccr, ncr e type). Entre -1 e 1. Perto
-#     de 0: os dois lados são parecidos. Perto de 1: quase só código. Vazio se o trimestre
-#     não tem ninguém ativo.
+#     Coluna `ccr` da tabela `ccr_ncr_trimestral`, uma linha por trimestre. As colunas da tabela
+#     são snapshot (o fim do trimestre), coding, non_coding, new, experienced, total, ccr, ncr e
+#     type.
+#     O CCR vai de -1 a 1.
+#     - Perto de 1: quase só código.
+#     - Perto de 0: os dois lados são parecidos.
+#     - Perto de -1: quase só discussão.
+#     Trimestre sem ninguém ativo não aparece na tabela.
 
 # Métrica: ncr
 #   O que é:
-#     NCR = (novatos - experientes) / o maior dos dois. Novato é quem tem até
-#     `novato_dias` de idade, contada do primeiro commit ou PR (ou, sem ele, da primeira
-#     discussão).
+#     NCR compara novatos com experientes:
+#     NCR = (novatos - experientes) / o maior dos dois.
+#     Novato é quem tem até `novato_dias` de idade, contada do primeiro commit ou PR (ou, sem ele,
+#     da primeira discussão).
 #     A replicação faz a mesma conta sobre pirâmides em `metrics.from_pyramids`.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #   Entrada:
-#     `eventos`, `inatividade_dias`, `novato_dias` e `fim`. O estudo usa 12 meses nos dois
-#     cortes (`ccr_ncr_inatividade_meses` e `ccr_ncr_novato_meses`). Os padrões da função,
-#     3 e 3 meses, reproduzem o IEICE16.
+#     `eventos`, `inatividade_dias` (quanto tempo sem contribuir tira a pessoa do trimestre),
+#     `novato_dias` (idade máxima de um novato) e `fim`. O estudo usa 12 meses nos dois cortes
+#     (`ccr_ncr_inatividade_meses` e `ccr_ncr_novato_meses`). Os padrões da função, 3 e 3 meses,
+#     reproduzem o IEICE16.
 #   Resultado esperado:
-#     Coluna `ncr` da tabela de `ccr_ncr_trimestral`, uma linha por trimestre (snapshot,
-#     coding, non_coding, new, experienced, total, ccr, ncr e type). Entre -1 e 1. Perto
-#     de 1: quase só novatos. Perto de -1: quase só experientes.
+#     Coluna `ncr` da tabela `ccr_ncr_trimestral`, uma linha por trimestre (as colunas estão
+#     listadas em `ccr`).
+#     O NCR vai de -1 a 1.
+#     - Perto de 1: quase só novatos.
+#     - Perto de -1: quase só experientes.
 
 # Métrica: tipo_ccr_ncr
 #   O que é:
-#     O tipo do trimestre pelo sinal dos dois: A, CCR > 0 e NCR > 0 (mais código e mais
-#     novatos). B, CCR < 0 e NCR > 0 (mais discussão e mais novatos). C, CCR > 0 e NCR < 0
-#     (mais código e mais experientes). D, CCR < 0 e NCR < 0 (mais discussão e mais
-#     experientes). Zero exato cai do lado baixo.
+#     O tipo do trimestre, dado pelo sinal do CCR e do NCR:
+#     - Tipo A: CCR maior que 0 e NCR maior que 0 (mais código e mais novatos).
+#     - Tipo B: CCR menor que 0 e NCR maior que 0 (mais discussão e mais novatos).
+#     - Tipo C: CCR maior que 0 e NCR menor que 0 (mais código e mais experientes).
+#     - Tipo D: CCR menor que 0 e NCR menor que 0 (mais discussão e mais experientes).
+#     Zero exato cai do lado baixo.
 #     A replicação faz a mesma conta sobre pirâmides em `metrics.from_pyramids`.
 #   Referência:
-#     Onoue et al., IEICE16. https://doi.org/10.1587/transinf.2015EDP7363
+#     Onoue et al., IEICE16.
+#     https://doi.org/10.1587/transinf.2015EDP7363
 #   Entrada:
-#     `eventos`, `inatividade_dias`, `novato_dias` e `fim`. O estudo usa 12 meses nos dois
-#     cortes (`ccr_ncr_inatividade_meses` e `ccr_ncr_novato_meses`). Os padrões da função,
-#     3 e 3 meses, reproduzem o IEICE16.
+#     `eventos`, `inatividade_dias` (quanto tempo sem contribuir tira a pessoa do trimestre),
+#     `novato_dias` (idade máxima de um novato) e `fim`. O estudo usa 12 meses nos dois cortes
+#     (`ccr_ncr_inatividade_meses` e `ccr_ncr_novato_meses`). Os padrões da função, 3 e 3 meses,
+#     reproduzem o IEICE16.
 #   Resultado esperado:
-#     Coluna `type` da tabela de `ccr_ncr_trimestral`, uma linha por trimestre (snapshot,
-#     coding, non_coding, new, experienced, total, ccr, ncr e type). Uma letra de A a D.
-#     Trimestre sem ninguém ativo fica de fora, sem tipo.
+#     Coluna `type` da tabela `ccr_ncr_trimestral`, uma linha por trimestre (as colunas estão
+#     listadas em `ccr`). É uma letra de A a D.
+#     Trimestre sem ninguém ativo não aparece na tabela, então fica sem tipo.
 
 
 def _tipo_ccr_ncr(ccr: float, ncr: float) -> str | None:
@@ -1755,7 +1941,7 @@ def _tipo_ccr_ncr(ccr: float, ncr: float) -> str | None:
 
 
 def _razao(a: float, b: float) -> float:
-    """(a - b) / max(a, b), como `metrics.ratio`. Indefinida sem ninguém."""
+    """(a - b) / max(a, b), como `metrics.ratio`. Se os dois são zero, a razão não existe (NaN)."""
     maior = max(a, b)
     return float("nan") if maior == 0 else (a - b) / maior
 
@@ -1766,23 +1952,24 @@ def ccr_ncr_trimestral(
     novato_dias: float = NOVATO_DIAS,
     fim: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
-    """CCR e NCR por trimestre (IEICE16), direto dos eventos compactados.
+    """CCR e NCR de cada trimestre (IEICE16), calculados direto dos eventos reduzidos.
 
-    Mesma conta do motor (`snapshots.pyramid_at` e `metrics.from_pyramids`), sem o pipeline:
+    Dá a mesma conta do motor (`snapshots.pyramid_at` e `metrics.from_pyramids`), sem passar
+    pelas etapas do pipeline:
 
       população   quem contribuiu nos 3 meses até o fim do trimestre (`active`)
-      lado        código se o primeiro commit ou PR é de antes do fim do trimestre
-                  (inclui o `moved`), senão discussão
+      lado        código se o primeiro commit ou PR é de antes do fim do trimestre (inclui o
+                  `moved`). Do contrário, discussão
       novato      idade até 91 dias (3 meses), contada do primeiro commit ou PR (ou, sem ele, da
                   primeira discussão)
       CCR         (código - discussão) / o maior dos dois
       NCR         (novatos - experientes) / o maior dos dois
 
-    O último evento de cada pessoa até o fim do trimestre é o último do trimestre dela, que a
-    compactação guarda, então a conta é exata. `inatividade_dias` e `novato_dias` trocam os 3
-    meses por outro corte, para a sensibilidade. Com `fim`, o último trimestre da série é o
-    último que termina até `fim`; sem ele, vale a regra do motor, que para um trimestre antes
-    do último evento.
+    O último evento de cada pessoa até o fim do trimestre é o último dela naquele trimestre, e
+    a redução dos eventos o guarda, então a conta é exata. `inatividade_dias` e `novato_dias`
+    trocam os 3 meses por outro corte, para testar a sensibilidade. Com `fim`, o último
+    trimestre da série é o último que termina até `fim`. Sem `fim`, vale a regra do motor, que
+    para um trimestre antes do último evento.
     """
     ev = eventos[["contributor_id", "event_type", "timestamp"]].sort_values("timestamp")
     codou = ev["event_type"].isin(TIPOS_CODING)
@@ -1833,12 +2020,12 @@ def ccr_ncr_trimestral(
 
 
 # ================================================================================================
-# Magnetismo e stickiness (RQ2)
+# Magnetismo e stickiness (RQ2): atrair e reter
 # ================================================================================================
 
 
 def pares_de_codigo(eventos: pd.DataFrame) -> pd.DataFrame:
-    """(scope_id, contributor_id, year) único, só de commits e pull_requests.
+    """Lista única de (scope_id, contributor_id, year), só com commits e pull_requests.
 
     `eventos` traz a coluna `scope_id`: a linguagem (ou o projeto) de cada evento.
     """
@@ -1855,66 +2042,78 @@ def pares_de_codigo(eventos: pd.DataFrame) -> pd.DataFrame:
 
 # Métrica: stickiness
 #   O que é:
-#     stickiness(P, Y) = devs de P em Y que contribuem em Y+1 / devs de P em Y. A fração
-#     de quem contribuiu num ano e volta no ano seguinte, no mesmo escopo. Só commits e
-#     PRs contam.
+#     A fração de quem fez commit ou PR num ano e volta a fazer no ano seguinte, no mesmo escopo.
+#     Stickiness quer dizer grude.
+#     stickiness(P, Y) = devs de P em Y que contribuem em Y+1 / devs de P em Y.
+#     Só commits e PRs contam.
 #   Referência:
-#     Yamashita et al., MSR 2014. https://doi.org/10.1145/2597073.2597116
-#     Ferreira, Silva e Valente, SBES 2020. https://doi.org/10.1145/3422392.3422433
+#     Yamashita et al., MSR 2014.
+#     https://doi.org/10.1145/2597073.2597116
+#     Ferreira, Silva e Valente, SBES 2020.
+#     https://doi.org/10.1145/3422392.3422433
 #     ESEM14, seção 3.1.
 #   Entrada:
-#     `pairs`: uma linha única por (scope_id, contributor_id, year), só de commits e
-#     pull_requests (`pares_de_codigo` monta a partir dos eventos). Para o magnetismo, com
-#     todas as linguagens juntas.
+#     `pairs`: a lista única de (scope_id, contributor_id, year), só com commits e pull_requests
+#     (`pares_de_codigo` monta a lista a partir dos eventos). Scope é a linguagem ou o projeto.
+#     Para o magnetismo, as linguagens entram todas juntas.
 #   Resultado esperado:
-#     Coluna `stickiness` da tabela de `atratividade_anual`, uma linha por (scope_id,
-#     year): devs, newcomers_here, newcomers_total, retained, magnetism, stickiness,
-#     eligible, median_magnetism, median_stickiness, quadrant, left_censored e
-#     right_censored. 0 a 1. Com 0,6, 6 de cada 10 pessoas do ano voltaram no seguinte. O
-#     último ano fica sem stickiness, porque falta o ano seguinte. Se o último ano da
-#     coleta é incompleto, o ano anterior subestima: quem volta depois do fim conta como
-#     perdido.
+#     Coluna `stickiness` da tabela `atratividade_anual`, uma linha por (scope_id, year). As
+#     colunas da tabela são devs, newcomers_here, newcomers_total, retained, magnetism,
+#     stickiness, eligible, median_magnetism, median_stickiness, quadrant, left_censored e
+#     right_censored.
+#     A stickiness vai de 0 a 1. Exemplo: 0,6 quer dizer que 6 de cada 10 pessoas do ano voltaram
+#     no seguinte.
+#     O último ano fica sem stickiness, porque falta o ano seguinte.
+#     Se o último ano da coleta é incompleto, o ano anterior fica subestimado: quem volta depois
+#     do fim da coleta conta como perdido.
 
 # Métrica: magnetismo
 #   O que é:
-#     magnetismo(P, Y) = novatos de Y que contribuíram em P / novatos de Y em todos os
-#     escopos. A fração dos novatos do ano que escolheram a linguagem. O plano adia o uso:
-#     o denominador só representa o GitHub com todas as linguagens coletadas.
+#     Dos novatos do ano em todas as linguagens, a fração que escolheu esta. Magnetismo é o poder
+#     de atrair gente nova.
+#     magnetismo(P, Y) = novatos de Y que contribuíram em P / novatos de Y em todos os escopos.
+#     O plano adia o uso: o denominador só representa o GitHub inteiro se todas as linguagens
+#     forem coletadas.
 #   Referência:
-#     Yamashita et al., MSR 2014. https://doi.org/10.1145/2597073.2597116
-#     Ferreira, Silva e Valente, SBES 2020. https://doi.org/10.1145/3422392.3422433
+#     Yamashita et al., MSR 2014.
+#     https://doi.org/10.1145/2597073.2597116
+#     Ferreira, Silva e Valente, SBES 2020.
+#     https://doi.org/10.1145/3422392.3422433
 #     ESEM14, seção 3.1.
 #   Entrada:
-#     `pairs`: uma linha única por (scope_id, contributor_id, year), só de commits e
-#     pull_requests (`pares_de_codigo` monta a partir dos eventos). Para o magnetismo, com
-#     todas as linguagens juntas.
+#     `pairs`: a lista única de (scope_id, contributor_id, year), só com commits e pull_requests
+#     (`pares_de_codigo` monta a lista a partir dos eventos). Scope é a linguagem ou o projeto.
+#     Para o magnetismo, as linguagens entram todas juntas.
 #   Resultado esperado:
-#     Coluna `magnetism` da tabela de `atratividade_anual`, uma linha por (scope_id,
-#     year): devs, newcomers_here, newcomers_total, retained, magnetism, stickiness,
-#     eligible, median_magnetism, median_stickiness, quadrant, left_censored e
-#     right_censored. 0 a 1, com as colunas newcomers_here (novatos na linguagem no ano) e
-#     newcomers_total (novatos de todas). Magnetismo 0,3: 3 de cada 10 novatos do ano
-#     foram para ela. Fica fora da execução padrão (`--metricas magnetismo`).
+#     Coluna `magnetism` da tabela `atratividade_anual` (as colunas estão listadas em
+#     `stickiness`), de 0 a 1. As colunas `newcomers_here` e `newcomers_total` trazem os novatos
+#     da linguagem no ano e os novatos de todas.
+#     Exemplo: 0,3 quer dizer que 3 de cada 10 novatos do ano foram para esta linguagem.
+#     Fica fora da execução padrão (`--metricas magnetismo`).
 
 # Métrica: quadrante
 #   O que é:
-#     Cruza magnetismo e stickiness com a mediana anual dos escopos elegíveis (mais de 10
-#     ativos no ano): attractive (os dois acima da mediana), floating (magnetismo acima,
-#     stickiness abaixo), stagnant (magnetismo abaixo, stickiness acima) e terminal (os
-#     dois abaixo). Empate na mediana cai do lado baixo.
+#     Cruza magnetismo e stickiness com a mediana (o valor do meio) do ano entre os escopos
+#     elegíveis, que são os com mais de 10 ativos no ano. São quatro quadrantes:
+#     - `attractive`: os dois acima da mediana.
+#     - `floating`: magnetismo acima e stickiness abaixo.
+#     - `stagnant`: magnetismo abaixo e stickiness acima.
+#     - `terminal`: os dois abaixo.
+#     Empate na mediana cai do lado baixo.
 #   Referência:
-#     Yamashita et al., MSR 2014. https://doi.org/10.1145/2597073.2597116
-#     Ferreira, Silva e Valente, SBES 2020. https://doi.org/10.1145/3422392.3422433
+#     Yamashita et al., MSR 2014.
+#     https://doi.org/10.1145/2597073.2597116
+#     Ferreira, Silva e Valente, SBES 2020.
+#     https://doi.org/10.1145/3422392.3422433
 #     ESEM14, seção 3.1.
 #   Entrada:
-#     `pairs`: uma linha única por (scope_id, contributor_id, year), só de commits e
-#     pull_requests (`pares_de_codigo` monta a partir dos eventos). Para o magnetismo, com
-#     todas as linguagens juntas.
+#     `pairs`: a lista única de (scope_id, contributor_id, year), só com commits e pull_requests
+#     (`pares_de_codigo` monta a lista a partir dos eventos). Scope é a linguagem ou o projeto.
+#     Para o magnetismo, as linguagens entram todas juntas.
 #   Resultado esperado:
-#     Coluna `quadrant` da tabela de `atratividade_anual`, uma linha por (scope_id, year):
-#     devs, newcomers_here, newcomers_total, retained, magnetism, stickiness, eligible,
-#     median_magnetism, median_stickiness, quadrant, left_censored e right_censored. Uma
-#     das quatro palavras, ou vazio se o escopo não é elegível no ano.
+#     Coluna `quadrant` da tabela `atratividade_anual` (as colunas estão listadas em
+#     `stickiness`), uma linha por (scope_id, year).
+#     É uma das quatro palavras, ou vazio se o escopo não é elegível no ano.
 
 
 def _voltaram_no_ano_seguinte(pairs: pd.DataFrame) -> pd.DataFrame:
@@ -1927,8 +2126,8 @@ def _voltaram_no_ano_seguinte(pairs: pd.DataFrame) -> pd.DataFrame:
 def atratividade_anual(pairs: pd.DataFrame, min_devs: int = 10) -> pd.DataFrame:
     """Uma linha por (escopo, ano) com magnetismo, stickiness e quadrante.
 
-    `min_devs` é o `min_active_devs` do `settings.yaml`: o escopo só é elegível com mais devs que
-    isso no ano. O corte é a mediana anual dos elegíveis.
+    `min_devs` é o `min_active_devs` do `settings.yaml`: o escopo só é elegível se tiver mais
+    pessoas que isso no ano. O corte entre alto e baixo é a mediana anual dos escopos elegíveis.
     """
     colunas = [
         "scope_id",
@@ -1959,7 +2158,7 @@ def atratividade_anual(pairs: pd.DataFrame, min_devs: int = 10) -> pd.DataFrame:
         .agg(devs=("contributor_id", "nunique"), newcomers_here=("_novato", "sum"))
     )
 
-    # Denominador do magnetismo: novatos do ANO, no conjunto inteiro de escopos.
+    # Denominador do magnetismo: os novatos do ano em todos os escopos juntos.
     novatos_ano = first_year.value_counts().rename("newcomers_total")
     per = per.merge(novatos_ano, left_on="year", right_index=True, how="left")
     per["newcomers_total"] = per["newcomers_total"].fillna(0).astype("int64")
@@ -1979,8 +2178,9 @@ def atratividade_anual(pairs: pd.DataFrame, min_devs: int = 10) -> pd.DataFrame:
 
     anos = pairs["year"]
     y_min, y_max = int(anos.min()), int(anos.max())
-    # Y == y_min: quem "estreia" ali pode ser veterano cuja história ficou fora dos dados.
-    # Y == y_max: Y+1 não existe, a stickiness é indefinida (não zero).
+    # No primeiro ano dos dados (y_min), quem estreia pode ser veterano cuja história ficou fora
+    # da coleta. No último ano (y_max), o ano seguinte não existe e a stickiness fica indefinida
+    # (NaN). Zero diria que ninguém voltou.
     per["left_censored"] = per["year"] <= y_min
     per["right_censored"] = per["year"] >= y_max
     per.loc[per["right_censored"], "stickiness"] = np.nan
@@ -1992,7 +2192,7 @@ def atratividade_anual(pairs: pd.DataFrame, min_devs: int = 10) -> pd.DataFrame:
     per["median_magnetism"] = per["year"].map(el.groupby("year")["magnetism"].median())
     per["median_stickiness"] = per["year"].map(el.groupby("year")["stickiness"].median())
 
-    # Empate na mediana cai do lado BAIXO: alto = valor > corte.
+    # Empate na mediana cai do lado baixo: alto quer dizer valor maior que o corte.
     alto_m = per["magnetism"] > per["median_magnetism"]
     alto_s = per["stickiness"] > per["median_stickiness"]
     per["quadrant"] = [
@@ -2003,11 +2203,11 @@ def atratividade_anual(pairs: pd.DataFrame, min_devs: int = 10) -> pd.DataFrame:
 
 
 # ================================================================================================
-# Índice: cada métrica, a função e a coluna; cada linha do registro e as métricas
+# Índice: de cada métrica à função e à coluna; de cada linha do registro às suas métricas
 # ================================================================================================
 
-# nome da métrica -> (função que calcula, coluna do resultado onde ela aparece).
-# Coluna `None`: a métrica é o resultado inteiro da função.
+# Nome da métrica -> (função que calcula, coluna do resultado onde ela aparece).
+# Coluna `None`: o resultado inteiro da função é a métrica.
 CATALOGO.update(
     {
         "ativos": (tabela_anual, "ativos"),
@@ -2065,7 +2265,7 @@ CATALOGO.update(
     }
 )
 
-# linha do registro `METRICAS` de scripts/vitalidade.py -> métricas dela.
+# Linha do registro `METRICAS` de scripts/vitalidade.py -> métricas dela.
 REGISTRO.update(
     {
         "tamanho": (
