@@ -81,7 +81,9 @@ fundir_identidades: false
 
 # Liga o commit ao login que o GitHub associa ao e-mail do autor (`autores:` em
 # vitalidade_fontes.yaml, regra 8 de adapters/coleta_csv/carga_duckdb.py). Exige o motor duckdb.
-ligar_autores: false
+# Padrão desde 2026-11-01: sem isso a mesma pessoa conta duas vezes (nome no commit e login nas
+# issues e PRs) e as contagens sobem cerca de 20%.
+ligar_autores: true
 
 # População de cada linguagem. O padrão é mais_de_uma_ocasiao (residentes, decisão de 2026-10-26):
 # quem tem mais de uma contribuição em ocasiões diferentes. Ocasião é uma conversa de issue ou PR,
