@@ -1863,7 +1863,8 @@ def projeta_futuro(  # noqa: PLR0913, PLR0917
 
 # Métrica: ccr
 #   O que é:
-#     CCR é o índice do IEICE16 que compara quem faz código com quem só discute:
+#     CCR (Coding Contributors Ratio) é o índice do IEICE16 que compara quem faz código com quem
+#     só discute:
 #     CCR = (código - discussão) / o maior dos dois.
 #     Lado do código: a pessoa fez o primeiro commit ou PR antes do fim do trimestre. População do
 #     trimestre: quem contribuiu na janela de inatividade (3 meses por padrão) até o fim dele.
@@ -1888,7 +1889,7 @@ def projeta_futuro(  # noqa: PLR0913, PLR0917
 
 # Métrica: ncr
 #   O que é:
-#     NCR compara novatos com experientes:
+#     NCR (New Contributors Ratio) é o índice do IEICE16 que compara novatos com experientes:
 #     NCR = (novatos - experientes) / o maior dos dois.
 #     Novato é quem tem até `novato_dias` de idade, contada do primeiro commit ou PR (ou, sem ele,
 #     da primeira discussão).
