@@ -354,32 +354,24 @@ def test_piramide_lado_deixa_so_as_categorias_pedidas():
 
     import vitalidade_figuras as f
 
-    q = pd.DataFrame({"non_coding": [1], "moved_to_discussion": [2], "moved": [3], "coding": [4]})
-    esperado = {
-        "todos": [1, 2, 3, 4],
-        "moved_para_discussao": [0, 2, 0, 0],
-        "moved_para_codigo": [0, 0, 3, 0],
-        "codigo": [0, 0, 3, 4],
-        "discussao": [1, 2, 0, 0],
-    }
+    q = pd.DataFrame({"non_coding": [1], "coding": [4]})
+    esperado = {"todos": [1, 4], "codigo": [0, 4], "discussao": [1, 0]}
     for lado, valores in esperado.items():
         assert f._so_o_lado(q, lado).iloc[0].tolist() == valores, lado
     with pytest.raises(SystemExit):
         f._so_o_lado(q, "inexistente")
 
 
-def test_piramide_em_pct_usa_o_total_das_quatro_categorias_como_base():
+def test_piramide_em_pct_usa_o_total_das_duas_categorias_como_base():
     import pandas as pd
 
     import vitalidade_figuras as f
 
-    q = pd.DataFrame(
-        {"non_coding": [10], "moved_to_discussion": [10], "moved": [30], "coding": [50]}
-    )
+    q = pd.DataFrame({"non_coding": [20], "coding": [80]})
     em_pct = f._em_pct(q)
-    assert em_pct.iloc[0].tolist() == [10, 10, 30, 50]
+    assert em_pct.iloc[0].tolist() == [20, 80]
     # Um lado isolado mostra a parcela dele, não 100%.
-    assert f._so_o_lado(em_pct, "codigo").iloc[0].tolist() == [0, 0, 30, 50]
+    assert f._so_o_lado(em_pct, "codigo").iloc[0].tolist() == [0, 80]
 
 
 def test_acompanhamento_mostra_a_saida_de_2025_sem_mudar_os_ativos_do_estudo():
@@ -416,3 +408,14 @@ def test_cada_cenario_tem_a_mesma_cor_em_todos_os_graficos():
     # Ingênuo e coorte são cinza e não tomam a cor de nenhum cenário.
     for nome in ("ingenuo", "coorte"):
         assert f.cor_do_cenario(nome) not in cores
+
+
+def test_rodada_aplica_as_flags_e_o_set_seguinte_sobrepoe():
+    p = script.carrega_parametros(["rodada=com-fusao"])
+    assert p.fundir_identidades is True
+    assert p.acoes_ignoradas == []
+    assert p.ligar_autores is False
+    p = script.carrega_parametros(["rodada=com-fusao", "ligar_autores=true"])
+    assert p.ligar_autores is True
+    with pytest.raises(SystemExit):
+        script.carrega_parametros(["rodada=nao-existe"])

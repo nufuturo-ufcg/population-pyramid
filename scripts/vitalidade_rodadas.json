@@ -1,0 +1,68 @@
+{
+  "oficial": {
+    "descricao": "Rodada principal de 2026-11-13: ignora mentioned e subscribed, liga o commit ao login pelo e-mail do autor, tira os repositórios duplicados e as contas que não são pessoas e conta o commit repetido pelo SHA.",
+    "set": {
+      "acoes_ignoradas": [
+        "mentioned",
+        "subscribed"
+      ],
+      "fundir_identidades": false,
+      "ligar_autores": true,
+      "sem_duplicados": true,
+      "commits_pelo_sha": true,
+      "sem_contas_de_sistema": true
+    }
+  },
+  "oficial-2026-11-09": {
+    "descricao": "As flags da rodada de 2026-11-09: sem as correções de duplicados, SHA e contas. Não reproduz os números dela, porque a idade mudou.",
+    "set": {
+      "acoes_ignoradas": [
+        "mentioned",
+        "subscribed"
+      ],
+      "fundir_identidades": false,
+      "ligar_autores": true
+    }
+  },
+  "sem-duplicados": {
+    "descricao": "A rodada oficial sem os repositórios duplicados (mesmas issues e PRs sob outro repo_id).",
+    "set": {
+      "acoes_ignoradas": [
+        "mentioned",
+        "subscribed"
+      ],
+      "fundir_identidades": false,
+      "ligar_autores": true,
+      "sem_duplicados": true
+    }
+  },
+  "sem-mentioned": {
+    "descricao": "Ignora só mentioned (subscribed entra), sem ligar autores.",
+    "set": {
+      "acoes_ignoradas": [
+        "mentioned"
+      ],
+      "fundir_identidades": false,
+      "ligar_autores": false
+    }
+  },
+  "sem-marcacao": {
+    "descricao": "Ignora mentioned e subscribed, sem ligar autores.",
+    "set": {
+      "acoes_ignoradas": [
+        "mentioned",
+        "subscribed"
+      ],
+      "fundir_identidades": false,
+      "ligar_autores": false
+    }
+  },
+  "com-fusao": {
+    "descricao": "Funde identidades (nome de commit e login da mesma pessoa), com todas as ações e sem ligar autores.",
+    "set": {
+      "acoes_ignoradas": [],
+      "fundir_identidades": true,
+      "ligar_autores": false
+    }
+  }
+}

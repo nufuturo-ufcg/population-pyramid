@@ -62,8 +62,8 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 |---|---|---|---|
 | `anos_piramide` | 2010, 2014, 2018, 2022, 2024 | anos das pirâmides por linguagem. | desenho |
 | `piramide_em_pct` | true | pirâmides em % dos ativos do ano. `false` desenha contagens. | desenho |
-| `usa_moved_to_discussion` | false | separa a categoria moved to discussion nas pirâmides. `false` usa as três categorias do artigo. | tabela |
-| `piramide_lado` | `todos` | quais categorias as pirâmides mostram: `todos` (as quatro), `moved_para_discussao`, `moved_para_codigo`, `codigo` (moved + coding), `discussao` (non_coding + moved_to_discussion). A base da % segue sendo os ativos do ano todo. | desenho |
+| `rodada` (`--set rodada=NOME`) | nenhuma | aplica as flags de uma rodada de `scripts/vitalidade_rodadas.json` (`oficial`, `oficial-2026-11-09`, `sem-duplicados`, `sem-mentioned`, `sem-marcacao`, `com-fusao`): `acoes_ignoradas`, `fundir_identidades`, `ligar_autores`, `sem_duplicados`, `commits_pelo_sha` e `sem_contas_de_sistema`. A `oficial` liga as três últimas. Os `--set` seguintes sobrepõem a rodada. | tabela |
+| `piramide_lado` | `todos` | quais categorias as pirâmides mostram: `todos` (discussão e código), `codigo` ou `discussao`. A base da % segue sendo os ativos do ano todo. | desenho |
 | `saidas_estavel` | 20 | taxa de saída da célula (faixa, ano) fica vazada com menos saídas que isso. Mesmo critério do CDC. | desenho |
 
 ### Carga dos eventos
@@ -80,6 +80,9 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 | `fundir_identidades` | false | junta o nome de commit ao login da mesma pessoa: e-mail noreply do GitHub e heurística dos repositórios em comum. Só no motor duckdb. |
 | `acoes_ignoradas` | `[mentioned, subscribed]` | ações de `issue_event` que a carga ignora. Nelas o login é o de quem foi marcado ou inscrito. Exige o motor duckdb. |
 | `ligar_autores` | false | liga o commit ao login que o GitHub associa ao e-mail do autor (`autores:` em `vitalidade_fontes.yaml`). Exige o motor duckdb. |
+| `sem_duplicados` | false | tira da carga os repositórios duplicados (outro `repo_id`, mesmas issues e PRs) listados em `duplicados:` de `vitalidade_fontes.yaml`. Fica o repositório criado antes de cada grupo. Exige o motor duckdb. |
+| `commits_pelo_sha` | false | um commit copiado entre repositórios (fork, espelho) conta uma vez, pelo SHA, no repositório criado antes (empate: menor `repo_id`). false usa a chave antiga (autor, data e arquivos), que não desempata. Exige o motor duckdb. |
+| `sem_contas_de_sistema` | false | tira `vicuna`, `coqbot`, logins em formato UUID e logins de migração de rastreador (palavra trac, bugzilla, mantis, jira, import ou migrat entre `-`, `_` ou `.`). As pessoas reais das issues migradas ficam, e `JirA44` também (`CONTAS_QUE_SAO_PESSOAS`). Exige o motor duckdb. |
 
 Origem dos dados: `scripts/vitalidade_fontes.yaml`, `--dados`, `--eventos`, `--alvo`.
 

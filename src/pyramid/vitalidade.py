@@ -6,8 +6,9 @@ Funções puras sobre eventos canônicos (`contributor_id`, `event_type`,
 A régua difere da replicação do IEICE16 em três pontos, todos do plano:
 
   saída    12 meses sem contribuir (Avelino et al., ESEM 2019). O IEICE16 usa 3.
-  faixas   0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos na linguagem, contados como ano menos
-           ano de entrada (quem entrou em Y está em 0-1 no ano Y).
+  faixas   0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos completos na linguagem, contados desde o primeiro
+           evento menos os anos de calendário inteiros sem evento (quem entrou em Y está em 0-1
+           no ano Y).
   passo    anual.
 
 Definições (cada uma é uma escolha registrada em docs/linguagem/vitalidade.md):
@@ -77,7 +78,9 @@ def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
 
     Guarda, de cada pessoa, o primeiro e o último evento de cada trimestre, o último evento
     de código e o último de discussão de cada trimestre, mais o primeiro evento de código e o
-    primeiro de discussão da vida. As métricas só dependem de:
+    primeiro de discussão da vida. A coluna `n` guarda a contagem: no último evento de cada lado
+    de cada trimestre fica quantos eventos daquele lado a pessoa teve no trimestre, e nas demais
+    linhas fica 0. Entrada sem `n` conta 1 por evento. As métricas só dependem de:
 
       - onde um período de atividade (separado por mais de 12 meses de silêncio)
         começa e termina: um silêncio desses nunca cabe dentro de um trimestre, então
@@ -85,13 +88,15 @@ def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
       - em que anos a pessoa apareceu e o primeiro e o último evento dela;
       - o primeiro evento de cada lado (código e discussão);
       - o último evento de cada lado, que `deixou_codigo` lê. Guardado por trimestre e não por
-        vida, para o corte da coleta num fim de trimestre continuar exato.
+        vida, para o corte da coleta num fim de trimestre continuar exato;
+      - quantos eventos de código e de discussão a pessoa teve em cada ano (`n`), que decide o
+        lado dela na pirâmide (`lado_no_ano`).
 
     Os eventos que sobram são todos reais. Aplicar de novo ao resultado não muda
     nada, então coletas enormes podem ser compactadas em pedaços.
     """
-    ev = eventos[["contributor_id", "event_type", "timestamp"]]
-    ev = ev.sort_values(["contributor_id", "timestamp"], kind="stable")
+    ev = eventos[["contributor_id", "event_type", "timestamp"]].assign(n=_pesos(eventos))
+    ev = ev.sort_values(["contributor_id", "timestamp"], kind="stable").reset_index(drop=True)
     trimestre = ev["timestamp"].dt.year * 4 + (ev["timestamp"].dt.month - 1) // 3
     por_trimestre = ev.groupby([ev["contributor_id"], trimestre], sort=False)
     codou = ev["event_type"].isin(TIPOS_CODING)
@@ -103,17 +108,50 @@ def compacta(eventos: pd.DataFrame) -> pd.DataFrame:
     discussao_por_trimestre = ev[~codou].groupby(
         [ev["contributor_id"][~codou], trimestre[~codou]], sort=False
     )
-    partes = [
-        por_trimestre.head(1),
-        por_trimestre.tail(1),
-        codigo_por_trimestre.tail(1),
-        discussao_por_trimestre.tail(1),
-        por_pessoa_codigo.head(1),
-        por_pessoa_discussao.head(1),
+    # A contagem de cada lado no trimestre vai para o último evento daquele lado.
+    ultimo_do_codigo = codigo_por_trimestre.tail(1).index
+    ultimo_da_discussao = discussao_por_trimestre.tail(1).index
+    soma_codigo = (
+        ev["n"][codou].groupby([ev["contributor_id"][codou], trimestre[codou]]).transform("sum")
+    )
+    soma_discussao = (
+        ev["n"][~codou].groupby([ev["contributor_id"][~codou], trimestre[~codou]]).transform("sum")
+    )
+    ev["n"] = 0
+    ev.loc[ultimo_do_codigo, "n"] = soma_codigo.loc[ultimo_do_codigo]
+    ev.loc[ultimo_da_discussao, "n"] = soma_discussao.loc[ultimo_da_discussao]
+
+    guardados = [
+        por_trimestre.head(1).index,
+        por_trimestre.tail(1).index,
+        ultimo_do_codigo,
+        ultimo_da_discussao,
+        por_pessoa_codigo.head(1).index,
+        por_pessoa_discussao.head(1).index,
     ]
-    out = pd.concat(partes).drop_duplicates()
+    out = ev.loc[guardados[0].append(guardados[1:]).unique()]
     out["event_type"] = out["event_type"].astype(str)
+    # Dois eventos iguais (mesma pessoa, tipo e instante) viram uma linha, com as contagens somadas.
+    out = out.groupby(["contributor_id", "event_type", "timestamp"], sort=False, as_index=False)[
+        "n"
+    ].sum()
     return out.sort_values(["contributor_id", "timestamp"], kind="stable").reset_index(drop=True)
+
+
+def _pesos(eventos: pd.DataFrame) -> pd.Series | int:
+    """Quantos eventos cada linha representa: a coluna `n` se existe, senão 1."""
+    if "n" in eventos:
+        return eventos["n"]
+    return 1
+
+
+def lado_no_ano(n_codigo: pd.Series, n_discussao: pd.Series) -> np.ndarray:
+    """Lado da pessoa no ano: quem teve mais eventos de código que de discussão fica em `coding`.
+
+    Empate vai para `coding`. Esta é a única regra de lado das pirâmides; trocar a regra é
+    trocar esta função.
+    """
+    return np.where(n_codigo >= n_discussao, "coding", "non_coding")
 
 
 def so_quem_codou(eventos: pd.DataFrame) -> pd.DataFrame:
@@ -168,20 +206,28 @@ def periodos(eventos: pd.DataFrame) -> pd.DataFrame:
     return spans.reset_index(drop=True).merge(primeiros, on="contributor_id", how="left")
 
 
-def pessoa_ano(
-    eventos: pd.DataFrame, fim: pd.Timestamp | None = None, com_moved_to_discussion: bool = True
-) -> pd.DataFrame:
+def anos_completos(primeiro: pd.Series, referencia: pd.Series) -> pd.Series:
+    """Anos completos de `primeiro` até `referencia`, por aniversário (só o dia, sem a hora)."""
+    anos = referencia.dt.year - primeiro.dt.year
+    dia_da_referencia = referencia.dt.month * 100 + referencia.dt.day
+    dia_do_primeiro = primeiro.dt.month * 100 + primeiro.dt.day
+    aniversario_ainda_nao_chegou = dia_da_referencia < dia_do_primeiro
+    return (anos - aniversario_ainda_nao_chegou.astype(int)).clip(lower=0)
+
+
+def pessoa_ano(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataFrame:
     """Uma linha por (pessoa, ano em que contribuiu). Base de toda métrica anual.
 
     `fim` é o último instante coberto pela coleta. Padrão: o evento mais recente.
-    Sem `com_moved_to_discussion` a categoria `moved_to_discussion` não existe: quem já codou e
-    neste ano só discutiu fica onde a história dele o põe, em `moved` ou `coding`.
+    A categoria tem dois valores, escolhidos por `lado_no_ano` com a contagem de eventos de código
+    e de discussão da pessoa no ano.
     """
     if fim is None:
         fim = eventos["timestamp"].max()
     ev = eventos[["contributor_id", "event_type", "timestamp"]]
 
     spans = periodos(ev)
+    contagem = contagem_no_ano(eventos)
     marcos = spans.groupby("contributor_id").agg(
         init_c=("init_c", "first"),
         init_d=("init_d", "first"),
@@ -192,37 +238,29 @@ def pessoa_ano(
 
     pa = ev.assign(ano=ev["timestamp"].dt.year)[["contributor_id", "ano"]].drop_duplicates()
     pa = pa.join(marcos, on="contributor_id")
-
-    # Quem fez commit ou PR em cada ano. A compactação guarda o último evento de código de cada
-    # trimestre, então saber se houve código no ano é exato.
-    com_codigo = ev[ev["event_type"].isin(TIPOS_CODING)]
-    anos_com_codigo = com_codigo.assign(ano=com_codigo["timestamp"].dt.year)[
-        ["contributor_id", "ano"]
-    ].drop_duplicates()
-    anos_com_codigo["codou_no_ano"] = True
-    pa = pa.merge(anos_com_codigo, on=["contributor_id", "ano"], how="left")
-    codou_no_ano = pa.pop("codou_no_ano").fillna(False).astype(bool)
+    pa = pa.merge(contagem, on=["contributor_id", "ano"], how="left")
 
     fim_ano = pd.to_datetime((pa["ano"] + 1).astype(str) + "-01-01")
-    # Idade em anos de calendário: cada faixa de 1 ano é exatamente uma coorte
-    # de entrada, que é o que a projeção por coorte precisa para envelhecer 1 por ano.
-    pa["idade_anos"] = pa["ano"] - pa["primeiro"].dt.year
-    # Idade em dias no fim do ano, para a pirâmide em faixas de trimestre (como no artigo).
-    pa["idade_dias"] = (fim_ano.clip(upper=fim) - pa["primeiro"]).dt.days
+    # Idade: anos completos desde a primeira contribuição até 31/12 do ano, em todos os anos
+    # (o ano aberto também), menos os anos de calendário inteiros sem nenhuma contribuição no meio.
+    # A pessoa é ativa em `ano`, então os anos de calendário entre o primeiro e `ano` são
+    # `ano - ano_do_primeiro - 1`, e `posicao` deles têm contribuição (`posicao` conta os anos
+    # ativos antes de `ano`, o do primeiro incluído). Sobram `ano - ano_do_primeiro - posicao`.
+    referencia = fim_ano - pd.Timedelta(days=1)
+    posicao = pa.groupby("contributor_id")["ano"].rank(method="first").astype(int) - 1
+    anos_vazios = pa["ano"] - pa["primeiro"].dt.year - posicao
+    pa["idade_dias"] = (referencia - pa["primeiro"]).dt.days
+    pa["idade_anos"] = (anos_completos(pa["primeiro"], referencia) - anos_vazios).clip(lower=0)
     pa["faixa"] = faixa_de(pa["idade_anos"])
     pa["novato"] = pa["primeiro"].dt.year == pa["ano"]
+    # Idade 0 é não ter ano anterior com contribuição, ou seja, ser novato do ano.
+    if ((pa["faixa"] == "0-1") != pa["novato"]).any():
+        raise ValueError("pessoa_ano: a faixa [0, 1) não tem exatamente os novatos do ano.")
 
     # Mesma regra de `snapshots.pyramid_at`, avaliada no fim do ano.
     codou = pa["init_c"].notna() & (pa["init_c"] < fim_ano)
     comecou_na_discussao = codou & pa["init_d"].notna() & (pa["init_d"] < pa["init_c"])
-    # O lado de volta do `moved`: quem já codou e neste ano só discutiu. Quem fez algum commit ou PR
-    # no ano fica do lado do código, mesmo que o último evento do ano seja um comentário.
-    foi_para_discussao = codou & ~codou_no_ano & com_moved_to_discussion
-    pa["categoria"] = np.select(
-        [~codou, foi_para_discussao, comecou_na_discussao],
-        ["non_coding", "moved_to_discussion", "moved"],
-        default="coding",
-    )
+    pa["categoria"] = lado_no_ano(pa.pop("n_codigo"), pa.pop("n_discussao"))
     # Fluxo: o ano em que quem começou pela discussão fez o primeiro commit/PR.
     pa["moved_no_ano"] = comecou_na_discussao & (pa["init_c"].dt.year == pa["ano"])
     # O caminho de volta: a pessoa para de codar e depois só discute. O ano é o do último
@@ -262,6 +300,18 @@ def pessoa_ano(
     if pa.duplicated(["contributor_id", "ano"]).any():
         raise ValueError("pessoa_ano: (pessoa, ano) repetido; mais de uma saída ou volta no ano.")
     return pa.drop(columns=["init_c", "init_d", "last_c", "last_d"]).reset_index(drop=True)
+
+
+def contagem_no_ano(eventos: pd.DataFrame) -> pd.DataFrame:
+    """Eventos de código e de discussão de cada pessoa em cada ano (`n_codigo`, `n_discussao`)."""
+    ev = eventos[["contributor_id", "event_type", "timestamp"]].assign(n=_pesos(eventos))
+    ev["ano"] = ev["timestamp"].dt.year
+    ev["lado"] = np.where(ev["event_type"].isin(TIPOS_CODING), "n_codigo", "n_discussao")
+    t = ev.groupby(["contributor_id", "ano", "lado"])["n"].sum().unstack(fill_value=0)
+    for coluna in ("n_codigo", "n_discussao"):
+        if coluna not in t.columns:
+            t[coluna] = 0
+    return t[["n_codigo", "n_discussao"]].reset_index()
 
 
 def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
@@ -413,9 +463,9 @@ def ccr_ncr_trimestral(
     return pd.DataFrame(linhas)
 
 
-# As quatro categorias da pirâmide no fim do ano. Esquerda: só discussão e quem codou e passou a
-# discutir. Direita: quem discutiu primeiro e passou a codar (`moved`) e o resto de quem codou.
-LADOS = ["non_coding", "moved_to_discussion", "moved", "coding"]
+# As duas categorias da pirâmide no fim do ano. Esquerda: quem nunca fez commit nem PR. Direita:
+# quem já fez algum até o fim do ano.
+LADOS = ["non_coding", "coding"]
 
 BAND_DIAS = 90  # trimestre de 90 dias, como o `band_days` da replicação do IEICE16
 
@@ -471,7 +521,7 @@ def tira_pessoas_de_um_dia(eventos: pd.DataFrame) -> pd.DataFrame:
 
 
 def composicao(pa: pd.DataFrame) -> pd.DataFrame:
-    """Ativos por (ano, faixa) nas quatro categorias da pirâmide (ver `LADOS`)."""
+    """Ativos por (ano, faixa) nas duas categorias da pirâmide (ver `LADOS`)."""
     t = pa.groupby(["ano", "faixa", "categoria"], observed=False).size().unstack(fill_value=0)
     for coluna in LADOS:
         if coluna not in t.columns:
@@ -521,6 +571,31 @@ def duracoes(eventos: pd.DataFrame, fim: pd.Timestamp | None = None) -> pd.DataF
     return p.reset_index()
 
 
+def duracoes_pela_idade(
+    eventos: pd.DataFrame, fim: pd.Timestamp | None = None, ate_ano: int | None = None
+) -> pd.DataFrame:
+    """Como `duracoes`, mas `duracao_anos` é a idade na data da última contribuição.
+
+    A idade é a de `pessoa_ano`: anos completos desde a primeira contribuição, menos os anos de
+    calendário inteiros sem nenhuma contribuição entre a primeira e a última. Alimenta
+    `tabua_de_vida` com o mesmo x da pirâmide.
+
+    `ate_ano` fica só com as coortes que chegaram até esse ano. Quem tem o último evento depois
+    dele fica censurado, porque a saída desse período não pertence ao estudo.
+    """
+    p = duracoes(eventos, fim)
+    por_ano = eventos[["contributor_id", "timestamp"]].assign(ano=eventos["timestamp"].dt.year)
+    por_ano = por_ano.drop_duplicates(["contributor_id", "ano"])
+    n_anos_ativos = por_ano.groupby("contributor_id").size()
+    anos_do_primeiro_ao_ultimo = p["ultimo"].dt.year - p["entrada"].dt.year + 1
+    anos_vazios = anos_do_primeiro_ao_ultimo - p["contributor_id"].map(n_anos_ativos)
+    p["duracao_anos"] = (anos_completos(p["entrada"], p["ultimo"]) - anos_vazios).clip(lower=0)
+    if ate_ano is not None:
+        p = p[p["coorte"] <= ate_ano].copy()
+        p.loc[p["ultimo"].dt.year > ate_ano, "saiu"] = False
+    return p
+
+
 def _intervalo_de_wilson(eventos: float, n: float, z: float = 1.96) -> tuple[float, float]:
     """Intervalo de confiança de 95% de Wilson para uma proporção `eventos / n`.
 
@@ -545,6 +620,7 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
     n_efetivo(x)  a exposição l(x) - censurados(x)/2, o denominador de q
     q_inf, q_sup  intervalo de confiança de 95% de Wilson para q(x) com `n_efetivo`
     S(x)  fração que chega em x, produto de (1 - q) até x-1
+    S_inf, S_sup  intervalo de 95% de S(x) pela variância de Greenwood, cortado em 0 e 1
     e(x)  anos que ainda restam, em média, a quem chegou em x
 
     Com poucas pessoas efetivamente observadas q(x) oscila: 0 saídas em 10 pessoas efetivas dá
@@ -565,6 +641,8 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
         "S",
         "e",
         "e_truncado",
+        "S_inf",
+        "S_sup",
     ]
     if dur.empty:
         return pd.DataFrame(columns=colunas)
@@ -572,6 +650,7 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
     intervalo = np.floor(dur["duracao_anos"]).astype(int)
     em_risco = len(dur)
     sobrevivencia = 1.0
+    greenwood = 0.0  # soma de d / (n (n - d)) até x-1
     linhas = []
     for x in range(int(intervalo.max()) + 1):
         aqui = intervalo == x
@@ -580,6 +659,7 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
         exposicao = em_risco - c / 2
         q = d / exposicao if exposicao > 0 else np.nan
         q_inf, q_sup = _intervalo_de_wilson(d, exposicao)
+        erro_de_s = sobrevivencia * math.sqrt(greenwood)
         linhas.append(
             {
                 "x": x,
@@ -591,8 +671,12 @@ def tabua_de_vida(dur: pd.DataFrame) -> pd.DataFrame:
                 "q_inf": q_inf,
                 "q_sup": q_sup,
                 "S": sobrevivencia,
+                "S_inf": max(0.0, sobrevivencia - 1.96 * erro_de_s),
+                "S_sup": min(1.0, sobrevivencia + 1.96 * erro_de_s),
             }
         )
+        if exposicao > d:
+            greenwood += d / (exposicao * (exposicao - d))
         if not np.isnan(q):
             sobrevivencia = sobrevivencia * (1 - q)
         em_risco = em_risco - d - c
@@ -720,9 +804,10 @@ def padronizacao(taxas: dict[str, pd.DataFrame], ano_pesos: int) -> pd.DataFrame
 
 # Etapa 7: projeção anual em bandas de 1 ano (RQ3).
 #
-# Banda = idade em anos de calendário, de 0 a 7, e a 8+ aberta no índice 8.
-# Cada banda de 0 a 7 é uma coorte de entrada só, então a coorte da banda a em
-# T está na banda a+1 em T+1. A 8+ recebe a banda 7 e guarda quem já estava nela:
+# Banda = idade em anos completos de atividade, de 0 a 7, e a 8+ aberta no índice 8.
+# Sem ano de calendário vazio, quem está na banda a em T está na banda a+1 em T+1. Quem volta
+# depois de um ano vazio reaparece numa banda menor, e a permanência de cada banda absorve isso.
+# A 8+ recebe a banda 7 e guarda quem já estava nela:
 #   P(8+, T+1) = SR(7) P(7, T) + SR(8+) P(8+, T)
 
 BANDAS = 9

@@ -192,31 +192,33 @@ def draw_pyramid(
     else:
         y = frame["band"].to_numpy()
         non = frame["non_coding"].to_numpy()
-        # Coluna opcional de quem codou e passou a discutir, empilhada no lado da discussão.
+        # Coluna opcional de quem codou e passou a discutir, no lado da discussão, junto ao centro.
         # A pirâmide do artigo não a tem, e sem ela o desenho é o de sempre.
         if "moved_to_discussion" in frame:
             moved_discussion = frame["moved_to_discussion"].to_numpy()
         else:
             moved_discussion = non * 0
-        moved = frame["moved"].to_numpy()
+        # Coluna opcional: a pirâmide da vitalidade só tem discussão e código.
+        moved = frame["moved"].to_numpy() if "moved" in frame else non * 0
         coding = frame["coding"].to_numpy()
         topo = int(y.max())
+        # Da borda para o centro: discussion, moved to discussion, moved to coding, coding.
         ax.barh(
             y,
-            -non,
+            -moved_discussion,
             height=0.85,
-            color=FILL["non_coding"],
-            hatch=HATCH["non_coding"],
+            color=FILL["moved_to_discussion"],
+            hatch=HATCH["moved_to_discussion"],
             edgecolor="#4D4D4D",
             linewidth=0.5,
         )
         ax.barh(
             y,
-            -moved_discussion,
+            -non,
             height=0.85,
-            left=-non,
-            color=FILL["moved_to_discussion"],
-            hatch=HATCH["moved_to_discussion"],
+            left=-moved_discussion,
+            color=FILL["non_coding"],
+            hatch=HATCH["non_coding"],
             edgecolor="#4D4D4D",
             linewidth=0.5,
         )

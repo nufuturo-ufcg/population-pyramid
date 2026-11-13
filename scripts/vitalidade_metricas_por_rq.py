@@ -723,8 +723,8 @@ def rq2(pastas: Pastas, p: v.Parametros) -> str:
 
     comp = pastas.csv(geral, "composicao_pct.csv")
     lados = comp.groupby(["slug", "ano"])[v.vitalidade.LADOS].sum().reset_index()
-    lados["lado do código %"] = lados["moved"] + lados["coding"]
-    lados["lado da discussão %"] = lados["non_coding"] + lados["moved_to_discussion"]
+    lados["lado do código %"] = lados["coding"]
+    lados["lado da discussão %"] = lados["non_coding"]
     base_traj = pastas.csv(geral, "trajetoria.csv")[["slug", "ano", "ativos"]]
     lados = lados.merge(base_traj, on=["slug", "ano"])
     lados = lados[(lados["ativos"] >= 100) & lados["ano"].isin([2015, 2018, 2020, 2022, 2024])]

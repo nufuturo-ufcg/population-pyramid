@@ -40,6 +40,9 @@ def grava_origem(
     sem_acoes: tuple[str, ...] = (),
     fundir: bool = False,
     autores: bool = False,
+    sem_duplicados: bool = False,
+    commits_pelo_sha: bool = False,
+    sem_contas_de_sistema: bool = False,
 ) -> None:
     """Carga de uma linguagem com a origem de cada pessoa gravada à parte."""
     carga_fonte.aplica_linguagem(slug)
@@ -47,6 +50,8 @@ def grava_origem(
     fonte = carga_fonte.resolve_fonte(slug)
     if not autores:
         fonte.autores = None
+    if not sem_duplicados:
+        fonte.duplicados = None
     pasta = saida / slug / "origem"
     carga_compacta.carrega(
         fonte,
@@ -58,6 +63,9 @@ def grava_origem(
         origem=pasta,
         acoes_ignoradas=sem_acoes,
         fundir_identidades=fundir,
+        repos_excluidos=fonte.repos_excluidos(),
+        commits_pelo_sha=commits_pelo_sha,
+        sem_contas_de_sistema=sem_contas_de_sistema,
     )
     partes = []
     for caminho in fonte.alvos:
@@ -92,6 +100,19 @@ def main() -> None:
     parser.add_argument(
         "--autores", action=argparse.BooleanOptionalAction, default=padrao["ligar_autores"]
     )
+    parser.add_argument(
+        "--sem-duplicados", action=argparse.BooleanOptionalAction, default=padrao["sem_duplicados"]
+    )
+    parser.add_argument(
+        "--commits-pelo-sha",
+        action=argparse.BooleanOptionalAction,
+        default=padrao["commits_pelo_sha"],
+    )
+    parser.add_argument(
+        "--sem-contas-de-sistema",
+        action=argparse.BooleanOptionalAction,
+        default=padrao["sem_contas_de_sistema"],
+    )
     args = parser.parse_args()
     fb.TMP_BASE = args.saida.expanduser()
     for slug in args.linguagens:
@@ -103,6 +124,9 @@ def main() -> None:
             tuple(args.sem_acoes),
             args.fundir_identidades,
             args.autores,
+            args.sem_duplicados,
+            args.commits_pelo_sha,
+            args.sem_contas_de_sistema,
         )
 
 

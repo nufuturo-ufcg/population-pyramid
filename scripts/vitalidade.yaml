@@ -83,6 +83,21 @@ fundir_identidades: false
 # vitalidade_fontes.yaml, regra 8 de adapters/coleta_csv/carga_duckdb.py). Exige o motor duckdb.
 ligar_autores: false
 
+# Tira os repositórios duplicados da carga: repositórios com outro `repo_id` e as mesmas issues e PRs
+# (renomeados ou transferidos e coletados duas vezes). Fica um de cada grupo, o criado antes. A lista
+# vem de `duplicados:` em vitalidade_fontes.yaml, que `scripts/auditoria_repos.py` gera. Só no motor duckdb.
+sem_duplicados: false
+
+# Um commit copiado entre repositórios (fork, espelho) conta uma vez só, pelo SHA, no repositório criado
+# antes (empate: menor repo_id). false usa a chave antiga (autor, data e arquivos), que só desempata
+# pela data de criação. Só no motor duckdb.
+commits_pelo_sha: false
+
+# Tira as contas que não são pessoas: vicuna, coqbot, logins em formato UUID e logins de migração
+# de rastreador (palavra trac, bugzilla, mantis, jira, import ou migrat entre `-`, `_` ou `.`, como em
+# twisted-trac). As pessoas reais das issues migradas ficam. Só no motor duckdb.
+sem_contas_de_sistema: false
+
 # População de cada linguagem. O padrão é mais_de_uma_ocasiao (residentes, decisão de 2026-10-26):
 # quem tem mais de uma contribuição em ocasiões diferentes. Ocasião é uma conversa de issue ou PR,
 # um commit comentado ou um dia de commits num repositório. Lê <saída>/<linguagem>/origem/pessoas.parquet,
@@ -101,20 +116,11 @@ populacao: mais_de_uma_ocasiao
 piramide_em_pct: true
 
 # Que categorias as pirâmides mostram. As porcentagens seguem sobre os ativos do ano todo, então um
-# lado isolado mostra a parcela dele. As quatro categorias, pelo que cada pessoa fez até o fim do
-# ano:
-#   non_coding           só discussão: nunca fez commit nem PR
-#   moved_to_discussion  já codou em anos anteriores e neste ano só discutiu
-#   moved                começou pela discussão e fez commit ou PR neste ano
-#   coding               começou pelo código e fez commit ou PR neste ano
-# Opções: todos (as quatro), moved_para_discussao, moved_para_codigo, codigo (moved + coding),
-# discussao (non_coding + moved_to_discussion). Só muda o desenho.
+# lado isolado mostra a parcela dele. As duas categorias, pelo que cada pessoa fez no ano:
+#   non_coding           mais eventos de discussão que de código
+#   coding               ao menos tantos eventos de código quanto de discussão (empate é coding)
+# Opções: todos, codigo, discussao. Só muda o desenho.
 piramide_lado: todos
-
-# Se a pirâmide separa moved_to_discussion (quem já codou e neste ano só discutiu). false: as três
-# categorias do artigo, discussão, moved to coding e coding, com essas pessoas onde a história
-# delas as põe. Muda as tabelas.
-usa_moved_to_discussion: false
 
 # Ano das pirâmides lado a lado entre linguagens, e ano em que o índice de ativos vale 100.
 anos_comparacao: [2024, 2025]

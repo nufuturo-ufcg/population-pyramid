@@ -3,7 +3,7 @@
 Quatro pessoas, coleta até 30/06/2024:
 
   A  commit 01/03/2020, 01/11/2020, 01/05/2021      sai em 2021
-  B  discute 01/06/2020, commit 15/01/2022          sai em 2020; em 2022 volta, vira moved e sai
+  B  discute 01/06/2020, commit 15/01/2022          sai em 2020; em 2022 volta, vira coding e sai
   C  commit 01/02/2021, 01/03/2024                  sai em 2021, volta em 2024, segue ativa
   D  issue 01/12/2023                               censurada (menos de 12 meses até o fim)
 """
@@ -41,9 +41,17 @@ def test_faixa_fechada_embaixo():
 def test_pessoa_ano():
     pa = vitalidade.pessoa_ano(_eventos(), FIM).set_index(["contributor_id", "ano"])
     assert pa.loc[(2, 2020), "categoria"] == "non_coding"
-    assert pa.loc[(2, 2022), "categoria"] == "moved"
-    assert pa.loc[(2, 2022), "faixa"] == "2-3"
-    assert pa.loc[(3, 2024), "faixa"] == "3-5"
+    assert pa.loc[(2, 2022), "categoria"] == "coding"
+    # B: de 01/06/2020 a 31/12/2022 são 943 dias e 2 anos completos. 2021 inteiro sem contribuição
+    # tira 1, e sobra idade 1.
+    assert pa.loc[(2, 2022), "idade_dias"] == 943
+    assert pa.loc[(2, 2022), "idade_anos"] == 1
+    assert pa.loc[(2, 2022), "faixa"] == "1-2"
+    # C: de 01/02/2021 até 31/12/2024, também no ano aberto, são 1.429 dias e 3 anos completos.
+    # 2022 e 2023 inteiros sem contribuição tiram 2.
+    assert pa.loc[(3, 2024), "idade_dias"] == 1429
+    assert pa.loc[(3, 2024), "idade_anos"] == 1
+    assert pa.loc[(3, 2024), "faixa"] == "1-2"
     assert pa.loc[(3, 2024), "volta"]
     assert not pa.loc[(3, 2024), "saida"]
 
@@ -90,6 +98,129 @@ def test_tabua_de_vida_com_censura():
     assert t["q"].tolist() == pytest.approx([0, 2 / 3, 0, 0])
     assert t["e"].tolist() == pytest.approx([7 / 3, 4 / 3, 2, 1])
     assert t["e_truncado"].all()
+
+
+def test_tabua_pela_idade_desconta_os_anos_inteiros_sem_contribuicao():
+    dur = vitalidade.duracoes_pela_idade(_eventos(), FIM)
+    # 1: 01/03/2020 a 01/05/2021, 1 ano completo. 2: 01/06/2020 a 15/01/2022, 1 ano completo menos
+    # 2021 vazio. 3: 01/02/2021 a 01/03/2024, 3 anos completos menos 2022 e 2023 vazios.
+    assert dur.set_index("contributor_id")["duracao_anos"].to_dict() == {1: 1, 2: 0, 3: 1, 4: 0}
+    t = vitalidade.tabua_de_vida(dur)
+    assert list(t["l"]) == [4, 2]
+    assert list(t["d"]) == [1, 1]
+    assert t["q"].tolist() == pytest.approx([1 / 3.5, 1 / 1.5])
+
+
+def test_idade_sem_pausa_conta_anos_completos():
+    datas = ["2015-03-01", "2015-12-01", "2016-10-01", "2017-08-01", "2018-06-01"]
+    ev = pd.DataFrame(
+        {"contributor_id": 1, "event_type": "commits", "timestamp": pd.to_datetime(datas)}
+    )
+    pa = vitalidade.pessoa_ano(ev, pd.Timestamp("2024-06-30")).set_index("ano")
+    assert pa["idade_anos"].tolist() == [0, 1, 2, 3]
+
+
+def test_novato_de_ano_bissexto_que_chega_no_primeiro_dia_tem_idade_0():
+    datas = ["2020-01-01", "2020-12-31"]
+    ev = pd.DataFrame(
+        {"contributor_id": 1, "event_type": "commits", "timestamp": pd.to_datetime(datas)}
+    )
+    pa = vitalidade.pessoa_ano(ev, pd.Timestamp("2024-06-30"))
+    assert pa.loc[0, "idade_anos"] == 0
+
+
+FIM_DOS_PERFIS = pd.Timestamp("2026-06-30")
+
+
+def _perfil(datas: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(
+        {"contributor_id": 1, "event_type": "commits", "timestamp": pd.to_datetime(datas)}
+    )
+
+
+def _idade_na_piramide(ev: pd.DataFrame, ano: int) -> int:
+    pa = vitalidade.pessoa_ano(ev, FIM_DOS_PERFIS).set_index("ano")
+    return int(pa.loc[ano, "idade_anos"])
+
+
+def _idade_na_tabua(ev: pd.DataFrame) -> int:
+    dur = vitalidade.duracoes_pela_idade(ev, FIM_DOS_PERFIS)
+    return int(dur.loc[0, "duracao_anos"])
+
+
+def test_perfil_ana_sai_com_idade_0():
+    ev = _perfil(["2023-06-15", "2024-03-15"])
+    assert _idade_na_tabua(ev) == 0
+    t = vitalidade.tabua_de_vida(vitalidade.duracoes_pela_idade(ev, FIM_DOS_PERFIS))
+    assert list(t["d"]) == [1]
+
+
+def test_perfil_bruno_a_cada_13_meses_tem_idade_9_na_piramide_de_2024():
+    inicio = pd.Timestamp("2015-01-15")
+    datas = [str(inicio + pd.DateOffset(months=13 * i))[:10] for i in range(10)]
+    assert datas[-1] == "2024-10-15"
+    ev = _perfil(datas)
+    assert _idade_na_piramide(ev, 2024) == 9
+    # Um ano com contribuição em cada ano de calendário: a idade é o ano menos o de 2015.
+    for ano in range(2015, 2025):
+        assert _idade_na_piramide(ev, ano) == ano - 2015
+
+
+def test_perfil_carlos_com_quinze_anos_vazios_tem_idade_1_em_2024():
+    ev = _perfil(["2008-06-15", "2024-06-15"])
+    assert _idade_na_piramide(ev, 2008) == 0
+    # 16 anos completos até 31/12/2024, menos 2009 a 2023 inteiros sem contribuição.
+    assert _idade_na_piramide(ev, 2024) == 1
+    assert _idade_na_tabua(ev) == 1  # 16 anos completos até 15/06/2024, menos 15 vazios
+
+
+def test_perfil_daniel_com_dez_contribuicoes_em_cada_junho():
+    datas = []
+    for ano in (2010, 2015, 2020):
+        for dia in range(1, 11):
+            datas.append(f"{ano}-06-{dia:02d}")
+    ev = _perfil(datas)
+    assert _idade_na_piramide(ev, 2010) == 0
+    assert _idade_na_piramide(ev, 2015) == 1
+    assert _idade_na_piramide(ev, 2020) == 2
+    assert _idade_na_tabua(ev) == 2
+    t = vitalidade.tabua_de_vida(vitalidade.duracoes_pela_idade(ev, FIM_DOS_PERFIS))
+    assert list(t["d"]) == [0, 0, 1]
+
+
+def test_idade_da_piramide_e_o_numero_de_anos_anteriores_com_contribuicao():
+    ev = _eventos_aleatorios()
+    pa = vitalidade.pessoa_ano(ev, ev["timestamp"].max())
+    anos_da_pessoa = {}
+    for pessoa, ano in zip(pa["contributor_id"], pa["ano"], strict=True):
+        anos_da_pessoa.setdefault(pessoa, []).append(ano)
+    for pessoa, ano, idade in zip(pa["contributor_id"], pa["ano"], pa["idade_anos"], strict=True):
+        anteriores = 0
+        for outro in anos_da_pessoa[pessoa]:
+            if outro < ano:
+                anteriores += 1
+        assert idade == anteriores
+
+
+def test_faixa_0_1_tem_exatamente_os_novatos_do_ano():
+    ev = _eventos_aleatorios()
+    pa = vitalidade.pessoa_ano(ev, ev["timestamp"].max())
+    assert ((pa["faixa"] == "0-1") == pa["novato"]).all()
+
+
+def test_duracoes_pela_idade_corta_as_coortes_e_censura_depois_do_ano():
+    dur = vitalidade.duracoes_pela_idade(_eventos(), FIM, ate_ano=2021)
+    assert sorted(dur["contributor_id"]) == [1, 2, 3]  # a 4 chegou em 2023
+    assert dur.set_index("contributor_id")["saiu"].to_dict() == {1: True, 2: False, 3: False}
+
+
+def test_tabua_traz_o_intervalo_de_greenwood_de_s():
+    dur = pd.DataFrame({"duracao_anos": [0.5, 0.5, 1.5, 1.5], "saiu": [True] * 4})
+    t = vitalidade.tabua_de_vida(dur)
+    assert t.loc[0, ["S_inf", "S_sup"]].tolist() == [1.0, 1.0]
+    # S(1) = 0,5; variância de Greenwood = 2 / (4 x 2) = 0,25; erro = 0,5 x 0,5.
+    assert t.loc[1, "S_inf"] == pytest.approx(0.5 - 1.96 * 0.25)
+    assert t.loc[1, "S_sup"] == pytest.approx(0.5 + 1.96 * 0.25)
 
 
 def test_tabua_sem_censura_da_a_media_da_duracao():
@@ -388,7 +519,7 @@ def test_composicao_trimestral_poe_cada_pessoa_na_banda_de_90_dias():
         [
             (1, "commits", "2023-12-20"),  # entrou há 12 dias do fim de 2023: banda 0
             (2, "commits", "2023-06-01"),  # 214 dias: banda 2
-            (3, "issues", "2020-01-01"),  # 1461 dias: banda 16
+            (3, "issues", "2020-01-01"),  # 1.460 dias até 31/12/2023: banda 16
             (3, "issues", "2023-11-01"),
         ],
         columns=["contributor_id", "event_type", "timestamp"],
@@ -492,39 +623,36 @@ def test_deixou_codigo_e_o_caminho_de_volta_do_moved():
     assert list(t2["deixou_codigo"]) == [1, 0]
 
 
-def test_categorias_da_piramide_pelo_que_a_pessoa_fez_no_ano():
-    """Codar no ano põe do lado do código. Só discutir, já tendo codado, é moved_to_discussion."""
+def test_lado_da_pessoa_no_ano_pela_maioria_dos_eventos():
+    """Mais eventos de código que de discussão no ano é coding. Empate vai para coding."""
     linhas = [
-        (1, "commits", "2018-02-01"),  # 2018 codou e comentou: coding. 2019 só comentou.
+        (1, "commits", "2018-02-01"),  # 2018: 1 commit, 1 comentário (empate): coding
         (1, "issue_comments", "2018-08-01"),
-        (1, "issue_comments", "2019-03-01"),
-        (2, "issue_comments", "2018-02-01"),  # discutiu primeiro e codou em 2018: moved
-        (2, "commits", "2018-09-01"),
-        (3, "commits", "2018-05-01"),  # só código: coding
-        (4, "issues", "2018-05-01"),  # só discussão: non_coding
-        (5, "issue_comments", "2018-02-01"),  # discussão, código, discussão
-        (5, "commits", "2018-03-01"),
-        (5, "issue_comments", "2019-06-01"),
-        (6, "commits", "2018-02-01"),  # codou, discutiu e voltou a codar em 2019
-        (6, "issue_comments", "2018-03-01"),
-        (6, "commits", "2019-04-01"),
-        (7, "commits", "2019-01-10"),  # codou em 2019 e o último evento do ano é um comentário
-        (7, "issue_comments", "2019-11-30"),
+        (1, "issue_comments", "2019-03-01"),  # 2019: só comentou: non_coding
+        (2, "commits", "2018-05-01"),  # só código: coding
+        (3, "issues", "2018-05-01"),  # só discussão: non_coding
+        (4, "commits", "2019-01-10"),  # 1 commit e 2 comentários: non_coding
+        (4, "issue_comments", "2019-05-01"),
+        (4, "issue_comments", "2019-11-30"),
+        (5, "commits", "2019-01-10"),  # 2 commits e 1 comentário: coding
+        (5, "pull_requests", "2019-05-01"),
+        (5, "issue_comments", "2019-11-30"),
     ]
     ev = pd.DataFrame(linhas, columns=["contributor_id", "event_type", "timestamp"])
     ev["timestamp"] = pd.to_datetime(ev["timestamp"])
     fim = pd.Timestamp("2019-12-31 23:59:59")
     pa = vitalidade.pessoa_ano(ev, fim).set_index(["contributor_id", "ano"])
     assert pa.loc[(1, 2018), "categoria"] == "coding"
-    assert pa.loc[(1, 2019), "categoria"] == "moved_to_discussion"
-    assert pa.loc[(2, 2018), "categoria"] == "moved"
-    assert pa.loc[(3, 2018), "categoria"] == "coding"
-    assert pa.loc[(4, 2018), "categoria"] == "non_coding"
-    assert pa.loc[(5, 2018), "categoria"] == "moved"
-    assert pa.loc[(5, 2019), "categoria"] == "moved_to_discussion"
-    assert pa.loc[(6, 2018), "categoria"] == "coding"
-    assert pa.loc[(6, 2019), "categoria"] == "coding"  # voltou a codar: o lado muda
-    assert pa.loc[(7, 2019), "categoria"] == "coding"  # o comentário no fim do ano não tira
+    assert pa.loc[(1, 2019), "categoria"] == "non_coding"
+    assert pa.loc[(2, 2018), "categoria"] == "coding"
+    assert pa.loc[(3, 2018), "categoria"] == "non_coding"
+    assert pa.loc[(4, 2019), "categoria"] == "non_coding"
+    assert pa.loc[(5, 2019), "categoria"] == "coding"
+    # A compactação guarda as contagens: o resultado é o mesmo.
+    pequeno = vitalidade.pessoa_ano(vitalidade.compacta(ev), fim).set_index(
+        ["contributor_id", "ano"]
+    )
+    assert pequeno["categoria"].to_dict() == pa["categoria"].to_dict()
     comp = vitalidade.composicao(pa.reset_index())
     assert list(comp.columns) == ["ano", "faixa", *vitalidade.LADOS]
     assert comp[vitalidade.LADOS].to_numpy().sum() == len(pa)

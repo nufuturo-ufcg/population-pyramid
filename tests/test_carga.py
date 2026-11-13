@@ -190,9 +190,29 @@ def test_origem_bate_com_os_eventos_da_carga(zig, monkeypatch):
     assert (pessoas["commits"] <= pessoas["eventos_de_codigo"]).all()
     assert (pessoas["ocasioes"] >= 1).all()
     assert (pessoas["ocasioes"] <= pessoas["eventos"]).all()
+    # A segunda ocasião existe só para quem tem mais de uma, e não vem antes do primeiro evento.
+    assert (pessoas["segunda_ocasiao"].notna() == (pessoas["ocasioes"] > 1)).all()
+    voltaram = pessoas[pessoas["ocasioes"] > 1]
+    assert (voltaram["segunda_ocasiao"] >= voltaram["primeiro"]).all()
     assert pd.read_parquet(pasta / "repos.parquet")["codigo"].is_unique
     meses = pd.read_parquet(pasta / "meses.parquet")
     assert set(meses["grupo"]) <= {"codigo", "discussao"}
+    tipos = pd.read_parquet(pasta / "tipos_por_ano.parquet")
+    assert tipos["eventos"].sum() == len(original)
+    assert tipos["primeiro"].min() == original["timestamp"].min()
+    final = pd.read_parquet(pasta / "tipos_final.parquet")
+    assert final["eventos"].sum() == len(original)
+    assert (final["eventos_residentes"] <= final["eventos"]).all()
+
+
+def test_repos_excluidos_saem_da_carga(zig, monkeypatch):
+    _original(zig, monkeypatch)
+    fonte = _fonte(zig, "separado", False)
+    todos = carga_compacta.carrega(fonte, "duckdb", trabalho=zig / "trabalho", threads=2)
+    sem = carga_compacta.carrega(
+        fonte, "duckdb", trabalho=zig / "trabalho", threads=2, repos_excluidos=("1",)
+    )
+    assert len(sem) < len(todos)
 
 
 def test_completos_do_duckdb_iguais_a_carrega_eventos(zig, monkeypatch):
@@ -328,3 +348,70 @@ def test_fusao_por_repositorios_pega_o_par_de_maior_jaccard():
     pessoas = sorted(con.table("elegiveis").df()["pessoa"].unique())
     assert stats["identidades_fundidas_por_repositorios"] == 1
     assert pessoas == [20, 30, 40]
+
+
+def _pedido(pasta: Path, git: list, api: list, repos: pd.DataFrame, **opcoes):
+    """Pedido duckdb mínimo, com os eventos que o teste escreve."""
+    from adapters.coleta_csv import carga_duckdb
+
+    pasta.mkdir()
+    pd.DataFrame(git, columns=COLUNAS).to_csv(pasta / "eventos_git.csv", sep="|", index=False)
+    pd.DataFrame(api, columns=COLUNAS).to_csv(pasta / "eventos_api.csv", sep="|", index=False)
+    return carga_duckdb.Pedido(
+        eventos=[(pasta / "eventos_git.csv", "git"), (pasta / "eventos_api.csv", "api")],
+        repos=repos,
+        linguagem="Zig",
+        extensoes=(".zig",),
+        tipos=fb.MAPA_TIPO_R2,
+        trabalho=pasta / "trabalho",
+        threads=1,
+        contar_brutas=False,
+        **opcoes,
+    )
+
+
+def _repos(criados: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "codigo": range(len(criados)),
+            "repo_id": [str(i + 1) for i in range(len(criados))],
+            "principal": "Zig",
+            "criado": pd.to_datetime(criados),
+            "elegivel": True,
+        }
+    )
+
+
+def test_commit_com_o_mesmo_sha_em_dois_repositorios_conta_uma_vez(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git = [
+        _linha("1", "commit", "ana", "2022-03-01T10:00:00Z", "a.zig"),
+        _linha("2", "commit", "ana", "2022-03-01T10:05:00Z", "a.zig"),  # outra data, mesmo SHA
+    ]
+    for linha in git:
+        linha["sha"] = "abc"
+    repos = _repos(["2020-01-01", "2020-01-01"])  # criados no mesmo instante: desempata o repo_id
+    antigo = carga_duckdb.carrega(_pedido(tmp_path / "a", git, [], repos))
+    assert antigo.estatisticas["commits_duplicados_descartados"] == 0  # a chave antiga não vê o SHA
+    sha = carga_duckdb.carrega(_pedido(tmp_path / "b", git, [], repos, commits_pelo_sha=True))
+    assert sha.estatisticas["shas_em_mais_de_um_repositorio"] == 1
+    assert sha.estatisticas["commits_duplicados_descartados"] == 1
+
+
+def test_sem_contas_de_sistema_tira_migracao_uuid_e_bots_nomeados(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git = [_linha("1", "commit", "ana", "2019-01-01T00:00:00Z", "a.zig")]
+    logins = [
+        "twisted-trac", "vicuna", "coqbot", "85eec1a4-3d04-4b4d-b711-d4db03337c41",
+        "tracy", "abstract", "ana", "Mantis_import", "JirA44",
+    ]  # fmt: skip
+    api = [_linha("1", "issue", n, "2022-04-01T00:00:00Z", None, "Zig", True) for n in logins]
+    repos = _repos(["2020-01-01"])
+    todos = carga_duckdb.carrega(_pedido(tmp_path / "a", git, api, repos))
+    sem = carga_duckdb.carrega(_pedido(tmp_path / "b", git, api, repos, sem_contas_de_sistema=True))
+    assert len(todos.eventos) == len(logins) + 1
+    # Ficam tracy, abstract, ana (issue) e a ana do commit, que é a mesma pessoa de login, e JirA44,
+    # que é uma pessoa mesmo casando com a regra de migração.
+    assert sem.estatisticas["contribuidores_finais"] == 4

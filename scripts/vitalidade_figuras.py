@@ -594,22 +594,15 @@ def figura_natalidade_mortalidade_com_populacao(ctx: Any, d: Dados) -> None:
 
 # O que cada `piramide_lado` deixa à vista (categorias de `vitalidade.LADOS`).
 LADOS_VISTOS = {
-    "todos": ["non_coding", "moved_to_discussion", "moved", "coding"],
-    "moved_para_discussao": ["moved_to_discussion"],
-    "moved_para_codigo": ["moved"],
-    "codigo": ["moved", "coding"],
-    "discussao": ["non_coding", "moved_to_discussion"],
+    "todos": ["non_coding", "coding"],
+    "codigo": ["coding"],
+    "discussao": ["non_coding"],
 }
-ROTULO_LADO = {
-    "non_coding": "discussion",
-    "moved_to_discussion": "moved to discussion",
-    "moved": "moved to coding",
-    "coding": "coding",
-}
+ROTULO_LADO = {"non_coding": "discussion", "coding": "coding"}
 
 
 def _em_pct(q: pd.DataFrame) -> pd.DataFrame:
-    """Cada categoria em % do total das quatro: a base são os ativos do ano todo."""
+    """Cada categoria em % do total das duas: a base são os ativos do ano todo."""
     q = q.copy()
     q[vitalidade.LADOS] = 100 * q[vitalidade.LADOS] / q[vitalidade.LADOS].to_numpy().sum()
     return q
@@ -630,9 +623,7 @@ def _xmax_das_piramides(quadros: list[pd.DataFrame], minimo: float = 1.0) -> flo
     """A maior barra de cada lado entre os painéis: escala comum para comparar."""
     xmax = minimo
     for q in quadros:
-        esquerda = q["non_coding"] + q["moved_to_discussion"]
-        direita = q["moved"] + q["coding"]
-        xmax = max(xmax, float(esquerda.max()), float(direita.max()))
+        xmax = max(xmax, float(q["non_coding"].max()), float(q["coding"].max()))
     return xmax
 
 
@@ -657,14 +648,12 @@ def _regua_x_de_10_em_10(ax: Any, xmax: float, max_por_lado: int = 4, tamanho: i
     ax.set_xticklabels([f"{abs(t)}" for t in ticks], fontsize=tamanho)
 
 
-def _legenda_piramide(fig: Any, lado: str, com_moved_to_discussion: bool) -> None:
-    """Legenda das categorias que o `lado` mostra, sem moved to discussion se ela não existe."""
+def _legenda_piramide(fig: Any, lado: str) -> None:
+    """Legenda das categorias que o `lado` mostra."""
     from matplotlib.patches import Patch
 
     handles = []
     for categoria in vitalidade.LADOS:
-        if categoria == "moved_to_discussion" and not com_moved_to_discussion:
-            continue
         if categoria in LADOS_VISTOS[lado]:
             handles.append(
                 Patch(
@@ -704,7 +693,7 @@ def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
     fig.suptitle(f"{_nome()}: {unidade} por tempo na linguagem")
-    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
+    _legenda_piramide(fig, lado)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     salva(fig, "piramides_faixa_pct.png" if em_pct else "piramides_faixa.png")
 
@@ -747,7 +736,7 @@ def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
         ax.set_xlabel("% dos ativos do ano" if em_pct else "ativos", fontsize=8)
     unidade = "% dos ativos" if em_pct else "ativos"
     fig.suptitle(f"{_nome()}: {unidade} por tempo na linguagem, bandas de 3 meses")
-    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
+    _legenda_piramide(fig, lado)
     fig.tight_layout(rect=(0, 0.06, 1, 1))
     salva(fig, "piramides_trimestrais.png")
 
@@ -1694,7 +1683,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
             if i == len(slugs) - 1 and tem:
                 ax.set_xlabel("% dos ativos do ano", fontsize=11)
     fig.suptitle("Pirâmides por tempo na linguagem, linha do tempo por linguagem", fontsize=20)
-    _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
+    _legenda_piramide(fig, lado)
     fig.tight_layout(rect=(0, 0.04, 1, 0.94))
     salva(fig, "trajetoria_linha_do_tempo.png", geral=True)
 
@@ -1719,11 +1708,11 @@ def figura_reposicao(ctx: Any, d: Dados) -> None:
 
 
 def lados_por_ano(d: Dados) -> pd.DataFrame:
-    """% dos ativos do ano do lado do código (moved e coding) e do lado da discussão, por ano."""
+    """% dos ativos do ano do lado do código e do lado da discussão, por ano."""
     c = d["composicao_pct"]
     por_ano = c.groupby(["slug", "ano"])[vitalidade.LADOS].sum().reset_index()
-    por_ano["codigo_pct"] = por_ano["moved"] + por_ano["coding"]
-    por_ano["discussao_pct"] = por_ano["non_coding"] + por_ano["moved_to_discussion"]
+    por_ano["codigo_pct"] = por_ano["coding"]
+    por_ano["discussao_pct"] = por_ano["non_coding"]
     ativos = d["trajetoria"][["slug", "ano", "ativos"]]
     por_ano = por_ano.merge(ativos, on=["slug", "ano"])
     return por_ano[por_ano["ativos"] >= MIN_PESSOAS]
@@ -1803,7 +1792,7 @@ def figura_piramides_entre_linguagens(ctx: Any, d: Dados) -> None:
             ax.set_title(carga_fonte.LINGUAGENS[slug].nome)
             ax.set_xlabel("% dos ativos do ano", fontsize=8)
         fig.suptitle(f"Pessoas por anos na linguagem em {ano}")
-        _legenda_piramide(fig, lado, ctx.p.usa_moved_to_discussion)
+        _legenda_piramide(fig, lado)
         fig.tight_layout(rect=(0, 0.08, 1, 1))
         salva(fig, f"trajetoria_piramides_{ano}.png", geral=True)
 

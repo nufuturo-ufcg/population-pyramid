@@ -157,11 +157,13 @@ class Parametros:
     acoes_ignoradas: list[str]
     fundir_identidades: bool
     ligar_autores: bool
+    sem_duplicados: bool
+    commits_pelo_sha: bool
+    sem_contas_de_sistema: bool
     processos: int
     populacao: str
     piramide_em_pct: bool
     piramide_lado: str
-    usa_moved_to_discussion: bool
     anos_comparacao: list[int]
     ano_base_indice: int
     ano_inicio_comparacao: int
@@ -186,11 +188,29 @@ class Entrada:
     motor: str | None = None  # None usa `p.motor`
 
 
+RODADAS = YAML.with_name("vitalidade_rodadas.json")
+
+
 def carrega_parametros(sobrepostos: list[str]) -> Parametros:
-    """Lê o yaml e aplica cada `chave=valor` de `--set` por cima."""
+    """Lê o yaml e aplica cada `chave=valor` de `--set` por cima.
+
+    `--set rodada=NOME` aplica as flags da rodada NOME de `vitalidade_rodadas.json`. Os `--set`
+    seguintes sobrepõem a rodada.
+    """
     valores = yaml.safe_load(YAML.read_text())
     for item in sobrepostos:
         chave, igual, texto = item.partition("=")
+        if chave == "rodada" and igual:
+            rodadas = json.loads(RODADAS.read_text())
+            if texto not in rodadas:
+                raise SystemExit(f"--set {item!r}: rodadas em {RODADAS.name}: {list(rodadas)}.")
+            for chave_da_rodada, valor in rodadas[texto]["set"].items():
+                if chave_da_rodada not in valores:
+                    raise SystemExit(
+                        f"rodada {texto!r}: {chave_da_rodada!r} não está em {YAML.name}."
+                    )
+                valores[chave_da_rodada] = valor
+            continue
         if not igual or chave not in valores:
             raise SystemExit(f"--set {item!r}: use chave=valor, com chave de {YAML.name}.")
         valores[chave] = yaml.safe_load(texto)
@@ -198,16 +218,21 @@ def carrega_parametros(sobrepostos: list[str]) -> Parametros:
 
 
 # Sobe quando o filtro de eventos de `carrega_eventos` mudar: invalida todo cache.
-VERSAO_CACHE = 3
+VERSAO_CACHE = 6
 
 
 def _selo_dos_dados(
-    fonte: carga_fonte.Fonte, motor: str, acoes_ignoradas: list[str], fundir: bool = False
+    fonte: carga_fonte.Fonte,
+    motor: str,
+    acoes_ignoradas: list[str],
+    fundir: bool = False,
+    commits_pelo_sha: bool = False,
+    sem_contas_de_sistema: bool = False,
 ) -> dict[str, Any]:
     """Tamanho e data de cada arquivo de entrada. Mudou um byte, o cache perde a validade."""
     arquivos = {}
-    autores = [fonte.autores] if fonte.autores else []
-    for caminho in [a.caminho for a in fonte.eventos] + fonte.alvos + autores:
+    extras = [c for c in (fonte.autores, fonte.duplicados) if c]
+    for caminho in [a.caminho for a in fonte.eventos] + fonte.alvos + extras:
         info = caminho.stat()
         arquivos[str(caminho)] = [info.st_size, info.st_mtime_ns]
     selo = {"versao": VERSAO_CACHE, "motor": motor, "arquivos": arquivos}
@@ -215,19 +240,31 @@ def _selo_dos_dados(
         selo["acoes_ignoradas"] = sorted(acoes_ignoradas)
     if fundir:
         selo["fundir_identidades"] = True
+    if commits_pelo_sha:
+        selo["commits_pelo_sha"] = True
+    if sem_contas_de_sistema:
+        selo["sem_contas_de_sistema"] = True
     return selo
 
 
 def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> str:
     """O motor pedido; em `auto`, pandas até `limite_pandas_gb` de eventos e duckdb acima.
 
-    Fonte com `autores` ou `acoes_ignoradas` preenchido vai sempre para o duckdb.
+    Fonte com `autores`, `duplicados` ou `acoes_ignoradas` preenchido vai sempre para o duckdb.
     """
     motor = entrada.motor or p.motor
     if motor != "auto":
         return motor
-    if fonte.autores or p.acoes_ignoradas:
-        return "duckdb"  # só o duckdb liga o e-mail de commit ao login e ignora ações
+    if (
+        fonte.autores
+        or fonte.duplicados
+        or p.acoes_ignoradas
+        or p.commits_pelo_sha
+        or p.sem_contas_de_sistema
+    ):
+        return (
+            "duckdb"  # só o duckdb liga o e-mail de commit ao login, ignora ações e filtra contas
+        )
     grande = fonte.bytes_de_eventos() > p.limite_pandas_gb * 1e9
     return "duckdb" if grande else "pandas"
 
@@ -250,6 +287,9 @@ def carrega_completos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         contar_brutas=p.contar_linhas_brutas,
         acoes_ignoradas=tuple(p.acoes_ignoradas),
         fundir_identidades=p.fundir_identidades,
+        repos_excluidos=fonte.repos_excluidos(),
+        commits_pelo_sha=p.commits_pelo_sha,
+        sem_contas_de_sistema=p.sem_contas_de_sistema,
         completos=True,
     )
 
@@ -265,7 +305,14 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
     pasta = Path(fb.TMP_BASE) / fb.LING.atual.slug / "cache"
     parquet = pasta / "vitalidade_eventos.parquet"
     arquivo_selo = pasta / "vitalidade_eventos.json"
-    selo = _selo_dos_dados(fonte, motor, p.acoes_ignoradas, p.fundir_identidades)
+    selo = _selo_dos_dados(
+        fonte,
+        motor,
+        p.acoes_ignoradas,
+        p.fundir_identidades,
+        p.commits_pelo_sha,
+        p.sem_contas_de_sistema,
+    )
     cache_valido = (
         entrada.usar_cache
         and parquet.exists()
@@ -287,6 +334,9 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         contar_brutas=p.contar_linhas_brutas,
         acoes_ignoradas=tuple(p.acoes_ignoradas),
         fundir_identidades=p.fundir_identidades,
+        repos_excluidos=fonte.repos_excluidos(),
+        commits_pelo_sha=p.commits_pelo_sha,
+        sem_contas_de_sistema=p.sem_contas_de_sistema,
     )
     compactos = vitalidade.compacta(eventos)
     del eventos
@@ -414,6 +464,8 @@ class Contexto:
         fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
         if not p.ligar_autores:
             fonte.autores = None
+        if not p.sem_duplicados:
+            fonte.duplicados = None
         if bruto:
             if not fonte.cabe_no_carregador_original(p.limite_bruto_gb):
                 raise SystemExit(
@@ -449,12 +501,15 @@ class Contexto:
             f"compactados, estudo até {self.fim.date()}, acompanhamento até "
             f"{self.fim_acompanhamento.date()}"
         )
-        pa = vitalidade.pessoa_ano(
-            self.compactos_coleta, self.fim_acompanhamento, p.usa_moved_to_discussion
-        )
+        pa = vitalidade.pessoa_ano(self.compactos_coleta, self.fim_acompanhamento)
         self.pa = pa[pa["ano"] <= self.fim.year].reset_index(drop=True)
         self.anual = vitalidade.tabela_anual(self.pa, self.fim_acompanhamento)
+        # `dur` é a duração contínua do Kaplan-Meier. A tábua de vida usa `dur_idade`, com o x da
+        # pirâmide, só nas coortes até `ultimo_ano_com_saida`.
         self.dur = vitalidade.duracoes(self.compactos_coleta, self.fim_acompanhamento)
+        self.dur_idade = vitalidade.duracoes_pela_idade(
+            self.compactos_coleta, self.fim_acompanhamento, p.ultimo_ano_com_saida
+        )
 
     @cached_property
     def pipeline(self) -> SimpleNamespace:
@@ -502,7 +557,6 @@ PARAMETROS_DO_CALCULO = (
     "usa_acompanhamento",
     "tabua_ate_anos",
     "ano_base_indice",
-    "usa_moved_to_discussion",
     "ccr_ncr_inatividade_meses",
     "ccr_ncr_novato_meses",
 )
@@ -630,16 +684,17 @@ def metrica_retencao(ctx: Contexto) -> Dados:
     """Retenção: tábua de vida por coorte de entrada. Responde RQ1.3.
 
     O que faz: para cada coorte (ano de entrada) e cada ano de contribuição x,
-    l(x) ainda ativos, d(x) saídas entre x e x+1, q(x) = d/l e e(x) tempo médio
-    restante. Quem tem último evento a menos de 12 meses do fim da coleta é
-    censurado (censura à direita).
+    l(x) ainda ativos, d(x) saídas com idade x, q(x) = d/l e e(x) tempo médio
+    restante. O x é a idade da pirâmide: anos anteriores com contribuição, sem contar os parados.
+    Entram as coortes até `ultimo_ano_com_saida`. Quem tem último evento a menos de 12 meses do
+    fim da coleta, ou depois desse ano, é censurado (censura à direita).
     Referência: IBGE, Tábua Completa de Mortalidade 2023,
     https://biblioteca.ibge.gov.br/visualizacao/periodicos/3097/tcmb_2023.pdf;
     Hannemann e Klamma, OSS 2013.
     """
     return {
-        "tabua_coortes": vitalidade.tabuas_por_coorte(ctx.dur),
-        "tabua_todas": vitalidade.tabua_de_vida(ctx.dur),
+        "tabua_coortes": vitalidade.tabuas_por_coorte(ctx.dur_idade),
+        "tabua_todas": vitalidade.tabua_de_vida(ctx.dur_idade),
     }
 
 
@@ -766,7 +821,7 @@ def metrica_significancia(ctx: ContextoComparativo) -> Dados:
 def metrica_tabua_comparada(ctx: ContextoComparativo) -> Dados:
     """Tábua de vida de cada linguagem lado a lado, até `tabua_ate_anos`. Responde RQ1 e RQ2.
 
-    O que faz: a tábua de vida de `retencao` (l, d, q, S, e) de todas as pessoas de cada linguagem,
+    O que faz: a tábua de vida de `retencao` (l, d, q, S, e) das coortes de cada linguagem,
     cortada em `tabua_ate_anos` na linguagem. e(x) é a vida restante de quem chegou a x. A chance de
     seguir mais t anos tendo chegado a x sai de l(x+t) / l(x), sem métrica à parte.
     Referência: IBGE, Tábua Completa de Mortalidade 2023,
@@ -774,7 +829,7 @@ def metrica_tabua_comparada(ctx: ContextoComparativo) -> Dados:
     """
     tabelas = []
     for slug, lingua in ctx.por_lingua.items():
-        t = vitalidade.tabua_de_vida(lingua.dur)
+        t = vitalidade.tabua_de_vida(lingua.dur_idade)
         t = t[t["x"] <= ctx.p.tabua_ate_anos].copy()
         t.insert(0, "linguagem", slug)
         tabelas.append(t)

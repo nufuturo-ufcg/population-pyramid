@@ -75,3 +75,15 @@ Lista em `AMOSTRA.md`, seção O que a amostra pode estar perdendo.
 ### 6.3 ClojureScript entra?
 
 - Sim. Ver seção 3.
+
+## 7. Decisões de 2026-11-13
+
+- A pirâmide da vitalidade tem duas categorias, discussão e código. Saíram o `moved to coding` e o `moved to discussion` das pirâmides.
+- O lado vale por ano: mais eventos de código (commit e PR) que de discussão, ou empate, é código. Mais eventos de discussão é discussão. A regra é a função `vitalidade.lado_no_ano`.
+- A replicação do IEICE16 (`classify`, `snapshots`, `projection`) mantém o `moved`, porque os números publicados dependem dele.
+- O fluxo da troca de lado (`moved` e `deixou_codigo` da tabela anual) continua, como medida de fluxo e não como categoria.
+- A compactação dos eventos guarda, por pessoa e trimestre, a contagem de eventos de cada lado (coluna `n`). `VERSAO_CACHE` 4.
+- As rodadas com flags diferentes (`oficial`, `sem-mentioned`, `sem-marcacao`, `com-fusao`) ficam em `scripts/vitalidade_rodadas.json`. Regerar com `--set rodada=NOME`.
+- A idade na linguagem conta os anos anteriores com evento. Anos de silêncio não contam.
+- Os números de RQ1.4 e RQ2.4 vinham da regra antiga e estão sendo refeitos. O texto do TCC só usa os números novos.
+- Texto do TCC atualizado em `~/Documents/pesquisa-vitalidade-linguagens/tcc/tcc.md` (seção 3.2 e tabela da RQ1.4) e no trecho comentado de `latex/artigo.tex`.

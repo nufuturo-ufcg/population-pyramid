@@ -74,6 +74,15 @@ NULOS = [
 # Cada núcleo reserva um buffer proporcional a isto. 256 MB por linha estourou 24 GB com 16 núcleos.
 # Um commit com milhares de arquivos cabe em bem menos; linha maior é descartada.
 LINHA_MAXIMA = 32 * 1024 * 1024
+
+# Contas que não são pessoas: logins de migração de rastreador e logins de bot sem `[bot]`.
+# `sem_contas_de_sistema` tira os eventos delas. UUID é o placeholder de quem não tem conta real.
+CONTAS_EXCLUIDAS = ("vicuna", "coqbot")
+LOGIN_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+# Palavra inteira entre `-`, `_` ou `.`, como em twisted-trac. Sem isso `trac` pegaria tracy.
+LOGIN_DE_MIGRACAO = "(^|[-_.])(trac|bugzilla|mantis|jira|import[a-z]*|migrat[a-z]*)($|[-_.0-9])"
+# Login que a regra de migração pegaria (`jira` seguido de dígitos) mas é de pessoa.
+CONTAS_QUE_SAO_PESSOAS = ("jira44",)
 CODIGOS_DE_CODIGO = ("commits", "pull_requests")
 
 
@@ -98,6 +107,11 @@ class Pedido:
     fusao_jaccard_min: float = 0.5
     autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login, regra 8 do topo
     completos: bool = False  # devolve um evento por linha, com repositório, sem compactar
+    repos_excluidos: tuple[str, ...] = ()  # repo_id que saem: duplicados de outro repositório
+    commits_pelo_sha: bool = (
+        False  # um commit por SHA, no repositório criado antes (empate: repo_id)
+    )
+    sem_contas_de_sistema: bool = False  # tira `CONTAS_EXCLUIDAS`, logins UUID e de migração
 
 
 @dataclass
@@ -119,7 +133,7 @@ def _leitura(caminho: Path, papel: str) -> str:
     nulos = "[" + ", ".join(_aspas(n) for n in NULOS) + "]"
     return f"""
         SELECT repo_id, event_type, author, author_login, author_email, created_at, files, language,
-               number, sha, url, message,
+               number, sha, url, message, title,
                {eh_commit} AS eh_commit
         FROM read_csv({_aspas(caminho)}, delim='|', quote='"', escape='"', header=true,
                       all_varchar=true, ignore_errors=true, strict_mode=false,
@@ -213,6 +227,55 @@ def _quem_commitou(
     return quem_commitou, junta_autores
 
 
+def _contas_e_chave(pedido: Pedido, quem_commitou: str) -> tuple[str, str]:
+    """O filtro das contas que não são pessoas e a chave que identifica um commit copiado."""
+    conta = f"lower(coalesce(CASE WHEN eh_commit THEN {quem_commitou} ELSE author_login END, ''))"
+    sistema = ""
+    if pedido.sem_contas_de_sistema:
+        lista = ", ".join(_aspas(c) for c in CONTAS_EXCLUIDAS)
+        pessoas = ", ".join(_aspas(c) for c in CONTAS_QUE_SAO_PESSOAS)
+        sistema = (
+            f"AND {conta} NOT IN ({lista}) "
+            f"AND NOT regexp_matches({conta}, {_aspas(LOGIN_UUID)}) "
+            f"AND ({conta} IN ({pessoas}) "
+            f"OR NOT regexp_matches({conta}, {_aspas(LOGIN_DE_MIGRACAO)}))"
+        )
+    # Um commit copiado entre repositórios (fork, espelho) é o mesmo SHA. Sem SHA, o conteúdo.
+    chave_do_commit = "hash(author, created_at, files)"
+    if pedido.commits_pelo_sha:
+        chave_do_commit = "hash(coalesce(sha, concat_ws('|', author, created_at, files)))"
+    return sistema, chave_do_commit
+
+
+def _commits_unicos(con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str, int]) -> None:
+    """A tabela `git_ok`: cada commit copiado entre repositórios fica no repositório mais antigo."""
+    if not pedido.commits_pelo_sha:
+        con.execute("""
+            CREATE TABLE git_ok AS
+            SELECT codigo, tipo, pessoa, marca, ts, ocasiao
+            FROM (
+                SELECT *, min(criado) OVER (PARTITION BY h) AS mais_antigo
+                FROM leve WHERE eh_commit
+            )
+            WHERE NOT coalesce(criado > mais_antigo, false)
+        """)
+        return
+    # Um só por SHA: o do repositório criado antes, e no empate o de menor repo_id.
+    con.execute("""
+        CREATE TABLE git_ok AS
+        SELECT codigo, tipo, pessoa, marca, ts, ocasiao, repetido
+        FROM (
+            SELECT *, count(*) OVER (PARTITION BY h) > 1 AS repetido,
+                   row_number() OVER (
+                       PARTITION BY h
+                       ORDER BY criado NULLS LAST, try_cast(repo_id AS BIGINT), repo_id
+                   ) AS ordem
+            FROM leve WHERE eh_commit
+        ) WHERE ordem = 1
+    """)
+    stats["shas_em_mais_de_um_repositorio"] = _um(con, "SELECT count(*) FROM git_ok WHERE repetido")
+
+
 def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     stats: dict[str, int] = {}
     nome = pedido.linguagem
@@ -220,7 +283,12 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     extensoes = "|".join(re.escape(e) for e in pedido.extensoes)
     toca_a_linguagem = _aspas(f"(?:{extensoes})(?:;|$)")
 
-    con.register("repos_pandas", pedido.repos)
+    repos = pedido.repos.copy()
+    duplicado = repos["repo_id"].astype(str).isin(pedido.repos_excluidos)
+    repos.loc[duplicado, "elegivel"] = False
+    if duplicado.any():
+        stats["repos_duplicados_excluidos"] = int(duplicado.sum())
+    con.register("repos_pandas", repos)
     con.execute("CREATE TABLE repos AS SELECT * FROM repos_pandas")
     leituras = [_leitura(caminho, papel) for caminho, papel in pedido.eventos]
     con.execute("CREATE VIEW bruto AS " + " UNION ALL ".join(leituras))
@@ -231,6 +299,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     autor = "CASE WHEN eh_commit THEN author ELSE author_login END"
     quem_commitou, junta_autores = _quem_commitou(con, pedido, stats)
     pessoa = _pessoa(f"CASE WHEN eh_commit THEN {quem_commitou} ELSE author_login END")
+    sistema, chave_do_commit = _contas_e_chave(pedido, quem_commitou)
     ignora = ""
     if pedido.acoes_ignoradas:
         acoes = ", ".join(_aspas(a) for a in pedido.acoes_ignoradas)
@@ -241,13 +310,13 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
                {_case_tipo(pedido.tipos, nomes_tipo)} AS tipo,
                {pessoa} AS pessoa, {_marca(autor)} AS marca,
                {_ts("created_at")} AS ts,
-               CASE WHEN eh_commit THEN hash(author, created_at, files) END AS h,
-               {_ocasiao()} AS ocasiao
+               CASE WHEN eh_commit THEN {chave_do_commit} END AS h,
+               b.repo_id AS repo_id, {_ocasiao()} AS ocasiao
         FROM bruto b LEFT JOIN repos r ON b.repo_id = r.repo_id {junta_autores}
-        WHERE (NOT eh_commit AND author_login IS NOT NULL
-               AND coalesce(b.language, r.principal) = {_aspas(nome)} {ignora})
-           OR (eh_commit AND author IS NOT NULL
-               AND regexp_matches(lower(files), {toca_a_linguagem}))
+        WHERE ((NOT eh_commit AND author_login IS NOT NULL
+                AND coalesce(b.language, r.principal) = {_aspas(nome)} {ignora})
+            OR (eh_commit AND author IS NOT NULL
+                AND regexp_matches(lower(files), {toca_a_linguagem}))) {sistema}
     """)
     stats["eventos_api_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE NOT eh_commit")
     stats["eventos_git_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE eh_commit")
@@ -262,12 +331,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
         )
 
     print("duckdb: commits copiados entre repositórios", file=sys.stderr)
-    con.execute("""
-        CREATE TABLE git_ok AS
-        SELECT codigo, tipo, pessoa, marca, ts, ocasiao
-        FROM (SELECT *, min(criado) OVER (PARTITION BY h) AS mais_antigo FROM leve WHERE eh_commit)
-        WHERE NOT coalesce(criado > mais_antigo, false)
-    """)
+    _commits_unicos(con, pedido, stats)
     duplicados = stats["eventos_git_desta_linguagem"] - _um(con, "SELECT count(*) FROM git_ok")
     stats["commits_duplicados_descartados"] = duplicados
     if duplicados:
@@ -417,10 +481,12 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
 
     `pessoas.parquet`: primeiro e último evento, repositório (`codigo`) e tipo do primeiro, e se
     fez algum commit ou PR, quantos eventos fez (todos, de código e commits) e em quantas
-    ocasiões (`_ocasiao`).
+    ocasiões (`_ocasiao`) e quando começou a segunda (`segunda_ocasiao`, vazio para casual).
     `repos_por_trimestre.parquet`: pessoas distintas por repositório e trimestre.
     `meses.parquet`: eventos e pessoas distintas por mês, separados em código (commit e PR) e
     discussão (o resto). Os eventos já passaram por todas as regras da carga.
+    `tipos_por_ano.parquet`: eventos e primeiro evento de cada tipo em cada ano.
+    `tipos_final.parquet`: eventos e pessoas de cada tipo, no total e entre os residentes.
     """
     pasta.mkdir(parents=True, exist_ok=True)
     nomes = "[" + ", ".join(_aspas(n) for n in nomes_tipo) + "]"
@@ -428,19 +494,39 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
     for i, n in enumerate(nomes_tipo):
         if n in CODIGOS_DE_CODIGO:
             codigos.append(str(i))
+    # Início de cada ocasião da pessoa; a segunda mais antiga diz quando voltou (NULL se casual).
+    con.execute("""
+        CREATE TABLE segunda AS
+        SELECT pessoa, list_sort(list(inicio))[2] AS segunda_ocasiao FROM (
+            SELECT pessoa, ocasiao, min(ts) AS inicio FROM final GROUP BY pessoa, ocasiao
+        ) GROUP BY pessoa HAVING count(*) > 1
+    """)
     con.execute(f"""
         COPY (
-            SELECT pessoa, min(ts) AS primeiro, max(ts) AS ultimo,
-                   arg_min(codigo, ts) AS codigo_do_primeiro,
-                   list_extract({nomes}, arg_min(tipo, ts) + 1) AS tipo_do_primeiro,
-                   bool_or(tipo IN ({", ".join(codigos)})) AS codou,
+            SELECT f.pessoa, min(f.ts) AS primeiro, max(f.ts) AS ultimo,
+                   arg_min(f.codigo, f.ts) AS codigo_do_primeiro,
+                   list_extract({nomes}, arg_min(f.tipo, f.ts) + 1) AS tipo_do_primeiro,
+                   bool_or(f.tipo IN ({", ".join(codigos)})) AS codou,
                    count(*) AS eventos,
-                   count(*) FILTER (WHERE tipo IN ({", ".join(codigos)})) AS eventos_de_codigo,
-                   count(*) FILTER (WHERE tipo = {nomes_tipo.index("commits")}) AS commits,
-                   count(DISTINCT ocasiao) AS ocasioes
-            FROM final GROUP BY pessoa
+                   count(*) FILTER (WHERE f.tipo IN ({", ".join(codigos)})) AS eventos_de_codigo,
+                   count(*) FILTER (WHERE f.tipo = {nomes_tipo.index("commits")}) AS commits,
+                   count(DISTINCT f.ocasiao) AS ocasioes,
+                   any_value(s.segunda_ocasiao) AS segunda_ocasiao
+            FROM final f LEFT JOIN segunda s ON f.pessoa = s.pessoa GROUP BY f.pessoa
         ) TO {_aspas(pasta / "pessoas.parquet")} (FORMAT parquet)
     """)
+    # Eventos e pessoas de cada tipo, no total e entre os residentes (com a segunda ocasião).
+    con.execute(f"""
+        COPY (
+            SELECT list_extract({nomes}, f.tipo + 1) AS tipo, count(*) AS eventos,
+                   count(DISTINCT f.pessoa) AS pessoas,
+                   count(*) FILTER (WHERE s.pessoa IS NOT NULL) AS eventos_residentes,
+                   count(DISTINCT f.pessoa) FILTER (WHERE s.pessoa IS NOT NULL)
+                       AS pessoas_residentes
+            FROM final f LEFT JOIN segunda s ON f.pessoa = s.pessoa GROUP BY ALL
+        ) TO {_aspas(pasta / "tipos_final.parquet")} (FORMAT parquet)
+    """)
+    con.execute("DROP TABLE segunda")
     con.execute(f"""
         COPY (
             SELECT codigo, year(ts) AS ano, quarter(ts) AS trimestre,
@@ -457,13 +543,21 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
             FROM final GROUP BY ALL
         ) TO {_aspas(pasta / "meses.parquet")} (FORMAT parquet)
     """)
+    con.execute(f"""
+        COPY (
+            SELECT list_extract({nomes}, tipo + 1) AS tipo, year(ts) AS ano,
+                   count(*) AS eventos, min(ts) AS primeiro
+            FROM final GROUP BY ALL
+        ) TO {_aspas(pasta / "tipos_por_ano.parquet")} (FORMAT parquet)
+    """)
 
 
 def _compacta(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataFrame:
     """Mesma redução de `vitalidade.compacta`, em SQL.
 
     Por trimestre o primeiro e o último evento e o último de código e de discussão; por pessoa
-    o primeiro de código e o primeiro de discussão.
+    o primeiro de código e o primeiro de discussão. A coluna `n` leva a contagem de cada lado no
+    trimestre, no último evento do lado.
     """
     codigos = [i for i, n in enumerate(nomes_tipo) if n in CODIGOS_DE_CODIGO]
     eh_codigo = "tipo IN (" + ", ".join(str(c) for c in codigos) + ")"
@@ -474,7 +568,9 @@ def _compacta(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataF
                    max(ts) FILTER (WHERE {eh_codigo}) AS c2,
                    arg_max(tipo, ts) FILTER (WHERE {eh_codigo}) AS tc2,
                    max(ts) FILTER (WHERE NOT ({eh_codigo})) AS d2,
-                   arg_max(tipo, ts) FILTER (WHERE NOT ({eh_codigo})) AS td2
+                   arg_max(tipo, ts) FILTER (WHERE NOT ({eh_codigo})) AS td2,
+                   count(*) FILTER (WHERE {eh_codigo}) AS nc,
+                   count(*) FILTER (WHERE NOT ({eh_codigo})) AS nd
             FROM final GROUP BY pessoa, year(ts) * 4 + (month(ts) - 1) // 3
         ), primeiros AS (
             SELECT pessoa,
@@ -484,14 +580,16 @@ def _compacta(con: duckdb.DuckDBPyConnection, nomes_tipo: list[str]) -> pd.DataF
                    arg_min(tipo, ts) FILTER (WHERE NOT ({eh_codigo})) AS td
             FROM final GROUP BY pessoa
         )
-        SELECT DISTINCT pessoa AS contributor_id, tp1 AS tipo, t1 AS timestamp FROM por_trimestre
-        UNION SELECT pessoa, tp2, t2 FROM por_trimestre
-        UNION SELECT pessoa, tc2, c2 FROM por_trimestre WHERE c2 IS NOT NULL
-        UNION SELECT pessoa, td2, d2 FROM por_trimestre WHERE d2 IS NOT NULL
-        UNION SELECT pessoa, tc, c1 FROM primeiros WHERE c1 IS NOT NULL
-        UNION SELECT pessoa, td, d1 FROM primeiros WHERE d1 IS NOT NULL
+        SELECT pessoa AS contributor_id, tipo, ts AS timestamp, sum(n)::BIGINT AS n FROM (
+            SELECT pessoa, tp1 AS tipo, t1 AS ts, 0 AS n FROM por_trimestre
+            UNION ALL SELECT pessoa, tp2, t2, 0 FROM por_trimestre
+            UNION ALL SELECT pessoa, tc2, c2, nc FROM por_trimestre WHERE c2 IS NOT NULL
+            UNION ALL SELECT pessoa, td2, d2, nd FROM por_trimestre WHERE d2 IS NOT NULL
+            UNION ALL SELECT pessoa, tc, c1, 0 FROM primeiros WHERE c1 IS NOT NULL
+            UNION ALL SELECT pessoa, td, d1, 0 FROM primeiros WHERE d1 IS NOT NULL
+        ) GROUP BY pessoa, tipo, ts
     """).df()
     resultado["event_type"] = pd.Categorical.from_codes(
         resultado.pop("tipo").to_numpy(), categories=nomes_tipo
     )
-    return resultado[["contributor_id", "event_type", "timestamp"]]
+    return resultado[["contributor_id", "event_type", "timestamp", "n"]]

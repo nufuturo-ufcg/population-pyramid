@@ -31,6 +31,7 @@ uv run python scripts/vitalidade.py --lista                      # métricas, fi
 - `main` roda as métricas pedidas em sequência. Cada uma grava as tabelas (parquet em `resultados/` e CSV) e depois desenha as figuras escolhidas.
 - Parâmetros do cálculo em `scripts/vitalidade.yaml`: `min_saidas`, `saidas_estavel`, `teto`, `horizonte`, `ano_pesos`, `linguagens_rq2`, `anos_piramide`, `coortes_tabua`, `variantes`. `--set chave=valor` sobrepõe uma execução.
 - A régua (12 meses, faixas, passo anual) fica em `src/pyramid/vitalidade.py` como constante. Mudá-la exige editar o motor.
+- A idade é o tempo corrido desde a primeira contribuição na linguagem até a data de referência, em anos completos por aniversário, menos o número de anos de calendário inteiros sem nenhuma contribuição entre os dois. Na pirâmide a referência é 31/12 do ano, em todos os anos, inclusive o ano aberto. Na tábua de vida a referência é a data da última contribuição. Na pirâmide, com referência em 31/12, a idade é igual ao número de anos anteriores com ao menos uma contribuição. O novato tem idade 0 e a faixa [0, 1) tem exatamente os novatos do ano (`pessoa_ano` falha se não tiver). A mesma idade vale para a pirâmide, o índice de envelhecimento, a tábua, a SMR e a projeção.
 - `ccr_ncr`, `stickiness` e `magnetismo` rodam o pipeline trimestral do motor (banda de 3 meses). Os gráficos deles desenham das tabelas, como os outros.
 
 ## Populações e comparação entre linguagens
@@ -125,7 +126,7 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 ## Régua
 
 - Saída: 12 meses sem contribuir (Avelino et al., ESEM 2019). A replicação do IEICE16 usa 3.
-- Idade no ano Y: Y menos o ano da primeira contribuição. Quem entrou em Y tem idade 0.
+- Idade no ano Y: quantos anos com evento a pessoa teve antes de Y. Anos de silêncio não contam. Quem entrou em Y tem idade 0.
 - Faixas de tempo na linguagem: 0-1, 1-2, 2-3, 3-5, 5-8, 8+ anos. Idade 1 cai em 1-2.
 - A idade medida em 1/jan caiu porque punha duas coortes de entrada na faixa 0-1, e a projeção por coorte precisa de uma coorte por faixa de 1 ano.
 - Com a idade por ano de calendário, a faixa 8+ de Clojure aparece em 2016, como diz o plano.
@@ -171,21 +172,17 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 ## Categorias da pirâmide
 
-Por padrão (`usa_moved_to_discussion: false`) as pirâmides têm três categorias, as do artigo: `non_coding`, `moved` e `coding`, com quem já codou e neste ano só discutiu no lugar que a história dele o põe. Com `usa_moved_to_discussion: true` entra a quarta, abaixo.
-
-No fim de cada ano, cada pessoa ativa cai em uma de quatro categorias, pelo que fez até esse ano.
+As pirâmides têm duas categorias: discussão e código. Em cada ano, cada pessoa ativa cai em uma delas, pelo que fez naquele ano: mais eventos de código (commit ou PR) que de discussão, ou empate, é `coding`. Mais eventos de discussão é `non_coding`. A regra mora em `vitalidade.lado_no_ano`.
 
 | categoria | lado | quem é |
 |---|---|---|
-| `non_coding` | discussão | nunca fez commit nem PR |
-| `moved_to_discussion` | discussão | já codou em anos anteriores e neste ano só discutiu |
-| `moved` | código | começou pela discussão e fez commit ou PR neste ano |
-| `coding` | código | começou pelo código e fez commit ou PR neste ano |
+| `non_coding` | discussão | teve mais eventos de discussão que de código no ano |
+| `coding` | código | teve ao menos tantos eventos de código quanto de discussão no ano |
 
-- Quem fez algum commit ou PR no ano fica do lado do código, mesmo que o último evento do ano seja um comentário. A regra anterior, que olhava o último evento do ano, jogava em `moved_to_discussion` quem comentou depois do último commit. Em Clojure 2024 isso dava 1.531 pessoas, e 752 delas tinham feito commit no próprio 2024.
-- Quem volta a codar muda de categoria no ano seguinte.
-- O parâmetro `piramide_lado` limita o desenho a uma parte: `moved_para_discussao`, `moved_para_codigo`, `codigo` (moved + coding), `discussao` (non_coding + moved_to_discussion) ou `todos`. A base da % continua sendo os ativos do ano todo.
-- `moved_to_discussion` é uma situação (estoque). A coluna `deixou_codigo` da tabela anual e a figura de troca de papel contam um fluxo, olhando o futuro.
+- A pessoa muda de lado de um ano para o outro conforme o que fez. Não há marca permanente de código.
+- A compactação guarda, por pessoa e trimestre, quantos eventos de cada lado ela teve (coluna `n`). Sem isso a contagem do ano não existe. Mudou `VERSAO_CACHE` para 4: os caches antigos são refeitos.
+- O parâmetro `piramide_lado` limita o desenho a uma parte: `codigo`, `discussao` ou `todos`. A base da % continua sendo os ativos do ano todo.
+- A coluna `moved` e a coluna `deixou_codigo` da tabela anual e a figura de troca de papel contam fluxos e seguem como antes.
 
 ## Troca de papel
 

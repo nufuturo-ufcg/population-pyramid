@@ -62,6 +62,14 @@ class Fonte:
     origem: str = ""  # de onde a fonte veio (linha de comando, yaml, pasta do repositório)
     pasta_dados: Path | None = field(default=None)  # só se o layout é o de `carrega_eventos`
     autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login (só duckdb)
+    duplicados: Path | None = None  # CSV com repo_id dos repositórios a excluir (só duckdb)
+
+    def repos_excluidos(self) -> tuple[str, ...]:
+        """Os `repo_id` do arquivo `duplicados`, ou nenhum."""
+        if self.duplicados is None:
+            return ()
+        tabela = pd.read_csv(self.duplicados, usecols=["repo_id"], dtype={"repo_id": str})
+        return tuple(tabela["repo_id"])
 
     def bytes_de_eventos(self) -> int:
         return sum(a.caminho.stat().st_size for a in self.eventos)
@@ -123,6 +131,8 @@ def _do_yaml(slug: str) -> Fonte | None:
         fonte = Fonte(slug, eventos, alvos, f"{YAML_FONTES.name}")
     if entrada.get("autores"):
         fonte.autores = Path(entrada["autores"]).expanduser()
+    if entrada.get("duplicados"):
+        fonte.duplicados = Path(entrada["duplicados"]).expanduser()
     return fonte
 
 
@@ -131,6 +141,8 @@ def _confere_que_existe(fonte: Fonte) -> None:
     faltam += [a for a in fonte.alvos if not a.exists()]
     if fonte.autores and not fonte.autores.exists():
         faltam.append(fonte.autores)
+    if fonte.duplicados and not fonte.duplicados.exists():
+        faltam.append(fonte.duplicados)
     if faltam:
         lista = "\n  ".join(str(f) for f in faltam)
         raise SystemExit(

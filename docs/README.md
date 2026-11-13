@@ -53,6 +53,7 @@ Muda quando a coleta muda.
 | [`clojure.md`](linguagem/clojure.md) | os números e as figuras da amostra de desenvolvimento, com a leitura de cada um. |
 | [`parametros.md`](linguagem/parametros.md) | cada parâmetro de `scripts/vitalidade.yaml` e de `scripts/vitalidade_figuras.yaml`, e quais métricas e figuras o leem. |
 | [`tcc.md`](linguagem/tcc.md) | notas para o TCC: referências, critérios de inclusão e exclusão, extensões, recorte de tempo, limites e as perguntas do gestor do Nubank. |
+| [`ORGANIZACAO_VM.md`](linguagem/ORGANIZACAO_VM.md) | como a home da batuta é organizada, onde entra cada coisa nova, como sincronizar o código e o que nunca se move. |
 | `numeros.json` | a mesma coisa em JSON, gerado por `scripts/figuras_linguagem.py`. Nenhum número do doc é digitado à mão. |
 | `figuras/` | uma pirâmide por linguagem, no snapshot da classificação. |
 

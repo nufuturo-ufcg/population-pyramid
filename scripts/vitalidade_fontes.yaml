@@ -16,6 +16,9 @@
 # `autores:` é o autores_commits.csv da coleta de autores (coleta-dados/scripts/autores_commits.py):
 # liga o e-mail de cada autor de commit à conta do GitHub. Com ele, o commit conta para o login da
 # pessoa (regra 8 de adapters/coleta_csv/carga_duckdb.py) e a carga usa o motor duckdb.
+#
+# `duplicados:` é o repos_excluidos.csv que scripts/auditoria_repos.py gera: repositórios com outro
+# repo_id e as mesmas issues e PRs de um repositório que fica. Só vale com `sem_duplicados: true`.
 
 linguagens:
   python:
@@ -29,18 +32,23 @@ linguagens:
       - /home/wendell/dados-brutos/python/run-vm2-1/repositorios_python_alvo.csv
       - /home/wendell/dados-brutos/python/run-batuta-1/repositorios_python_alvo.csv
       - /home/wendell/dados-brutos/python/run-batuta-2/repositorios_python_alvo.csv
-    autores: /home/wendell/autores/python/autores_commits_completo.csv
+    autores: /home/wendell/dados-brutos/autores/python/autores_commits_completo.csv
+    duplicados: /home/wendell/dados-brutos/duplicados/python.csv
   clojure:
     # A coleta de 2026-09-03 é a de segunda rodada que a pirâmide usa. As outras
     # (2026-08-23 só com o merge, 2026-09-01 e 2026-09-02 parciais) ficam de fora.
     pasta: /home/wendell/dados-brutos/clojure/2026-09-03-clojure
-    autores: /home/wendell/autores/clojure/autores_commits.csv
+    autores: /home/wendell/dados-brutos/autores/clojure/autores_commits.csv
+    duplicados: /home/wendell/dados-brutos/duplicados/clojure.csv
   elixir:
     pasta: /home/wendell/dados-brutos/elixir/2026-09-04-elixir
-    autores: /home/wendell/autores/elixir/autores_commits.csv
+    autores: /home/wendell/dados-brutos/autores/elixir/autores_commits.csv
+    duplicados: /home/wendell/dados-brutos/duplicados/elixir.csv
   zig:
     pasta: /home/wendell/dados-brutos/zig/2026-09-06-zig
-    autores: /home/wendell/autores/zig/autores_commits.csv
+    autores: /home/wendell/dados-brutos/autores/zig/autores_commits.csv
+    duplicados: /home/wendell/dados-brutos/duplicados/zig.csv
   ocaml:
     pasta: /home/wendell/dados-brutos/ocaml/2026-10-10-ocaml
-    autores: /home/wendell/autores/ocaml/autores_commits.csv
+    autores: /home/wendell/dados-brutos/autores/ocaml/autores_commits.csv
+    duplicados: /home/wendell/dados-brutos/duplicados/ocaml.csv
