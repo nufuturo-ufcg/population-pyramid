@@ -88,6 +88,13 @@ ligar_autores: false
 # vem de `duplicados:` em vitalidade_fontes.yaml, que `scripts/auditoria_repos.py` gera. Só no motor duckdb.
 sem_duplicados: false
 
+# Alternativa a `sem_duplicados`: cada grupo de duplicados vira um repositório só, com a identidade do
+# criado antes (empate: menor repo_id). Todos os eventos dos membros ficam. O evento repetido entre
+# membros conta uma vez (commit pelo SHA, os demais pela chave tipo, autor, data e número) e o grupo
+# conta como um repositório nas ocasiões. Usa a mesma lista de `duplicados:`. Exige commits_pelo_sha.
+# Não vale junto com `sem_duplicados`. Só no motor duckdb.
+fundir_duplicados: false
+
 # Um commit copiado entre repositórios (fork, espelho) conta uma vez só, pelo SHA, no repositório criado
 # antes (empate: menor repo_id). false usa a chave antiga (autor, data e arquivos), que só desempata
 # pela data de criação. Só no motor duckdb.

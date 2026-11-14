@@ -71,6 +71,16 @@ class Fonte:
         tabela = pd.read_csv(self.duplicados, usecols=["repo_id"], dtype={"repo_id": str})
         return tuple(tabela["repo_id"])
 
+    def grupos_de_duplicados(self) -> dict[str, str]:
+        """`repo_id` do duplicado -> `repo_id` do repositório que fica, ou nenhum."""
+        if self.duplicados is None:
+            return {}
+        tabela = pd.read_csv(self.duplicados, usecols=["repo_id", "mantido_repo_id"], dtype=str)
+        grupos = {}
+        for duplicado, mantido in zip(tabela["repo_id"], tabela["mantido_repo_id"], strict=True):
+            grupos[duplicado] = mantido
+        return grupos
+
     def bytes_de_eventos(self) -> int:
         return sum(a.caminho.stat().st_size for a in self.eventos)
 

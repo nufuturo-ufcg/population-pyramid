@@ -25,6 +25,11 @@ Aplica as regras de `scripts/figuras_linguagem_bruta.py` (`carrega_eventos`), em
      (arquivo `autores_commits.csv`, linhas com status `ok`). E-mail noreply também vira login.
      E-mail sem conta segue com o nome do autor. Não usa a heurística da regra 7.
 
+  9. Com `Pedido.repos_fundidos`, cada grupo de repositórios duplicados vira um repositório só,
+     com a identidade do criado antes. Todos os eventos dos membros ficam. O commit repetido
+     conta uma vez pelo SHA e o evento de API repetido, pela chave (tipo, autor, data e número).
+     Para a ocasião, o grupo é um repositório. Exige `commits_pelo_sha`.
+
 Diferenças em relação ao motor `pandas` de `scripts/carga_pandas.py`, sem efeito nas métricas:
 
   - `contributor_id` vem de `hash(autor)` do DuckDB, não do sha1 do script. O id só precisa
@@ -84,6 +89,8 @@ LOGIN_DE_MIGRACAO = "(^|[-_.])(trac|bugzilla|mantis|jira|import[a-z]*|migrat[a-z
 # Login que a regra de migração pegaria (`jira` seguido de dígitos) mas é de pessoa.
 CONTAS_QUE_SAO_PESSOAS = ("jira44",)
 CODIGOS_DE_CODIGO = ("commits", "pull_requests")
+# A conversa de um evento: o número da issue ou do PR. Comentário só traz a URL.
+CONVERSA = "coalesce(number, regexp_extract(url, '/(?:issues|pull)/([0-9]+)', 1))"
 
 
 @dataclass
@@ -108,6 +115,9 @@ class Pedido:
     autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login, regra 8 do topo
     completos: bool = False  # devolve um evento por linha, com repositório, sem compactar
     repos_excluidos: tuple[str, ...] = ()  # repo_id que saem: duplicados de outro repositório
+    # repo_id do duplicado -> repo_id do repositório que fica. O grupo vira um repositório só, com
+    # a identidade do mantido, e o evento repetido entre os membros conta uma vez (regra 9 do topo).
+    repos_fundidos: dict[str, str] = field(default_factory=dict)
     commits_pelo_sha: bool = (
         False  # um commit por SHA, no repositório criado antes (empate: repo_id)
     )
@@ -159,19 +169,18 @@ def _marca(coluna: str) -> str:
     return f"CASE WHEN {coluna} = 'ghost' THEN 1 WHEN {coluna} LIKE '%[bot]' THEN 2 ELSE 0 END"
 
 
-def _ocasiao() -> str:
+def _ocasiao(repo: str = "b.repo_id") -> str:
     """Em qual ocasião o evento aconteceu, como um número: o mesmo para a mesma ocasião.
 
     Ocasião é uma conversa (issue ou PR, que dividem a numeração no repositório), um commit
     comentado ou um dia de commits no repositório. Comentário não traz o número da conversa, só a
     URL (`.../issues/12#issuecomment-...`).
     """
-    conversa = "coalesce(number, regexp_extract(url, '/(?:issues|pull)/([0-9]+)', 1))"
     dia = f"CAST(CAST({_ts('created_at')} AS DATE) AS VARCHAR)"
     return (
-        "hash(b.repo_id, CASE WHEN eh_commit THEN 'dia ' || " + dia + " "
+        f"hash({repo}, CASE WHEN eh_commit THEN 'dia ' || " + dia + " "
         "WHEN event_type = 'commit_comment' THEN 'commit ' || sha "
-        "ELSE 'conversa ' || " + conversa + " END)"
+        "ELSE 'conversa ' || " + CONVERSA + " END)"
     )
 
 
@@ -260,20 +269,125 @@ def _commits_unicos(con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[
             WHERE NOT coalesce(criado > mais_antigo, false)
         """)
         return
-    # Um só por SHA: o do repositório criado antes, e no empate o de menor repo_id.
-    con.execute("""
+    # Um só por SHA: o do repositório criado antes, e no empate o de menor repo_id. Dentro de um
+    # grupo fundido todos têm o mesmo repo_id e o mesmo criado: fica o do repositório mantido.
+    grupo = ", em_grupo, rank_membro" if pedido.repos_fundidos else ""
+    desempate = ", rank_membro" if pedido.repos_fundidos else ""
+    con.execute(f"""
         CREATE TABLE git_ok AS
-        SELECT codigo, tipo, pessoa, marca, ts, ocasiao, repetido
+        SELECT codigo, tipo, pessoa, marca, ts, ocasiao, repetido{grupo}
         FROM (
             SELECT *, count(*) OVER (PARTITION BY h) > 1 AS repetido,
                    row_number() OVER (
                        PARTITION BY h
-                       ORDER BY criado NULLS LAST, try_cast(repo_id AS BIGINT), repo_id
+                       ORDER BY criado NULLS LAST, try_cast(repo_id AS BIGINT), repo_id{desempate}
                    ) AS ordem
             FROM leve WHERE eh_commit
         ) WHERE ordem = 1
     """)
     stats["shas_em_mais_de_um_repositorio"] = _um(con, "SELECT count(*) FROM git_ok WHERE repetido")
+
+
+def _prepara_grupos(
+    con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str, int]
+) -> tuple[str, str, str]:
+    """A tabela `grupos` e os trechos de SQL que mandam cada duplicado para o repositório mantido.
+
+    Devolve o JOIN, a expressão do repositório efetivo e as colunas extras de `leve`: se o
+    repositório é de um grupo, a posição dele no grupo (0 é o mantido) e a chave do evento de API.
+    """
+    grupos = pedido.repos_fundidos
+    if not grupos:
+        return "", "b.repo_id", ""
+    if not pedido.commits_pelo_sha:
+        raise ValueError("repos_fundidos exige commits_pelo_sha: o commit repetido conta pelo SHA")
+    if pedido.repos_excluidos:
+        raise ValueError("repos_excluidos e repos_fundidos não valem juntos")
+    linhas = []
+    for duplicado, mantido in grupos.items():
+        linhas.append((duplicado, mantido))
+        linhas.append((mantido, mantido))
+    tabela = pd.DataFrame(linhas, columns=["repo_id", "mantido"]).drop_duplicates()
+    con.register("grupos_pandas", tabela)
+    con.execute("CREATE TABLE grupos AS SELECT * FROM grupos_pandas")
+    stats["repos_fundidos"] = len(grupos)
+    stats["grupos_de_duplicados"] = len(set(grupos.values()))
+    # Grupo cujo mantido não é elegível some inteiro, como na regra de excluir.
+    elegiveis = set(pedido.repos.loc[pedido.repos["elegivel"], "repo_id"].astype(str))
+    sem_o_mantido = 0
+    for duplicado, mantido in grupos.items():
+        if duplicado in elegiveis and mantido not in elegiveis:
+            sem_o_mantido += 1
+    stats["duplicados_elegiveis_de_mantido_inelegivel"] = sem_o_mantido
+    colunas = (
+        ", g.mantido IS NOT NULL AS em_grupo"
+        ", CASE WHEN b.repo_id = g.mantido THEN 0"
+        " ELSE coalesce(try_cast(b.repo_id AS BIGINT), 1) END AS rank_membro"
+        f", CASE WHEN NOT eh_commit THEN hash(event_type, author_login, created_at, {CONVERSA})"
+        " END AS chave_api"
+    )
+    return "LEFT JOIN grupos g ON b.repo_id = g.repo_id", "coalesce(g.mantido, b.repo_id)", colunas
+
+
+def _repetidos_no_grupo(con: duckdb.DuckDBPyConnection, stats: dict[str, int]) -> None:
+    """Um evento de API repetido em mais de um membro do grupo fica no membro de menor posição.
+
+    Dentro de um mesmo repositório não se tira nada: só vale entre membros do grupo.
+    """
+    con.execute("""
+        CREATE TABLE donos AS
+        SELECT repo_id, chave_api, min(rank_membro) AS dono
+        FROM leve WHERE em_grupo AND NOT eh_commit GROUP BY repo_id, chave_api
+    """)
+    antes = _um(con, "SELECT count(*) FROM leve")
+    con.execute("""
+        DELETE FROM leve USING donos d
+        WHERE leve.em_grupo AND NOT leve.eh_commit
+          AND leve.repo_id = d.repo_id AND leve.chave_api = d.chave_api
+          AND leve.rank_membro > d.dono
+    """)
+    con.execute("DROP TABLE donos")
+    stats["eventos_api_repetidos_no_grupo"] = antes - _um(con, "SELECT count(*) FROM leve")
+
+
+def _so_nos_duplicados(
+    con: duckdb.DuckDBPyConnection, nomes_tipo: list[str], stats: dict[str, int]
+) -> None:
+    """Eventos e commits que só existem nos membros que a regra de excluir tiraria."""
+    issue_pr = f"{nomes_tipo.index('issues')}, {nomes_tipo.index('pull_requests')}"
+    stats["eventos_api_so_nos_duplicados"] = _um(
+        con, "SELECT count(*) FROM leve WHERE em_grupo AND NOT eh_commit AND rank_membro > 0"
+    )
+    stats["issues_e_prs_so_nos_duplicados"] = _um(
+        con,
+        "SELECT count(*) FROM leve WHERE em_grupo AND NOT eh_commit AND rank_membro > 0 "
+        f"AND tipo IN ({issue_pr})",
+    )
+    stats["commits_so_nos_duplicados"] = _um(
+        con, "SELECT count(*) FROM git_ok WHERE em_grupo AND rank_membro > 0"
+    )
+
+
+def _cria_repos(con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str, int]) -> None:
+    """A tabela `repos`, com os duplicados de `repos_excluidos` marcados como inelegíveis."""
+    repos = pedido.repos.copy()
+    duplicado = repos["repo_id"].astype(str).isin(pedido.repos_excluidos)
+    repos.loc[duplicado, "elegivel"] = False
+    if duplicado.any():
+        stats["repos_duplicados_excluidos"] = int(duplicado.sum())
+    con.register("repos_pandas", repos)
+    con.execute("CREATE TABLE repos AS SELECT * FROM repos_pandas")
+
+
+def _conta_brutas(con: duckdb.DuckDBPyConnection, stats: dict[str, int]) -> None:
+    """Relê os arquivos inteiros só para contar as linhas de API e de git."""
+    print("duckdb: contando as linhas brutas", file=sys.stderr)
+    linha = con.execute(
+        "SELECT count(*) FILTER (WHERE NOT eh_commit), count(*) FILTER (WHERE eh_commit) FROM bruto"
+    ).fetchone()
+    stats["eventos_api_bruto"], stats["eventos_git_bruto"] = (
+        (int(linha[0]), int(linha[1])) if linha else (0, 0)
+    )
 
 
 def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
@@ -283,13 +397,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     extensoes = "|".join(re.escape(e) for e in pedido.extensoes)
     toca_a_linguagem = _aspas(f"(?:{extensoes})(?:;|$)")
 
-    repos = pedido.repos.copy()
-    duplicado = repos["repo_id"].astype(str).isin(pedido.repos_excluidos)
-    repos.loc[duplicado, "elegivel"] = False
-    if duplicado.any():
-        stats["repos_duplicados_excluidos"] = int(duplicado.sum())
-    con.register("repos_pandas", repos)
-    con.execute("CREATE TABLE repos AS SELECT * FROM repos_pandas")
+    _cria_repos(con, pedido, stats)
     leituras = [_leitura(caminho, papel) for caminho, papel in pedido.eventos]
     con.execute("CREATE VIEW bruto AS " + " UNION ALL ".join(leituras))
 
@@ -300,6 +408,7 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     quem_commitou, junta_autores = _quem_commitou(con, pedido, stats)
     pessoa = _pessoa(f"CASE WHEN eh_commit THEN {quem_commitou} ELSE author_login END")
     sistema, chave_do_commit = _contas_e_chave(pedido, quem_commitou)
+    junta_grupo, repo_efetivo, colunas_do_grupo = _prepara_grupos(con, pedido, stats)
     ignora = ""
     if pedido.acoes_ignoradas:
         acoes = ", ".join(_aspas(a) for a in pedido.acoes_ignoradas)
@@ -311,8 +420,8 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
                {pessoa} AS pessoa, {_marca(autor)} AS marca,
                {_ts("created_at")} AS ts,
                CASE WHEN eh_commit THEN {chave_do_commit} END AS h,
-               b.repo_id AS repo_id, {_ocasiao()} AS ocasiao
-        FROM bruto b LEFT JOIN repos r ON b.repo_id = r.repo_id {junta_autores}
+               {repo_efetivo} AS repo_id, {_ocasiao(repo_efetivo)} AS ocasiao {colunas_do_grupo}
+        FROM bruto b {junta_grupo} LEFT JOIN repos r ON {repo_efetivo} = r.repo_id {junta_autores}
         WHERE ((NOT eh_commit AND author_login IS NOT NULL
                 AND coalesce(b.language, r.principal) = {_aspas(nome)} {ignora})
             OR (eh_commit AND author IS NOT NULL
@@ -321,17 +430,15 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     stats["eventos_api_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE NOT eh_commit")
     stats["eventos_git_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE eh_commit")
     if pedido.contar_brutas:
-        print("duckdb: contando as linhas brutas", file=sys.stderr)
-        linha = con.execute(
-            "SELECT count(*) FILTER (WHERE NOT eh_commit), count(*) FILTER (WHERE eh_commit) "
-            "FROM bruto"
-        ).fetchone()
-        stats["eventos_api_bruto"], stats["eventos_git_bruto"] = (
-            (int(linha[0]), int(linha[1])) if linha else (0, 0)
-        )
+        _conta_brutas(con, stats)
 
+    if pedido.repos_fundidos:
+        print("duckdb: eventos repetidos entre os membros de cada grupo", file=sys.stderr)
+        _repetidos_no_grupo(con, stats)
     print("duckdb: commits copiados entre repositórios", file=sys.stderr)
     _commits_unicos(con, pedido, stats)
+    if pedido.repos_fundidos:
+        _so_nos_duplicados(con, nomes_tipo, stats)
     duplicados = stats["eventos_git_desta_linguagem"] - _um(con, "SELECT count(*) FROM git_ok")
     stats["commits_duplicados_descartados"] = duplicados
     if duplicados:

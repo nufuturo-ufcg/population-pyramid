@@ -38,6 +38,7 @@ def _duckdb(
     fundir_identidades: bool = False,
     completos: bool = False,
     repos_excluidos: tuple[str, ...] = (),
+    repos_fundidos: dict[str, str] | None = None,
     commits_pelo_sha: bool = False,
     sem_contas_de_sistema: bool = False,
     **_: object,
@@ -66,6 +67,7 @@ def _duckdb(
         fundir_identidades=fundir_identidades,
         autores=fonte.autores,
         repos_excluidos=repos_excluidos,
+        repos_fundidos=repos_fundidos or {},
         commits_pelo_sha=commits_pelo_sha,
         sem_contas_de_sistema=sem_contas_de_sistema,
         completos=completos,
@@ -92,6 +94,7 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
     saem, como `("mentioned",)`), `fundir_identidades` (nome de commit -> login, ver
     `carga_duckdb`), `completos` (um evento por linha com repositório, para o pipeline do motor),
     `repos_excluidos` (`repo_id` que saem da carga, os duplicados de `Fonte.duplicados`),
+    `repos_fundidos` (duplicado -> mantido: o grupo vira um repositório só, ver `carga_duckdb`),
     `commits_pelo_sha` (um commit por SHA) e `sem_contas_de_sistema` (ver `carga_duckdb`).
     """
     if motor not in MOTORES:
@@ -102,7 +105,7 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
         raise SystemExit("fundir_identidades só existe no motor duckdb: use --set motor=duckdb.")
     if opcoes.get("completos") and motor != "duckdb":
         raise SystemExit("completos só existe no motor duckdb: use --set motor=duckdb.")
-    for opcao in ("repos_excluidos", "commits_pelo_sha", "sem_contas_de_sistema"):
+    for opcao in ("repos_excluidos", "repos_fundidos", "commits_pelo_sha", "sem_contas_de_sistema"):
         if opcoes.get(opcao) and motor != "duckdb":
             raise SystemExit(f"{opcao} só existe no motor duckdb: use --set motor=duckdb.")
     if fonte.autores and motor != "duckdb":

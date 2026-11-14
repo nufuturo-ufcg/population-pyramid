@@ -158,6 +158,7 @@ class Parametros:
     fundir_identidades: bool
     ligar_autores: bool
     sem_duplicados: bool
+    fundir_duplicados: bool
     commits_pelo_sha: bool
     sem_contas_de_sistema: bool
     processos: int
@@ -228,6 +229,7 @@ def _selo_dos_dados(
     fundir: bool = False,
     commits_pelo_sha: bool = False,
     sem_contas_de_sistema: bool = False,
+    fundir_duplicados: bool = False,
 ) -> dict[str, Any]:
     """Tamanho e data de cada arquivo de entrada. Mudou um byte, o cache perde a validade."""
     arquivos = {}
@@ -244,6 +246,8 @@ def _selo_dos_dados(
         selo["commits_pelo_sha"] = True
     if sem_contas_de_sistema:
         selo["sem_contas_de_sistema"] = True
+    if fundir_duplicados:
+        selo["fundir_duplicados"] = True
     return selo
 
 
@@ -261,6 +265,7 @@ def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> 
         or p.acoes_ignoradas
         or p.commits_pelo_sha
         or p.sem_contas_de_sistema
+        or p.fundir_duplicados
     ):
         return (
             "duckdb"  # só o duckdb liga o e-mail de commit ao login, ignora ações e filtra contas
@@ -287,7 +292,8 @@ def carrega_completos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         contar_brutas=p.contar_linhas_brutas,
         acoes_ignoradas=tuple(p.acoes_ignoradas),
         fundir_identidades=p.fundir_identidades,
-        repos_excluidos=fonte.repos_excluidos(),
+        repos_excluidos=fonte.repos_excluidos() if p.sem_duplicados else (),
+        repos_fundidos=fonte.grupos_de_duplicados() if p.fundir_duplicados else {},
         commits_pelo_sha=p.commits_pelo_sha,
         sem_contas_de_sistema=p.sem_contas_de_sistema,
         completos=True,
@@ -312,6 +318,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         p.fundir_identidades,
         p.commits_pelo_sha,
         p.sem_contas_de_sistema,
+        p.fundir_duplicados,
     )
     cache_valido = (
         entrada.usar_cache
@@ -334,7 +341,8 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         contar_brutas=p.contar_linhas_brutas,
         acoes_ignoradas=tuple(p.acoes_ignoradas),
         fundir_identidades=p.fundir_identidades,
-        repos_excluidos=fonte.repos_excluidos(),
+        repos_excluidos=fonte.repos_excluidos() if p.sem_duplicados else (),
+        repos_fundidos=fonte.grupos_de_duplicados() if p.fundir_duplicados else {},
         commits_pelo_sha=p.commits_pelo_sha,
         sem_contas_de_sistema=p.sem_contas_de_sistema,
     )
@@ -464,7 +472,9 @@ class Contexto:
         fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
         if not p.ligar_autores:
             fonte.autores = None
-        if not p.sem_duplicados:
+        if p.sem_duplicados and p.fundir_duplicados:
+            raise SystemExit("sem_duplicados e fundir_duplicados não valem juntos.")
+        if not p.sem_duplicados and not p.fundir_duplicados:
             fonte.duplicados = None
         if bruto:
             if not fonte.cabe_no_carregador_original(p.limite_bruto_gb):

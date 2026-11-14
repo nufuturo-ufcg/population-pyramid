@@ -415,3 +415,93 @@ def test_sem_contas_de_sistema_tira_migracao_uuid_e_bots_nomeados(tmp_path):
     # Ficam tracy, abstract, ana (issue) e a ana do commit, que é a mesma pessoa de login, e JirA44,
     # que é uma pessoa mesmo casando com a regra de migração.
     assert sem.estatisticas["contribuidores_finais"] == 4
+
+
+def _grupo_de_duplicados() -> tuple[list, list, pd.DataFrame]:
+    """Repositório 1 (mantido), 2 (duplicado de 1) e 3 (sem grupo).
+
+    Commit abc está em 1 e em 2. Commit def só em 2. Issue 5 (ana) está em 1 e em 2. Issue 6 só em
+    2. A issue 7 aparece duas vezes em 1, com a mesma chave: dentro de um repositório nada sai.
+    """
+    git = [
+        _linha("1", "commit", "ana", "2022-03-01T10:00:00Z", "a.zig"),
+        _linha("2", "commit", "ana", "2022-03-01T10:00:00Z", "a.zig"),
+        _linha("2", "commit", "bia", "2022-03-02T10:00:00Z", "b.zig"),
+        _linha("3", "commit", "caio", "2022-03-03T10:00:00Z", "c.zig"),
+    ]
+    for linha, sha in zip(git, ["abc", "abc", "def", "ghi"], strict=True):
+        linha["sha"] = sha
+    api = []
+    issues = [("1", "5"), ("2", "5"), ("2", "6"), ("1", "7"), ("1", "7")]
+    for repo, numero in issues:
+        autor = "bia" if numero == "6" else "ana"
+        linha = _linha(repo, "issue", autor, "2022-04-01T00:00:00Z", None, "Zig", True)
+        linha["number"] = numero
+        api.append(linha)
+    return git, api, _repos(["2020-01-01", "2021-01-01", "2020-06-01"])
+
+
+def test_grupo_de_duplicados_vira_um_repositorio_e_guarda_o_que_so_o_duplicado_tem(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    excluindo = carga_duckdb.carrega(
+        _pedido(tmp_path / "a", git, api, repos, repos_excluidos=("2",), commits_pelo_sha=True)
+    )
+    fundindo = carga_duckdb.carrega(
+        _pedido(tmp_path / "b", git, api, repos, repos_fundidos={"2": "1"}, commits_pelo_sha=True)
+    )
+    # Excluir tira a bia, que só aparece no duplicado.
+    assert excluindo.estatisticas["contribuidores_finais"] == 2
+    assert fundindo.estatisticas["contribuidores_finais"] == 3
+    # Commits: abc (uma vez), def e ghi. Issues: 5 (uma vez), 6 e as duas 7.
+    stats = fundindo.estatisticas
+    assert stats["eventos_finais"] == 7
+    assert stats["eventos_api_repetidos_no_grupo"] == 1
+    assert stats["eventos_api_so_nos_duplicados"] == 1
+    assert stats["issues_e_prs_so_nos_duplicados"] == 1
+    assert stats["commits_so_nos_duplicados"] == 1
+    assert stats["commits_duplicados_descartados"] == 1
+    assert stats["repos_fundidos"] == 1
+    assert stats["grupos_de_duplicados"] == 1
+    assert stats["repos_finais"] == 2  # o grupo e o repositório 3
+
+
+def test_grupo_de_duplicados_conta_uma_ocasiao_para_o_mesmo_dia_nos_dois_membros(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    # A bia commita no mesmo dia nos dois membros, com SHA diferente: uma ocasião só.
+    outro = _linha("1", "commit", "bia", "2022-03-02T12:00:00Z", "b.zig")
+    outro["sha"] = "xyz"
+    git.append(outro)
+    origem = tmp_path / "origem"
+    pedido = _pedido(
+        tmp_path / "a", git, api, repos, repos_fundidos={"2": "1"}, commits_pelo_sha=True,
+        origem=origem,
+    )  # fmt: skip
+    carga_duckdb.carrega(pedido)
+    pessoas = pd.read_parquet(origem / "pessoas.parquet")
+    bia = pessoas[pessoas["commits"] == 2]
+    assert len(bia) == 1
+    assert int(bia["ocasioes"].iloc[0]) == 2  # o dia 02/03 e a issue 6
+
+
+def test_fundir_duplicados_exige_o_sha_e_nao_vale_com_excluir(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    with pytest.raises(ValueError, match="commits_pelo_sha"):
+        carga_duckdb.carrega(_pedido(tmp_path / "a", git, api, repos, repos_fundidos={"2": "1"}))
+    with pytest.raises(ValueError, match="não valem juntos"):
+        carga_duckdb.carrega(
+            _pedido(
+                tmp_path / "b",
+                git,
+                api,
+                repos,
+                repos_fundidos={"2": "1"},
+                repos_excluidos=("2",),
+                commits_pelo_sha=True,
+            )
+        )
