@@ -1,20 +1,6 @@
 {
   "oficial": {
-    "descricao": "Rodada principal de 2026-11-13: ignora mentioned e subscribed, liga o commit ao login pelo e-mail do autor, tira os repositórios duplicados e as contas que não são pessoas e conta o commit repetido pelo SHA.",
-    "set": {
-      "acoes_ignoradas": [
-        "mentioned",
-        "subscribed"
-      ],
-      "fundir_identidades": false,
-      "ligar_autores": true,
-      "sem_duplicados": true,
-      "commits_pelo_sha": true,
-      "sem_contas_de_sistema": true
-    }
-  },
-  "oficial-grupos": {
-    "descricao": "A rodada oficial com a regra nova dos duplicados: cada grupo vira um repositório só, com todos os eventos dos membros e o evento repetido contado uma vez.",
+    "descricao": "Rodada oficial de 2026-11-14: ignora mentioned e subscribed, liga o commit ao login pelo e-mail do autor, funde cada grupo de repositórios duplicados num repositório só (identidade do membro elegível criado antes), tira as contas que não são pessoas e conta o commit repetido pelo SHA.",
     "set": {
       "acoes_ignoradas": [
         "mentioned",
@@ -26,6 +12,20 @@
       "commits_pelo_sha": true,
       "sem_contas_de_sistema": true,
       "fundir_duplicados": true
+    }
+  },
+  "oficial-2026-11-13-2054": {
+    "descricao": "As flags da rodada 2026-11-13-2054: tira os repositórios duplicados em vez de fundir os grupos.",
+    "set": {
+      "acoes_ignoradas": [
+        "mentioned",
+        "subscribed"
+      ],
+      "fundir_identidades": false,
+      "ligar_autores": true,
+      "sem_duplicados": true,
+      "commits_pelo_sha": true,
+      "sem_contas_de_sistema": true
     }
   },
   "oficial-2026-11-09": {

@@ -28,7 +28,8 @@ Aplica as regras de `scripts/figuras_linguagem_bruta.py` (`carrega_eventos`), em
   9. Com `Pedido.repos_fundidos`, cada grupo de repositórios duplicados vira um repositório só,
      com a identidade do criado antes. Todos os eventos dos membros ficam. O commit repetido
      conta uma vez pelo SHA e o evento de API repetido, pela chave (tipo, autor, data e número).
-     Para a ocasião, o grupo é um repositório. Exige `commits_pelo_sha`.
+     Para a ocasião, o grupo é um repositório. Se o mantido for inelegível, a identidade passa
+     para o membro elegível criado antes. Exige `commits_pelo_sha`.
 
 Diferenças em relação ao motor `pandas` de `scripts/carga_pandas.py`, sem efeito nas métricas:
 
@@ -303,6 +304,7 @@ def _prepara_grupos(
         raise ValueError("repos_fundidos exige commits_pelo_sha: o commit repetido conta pelo SHA")
     if pedido.repos_excluidos:
         raise ValueError("repos_excluidos e repos_fundidos não valem juntos")
+    grupos = _identidade_elegivel(pedido, stats)
     linhas = []
     for duplicado, mantido in grupos.items():
         linhas.append((duplicado, mantido))
@@ -312,13 +314,6 @@ def _prepara_grupos(
     con.execute("CREATE TABLE grupos AS SELECT * FROM grupos_pandas")
     stats["repos_fundidos"] = len(grupos)
     stats["grupos_de_duplicados"] = len(set(grupos.values()))
-    # Grupo cujo mantido não é elegível some inteiro, como na regra de excluir.
-    elegiveis = set(pedido.repos.loc[pedido.repos["elegivel"], "repo_id"].astype(str))
-    sem_o_mantido = 0
-    for duplicado, mantido in grupos.items():
-        if duplicado in elegiveis and mantido not in elegiveis:
-            sem_o_mantido += 1
-    stats["duplicados_elegiveis_de_mantido_inelegivel"] = sem_o_mantido
     colunas = (
         ", g.mantido IS NOT NULL AS em_grupo"
         ", CASE WHEN b.repo_id = g.mantido THEN 0"
@@ -327,6 +322,46 @@ def _prepara_grupos(
         " END AS chave_api"
     )
     return "LEFT JOIN grupos g ON b.repo_id = g.repo_id", "coalesce(g.mantido, b.repo_id)", colunas
+
+
+def _identidade_elegivel(pedido: Pedido, stats: dict[str, int]) -> dict[str, str]:
+    """Duplicado -> repositório que dá a identidade ao grupo.
+
+    A identidade é a do mantido (o criado antes). Se o mantido for inelegível e algum membro for
+    elegível, ela passa para o membro elegível criado antes (empate: menor `repo_id`). Grupo sem
+    membro elegível fica com o mantido e sai inteiro na elegibilidade.
+    """
+    criado = dict(zip(pedido.repos["repo_id"].astype(str), pedido.repos["criado"], strict=True))
+    elegivel = dict(zip(pedido.repos["repo_id"].astype(str), pedido.repos["elegivel"], strict=True))
+    membros: dict[str, list[str]] = {}
+    for duplicado, mantido in pedido.repos_fundidos.items():
+        if mantido not in membros:
+            membros[mantido] = [mantido]
+        membros[mantido].append(duplicado)
+
+    identidade_de: dict[str, str] = {}
+    trocados = 0
+    sem_elegivel = 0
+    for mantido, lista in membros.items():
+        identidade = mantido
+        if not elegivel.get(mantido, False):
+            candidatos = []
+            for repo in lista:
+                if elegivel.get(repo, False):
+                    data = criado.get(repo)
+                    sem_data = pd.isna(data)
+                    candidatos.append((sem_data, pd.Timestamp.max if sem_data else data, int(repo)))
+            if candidatos:
+                identidade = str(min(candidatos)[2])
+                trocados += 1
+            else:
+                sem_elegivel += 1
+        for repo in lista:
+            if repo != identidade:
+                identidade_de[repo] = identidade
+    stats["grupos_com_identidade_trocada"] = trocados
+    stats["grupos_sem_membro_elegivel"] = sem_elegivel
+    return identidade_de
 
 
 def _repetidos_no_grupo(con: duckdb.DuckDBPyConnection, stats: dict[str, int]) -> None:

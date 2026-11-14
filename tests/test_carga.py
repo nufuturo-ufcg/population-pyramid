@@ -505,3 +505,26 @@ def test_fundir_duplicados_exige_o_sha_e_nao_vale_com_excluir(tmp_path):
                 commits_pelo_sha=True,
             )
         )
+
+
+def test_grupo_com_mantido_inelegivel_leva_a_identidade_do_membro_elegivel(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    repos.loc[repos["repo_id"] == "1", "elegivel"] = False
+    pedido = _pedido(
+        tmp_path / "a", git, api, repos, repos_fundidos={"2": "1"}, commits_pelo_sha=True
+    )
+    stats = carga_duckdb.carrega(pedido).estatisticas
+    assert stats["grupos_com_identidade_trocada"] == 1
+    # O grupo entra pelo repositório 2: os mesmos 7 eventos do grupo com o mantido elegível.
+    assert stats["eventos_finais"] == 7
+    assert stats["repos_finais"] == 2
+
+    repos.loc[repos["repo_id"] == "2", "elegivel"] = False
+    pedido = _pedido(
+        tmp_path / "b", git, api, repos, repos_fundidos={"2": "1"}, commits_pelo_sha=True
+    )
+    stats = carga_duckdb.carrega(pedido).estatisticas
+    assert stats["grupos_sem_membro_elegivel"] == 1
+    assert stats["eventos_finais"] == 1  # só o commit do repositório 3
