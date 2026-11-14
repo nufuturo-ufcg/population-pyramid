@@ -41,6 +41,8 @@ def _duckdb(
     repos_fundidos: dict[str, str] | None = None,
     commits_pelo_sha: bool = False,
     sem_contas_de_sistema: bool = False,
+    contas_extras: tuple[str, ...] = (),
+    repos_para_contar: tuple[str, ...] = (),
     **_: object,
 ) -> pd.DataFrame:
     """O motor duckdb mora em `adapters/coleta_csv/`, onde o SQL é permitido."""
@@ -70,6 +72,8 @@ def _duckdb(
         repos_fundidos=repos_fundidos or {},
         commits_pelo_sha=commits_pelo_sha,
         sem_contas_de_sistema=sem_contas_de_sistema,
+        contas_extras=contas_extras,
+        repos_para_contar=repos_para_contar,
         completos=completos,
     )
     if origem is not None:
@@ -95,7 +99,9 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
     `carga_duckdb`), `completos` (um evento por linha com repositório, para o pipeline do motor),
     `repos_excluidos` (`repo_id` que saem da carga, os duplicados de `Fonte.duplicados`),
     `repos_fundidos` (duplicado -> mantido: o grupo vira um repositório só, ver `carga_duckdb`),
-    `commits_pelo_sha` (um commit por SHA) e `sem_contas_de_sistema` (ver `carga_duckdb`).
+    `commits_pelo_sha` (um commit por SHA), `sem_contas_de_sistema`, `contas_extras` (mais
+    contas que saem) e `repos_para_contar` (contribuidores de repositórios inelegíveis, só
+    estatística), todas em `carga_duckdb`.
     """
     if motor not in MOTORES:
         raise SystemExit(f"motor {motor!r} desconhecido: use {list(MOTORES)}.")
@@ -105,7 +111,15 @@ def carrega(fonte: Fonte, motor: str = "pandas", **opcoes: object) -> pd.DataFra
         raise SystemExit("fundir_identidades só existe no motor duckdb: use --set motor=duckdb.")
     if opcoes.get("completos") and motor != "duckdb":
         raise SystemExit("completos só existe no motor duckdb: use --set motor=duckdb.")
-    for opcao in ("repos_excluidos", "repos_fundidos", "commits_pelo_sha", "sem_contas_de_sistema"):
+    opcoes_do_duckdb = (
+        "repos_excluidos",
+        "repos_fundidos",
+        "commits_pelo_sha",
+        "sem_contas_de_sistema",
+        "contas_extras",
+        "repos_para_contar",
+    )
+    for opcao in opcoes_do_duckdb:
         if opcoes.get(opcao) and motor != "duckdb":
             raise SystemExit(f"{opcao} só existe no motor duckdb: use --set motor=duckdb.")
     if fonte.autores and motor != "duckdb":

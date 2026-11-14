@@ -159,6 +159,7 @@ class Parametros:
     ligar_autores: bool
     sem_duplicados: bool
     fundir_duplicados: bool
+    contas_excluidas_csv: str | None
     commits_pelo_sha: bool
     sem_contas_de_sistema: bool
     processos: int
@@ -230,6 +231,7 @@ def _selo_dos_dados(
     commits_pelo_sha: bool = False,
     sem_contas_de_sistema: bool = False,
     fundir_duplicados: bool = False,
+    contas_excluidas_csv: str | None = None,
 ) -> dict[str, Any]:
     """Tamanho e data de cada arquivo de entrada. Mudou um byte, o cache perde a validade."""
     arquivos = {}
@@ -248,6 +250,8 @@ def _selo_dos_dados(
         selo["sem_contas_de_sistema"] = True
     if fundir_duplicados:
         selo["fundir_duplicados"] = True
+    if contas_excluidas_csv:
+        selo["contas_excluidas"] = list(carga_fonte.le_contas(Path(contas_excluidas_csv)))
     return selo
 
 
@@ -266,6 +270,7 @@ def escolhe_motor(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada) -> 
         or p.commits_pelo_sha
         or p.sem_contas_de_sistema
         or p.fundir_duplicados
+        or p.contas_excluidas_csv
     ):
         return (
             "duckdb"  # só o duckdb liga o e-mail de commit ao login, ignora ações e filtra contas
@@ -296,6 +301,7 @@ def carrega_completos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         repos_fundidos=fonte.grupos_de_duplicados() if p.fundir_duplicados else {},
         commits_pelo_sha=p.commits_pelo_sha,
         sem_contas_de_sistema=p.sem_contas_de_sistema,
+        contas_extras=carga_fonte.le_contas(p.contas_excluidas_csv),
         completos=True,
     )
 
@@ -319,6 +325,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         p.commits_pelo_sha,
         p.sem_contas_de_sistema,
         p.fundir_duplicados,
+        p.contas_excluidas_csv,
     )
     cache_valido = (
         entrada.usar_cache
@@ -345,6 +352,7 @@ def carrega_compactos(p: Parametros, fonte: carga_fonte.Fonte, entrada: Entrada)
         repos_fundidos=fonte.grupos_de_duplicados() if p.fundir_duplicados else {},
         commits_pelo_sha=p.commits_pelo_sha,
         sem_contas_de_sistema=p.sem_contas_de_sistema,
+        contas_extras=carga_fonte.le_contas(p.contas_excluidas_csv),
     )
     compactos = vitalidade.compacta(eventos)
     del eventos

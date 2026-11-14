@@ -22,6 +22,7 @@ Serve para perguntar de onde veio uma subida de novatos, comparando as linguagen
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -44,6 +45,8 @@ def grava_origem(
     commits_pelo_sha: bool = False,
     sem_contas_de_sistema: bool = False,
     fundir_duplicados: bool = False,
+    contas_excluidas_csv: Path | None = None,
+    contar_repos_sem_mapa: bool = False,
 ) -> None:
     """Carga de uma linguagem com a origem de cada pessoa gravada à parte."""
     carga_fonte.aplica_linguagem(slug)
@@ -68,7 +71,10 @@ def grava_origem(
         repos_fundidos=fonte.grupos_de_duplicados() if fundir_duplicados else {},
         commits_pelo_sha=commits_pelo_sha,
         sem_contas_de_sistema=sem_contas_de_sistema,
+        contas_extras=carga_fonte.le_contas(contas_excluidas_csv),
+        repos_para_contar=carga_fonte.repos_sem_mapa(fonte) if contar_repos_sem_mapa else (),
     )
+    (pasta / "estatisticas_da_carga.json").write_text(json.dumps(fb._stats(), default=str))
     partes = []
     for caminho in fonte.alvos:
         alvo = pd.read_csv(caminho, dtype={"repo_id": str})
@@ -106,6 +112,14 @@ def main() -> None:
         "--sem-duplicados", action=argparse.BooleanOptionalAction, default=padrao["sem_duplicados"]
     )
     parser.add_argument(
+        "--contas-excluidas-csv", type=Path, default=None,
+        help="CSV com a coluna conta: mais contas que saem (rodada de teste)",
+    )  # fmt: skip
+    parser.add_argument(
+        "--contar-repos-sem-mapa", action="store_true",
+        help="conta os contribuidores dos alvos com o mapa de linguagens vazio",
+    )  # fmt: skip
+    parser.add_argument(
         "--fundir-duplicados",
         action=argparse.BooleanOptionalAction,
         default=padrao["fundir_duplicados"],
@@ -135,6 +149,8 @@ def main() -> None:
             args.commits_pelo_sha,
             args.sem_contas_de_sistema,
             args.fundir_duplicados,
+            args.contas_excluidas_csv,
+            args.contar_repos_sem_mapa,
         )
 
 

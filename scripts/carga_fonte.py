@@ -213,6 +213,54 @@ def _participacao(linguagens_json: str, linguagem: str) -> float:
     return mapa.get(linguagem, 0) / total if total else 0.0
 
 
+def le_contas(caminho: Path | None) -> tuple[str, ...]:
+    """As contas da coluna `conta` de um CSV, como `contas_com_bot_sem_marcador.csv`."""
+    if caminho is None:
+        return ()
+    tabela = pd.read_csv(Path(caminho).expanduser(), usecols=["conta"], dtype=str)
+    return tuple(tabela["conta"].dropna())
+
+
+def repos_sem_mapa(fonte: Fonte) -> tuple[str, ...]:
+    """Alvos com o mapa de linguagens vazio que não estão num grupo com membro elegível.
+
+    Mapa vazio é texto que não é JSON ou JSON sem nenhum byte. A participação deles conta como 0
+    e eles saem pela elegibilidade sem que se saiba a linguagem do código.
+    """
+    nome = fb.LING.atual.nome
+    partes = []
+    for caminho in fonte.alvos:
+        partes.append(pd.read_csv(caminho, usecols=["repo_id", "languages"], dtype=str))
+    alvo = pd.concat(partes, ignore_index=True).drop_duplicates("repo_id")
+    vazio = {}
+    elegivel = {}
+    for repo, texto in zip(alvo["repo_id"], alvo["languages"], strict=True):
+        try:
+            mapa = json.loads(texto)
+        except (TypeError, ValueError):
+            mapa = {}
+        total = sum(mapa.values())
+        vazio[repo] = total == 0
+        elegivel[repo] = total > 0 and mapa.get(nome, 0) / total > fb.LIMIAR_SHARE_LINGUAGEM
+    grupo_com_elegivel = set()
+    grupos = fonte.grupos_de_duplicados()
+    membros: dict[str, list[str]] = {}
+    for duplicado, mantido in grupos.items():
+        membros.setdefault(mantido, [mantido]).append(duplicado)
+    for lista in membros.values():
+        tem_elegivel = False
+        for repo in lista:
+            if elegivel.get(repo, False):
+                tem_elegivel = True
+        if tem_elegivel:
+            grupo_com_elegivel.update(lista)
+    resultado = []
+    for repo, sem_mapa in vazio.items():
+        if sem_mapa and repo not in grupo_com_elegivel:
+            resultado.append(repo)
+    return tuple(resultado)
+
+
 def marca_elegiveis(alvo: pd.DataFrame) -> pd.DataFrame:
     """Coluna `elegivel`: mais de `LIMIAR_SHARE_LINGUAGEM` do código na linguagem (regra de fb)."""
     nome = fb.LING.atual.nome

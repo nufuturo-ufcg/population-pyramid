@@ -123,6 +123,9 @@ class Pedido:
         False  # um commit por SHA, no repositório criado antes (empate: repo_id)
     )
     sem_contas_de_sistema: bool = False  # tira `CONTAS_EXCLUIDAS`, logins UUID e de migração
+    contas_extras: tuple[str, ...] = ()  # mais contas que saem, em minúsculas (rodadas de teste)
+    # repo_id cujos contribuidores a carga conta à parte, mesmo inelegíveis (só estatística)
+    repos_para_contar: tuple[str, ...] = ()
 
 
 @dataclass
@@ -250,6 +253,10 @@ def _contas_e_chave(pedido: Pedido, quem_commitou: str) -> tuple[str, str]:
             f"AND ({conta} IN ({pessoas}) "
             f"OR NOT regexp_matches({conta}, {_aspas(LOGIN_DE_MIGRACAO)}))"
         )
+    if pedido.contas_extras:
+        extras = ", ".join(_aspas(c.lower()) for c in pedido.contas_extras)
+        bruta = "lower(coalesce(CASE WHEN eh_commit THEN author ELSE author_login END, ''))"
+        sistema += f" AND {conta} NOT IN ({extras}) AND {bruta} NOT IN ({extras})"
     # Um commit copiado entre repositórios (fork, espelho) é o mesmo SHA. Sem SHA, o conteúdo.
     chave_do_commit = "hash(author, created_at, files)"
     if pedido.commits_pelo_sha:
@@ -414,6 +421,46 @@ def _cria_repos(con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str,
     con.execute("CREATE TABLE repos AS SELECT * FROM repos_pandas")
 
 
+def _pessoas_dos_repos_contados(
+    con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str, int]
+) -> None:
+    """Pessoas que os `repos_para_contar` teriam, com as regras da carga, mesmo inelegíveis.
+
+    Usa os eventos já filtrados (linguagem, piso, SHA, contas) e os filtros finais (conta apagada,
+    bot, tipo, datas). O duplicado de um grupo conta pelo repositório que dá a identidade ao grupo.
+    """
+    identidade = {}
+    if pedido.repos_fundidos:
+        identidade = _identidade_elegivel(pedido, {})
+    ids = []
+    for repo in pedido.repos_para_contar:
+        ids.append(identidade.get(repo, repo))
+    tabela = pd.DataFrame({"repo_id": sorted(set(ids))})
+    con.register("contar_pandas", tabela)
+    con.execute("""
+        CREATE TABLE contar AS
+        SELECT r.codigo FROM repos r JOIN contar_pandas c ON r.repo_id = c.repo_id
+    """)
+    con.execute(f"""
+        CREATE TABLE pessoas_contadas AS
+        SELECT DISTINCT pessoa, codigo FROM (
+            SELECT a.codigo, a.pessoa, a.marca, a.tipo, a.ts
+            FROM leve a LEFT JOIN piso p ON a.codigo = p.codigo
+            WHERE NOT a.eh_commit AND NOT coalesce(a.ts < p.piso, false)
+            UNION ALL SELECT codigo, pessoa, marca, tipo, ts FROM git_ok
+        ) WHERE codigo IN (SELECT codigo FROM contar) AND marca = 0 AND tipo >= 0
+          AND ts >= TIMESTAMP '2008-01-01' AND ts <= TIMESTAMP '{pedido.agora}'
+    """)
+    stats["repos_contados"] = len(tabela)
+    stats["repos_contados_com_evento"] = _um(
+        con, "SELECT count(DISTINCT codigo) FROM pessoas_contadas"
+    )
+    con.execute("CREATE TABLE so_pessoas AS SELECT DISTINCT pessoa FROM pessoas_contadas")
+    con.execute("DROP TABLE pessoas_contadas")
+    con.execute("ALTER TABLE so_pessoas RENAME TO pessoas_contadas")
+    stats["contribuidores_nos_repos_contados"] = _um(con, "SELECT count(*) FROM pessoas_contadas")
+
+
 def _conta_brutas(con: duckdb.DuckDBPyConnection, stats: dict[str, int]) -> None:
     """Relê os arquivos inteiros só para contar as linhas de API e de git."""
     print("duckdb: contando as linhas brutas", file=sys.stderr)
@@ -501,6 +548,8 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
             "antes do repositório virar essa linguagem)",
             file=sys.stderr,
         )
+    if pedido.repos_para_contar:
+        _pessoas_dos_repos_contados(con, pedido, stats)
     con.execute("""
         CREATE TABLE elegiveis AS
         SELECT t.codigo, t.tipo, t.pessoa, t.marca, t.ts, t.ocasiao FROM (
@@ -598,6 +647,11 @@ def _finaliza(
     stats["eventos_finais"] = _um(con, "SELECT count(*) FROM final")
     stats["repos_finais"] = _um(con, "SELECT count(DISTINCT codigo) FROM final")
     stats["contribuidores_finais"] = _um(con, "SELECT count(DISTINCT pessoa) FROM final")
+    if pedido.repos_para_contar:
+        stats["contribuidores_so_nos_repos_contados"] = _um(
+            con,
+            "SELECT count(*) FROM pessoas_contadas WHERE pessoa NOT IN (SELECT pessoa FROM final)",
+        )
     if pedido.origem is not None:
         _grava_origem(con, pedido.origem, nomes_tipo)
 
@@ -629,6 +683,7 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
     discussão (o resto). Os eventos já passaram por todas as regras da carga.
     `tipos_por_ano.parquet`: eventos e primeiro evento de cada tipo em cada ano.
     `tipos_final.parquet`: eventos e pessoas de cada tipo, no total e entre os residentes.
+    `pessoas_tipos_por_ano.parquet`: eventos de cada pessoa por ano e tipo.
     """
     pasta.mkdir(parents=True, exist_ok=True)
     nomes = "[" + ", ".join(_aspas(n) for n in nomes_tipo) + "]"
@@ -691,6 +746,13 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
                    count(*) AS eventos, min(ts) AS primeiro
             FROM final GROUP BY ALL
         ) TO {_aspas(pasta / "tipos_por_ano.parquet")} (FORMAT parquet)
+    """)
+    con.execute(f"""
+        COPY (
+            SELECT pessoa, CAST(year(ts) AS SMALLINT) AS ano,
+                   list_extract({nomes}, tipo + 1) AS tipo, count(*) AS eventos
+            FROM final GROUP BY ALL
+        ) TO {_aspas(pasta / "pessoas_tipos_por_ano.parquet")} (FORMAT parquet)
     """)
 
 

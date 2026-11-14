@@ -95,6 +95,10 @@ sem_duplicados: false
 # Não vale junto com `sem_duplicados`. Só no motor duckdb.
 fundir_duplicados: false
 
+# CSV com a coluna `conta`: mais contas que saem da carga, como `contas_com_bot_sem_marcador.csv` da
+# auditoria. Serve a rodadas de teste. null não tira nenhuma. Só no motor duckdb.
+contas_excluidas_csv: null
+
 # Um commit copiado entre repositórios (fork, espelho) conta uma vez só, pelo SHA, no repositório criado
 # antes (empate: menor repo_id). false usa a chave antiga (autor, data e arquivos), que só desempata
 # pela data de criação. Só no motor duckdb.

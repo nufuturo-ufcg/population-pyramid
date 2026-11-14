@@ -528,3 +528,53 @@ def test_grupo_com_mantido_inelegivel_leva_a_identidade_do_membro_elegivel(tmp_p
     stats = carga_duckdb.carrega(pedido).estatisticas
     assert stats["grupos_sem_membro_elegivel"] == 1
     assert stats["eventos_finais"] == 1  # só o commit do repositório 3
+
+
+def test_contas_extras_saem_pelo_nome_do_commit_e_pelo_login(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    pedido = _pedido(
+        tmp_path / "a", git, api, repos, repos_fundidos={"2": "1"}, commits_pelo_sha=True,
+        contas_extras=("BIA", "Caio"),
+    )  # fmt: skip
+    stats = carga_duckdb.carrega(pedido).estatisticas
+    assert stats["contribuidores_finais"] == 1  # só a ana
+
+
+def test_repos_para_contar_conta_quem_estaria_num_repositorio_inelegivel(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    repos.loc[repos["repo_id"] == "3", "elegivel"] = False
+    pedido = _pedido(
+        tmp_path / "a", git, api, repos, repos_fundidos={"2": "1"}, commits_pelo_sha=True,
+        repos_para_contar=("3",), origem=tmp_path / "origem",
+    )  # fmt: skip
+    stats = carga_duckdb.carrega(pedido).estatisticas
+    assert stats["contribuidores_finais"] == 2  # ana e bia; o caio só está no 3
+    assert stats["repos_contados_com_evento"] == 1
+    assert stats["contribuidores_nos_repos_contados"] == 1
+    assert stats["contribuidores_so_nos_repos_contados"] == 1
+    por_tipo = pd.read_parquet(tmp_path / "origem" / "pessoas_tipos_por_ano.parquet")
+    assert int(por_tipo["eventos"].sum()) == stats["eventos_finais"]
+    assert set(por_tipo["tipo"]) == {"commits", "issues"}
+
+
+def test_repos_sem_mapa_pula_quem_tem_duplicado_elegivel(tmp_path, monkeypatch):
+    alvo = pd.DataFrame(
+        {
+            "repo_id": ["1", "2", "3", "4", "5"],
+            "languages": ['{"Zig": 10}', "{}", None, "{}", '{"C": 9, "Zig": 1}'],
+        }
+    )
+    caminho = tmp_path / "alvo.csv"
+    alvo.to_csv(caminho, index=False)
+    duplicados = tmp_path / "dup.csv"
+    # 2 está no grupo de 1 (elegível); 4 está no grupo de 5 (inelegível).
+    pd.DataFrame({"repo_id": ["2", "4"], "mantido_repo_id": ["1", "5"]}).to_csv(
+        duplicados, index=False
+    )
+    carga_fonte.aplica_linguagem("zig")
+    fonte = carga_fonte.Fonte(slug="zig", eventos=[], alvos=[caminho], duplicados=duplicados)
+    assert carga_fonte.repos_sem_mapa(fonte) == ("3", "4")
