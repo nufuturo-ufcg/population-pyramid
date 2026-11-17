@@ -300,7 +300,8 @@ def secao_piramides(figuras: str) -> str:
         "## 3. Pirâmides ao longo do tempo",
         "",
         "Uma linha por linguagem, uma coluna por ano. Cada pirâmide soma 100% dos ativos do "
-        "ano. Esquerda: discussão. Direita: código. Pirâmide com menos de 100 ativos fica vazia.",
+        "ano. Esquerda: discussão. Direita: código. Pirâmide com menos de 100 ativos fica vazia. "
+        "A escala vai até 50% dos ativos. Barra maior é cortada na borda, com o valor escrito.",
         "",
         f"![pirâmides]({figuras}/trajetoria_linha_do_tempo.png)",
         "",

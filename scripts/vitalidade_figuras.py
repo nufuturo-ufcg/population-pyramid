@@ -1634,6 +1634,30 @@ def figura_crescimento_comparado(ctx: Any, d: Dados) -> None:
     salva(fig, "trajetoria_crescimento.png", geral=True)
 
 
+# Escala da grade de pirâmides, em % dos ativos do ano.
+LIMITE_DA_LINHA_DO_TEMPO = 50.0
+
+
+def _escreve_o_que_passa(ax: Any, q: pd.DataFrame) -> None:
+    """Barra maior que a escala fica cortada pela moldura: o valor dela vai escrito na borda."""
+    borda = ax.get_xlim()[1]
+    for _, linha in q.iterrows():
+        for coluna, sinal in [("non_coding", -1), ("coding", 1)]:
+            valor = float(linha[coluna])
+            if valor <= borda:
+                continue
+            ax.text(
+                sinal * borda * 0.97,
+                linha["band"],
+                f"{valor:.0f}%",
+                ha="left" if sinal < 0 else "right",
+                va="center",
+                fontsize=11,
+                fontweight="bold",
+                bbox={"facecolor": "white", "edgecolor": "#4D4D4D", "linewidth": 0.6, "pad": 1.5},
+            )
+
+
 @figura("trajetoria", "linha_do_tempo", padrao=True)
 def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
     """Pirâmides em % de cada linguagem (linhas) em cada ano de `anos_piramide` (colunas)."""
@@ -1643,13 +1667,9 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
     slugs = list(ctx.p.linguagens_rq2)
     codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
     lado = ctx.p.piramide_lado
-    # Escala comum só entre os painéis desenhados: um ano com 3 ativos tem barra de 100%.
-    # Nenhuma passa de 50% dos ativos; se passar, a escala cresce junto.
-    mostrados = []
-    for _, linha in comp.iterrows():
-        grande = ativos.get((linha["slug"], linha["ano"]), 0) >= MIN_PESSOAS
-        mostrados.append(bool(grande and linha["slug"] in slugs and linha["ano"] in anos))
-    xmax = _xmax_das_piramides([_so_o_lado(comp[mostrados], lado)], minimo=50.0)
+    # Escala comum fixa: uma barra rara (Zig 2018, 70% de novatos na discussão) esticava todos
+    # os painéis. A barra maior que a escala é cortada na borda, com o valor escrito.
+    xmax = LIMITE_DA_LINHA_DO_TEMPO
     fig, eixos = plt.subplots(
         len(slugs), len(anos), figsize=(3.6 * len(anos), 3.1 * len(slugs)), sharey=True
     )
@@ -1661,6 +1681,7 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
             if tem:
                 q["band"] = q["faixa"].map(codigo).astype(int)
                 plots.draw_pyramid(ax, _so_o_lado(q, lado), xmax=xmax)
+                _escreve_o_que_passa(ax, _so_o_lado(q, lado))
                 _regua_x_de_10_em_10(ax, xmax, max_por_lado=3, tamanho=11)
             else:
                 ax.text(
