@@ -1671,7 +1671,11 @@ def figura_piramides_linha_do_tempo(ctx: Any, d: Dados) -> None:
     # os painéis. A barra maior que a escala é cortada na borda, com o valor escrito.
     xmax = LIMITE_DA_LINHA_DO_TEMPO
     fig, eixos = plt.subplots(
-        len(slugs), len(anos), figsize=(3.6 * len(anos), 3.1 * len(slugs)), sharey=True
+        len(slugs),
+        len(anos),
+        figsize=(3.6 * len(anos), 3.1 * len(slugs)),
+        sharey=True,
+        squeeze=False,  # uma linguagem só ainda dá uma grade, com eixos[0][j]
     )
     for i, slug in enumerate(slugs):
         for j, ano in enumerate(anos):
