@@ -805,7 +805,7 @@ def figura_tabua(ctx: Any, d: Dados) -> None:
         t = tabuas[tabuas["coorte"] == coorte]
         ax.plot(t["x"], t["S"], color=cor, linewidth=2, marker="o", markersize=4, label=str(coorte))
     ax.set_ylim(0, 1)
-    ax.set_xlabel("anos desde a primeira contribuição")
+    ax.set_xlabel("idade na linguagem, em anos")
     ax.set_ylabel("fração do grupo ainda ativa")
     ax.set_title(
         f"{_nome()}: de cada 100 pessoas que entram, quantas seguem ativas depois de x anos"
@@ -1001,9 +1001,9 @@ def figura_tabua_esperanca(ctx: Any, d: Dados) -> None:
             linewidth=2,
             label=carga_fonte.LINGUAGENS[slug].nome,
         )
-    ax.set_xlabel("anos desde a primeira contribuição")
-    ax.set_ylabel("vida restante, e(x), em anos")
-    ax.set_title("Quem chegou a x anos, quantos anos ainda restam")
+    ax.set_xlabel("idade na linguagem, em anos")
+    ax.set_ylabel("anos que ainda restam, em média")
+    ax.set_title("Anos que ainda restam na linguagem, por idade")
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca_comparada.png", geral=True)
@@ -1112,7 +1112,7 @@ def _tabua_slide_todas(
     ax.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
     ax.set_xticks(range(0, int(t["x"].max()) + 1))
     ax.tick_params(labelsize=13)
-    ax.set_xlabel("anos desde a primeira contribuição", fontsize=15)
+    ax.set_xlabel("idade na linguagem, em anos", fontsize=15)
     ax.set_ylabel(eixo_y, fontsize=15)
     ax.set_title(titulo, fontsize=18)
     ax.legend(frameon=False, fontsize=13)
@@ -1139,7 +1139,7 @@ def figura_tabua_slide_anos(ctx: Any, d: Dados) -> None:
         ctx,
         d,
         "e",
-        "Quem chegou a x anos, quantos anos ainda restam",
+        "Anos que ainda restam na linguagem, por idade",
         "anos que ainda restam, em média",
         "tabua_anos_que_restam.png",
     )
@@ -1298,7 +1298,7 @@ def figura_esperanca(ctx: Any, d: Dados) -> None:
     for coorte, cor in zip(coortes, rampa(len(coortes)), strict=True):
         t = tabuas[tabuas["coorte"] == coorte]
         ax.plot(t["x"], t["e"], color=cor, linewidth=2, label=str(coorte))
-    ax.set_xlabel("anos desde a primeira contribuição")
+    ax.set_xlabel("idade na linguagem, em anos")
     ax.set_ylabel("anos que ainda restam")
     ax.set_title(f"{_nome()}: anos que ainda restam, por coorte de entrada")
     ax.legend(title="coorte", frameon=False)
