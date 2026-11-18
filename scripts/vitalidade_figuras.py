@@ -1116,7 +1116,38 @@ def _tabua_slide_todas(
     ax.set_ylabel(eixo_y, fontsize=15)
     ax.set_title(titulo, fontsize=18)
     ax.legend(frameon=False, fontsize=13)
+    if coluna == "e":
+        _marca_clojure_no_eixo_y(ax, t)
     salva(fig, nome, geral=True)
+
+
+def _marca_clojure_no_eixo_y(ax: Any, t: pd.DataFrame) -> None:
+    """Escreve no eixo y a expectativa de vida de Clojure ao chegar (x = 0), na cor de Clojure."""
+    clojure = t[(t["linguagem"] == "clojure") & (t["x"] == 0)]
+    if clojure.empty:
+        return
+    valor = float(clojure["e"].iloc[0])
+    baixo, alto = ax.get_ylim()
+    ticks = []
+    for tick in ax.get_yticks():
+        # Tick inteiro a menos de meio ano do valor de Clojure encostaria no rótulo dele.
+        if baixo <= tick <= alto and abs(tick - valor) >= 0.5:
+            ticks.append(float(tick))
+    ticks.append(valor)
+    ticks.sort()
+    rotulos = []
+    for tick in ticks:
+        if tick == valor:
+            rotulos.append(f"{valor:.1f}".replace(".", ","))
+        else:
+            rotulos.append(f"{tick:g}")
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(rotulos)
+    ax.set_ylim(baixo, alto)
+    for rotulo in ax.get_yticklabels():
+        if rotulo.get_text() == f"{valor:.1f}".replace(".", ","):
+            rotulo.set_color(cor_da("clojure"))
+            rotulo.set_fontweight("bold")
 
 
 @figura("tabua_comparada", "slide_chance", padrao=True)
