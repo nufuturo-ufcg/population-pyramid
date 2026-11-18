@@ -1002,8 +1002,8 @@ def figura_tabua_esperanca(ctx: Any, d: Dados) -> None:
             label=carga_fonte.LINGUAGENS[slug].nome,
         )
     ax.set_xlabel("idade na linguagem, em anos")
-    ax.set_ylabel("anos que ainda restam, em média")
-    ax.set_title("Anos que ainda restam na linguagem, por idade")
+    ax.set_ylabel("expectativa de vida, em anos")
+    ax.set_title("Expectativa de vida na linguagem, por idade")
     ax.legend(frameon=False)
     plots._theme(ax)
     salva(fig, "tabua_esperanca_comparada.png", geral=True)
@@ -1041,7 +1041,7 @@ def figura_tabua_chegar_e_ficar(ctx: Any, d: Dados) -> None:
 
 @figura("tabua_comparada", "slide_clojure", padrao=True)
 def figura_tabua_slide_clojure(ctx: Any, d: Dados) -> None:
-    """Tábua de vida de Clojure para slide: chance de seguir mais 1 ano e anos que ainda restam.
+    """Tábua de vida de Clojure para slide: chance de seguir mais 1 ano e expectativa de vida.
 
     Fonte grande, valor escrito em cada ponto (o slide dispensa a tabela) e a faixa de 2 a 3 anos
     sombreada, que é a da pirâmide.
@@ -1074,14 +1074,14 @@ def figura_tabua_slide_clojure(ctx: Any, d: Dados) -> None:
             fontsize=14,
         )
     ax2.set_ylim(0, c["e"].max() * 1.25)
-    ax2.set_ylabel("anos, em média", fontsize=15)
-    ax2.set_title("Anos que ainda restam na linguagem", fontsize=19)
+    ax2.set_ylabel("anos", fontsize=15)
+    ax2.set_title("Expectativa de vida na linguagem", fontsize=19)
     for ax in (ax1, ax2):
         plots._theme(ax)
         ax.axvspan(2, 3, color="#888888", alpha=0.18, zorder=0)
         ax.set_xticks(c["x"].tolist())
         ax.tick_params(labelsize=14)
-        ax.set_xlabel("anos na linguagem, x", fontsize=15)
+        ax.set_xlabel("idade na linguagem, em anos", fontsize=15)
     fig.suptitle("Clojure: tábua de vida", fontsize=21)
     fig.tight_layout()
     salva(fig, "tabua_de_vida_clojure.png", geral=True)
@@ -1134,13 +1134,13 @@ def figura_tabua_slide_chance(ctx: Any, d: Dados) -> None:
 
 @figura("tabua_comparada", "slide_anos", padrao=True)
 def figura_tabua_slide_anos(ctx: Any, d: Dados) -> None:
-    """Anos que ainda restam, todas as linguagens, para slide."""
+    """Expectativa de vida, todas as linguagens, para slide."""
     _tabua_slide_todas(
         ctx,
         d,
         "e",
-        "Anos que ainda restam na linguagem, por idade",
-        "anos que ainda restam, em média",
+        "Expectativa de vida na linguagem, por idade",
+        "expectativa de vida, em anos",
         "tabua_anos_que_restam.png",
     )
 

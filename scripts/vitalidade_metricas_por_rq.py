@@ -556,7 +556,7 @@ def fracao_ate_5_anos(q: pd.Series) -> float:
 
 
 def tabua_de_vida(pastas: Pastas, ordem: list[str]) -> list[str]:
-    """Seção 2.7: chance de seguir mais 1 ano e anos que ainda restam, nas cinco linguagens."""
+    """Seção 2.7: chance de seguir mais 1 ano e expectativa de vida, nas cinco linguagens."""
     geral = "geral" + pastas.sufixo
     tabua = pastas.csv(geral, "tabua_comparada.csv")
     # Mesmo corte dos gráficos: abaixo de 300 pessoas observadas a chance oscila (o Zig a partir
@@ -585,7 +585,7 @@ def tabua_de_vida(pastas: Pastas, ordem: list[str]) -> list[str]:
         "",
         "- Chance de seguir mais 1 ano: das pessoas que chegaram a x anos na linguagem, quantos % "
         "continuam ativas no ano seguinte.",
-        "- Anos que ainda restam: quantos anos, em média, a pessoa ainda fica depois de chegar a "
+        "- Expectativa de vida: quantos anos, em média, a pessoa ainda fica depois de chegar a "
         "x. É um mínimo: a conta só soma os anos observados até o fim da coleta, por isso cai "
         "nos x altos.",
         "- O Zig sai da tabela a partir de 5 anos: tem menos de 300 pessoas observadas.",
@@ -601,11 +601,11 @@ def tabua_de_vida(pastas: Pastas, ordem: list[str]) -> list[str]:
         "",
         figura(pastas.base, f"{geral}/vitalidade/tabua_chance_de_seguir.png", "chance de seguir"),
         "",
-        "Anos que ainda restam, em média:",
+        "Expectativa de vida, em anos:",
         "",
         tabela_md(resta, 2),
         "",
-        figura(pastas.base, f"{geral}/vitalidade/tabua_anos_que_restam.png", "anos que restam"),
+        figura(pastas.base, f"{geral}/vitalidade/tabua_anos_que_restam.png", "expectativa de vida"),
         "",
         figura(pastas.base, f"{geral}/vitalidade/tabua_de_vida_clojure.png", "tábua de Clojure"),
         "",
