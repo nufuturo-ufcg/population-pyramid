@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from estado import DIAS_BANDA, FIM, TOPO, grade
+from estado import DIAS_BANDA, FIM, TOPO, bucket_tamanho, grade, tabela_de_parada
 from previsao import abre_vet
 from rodar import le_dados, memoria_maxima_gb
 
@@ -183,11 +183,12 @@ def preve_repos(rep: dict, k: int) -> dict:
     idade_antes = rep["idade_repo"][:, k - 1]
     ativo_antes = cnt[:, k - 1].sum(axis=1) > 0
     parou = ativo_antes & (cnt[:, k].sum(axis=1) == 0)
-    ativos_por_idade = np.bincount(idade_antes[ativo_antes], minlength=COLUNAS).astype(float)
-    pararam = np.bincount(idade_antes[parou], minlength=COLUNAS).astype(float)
-    geral = pararam.sum() / max(ativos_por_idade.sum(), 1)
-    pstop = np.where(ativos_por_idade > 0, pararam / np.maximum(ativos_por_idade, 1), geral)
-    saida["p_parada"] = pstop[rep["idade_repo"][ativos, k]]
+    tabela = tabela_de_parada(
+        idade_antes, cnt[:, k - 1].sum(axis=1), ativo_antes, parou, COLUNAS
+    )  # por idade e tamanho (pares ativos) no recorte anterior
+    saida["p_parada"] = tabela[
+        rep["idade_repo"][ativos, k], bucket_tamanho(cnt[ativos, k].sum(axis=1))
+    ]
     nasc = rep["nascimentos"][max(k - N2 + 1, 0) : k + 1].mean()
     pares_novos = rep["pares_dos_novos"][max(k - N2 + 1, 0) : k + 1].sum() / max(
         rep["nascimentos"][max(k - N2 + 1, 0) : k + 1].sum(), 1

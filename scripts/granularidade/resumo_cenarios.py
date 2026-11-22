@@ -464,6 +464,34 @@ tabela(
 )
 (SAIDA / "tabelas.md").write_text("\n".join(L), encoding="utf-8")
 
+# ---------------------------------------------------------------- calibração da parada
+calib = le("*_calibracao.csv")
+if len(calib):
+    L.append("## Calibração da parada de repositórios")
+    L.append("")
+    L.append(
+        "Fração de pessoas ativas que fica sem repositório ativo entre dois recortes: a prevista na origem (probabilidade de parada por idade e tamanho do repositório, pesada pelos pares) e a observada no recorte seguinte, média dos recortes (a partir do segundo ano). Previsão e observação próximas indicam que a saída por parada não é contada a mais nem a menos."
+    )
+    L.append("")
+    linhas = []
+    for (c, x), g in calib[calib["k"] >= 8].groupby(["cenario", "linguagem"]):
+        linhas.append(
+            [
+                c,
+                NOMES[x],
+                num(g["saida_por_parada_prevista"].mean()),
+                num(g["saida_por_parada_observada"].mean()),
+                num(
+                    np.corrcoef(g["saida_por_parada_prevista"], g["saida_por_parada_observada"])[
+                        0, 1
+                    ],
+                    2,
+                ),
+            ]
+        )
+    tabela(["Cenário", "Linguagem", "Prevista", "Observada", "Correlação"], linhas)
+    (SAIDA / "tabelas.md").write_text("\n".join(L), encoding="utf-8")
+
 # ---------------------------------------------------------------- hipóteses
 dec = []
 tres = min(3, len(DECISAO))

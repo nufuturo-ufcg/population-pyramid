@@ -65,6 +65,30 @@ def roda_cenario(
         f"{prefixo}: estado pronto ({est['n_pessoas']} pessoas, {est['n_repos']} repositórios, {K1} recortes) em {time.time() - inicio:.0f}s, pico de memória {memoria_maxima_gb():.1f} GB",
         flush=True,
     )
+    # calibração da parada: fração de pessoas que ficariam sem repositório (prevista na origem) contra a que ficou (observada no recorte seguinte)
+    pasta.mkdir(parents=True, exist_ok=True)
+    pessoas_na_faixa = est["pop_p_b"].sum(axis=1)
+    calibracao = [
+        (
+            lingua,
+            cenario,
+            k,
+            est["Q_b"][k].sum() / max(pessoas_na_faixa[k], 1),
+            est["ORF_b"][k + 1].sum() / max(pessoas_na_faixa[k], 1),
+        )
+        for k in range(1, K1 - 1)
+        if pessoas_na_faixa[k] > 0
+    ]
+    pd.DataFrame(
+        calibracao,
+        columns=[
+            "linguagem",
+            "cenario",
+            "k",
+            "saida_por_parada_prevista",
+            "saida_por_parada_observada",
+        ],
+    ).to_csv(pasta / f"{prefixo}_calibracao.csv", index=False, float_format="%.6g")
     regras = gera_regras(len(POOL))
     nomes = [*BASE, *metodos_b(), *metodos_r()] + (["coorte_IEICE_B"] if cfg["ieice"] else [])
     hist = {

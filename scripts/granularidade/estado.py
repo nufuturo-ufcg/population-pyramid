@@ -25,6 +25,8 @@ ANO0 = 2008
 FIM = np.datetime64("2024-12-31")
 BIG = 10**6
 TOPO = 8
+NT_TAMANHO = 10  # faixas de tamanho do repositório (pares ativos): 1, 2-3, 4-7, ..., 512 ou mais
+MIN_REPOS_POR_CELULA = 20  # menos repositórios que isto numa célula (idade, tamanho) usa a taxa do tamanho, e depois a geral
 DIAS_BANDA = (
     365.25 / 4
 )  # banda de 3 meses do IEICE16: (0, 3], (3, 6], ... meses desde a primeira contribuição
@@ -48,6 +50,54 @@ def grade(passo_meses: float, ate: np.datetime64 = FIM) -> np.ndarray:
                 datas.append(fim_mes)
     datas = np.array(datas, dtype="datetime64[D]")
     return datas[datas <= ate]
+
+
+def bucket_tamanho(pares_ativos: np.ndarray) -> np.ndarray:
+    """Faixa de tamanho do repositório: parte inteira do log2 dos pares ativos (mínimo 1), até `NT_TAMANHO - 1`."""
+    return np.minimum(
+        np.floor(np.log2(np.maximum(pares_ativos, 1))).astype(np.int64), NT_TAMANHO - 1
+    )
+
+
+def tabela_de_parada(
+    idade_antes: np.ndarray,
+    pares_antes: np.ndarray,
+    ativos_antes: np.ndarray,
+    pararam: np.ndarray,
+    n_idades: int,
+    por_pares: bool = False,
+) -> np.ndarray:
+    """Probabilidade de um repositório ativo parar até o recorte seguinte, por idade e por tamanho (pares ativos) no recorte anterior.
+
+    O tamanho conta: as pessoas se concentram nos repositórios grandes, que quase não param, e uma taxa só por idade superestima a chance de uma pessoa ficar sem repositório.
+    `por_pares` pesa cada repositório pelos seus pares ativos: é a probabilidade de o repositório de um par sorteado parar, que é o que a pessoa enfrenta (a pessoa é sorteada pelo par).
+    Sem `por_pares` é a probabilidade de um repositório sorteado parar (soma por repositório). Célula com poucos repositórios usa a taxa do tamanho (todas as idades) e, sem ela, a geral.
+    """
+    tam = bucket_tamanho(pares_antes)
+    celula = idade_antes * NT_TAMANHO + tam
+    tamanho_celula = n_idades * NT_TAMANHO
+    peso = np.maximum(pares_antes, 1).astype(float) if por_pares else np.ones(len(pares_antes))
+    contagem = (
+        np.bincount(celula[ativos_antes], minlength=tamanho_celula)
+        .reshape(n_idades, NT_TAMANHO)
+        .astype(float)
+    )
+    ativos = np.bincount(
+        celula[ativos_antes], weights=peso[ativos_antes], minlength=tamanho_celula
+    ).reshape(n_idades, NT_TAMANHO)
+    parados = np.bincount(celula[pararam], weights=peso[pararam], minlength=tamanho_celula).reshape(
+        n_idades, NT_TAMANHO
+    )
+    geral = parados.sum() / max(ativos.sum(), 1)
+    por_tamanho = np.where(
+        contagem.sum(axis=0) >= MIN_REPOS_POR_CELULA,
+        parados.sum(axis=0) / np.maximum(ativos.sum(axis=0), 1e-12),
+        geral,
+    )
+    tabela = np.tile(por_tamanho, (n_idades, 1))
+    suficiente = contagem >= MIN_REPOS_POR_CELULA
+    tabela[suficiente] = parados[suficiente] / ativos[suficiente]
+    return tabela
 
 
 def faixa6_do_ano(ano: int) -> int:
@@ -83,6 +133,7 @@ def constroi_estado(
     janela_blocos: int | None = None,
     idade: str = "descontada",
     com_parada: bool = False,
+    depuracao: list | None = None,
 ) -> dict:
     """Pirâmides e séries por bloco até `corte` (que precisa ser uma data da grade). `populacao` é P0, P1 ou P2.
 
@@ -263,25 +314,29 @@ def constroi_estado(
         if com_parada:
             banda_p = np.minimum(idade_b, topo_b + 1)
             banda_r = np.minimum(idade_r_b, topo_b + 1)
-            pstop_k = np.full(topo_b + 2, np.nan)
-            geral = 0.0
-            if k >= 1:  # parada observada entre k - 1 e k, por idade do repositório em k - 1
+            tabela = np.zeros((topo_b + 2, NT_TAMANHO))
+            if (
+                k >= 1
+            ):  # parada observada entre k - 1 e k, por idade e tamanho do repositório em k - 1
                 antes = par_ativo[:, k - 1] > 0
-                ativos_por_idade = np.bincount(banda_r_anterior[antes], minlength=topo_b + 2)
-                pararam = np.bincount(banda_r_anterior[antes & ~ativo_r], minlength=topo_b + 2)
-                com_ativos = ativos_por_idade > 0
-                pstop_k[com_ativos] = pararam[com_ativos] / ativos_por_idade[com_ativos]
-                geral = pararam.sum() / max(ativos_por_idade.sum(), 1)
-            PSTOP_b[k] = pstop_k
-            p_uso = np.where(
-                np.isnan(pstop_k), geral, pstop_k
-            )  # idade sem repositório ativo recebe a taxa geral
+                tabela = tabela_de_parada(
+                    banda_r_anterior,
+                    par_ativo[:, k - 1],
+                    antes,
+                    antes & ~ativo_r,
+                    topo_b + 2,
+                    por_pares=True,
+                )
+            PSTOP_b[k] = tabela.mean(axis=1)
+            p_uso = tabela[
+                banda_r, bucket_tamanho(par_k)
+            ]  # probabilidade de parar de cada repositório, pela idade e pelo tamanho em k
             agora = np.where((inicio <= k) & (fim >= k))[
                 0
             ]  # pares ativos em k, só de residentes no bloco
             pessoa_k, repo_k = p_par[agora], r_par[agora]
             soma_log = np.bincount(
-                pessoa_k, weights=np.log(np.clip(p_uso[banda_r[repo_k]], 1e-9, 1.0)), minlength=n
+                pessoa_k, weights=np.log(np.clip(p_uso[repo_k], 1e-9, 1.0)), minlength=n
             )
             em_pares = np.bincount(pessoa_k, minlength=n) > 0
             Q_b[k] = np.bincount(
@@ -293,6 +348,15 @@ def constroi_estado(
                 vivos = par_ativo[repo_k, k + 1] > 0
                 com_repo_vivo = np.bincount(pessoa_k[vivos], minlength=n) > 0
                 ORF_b[k + 1] = np.bincount(banda_p[em_pares & ~com_repo_vivo], minlength=topo_b + 2)
+                if depuracao is not None:  # só para diagnosticar a calibração da parada
+                    depuracao.append(
+                        (
+                            k,
+                            np.exp(soma_log[em_pares]),
+                            (~com_repo_vivo)[em_pares],
+                            np.bincount(pessoa_k, minlength=n)[em_pares],
+                        )
+                    )
             banda_r_anterior = banda_r
     if por_tempo:
         pop_p, pop_r = pop_p_b, pop_r_b
