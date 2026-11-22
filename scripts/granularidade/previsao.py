@@ -66,8 +66,11 @@ def metodos_r() -> list[str]:
 
 
 def metodos_r_ieice() -> list[str]:
-    """Fatorial R0 a R3 da coorte exata do IEICE16 (só em S1, S3 e nos cenários com horizonte de 12 meses)."""
-    return [f"coorte_IEICE_R{r}_B" for r in range(4)]
+    """Fatorial R0 a R3 da coorte exata do IEICE16, do conservador com os novatos dela e da C3 com ela (só em S1, S3 e nos cenários com horizonte de 12 meses)."""
+    nomes = []
+    for base in ["coorte_IEICE", "conservador_IEICE", "C3_IEICE"]:
+        nomes.extend(f"{base}_R{r}_B" for r in range(4))
+    return nomes
 
 
 def todos_os_metodos() -> list[str]:
@@ -481,6 +484,10 @@ def familia_coorte(
         previsto[f"coorte_IEICE{sufixo}"] = float(
             projeta(atual, sr_ultimo, [media_n(N, k, 2)] * passos).sum()
         )
+        # conservador com a mesma regra de novatos: taxa média dos últimos 2 anos e faixa 0 pela média de 2 recortes
+        previsto[f"conservador_IEICE{sufixo}"] = float(
+            projeta(atual, meio, [media_n(N, k, 2)] * passos).sum()
+        )
     if "Q_b" in est and versao == "B":
         novatos_ieice = [media_n(N, k, 2)] * passos if ieice else None
         previsto.update(
@@ -534,6 +541,7 @@ def fatorial_r(
         saida["coorte_IEICE_R1_B"] = float(projeta(atual, sr_ultimo, novatos_r1).sum())
         saida["coorte_IEICE_R2_B"] = float(projeta(atual, sr_coorte, novatos_ieice).sum())
         saida["coorte_IEICE_R3_B"] = float(projeta(atual, sr_coorte, novatos_r1).sum())
+        saida["conservador_IEICE_R2_B"] = float(projeta(atual, sr_conservador, novatos_ieice).sum())
     return saida
 
 
@@ -584,7 +592,7 @@ def preve_estado(
     if "B" in versoes and "Q_b" in est:
         nomes = nomes + metodos_r()
     if ieice:
-        nomes = [*nomes, "coorte_IEICE_B"]
+        nomes = [*nomes, "coorte_IEICE_B", "conservador_IEICE_B"]
         if "B" in versoes and "Q_b" in est:
             nomes = nomes + metodos_r_ieice()
     previsto = {m: np.nan for m in nomes}
@@ -673,6 +681,16 @@ def preve_estado(
         previsto["coorte_amortecida_R0_B"] = previsto["coorte_amortecida_B"]
         if ieice:
             previsto["coorte_IEICE_R0_B"] = previsto["coorte_IEICE_B"]
+            previsto["conservador_IEICE_R0_B"] = previsto["conservador_IEICE_B"]
+            # com os novatos da V2 (R1 e R3) a coorte e o conservador do IEICE16 coincidem com os da V2
+            previsto["conservador_IEICE_R1_B"] = previsto["conservador_V2_B"]
+            previsto["conservador_IEICE_R3_B"] = previsto["conservador_R3_B"]
+            for r in range(
+                4
+            ):  # C3 com a coorte do IEICE16: média simples da ingênua e dela; a previsão de repositórios entra só na coorte
+                previsto[f"C3_IEICE_R{r}_B"] = (
+                    previsto["ingenua"] + previsto[f"coorte_IEICE_R{r}_B"]
+                ) / 2
         for c in COMBOS:
             previsto[f"{c}_R0_B"] = previsto[f"{c}_B"]
         for r in (1, 2, 3):

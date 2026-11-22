@@ -55,6 +55,23 @@ for c in ["S2", "S1", "S3", "S1b", "S3h"]:
         principal[principal["metodo"] == "coorte_V2"]["previsto"],
         equal_nan=True,
     )
+    if (
+        c != "S2"
+    ):  # conservador e C3 do IEICE16: R1 e R3 coincidem com a V2 e com R3; C3 é a média da ingênua e da coorte
+        todos = pd.concat(
+            [principal] + [pd.read_csv(saida / f"sint_{c}_R{r}_pares.csv.gz") for r in (1, 2, 3)]
+        )
+        prev = todos.pivot(index="k", columns="metodo", values="previsto")
+        for a, b in [("conservador_IEICE_R0", "conservador_IEICE"), ("conservador_IEICE_R1", "conservador_V2"),
+                     ("conservador_IEICE_R3", "conservador_R3"), ("coorte_IEICE_R1", "coorte_R1"), ("coorte_IEICE_R3", "coorte_R3")]:  # fmt: skip
+            assert np.allclose(prev[a], prev[b], equal_nan=True), (c, a, b)
+        for r in range(4):
+            media = (prev["ingenua"] + prev[f"coorte_IEICE_R{r}"]) / 2
+            assert np.allclose(prev[f"C3_IEICE_R{r}"], media, equal_nan=True), (c, r)
+        assert (
+            prev["conservador_IEICE_R2"].notna().any()
+            and prev["conservador_IEICE_R0"].notna().any()
+        )
     print(
         f"{c}: {principal['metodo'].nunique()} métodos no arquivo principal, controles diferem, R0 igual à V0 e R1 igual à V2"
     )
