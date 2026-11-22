@@ -10,7 +10,9 @@ Blocos: o passo em meses define as datas de fim de bloco (12, 6, 3, 2 e 1 mês: 
   - Ativo na data k: evento nos últimos `nb` blocos (nb = 12 / passo), ou seja, nos 12 meses até a data k. A janela é de 12 meses em todos os passos.
   - Idade em anos, como na rodada oficial (idade descontada): número de anos anteriores com atividade, recalculado em cada data só com dados até ela. Os anos são contados para trás a
     partir da data (12 meses cada um): idade(k) = número de datas k - nb, k - 2 nb, ... em que a pessoa estava ativa na janela de 12 meses. Em 31 de dezembro isso é o ano de calendário.
-  - Faixas: de 1 ano, de 0 a 8 anos (`TOPO = 8`) e uma aberta para quem tem mais. As 6 faixas do artigo agrupam por ano (`faixa6`).
+  - Versão A (faixa anual): faixas de 1 ano, de 0 a 8 anos (`TOPO = 8`) e uma aberta para quem tem mais. As 6 faixas do artigo agrupam por ano (`faixa6`).
+  - Versão B (faixa do passo, `*_b`): idade na régua da largura do passo, idade(k) = número das datas k - 1, k - 2, ... em que a pessoa estava ativa na janela de 12 meses. Faixas
+    de um passo, de 0 a 8 anos (`TOPO * nb` faixas) e uma aberta. Com passo de 12 meses A e B são iguais.
   - O passo só define as datas em que o estado é atualizado e o intervalo entre origens.
 
 Populações: P0 = ocasiões da vida inteira (mais de uma), P1 = residente desde o bloco da segunda ocasião (só o passado), P2 = todos.
@@ -61,11 +63,11 @@ def junta_aberta_vet(v: np.ndarray) -> np.ndarray:
     return p
 
 
-def soma_em_faixas6(v: np.ndarray) -> np.ndarray:
-    """Soma a pirâmide (faixas de 1 ano, última aberta) nas 6 faixas: 0-1, 1-2, 2-3, 3-5, 5-8 e 8+."""
+def soma_em_faixas6(v: np.ndarray, por_ano: int = 1) -> np.ndarray:
+    """Soma a pirâmide (última faixa aberta) nas 6 faixas: 0-1, 1-2, 2-3, 3-5, 5-8 e 8+. `por_ano` é o número de faixas finas em 1 ano (1 na versão A, nb na B)."""
     soma = np.zeros(6)
     for b in range(len(v)):
-        soma[faixa6_do_ano(b)] += v[b]
+        soma[faixa6_do_ano(b // por_ano)] += v[b]
     return soma
 
 
@@ -169,21 +171,22 @@ def constroi_estado(
         assert ((par_ativo > 0) == janela_r).all(), (
             "pares ativos não conferem com a atividade do repositório"
         )
-    idade_r = np.zeros(
-        (n_repos, K1), dtype=np.int16
-    )  # idade em anos: datas k - nb, k - 2 nb, ... com o repositório ativo
-    for k in range(nb, K1):
-        idade_r[:, k] = idade_r[:, k - nb] + janela_r[:, k - nb]
-    del cum_r, janela_r
+    del cum_r
 
-    pop_p = np.zeros((K1, topo + 2))
-    pop_r = np.zeros((K1, topo + 2))
-    NN, NE, PX, PN = (np.zeros(K1) for _ in range(4))
+    topo_b = TOPO * nb  # versão B: faixas da largura do passo, de 0 a 8 anos
+    pop_p, pop_r = np.zeros((K1, topo + 2)), np.zeros((K1, topo + 2))
+    pop_p_b, pop_r_b = np.zeros((K1, topo_b + 2)), np.zeros((K1, topo_b + 2))
+    NN, NE, PX, PN, NN_b, NE_b, PX_b, PN_b = (np.zeros(K1) for _ in range(8))
     janela = np.zeros(n, dtype=np.int16)
-    idade_buf = np.zeros(
-        (nb, n), dtype=np.int16
-    )  # idade das últimas nb datas, para a recursão idade(k) = idade(k - nb) + ativo(k - nb)
+    # versão A (faixa anual): idade(k) = idade(k - nb) + ativo(k - nb). Versão B (faixa do passo): idade(k) = idade(k - 1) + ativo(k - 1).
+    idade_buf = np.zeros((nb, n), dtype=np.int16)
     ativo_buf = np.zeros((nb, n), dtype=bool)
+    idade_r_buf = np.zeros((nb, n_repos), dtype=np.int16)
+    ativo_r_buf = np.zeros((nb, n_repos), dtype=bool)
+    idade_b = np.zeros(n, dtype=np.int16)
+    idade_r_b = np.zeros(n_repos, dtype=np.int16)
+    ativo_anterior = np.zeros(n, dtype=bool)
+    ativo_r_anterior = np.zeros(n_repos, dtype=bool)
     for k in range(K1):
         janela += ativ_p[:, k]
         if k - nb >= 0:
@@ -192,33 +195,74 @@ def constroi_estado(
         espaco = k % nb
         idade = idade_buf[espaco] + ativo_buf[espaco] if k >= nb else np.zeros(n, dtype=np.int16)
         idade_buf[espaco], ativo_buf[espaco] = idade, ativo_janela
+        idade_b = idade_b + ativo_anterior
+        janela_do_repo = janela_r[:, k]
+        idade_r_a = (
+            idade_r_buf[espaco] + ativo_r_buf[espaco]
+            if k >= nb
+            else np.zeros(n_repos, dtype=np.int16)
+        )
+        idade_r_buf[espaco], ativo_r_buf[espaco] = idade_r_a, janela_do_repo
+        idade_r_b = idade_r_b + ativo_r_anterior
+        ativo_anterior, ativo_r_anterior = ativo_janela, janela_do_repo
         ativo = ativo_janela & (k >= R)
-        pop_p[k] = np.bincount(np.minimum(idade[ativo], topo + 1), minlength=topo + 2)
-        idade_k = idade_r[:, k]
         ativo_r = par_ativo[:, k] > 0
-        pop_r[k] = np.bincount(np.minimum(idade_k[ativo_r], topo + 1), minlength=topo + 2)
-        PX[k] = par_ativo[ativo_r & (idade_k >= 1), k].sum()
-        PN[k] = par_ativo[ativo_r & (idade_k == 0), k].sum()
-        novato = ativo & (idade == 0)
-        repos_dos_novatos = repo_do_primeiro[novato]
-        em_repo_novo = idade_k[repos_dos_novatos] == 0
-        NN[k] = em_repo_novo.sum()
-        NE[k] = (~em_repo_novo).sum()
+        par_k = par_ativo[:, k]
+        pop_p[k], pop_r[k], NN[k], NE[k], PX[k], PN[k] = linha_do_estado(
+            idade, ativo, idade_r_a, ativo_r, par_k, repo_do_primeiro, topo
+        )
+        pop_p_b[k], pop_r_b[k], NN_b[k], NE_b[k], PX_b[k], PN_b[k] = linha_do_estado(
+            idade_b, ativo, idade_r_b, ativo_r, par_k, repo_do_primeiro, topo_b
+        )
     assert np.allclose(NN + NE, pop_p[:, 0]), "novatos por repositório não somam os novatos"
+    assert np.allclose(NN_b + NE_b, pop_p_b[:, 0]), (
+        "novatos por repositório (B) não somam os novatos"
+    )
+    assert np.allclose(pop_p.sum(axis=1), pop_p_b.sum(axis=1)), (
+        "A e B têm total de ativos diferente"
+    )
     return {
-        "datas": datas, "nb": nb, "topo": topo, "pop_p": pop_p, "pop_r": pop_r, "ativas": pop_p.sum(axis=1), "N": pop_p[:, 0], "R0": pop_r[:, 0],
+        "datas": datas, "nb": nb, "topo": topo, "topo_b": topo_b, "pop_p": pop_p, "pop_r": pop_r, "ativas": pop_p.sum(axis=1), "N": pop_p[:, 0], "R0": pop_r[:, 0],
         "E": pop_r[:, 1:].sum(axis=1), "NN": NN, "NE": NE, "PX": PX, "PN": PN, "pares": par_ativo.sum(axis=0).astype(float), "par_ativo": par_ativo,
-        "idade_r": idade_r, "primeiro_r": primeiro_r, "n_repos": n_repos, "n_pessoas": n,
+        "pop_p_b": pop_p_b, "pop_r_b": pop_r_b, "N_b": pop_p_b[:, 0], "R0_b": pop_r_b[:, 0], "E_b": pop_r_b[:, 1:].sum(axis=1), "NN_b": NN_b, "NE_b": NE_b, "PX_b": PX_b, "PN_b": PN_b,
+        "primeiro_r": primeiro_r, "n_repos": n_repos, "n_pessoas": n,
     }  # fmt: skip
+
+
+def linha_do_estado(
+    idade: np.ndarray,
+    ativo: np.ndarray,
+    idade_repo: np.ndarray,
+    ativo_repo: np.ndarray,
+    pares_do_repo: np.ndarray,
+    repo_do_primeiro: np.ndarray,
+    topo: int,
+) -> tuple:
+    """Pirâmides de pessoas e de repositórios numa data, na régua de idade dada, e novatos e pares por tipo de repositório."""
+    pessoas_por_faixa = np.bincount(np.minimum(idade[ativo], topo + 1), minlength=topo + 2)
+    repos_por_faixa = np.bincount(np.minimum(idade_repo[ativo_repo], topo + 1), minlength=topo + 2)
+    pares_em_existentes = pares_do_repo[ativo_repo & (idade_repo >= 1)].sum()
+    pares_em_novos = pares_do_repo[ativo_repo & (idade_repo == 0)].sum()
+    novato = ativo & (idade == 0)
+    em_repo_novo = idade_repo[repo_do_primeiro[novato]] == 0
+    return (
+        pessoas_por_faixa, repos_por_faixa, em_repo_novo.sum(), (~em_repo_novo).sum(),
+        pares_em_existentes, pares_em_novos,
+    )  # fmt: skip
+
+
+SERIES_NO_TEMPO = [
+    "pop_p", "pop_r", "ativas", "N", "R0", "E", "NN", "NE", "PX", "PN", "pares",
+    "pop_p_b", "pop_r_b", "N_b", "R0_b", "E_b", "NN_b", "NE_b", "PX_b", "PN_b",
+]  # fmt: skip
 
 
 def corta_estado(est: dict, k: int) -> dict:
     """O que se sabe na data do bloco k: as séries até k e nada depois. Repositório nascido depois de k não tem primeiro bloco."""
     saida = dict(est)
     saida["datas"] = est["datas"][: k + 1]
-    for nome in ["pop_p", "pop_r", "ativas", "N", "R0", "E", "NN", "NE", "PX", "PN", "pares"]:
+    for nome in SERIES_NO_TEMPO:
         saida[nome] = est[nome][: k + 1]
     saida["par_ativo"] = est["par_ativo"][:, : k + 1]
-    saida["idade_r"] = est["idade_r"][:, : k + 1]
     saida["primeiro_r"] = np.where(est["primeiro_r"] <= k, est["primeiro_r"], BIG)
     return saida

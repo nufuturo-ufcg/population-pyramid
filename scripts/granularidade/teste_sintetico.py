@@ -6,6 +6,8 @@
   3. Teste de vazamento em P1 e P2, em todos os passos (12, 6, 3, 2, 1 e 0,5 mês), com os controles de vazamento de propósito: eventos futuros (P1 e P2) e promoções a residente (P1).
      O teste só vale no passo em que o controle difere; o script falha se algum passo tem controle que não difere.
   4. P2 tem pelo menos os ativos de P1 em todo bloco; as faixas somam o total.
+  5. Versão B (faixas do passo): em 12 meses A e B têm as mesmas pirâmides e `rodar.py` confere que todos os métodos da B igualam os da A (para se não igualarem);
+     a B passa pelo teste de vazamento e pelos controles.
 
 Uso (na raiz do repo): .venv/bin/python <este arquivo> <pasta temporária>
 """
@@ -225,6 +227,22 @@ def main() -> None:
             print(texto)
     sem_poder = [c for c in controles if c[3] == 0]
     assert not sem_poder, f"controles que não diferem (teste sem poder nesses passos): {sem_poder}"
+    # versão B: com passo de 12 meses as pirâmides de A e B são iguais; nos outros o total de ativos é o mesmo
+    p12 = constroi_estado(pessoas, eventos, 12, "P1", FIM)
+    for nome in ["pop_p", "pop_r", "N", "R0", "E", "NN", "NE", "PX", "PN"]:
+        assert np.array_equal(p12[nome], p12[nome + "_b"]), nome
+    for passo in [6, 3, 0.5]:
+        est = constroi_estado(pessoas, eventos, passo, "P2", FIM)
+        assert est["pop_p_b"].shape[1] == 8 * est["nb"] + 2 and est["pop_p"].shape[1] == 10
+        assert np.array_equal(est["pop_p"].sum(axis=1), est["pop_p_b"].sum(axis=1))
+        # as faixas finas da B, somadas por ano, ficam perto das faixas de 1 ano da A (idade em passos contra idade em anos)
+        por_ano = (
+            est["pop_p_b"][:, : 8 * est["nb"]].reshape(len(est["datas"]), 8, est["nb"]).sum(axis=2)
+        )
+        diferenca = np.abs(por_ano - est["pop_p"][:, :8]).sum(axis=1) / np.maximum(est["ativas"], 1)
+        print(
+            f"   B contra A, passo {passo}: diferença média entre as faixas de 1 ano da A e as da B somadas por ano: {diferenca[est['ativas'] > 0].mean():.3f} do total de ativos"
+        )
     for passo in [12, 3, 0.5]:
         p1 = constroi_estado(pessoas, eventos, passo, "P1", FIM)
         p2 = constroi_estado(pessoas, eventos, passo, "P2", FIM)

@@ -1,7 +1,10 @@
 """Previsão do total de ativos 12 meses à frente, em qualquer passo e população. Ver `hipoteses.md`.
 
-Idade em anos como na rodada oficial, faixas de 1 ano. As taxas de permanência são de 12 meses (pirâmides de duas datas da grade 12 meses afastadas) e a pirâmide avança
-um ano de uma vez. O passo define as datas da grade: de quantas datas saem as médias, as retas, as janelas dos cenários e a série do Holt.
+Duas versões dos métodos de coorte:
+  - A (faixa anual): idade em anos como na rodada oficial, faixas de 1 ano. As taxas de permanência são de 12 meses (pirâmides de duas datas da grade 12 meses afastadas) e a pirâmide
+    avança um ano de uma vez.
+  - B (faixa do passo, sufixo `_B`): faixas da largura do passo, idade na régua do passo. As taxas são de um passo e a pirâmide avança um passo por vez, `nb` vezes (nb = datas por ano).
+O passo define as datas da grade: de quantas datas saem as médias, as retas, as janelas dos cenários e a série do Holt. Com passo de 12 meses A e B são iguais.
 
 `preve_estado(est, hist, pool)` recebe o estado cortado na origem (`estado.corta_estado`: só séries até a origem) e o histórico das previsões de origens anteriores.
 Não abre arquivo e não enxerga o alvo. O valor real do alvo é calculado fora, por quem chama.
@@ -13,7 +16,7 @@ Métodos: ingênua; coorte, conservador, pessimista e otimista nas variantes V0 
 import itertools
 
 import numpy as np
-from estado import BIG, soma_em_faixas6
+from estado import BIG, SERIES_NO_TEMPO, soma_em_faixas6
 from estado import junta_aberta_vet as junta_aberta
 from scipy.optimize import minimize
 
@@ -33,6 +36,25 @@ POOL7 = ["ingenua", "coorte_V0", "deriva", "holt_amortecido", "hp3", "hp5", "coo
 COMBOS = ["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
 MIN_HIST = 3
 FAIXAS_COM_DETALHE = ["ingenua", "coorte_V0", "conservador_V0"]
+
+
+POOL_B = [
+    "ingenua",
+    "coorte_V0_B",
+    "conservador_V0_B",
+    "deriva",
+    "holt_amortecido",
+    "hp3_B",
+    "hp5_B",
+    "coorte_amortecida_B",
+]
+FAIXAS_COM_DETALHE_B = ["coorte_V0_B", "conservador_V0_B"]
+
+
+def metodos_b() -> list[str]:
+    """Métodos que existem na versão B (ingênua, deriva e Holt não têm pirâmide e ficam só na A)."""
+    nomes = [f"{familia}_{v}_B" for familia in FAMILIAS for v in VARIANTES]
+    return [*nomes, "hp3_B", "hp5_B", "coorte_amortecida_B", *[f"{c}_B" for c in COMBOS]]
 
 
 def todos_os_metodos() -> list[str]:
@@ -108,10 +130,22 @@ def avanca(atual: np.ndarray, sr: np.ndarray, novatos: float) -> np.ndarray:
     return proximo
 
 
-def projeta_repos(atual: np.ndarray, sr: np.ndarray, fallback: float, nascimentos: float) -> float:
-    """Repositórios existentes (faixa 1 em diante) daqui a 12 meses. Faixa sem taxa recebe a taxa média dos repositórios com 1 ano ou mais."""
+def projeta(atual: np.ndarray, sr: np.ndarray, novatos_por_passo: list[float]) -> np.ndarray:
+    for novatos in novatos_por_passo:
+        atual = avanca(atual, sr, novatos)
+    return atual
+
+
+def projeta_repos(
+    atual: np.ndarray, sr: np.ndarray, fallback: float, nascimentos: float, passos: int
+) -> list[float]:
+    """Repositórios existentes (faixa 1 em diante) depois de cada passo. Faixa sem taxa recebe a taxa média dos repositórios com 1 ano ou mais."""
+    existentes = []
     sr_cheia = np.where(np.isnan(sr), fallback, sr)
-    return float(avanca(atual, sr_cheia, nascimentos)[1:].sum())
+    for _ in range(passos):
+        atual = avanca(atual, sr_cheia, nascimentos)
+        existentes.append(float(atual[1:].sum()))
+    return existentes
 
 
 def serie(v: np.ndarray, k: int, n: int) -> np.ndarray:
@@ -136,21 +170,22 @@ def maximo(x: np.ndarray) -> float:
     return float(np.nanmax(x)) if not np.all(np.isnan(x)) else 0.0
 
 
-def reta(v: np.ndarray, k: int, n3: int, h: int, contagem: dict) -> float:
-    """Reta dos últimos 3 anos (n3 datas, ignora as sem valor), extrapolada h datas à frente. Negativo vira zero e é contado."""
+def reta(v: np.ndarray, k: int, n3: int, hs: list[int], contagem: dict) -> list[float]:
+    """Reta dos últimos 3 anos (n3 datas, ignora as sem valor), extrapolada h datas à frente para cada h. Negativo vira zero e é contado."""
     y = serie(v, k, n3)
     x = np.arange(n3)
     bom = ~np.isnan(y)
     if bom.sum() >= 2:
         angular, linear = np.polyfit(x[bom], y[bom], 1)
-        bruto = angular * (n3 - 1 + h) + linear
+        brutos = [angular * (n3 - 1 + h) + linear for h in hs]
     elif bom.sum() == 1:
-        bruto = float(y[bom][0])
+        brutos = [float(y[bom][0])] * len(hs)
     else:
-        bruto = 0.0
-    contagem["avaliacoes"] += 1
-    contagem["negativas"] += int(bruto < 0)
-    return float(max(bruto, 0.0))
+        brutos = [0.0] * len(hs)
+    for bruto in brutos:
+        contagem["avaliacoes"] += 1
+        contagem["negativas"] += int(bruto < 0)
+    return [float(max(bruto, 0.0)) for bruto in brutos]
 
 
 def holt_amortecido(serie_total: np.ndarray, nb: int) -> tuple[float, float, float]:
@@ -192,11 +227,10 @@ def combinacoes(
 ) -> dict:
     """C1 a C7 a partir dos valores do pool na origem e do histórico de origens com alvo já observado (rf_hist, reais_hist têm uma linha por origem)."""
     n = len(pool)
-    i_ing, i_coo, i_holt = (
-        pool.index("ingenua"),
-        pool.index("coorte_V0"),
-        pool.index("holt_amortecido"),
-    )
+    i_ing, i_holt = pool.index("ingenua"), pool.index("holt_amortecido")
+    i_coo = next(
+        i for i, nome in enumerate(pool) if nome.startswith("coorte_V0")
+    )  # coorte_V0 ou coorte_V0_B
     tudo = tuple(range(n))
     saida = {
         "C1": aplica_regra((tudo, "media"), valores), "C2": aplica_regra((tudo, "mediana"), valores),
@@ -238,55 +272,41 @@ def combinacoes(
     return {"previsto": saida, "rf": rf_agora, "escolha_c6": escolha, "pesos_c7": texto_pesos}
 
 
-def preve_estado(est: dict, hist: dict, regras: list, pool: list[str]) -> dict:
-    """Previsões do total daqui a 12 meses na última data de `est`.
+def familia_coorte(est: dict, k: int, versao: str, primeiro_ativo: int, contagem: dict) -> dict:
+    """Coorte, conservador, pessimista e otimista nas variantes V0 a V4b e Hamilton-Perry de 3 e 5 anos, na versão A (faixa anual) ou B (faixa do passo).
 
-    `hist["previsto"][metodo][s]` e `hist["rf"][s]` guardam o que foi previsto nas origens s anteriores (só s <= k - nb têm alvo observado e só essas entram nos erros).
-    Devolve `previsto` (total por método), `faixas` (6 faixas, para alguns métodos), `marcas` e a linha de regras `rf` para o histórico.
+    Devolve `previsto` e `faixas` (nomes com sufixo `_B` na versão B) e a esparsidade da pirâmide na origem.
     """
-    k = len(est["datas"]) - 1
-    nb = est["nb"]  # datas da grade em 12 meses; o horizonte de 12 meses é nb datas à frente
+    nb = est["nb"]
     n2, n3, n5 = 2 * nb, 3 * nb, 5 * nb
-    for nome in ["pop_p", "pop_r", "ativas", "N", "R0", "E", "NN", "NE", "PX", "PN", "pares"]:
-        assert len(est[nome]) == k + 1, f"{nome} tem dado depois da origem"
-    assert est["par_ativo"].shape[1] == k + 1 and est["idade_r"].shape[1] == k + 1
-    pop_p, pop_r, ativas = est["pop_p"], est["pop_r"], est["ativas"]
-    N, R0, E, NN, NE, PX = est["N"], est["R0"], est["E"], est["NN"], est["NE"], est["PX"]
+    if versao == "A":
+        sufixo, lag, passos, hs, por_ano = "", nb, 1, [nb], 1
+        pop_p, pop_r = est["pop_p"], est["pop_r"]
+        N, R0, E, NN, NE, PX = est["N"], est["R0"], est["E"], est["NN"], est["NE"], est["PX"]
+    else:
+        sufixo, lag, passos, hs, por_ano = "_B", 1, nb, list(range(1, nb + 1)), nb
+        pop_p, pop_r = est["pop_p_b"], est["pop_r_b"]
+        N, R0, E, NN, NE, PX = (est[n] for n in ["N_b", "R0_b", "E_b", "NN_b", "NE_b", "PX_b"])
     par_ativo, primeiro_r = est["par_ativo"], est["primeiro_r"]
-    assert (primeiro_r[primeiro_r < BIG] <= k).all(), "repositório nascido depois da origem"
-    previsto = {m: np.nan for m in todos_os_metodos()}
-    faixas = {}
-    marcas = {
-        "holt_ingenua": False,
-        "w_sem_origem_anterior": False,
-        "w": np.nan,
-        "escolha_c6": "",
-        "pesos_c7": "",
-    }
-    contagem_negativas = {"avaliacoes": 0, "negativas": 0}
-    previsto["ingenua"] = float(ativas[k])
-    primeiro_ativo = int(np.argmax(ativas > 0)) if (ativas > 0).any() else BIG
-    if k - nb < primeiro_ativo:  # sem a pirâmide de 12 meses antes não há taxa
-        previsto["holt_amortecido"] = previsto["ingenua"]
-        marcas["holt_ingenua"] = True
-        return {
-            "previsto": previsto,
-            "faixas": faixas,
-            "marcas": marcas,
-            "rf": np.full(len(regras), np.nan),
-            "negativas": contagem_negativas,
-        }
-
+    previsto, faixas = {}, {}
     atual = junta_aberta(pop_p[k])
-    faixas["ingenua"] = soma_em_faixas6(atual)
+    sr_ultimo = taxas(pop_p[k], pop_p[k - lag])
+    com_gente = atual > 0
+    esparsidade = {
+        "faixas_vazias": float((~com_gente).mean()),
+        "razoes_indefinidas": float(np.isnan(sr_ultimo).mean()),
+        "faixas_bloqueantes": float(
+            (com_gente & np.isnan(sr_ultimo)).sum() / max(com_gente.sum(), 1)
+        ),
+    }
 
     # cenários: taxas dos últimos 5 anos
     historico_desc = []
     for j in range(n5):
         kk = k - j
-        if kk - nb < primeiro_ativo:
+        if kk - lag < primeiro_ativo:
             break
-        historico_desc.append(taxas(pop_p[kk], pop_p[kk - nb]))
+        historico_desc.append(taxas(pop_p[kk], pop_p[kk - lag]))
     historico = np.array(historico_desc[::-1])
     sem_nenhuma = np.all(np.isnan(historico), axis=0)
     menor = np.where(
@@ -304,40 +324,39 @@ def preve_estado(est: dict, hist: dict, regras: list, pool: list[str]) -> dict:
     quantos = np.maximum((~np.isnan(recorte)).sum(axis=0), 1)
     meio = np.where(np.all(np.isnan(recorte), axis=0), np.nan, np.nansum(recorte, axis=0) / quantos)
     meio = np.where(np.isnan(meio), ultimo, meio)
-    sr_ultimo = taxas(pop_p[k], pop_p[k - nb])
     janela = np.arange(k - len(historico) + 1, k + 1)
 
     # pirâmide dos repositórios
-    sr_repos = taxas(pop_r[k], pop_r[k - nb])
-    fallback = taxa_dos_repos_maduros(pop_r[k], pop_r[k - nb])
+    sr_repos = taxas(pop_r[k], pop_r[k - lag])
+    fallback = taxa_dos_repos_maduros(pop_r[k], pop_r[k - lag])
     atual_r = junta_aberta(pop_r[k])
     with np.errstate(divide="ignore", invalid="ignore"):
         M_NOVO = np.where(R0 > 0, NN / np.where(R0 > 0, R0, 1), np.nan)
         M_EX = np.where(E > 0, NE / np.where(E > 0, E, 1), np.nan)
     R0m = media_n(R0, k, n2)
-    E_v2 = projeta_repos(atual_r, sr_repos, fallback, R0m)
-    E_sem_nasc = projeta_repos(atual_r, sr_repos, fallback, 0.0)
+    E_v2 = projeta_repos(atual_r, sr_repos, fallback, R0m, passos)
+    E_sem_nasc = projeta_repos(atual_r, sr_repos, fallback, 0.0, passos)
 
     nov, pess_nov, otim_nov = {}, {}, {}
     n_media = media_n(N, k, n2)
-    nov["V0"] = n_media
+    nov["V0"] = [n_media] * passos
     pess_v0, otim_v0 = float(N[janela].min()), float(N[janela].max())
     pess_nov["V0"], otim_nov["V0"] = pess_v0, otim_v0
-    nov["V1"] = reta(N, k, n3, nb, contagem_negativas)
+    nov["V1"] = reta(N, k, n3, hs, contagem)
     pess_nov["V1"], otim_nov["V1"] = pess_v0, otim_v0
     pess_v2 = minimo(R0[janela]) * minimo(M_NOVO[janela]) + minimo(E[janela]) * minimo(M_EX[janela])
     otim_v2 = maximo(R0[janela]) * maximo(M_NOVO[janela]) + maximo(E[janela]) * maximo(M_EX[janela])
     mn_m, me_m = media_n(M_NOVO, k, n2), media_n(M_EX, k, n2)
-    nov["V2"] = R0m * mn_m + E_v2 * me_m
+    nov["V2"] = [R0m * mn_m + E_v2[i] * me_m for i in range(passos)]
     pess_nov["V2"], otim_nov["V2"] = pess_v2, otim_v2
-    r0_t = reta(R0, k, n3, nb, contagem_negativas)
-    mn_t = reta(M_NOVO, k, n3, nb, contagem_negativas)
-    me_t = reta(M_EX, k, n3, nb, contagem_negativas)
-    nov["V3a"] = r0_t * mn_t + E_v2 * me_t
+    r0_t = reta(R0, k, n3, hs, contagem)
+    mn_t = reta(M_NOVO, k, n3, hs, contagem)
+    me_t = reta(M_EX, k, n3, hs, contagem)
+    nov["V3a"] = [r0_t[i] * mn_t[i] + E_v2[i] * me_t[i] for i in range(passos)]
     pess_nov["V3a"], otim_nov["V3a"] = pess_v2, otim_v2
-    nn_t = reta(NN, k, n3, nb, contagem_negativas)
-    ne_t = reta(NE, k, n3, nb, contagem_negativas)
-    nov["V3b"] = nn_t + ne_t
+    nn_t = reta(NN, k, n3, hs, contagem)
+    ne_t = reta(NE, k, n3, hs, contagem)
+    nov["V3b"] = [nn_t[i] + ne_t[i] for i in range(passos)]
     pess_nov["V3b"] = minimo(NN[janela]) + minimo(NE[janela])
     otim_nov["V3b"] = maximo(NN[janela]) + maximo(NE[janela])
 
@@ -372,24 +391,28 @@ def preve_estado(est: dict, hist: dict, regras: list, pool: list[str]) -> dict:
     g = np.where(np.isnan(g), 1.0, g)
     nu_den = float(np.nansum(serie(PX, k, n2)))
     nu = float(np.nansum(serie(NE, k, n2)) / nu_den) if nu_den > 0 else 0.0
+    nasceram = [E_v2[i] - E_sem_nasc[i] for i in range(passos)]
     for forma in ["a", "b"]:
         v = f"V4{forma}"
-        if forma == "a":
-            bruto = (
-                y3.mean(axis=1) + angular * (n3 - 1 + nb - x.mean()) if len(idx_el) else np.zeros(0)
-            )
-            contagem_negativas["avaliacoes"] += len(idx_el)
-            contagem_negativas["negativas"] += int((bruto < 0).sum())
-            pred_el = np.maximum(bruto, 0.0)
-        else:
-            pred_el = y3[:, -1] * g**nb if len(idx_el) else np.zeros(0)
-        pred = np.zeros(par_ativo.shape[0])
-        pred[idx_el] = pred_el
-        pred[idx_ou] = media_outros
-        vivos = ativo_k & (pred >= 0.5)
-        novas = float(pred[vivos].sum()) * nu
-        nasceram = E_v2 - E_sem_nasc
-        nov[v] = novas + nasceram * me_m + r0_t * mn_t
+        novas = []
+        for h in hs:
+            if forma == "a":
+                bruto = (
+                    y3.mean(axis=1) + angular * (n3 - 1 + h - x.mean())
+                    if len(idx_el)
+                    else np.zeros(0)
+                )
+                contagem["avaliacoes"] += len(idx_el)
+                contagem["negativas"] += int((bruto < 0).sum())
+                pred_el = np.maximum(bruto, 0.0)
+            else:
+                pred_el = y3[:, -1] * g**h if len(idx_el) else np.zeros(0)
+            pred = np.zeros(par_ativo.shape[0])
+            pred[idx_el] = pred_el
+            pred[idx_ou] = media_outros
+            vivos = ativo_k & (pred >= 0.5)
+            novas.append(float(pred[vivos].sum()) * nu)
+        nov[v] = [novas[i] + nasceram[i] * me_m + r0_t[i] * mn_t[i] for i in range(passos)]
         pn_den = np.where(PX[janela] > 0, PX[janela], np.nan)
         razao_ne = NE[janela] / pn_den
         pess_nov[v] = minimo(PX[janela]) * minimo(razao_ne) + minimo(R0[janela]) * minimo(
@@ -401,21 +424,88 @@ def preve_estado(est: dict, hist: dict, regras: list, pool: list[str]) -> dict:
 
     for v in VARIANTES:
         vetores = {
-            "coorte": avanca(atual, sr_ultimo, nov[v]),
-            "conservador": avanca(atual, meio, nov[v]),
-            "pessimista": avanca(atual, menor, pess_nov[v]),
-            "otimista": avanca(atual, maior, otim_nov[v]),
+            "coorte": projeta(atual, sr_ultimo, nov[v]),
+            "conservador": projeta(atual, meio, nov[v]),
+            "pessimista": projeta(atual, menor, [pess_nov[v]] * passos),
+            "otimista": projeta(atual, maior, [otim_nov[v]] * passos),
         }
         for familia, vetor in vetores.items():
-            previsto[f"{familia}_{v}"] = float(vetor.sum())
-            if f"{familia}_{v}" in FAIXAS_COM_DETALHE:
-                faixas[f"{familia}_{v}"] = soma_em_faixas6(vetor)
+            nome = f"{familia}_{v}{sufixo}"
+            previsto[nome] = float(vetor.sum())
+            if nome in FAIXAS_COM_DETALHE + FAIXAS_COM_DETALHE_B:
+                faixas[nome] = soma_em_faixas6(vetor, por_ano)
 
-    # Hamilton-Perry: a coorte V0 com novatos pela média de 3 e de 5 anos
+    # Hamilton-Perry: a coorte V0 com novatos pela média de 3 e de 5 anos (última razão de permanência da versão)
     if k - n3 + 1 >= primeiro_ativo:
-        previsto["hp3"] = float(avanca(atual, sr_ultimo, media_n(N, k, n3)).sum())
+        previsto[f"hp3{sufixo}"] = float(
+            projeta(atual, sr_ultimo, [media_n(N, k, n3)] * passos).sum()
+        )
     if k - n5 + 1 >= primeiro_ativo:
-        previsto["hp5"] = float(avanca(atual, sr_ultimo, media_n(N, k, n5)).sum())
+        previsto[f"hp5{sufixo}"] = float(
+            projeta(atual, sr_ultimo, [media_n(N, k, n5)] * passos).sum()
+        )
+    return {"previsto": previsto, "faixas": faixas, "esparsidade": esparsidade}
+
+
+def peso_da_coorte_amortecida(
+    hist: dict, ativas: np.ndarray, k: int, nb: int, nome_coorte: str
+) -> tuple[float, bool]:
+    """w de `ingenua + w x (coorte - ingenua)` por mínimos quadrados nas origens anteriores com alvo já observado (s + nb <= k). Sem origem anterior, 0,5 e marca."""
+    numerador, denominador = 0.0, 0.0
+    for s in range(0, k - nb + 1):
+        i, c, r = hist["previsto"]["ingenua"][s], hist["previsto"][nome_coorte][s], ativas[s + nb]
+        if np.isnan(i) or np.isnan(c):
+            continue
+        numerador += (r - i) * (c - i)
+        denominador += (c - i) ** 2
+    if denominador == 0:
+        return 0.5, True
+    return float(np.clip(numerador / denominador, 0.0, 1.0)), False
+
+
+def preve_estado(
+    est: dict, hist: dict, regras: list, pool: list[str], versoes: tuple[str, ...] = ("A",)
+) -> dict:
+    """Previsões do total daqui a 12 meses na última data de `est`, nas versões pedidas (`("A",)`, `("B",)` ou as duas).
+
+    `hist["previsto"][metodo][s]`, `hist["rf"][s]` e `hist["rf_B"][s]` guardam o que foi previsto nas origens s anteriores (só s <= k - nb têm alvo observado e só essas entram nos erros).
+    Devolve `previsto` (total por método), `faixas` (6 faixas, para alguns métodos), `marcas` e as linhas de regras `rf` e `rf_B` para o histórico.
+    """
+    k = len(est["datas"]) - 1
+    nb = est["nb"]  # datas da grade em 12 meses; o horizonte de 12 meses é nb datas à frente
+    for nome in SERIES_NO_TEMPO:
+        assert len(est[nome]) == k + 1, f"{nome} tem dado depois da origem"
+    assert est["par_ativo"].shape[1] == k + 1
+    ativas, primeiro_r = est["ativas"], est["primeiro_r"]
+    assert (primeiro_r[primeiro_r < BIG] <= k).all(), "repositório nascido depois da origem"
+    nomes = todos_os_metodos() if "A" in versoes else ["ingenua", "deriva", "holt_amortecido"]
+    nomes = nomes + (metodos_b() if "B" in versoes else [])
+    previsto = {m: np.nan for m in nomes}
+    faixas = {}
+    marcas = {
+        "holt_ingenua": False, "w_sem_origem_anterior": False, "w": np.nan, "escolha_c6": "", "pesos_c7": "",
+        "w_sem_origem_anterior_B": False, "w_B": np.nan, "escolha_c6_B": "", "pesos_c7_B": "",
+    }  # fmt: skip
+    esparsidade = {}
+    contagem_negativas = {"avaliacoes": 0, "negativas": 0}
+    previsto["ingenua"] = float(ativas[k])
+    n3 = 3 * nb
+    primeiro_ativo = int(np.argmax(ativas > 0)) if (ativas > 0).any() else BIG
+    linhas_rf = {"rf": np.full(len(regras), np.nan), "rf_B": np.full(len(regras), np.nan)}
+    if k - 1 < primeiro_ativo:  # sem a pirâmide do passo anterior não há taxa em nenhuma versão
+        previsto["holt_amortecido"] = previsto["ingenua"]
+        marcas["holt_ingenua"] = True
+        return {"previsto": previsto, "faixas": faixas, "marcas": marcas, "esparsidade": esparsidade, **linhas_rf, "negativas": contagem_negativas}  # fmt: skip
+
+    possiveis = [
+        v for v in versoes if v == "B" or k - nb >= primeiro_ativo
+    ]  # a versão A precisa da pirâmide de 12 meses antes
+    for versao in possiveis:
+        res = familia_coorte(est, k, versao, primeiro_ativo, contagem_negativas)
+        previsto.update(res["previsto"])
+        faixas.update(res["faixas"])
+        esparsidade[versao] = res["esparsidade"]
+    faixas["ingenua"] = soma_em_faixas6(junta_aberta(est["pop_p"][k]))
     # deriva: total da origem + variação média anual dos últimos 3 anos
     if k - n3 >= primeiro_ativo:
         bruto = ativas[k] + (ativas[k] - ativas[k - n3]) / 3
@@ -433,35 +523,28 @@ def preve_estado(est: dict, hist: dict, regras: list, pool: list[str]) -> dict:
     else:
         previsto["holt_amortecido"] = previsto["ingenua"]
         marcas["holt_ingenua"] = True
-    # coorte amortecida: w pelas origens anteriores já observadas (s + nb <= k)
-    coorte_v0 = previsto["coorte_V0"]
+    # coorte amortecida e combinações, em cada versão
     s_max = k - nb
-    numerador, denominador = 0.0, 0.0
-    for s in range(0, s_max + 1):
-        i, c, r = hist["previsto"]["ingenua"][s], hist["previsto"]["coorte_V0"][s], ativas[s + nb]
-        if np.isnan(i) or np.isnan(c):
-            continue
-        numerador += (r - i) * (c - i)
-        denominador += (c - i) ** 2
-    if denominador == 0:
-        w, marcas["w_sem_origem_anterior"] = 0.5, True
-    else:
-        w = float(np.clip(numerador / denominador, 0.0, 1.0))
-    marcas["w"] = w
-    if not np.isnan(coorte_v0):
-        previsto["coorte_amortecida"] = previsto["ingenua"] + w * (coorte_v0 - previsto["ingenua"])
-    # combinações
-    valores = np.array([previsto[m] for m in pool])
-    rf_hist = hist["rf"][: s_max + 1] if s_max >= 0 else np.zeros((0, len(regras)))
     reais_hist = ativas[nb : k + 1] if s_max >= 0 else np.zeros(0)
-    assert len(rf_hist) == len(reais_hist)
-    comb = combinacoes(valores, rf_hist, reais_hist, regras, pool)
-    previsto.update(comb["previsto"])
-    marcas["escolha_c6"], marcas["pesos_c7"] = comb["escolha_c6"], comb["pesos_c7"]
-    return {
-        "previsto": previsto,
-        "faixas": faixas,
-        "marcas": marcas,
-        "rf": comb["rf"],
-        "negativas": contagem_negativas,
-    }
+    for versao in possiveis:
+        sufixo = "" if versao == "A" else "_B"
+        nome_coorte = f"coorte_V0{sufixo}"
+        w, sem_anterior = peso_da_coorte_amortecida(hist, ativas, k, nb, nome_coorte)
+        marcas[f"w{sufixo}"], marcas[f"w_sem_origem_anterior{sufixo}"] = w, sem_anterior
+        if not np.isnan(previsto[nome_coorte]):
+            previsto[f"coorte_amortecida{sufixo}"] = previsto["ingenua"] + w * (
+                previsto[nome_coorte] - previsto["ingenua"]
+            )
+        pool_da_versao = pool if versao == "A" else POOL_B
+        valores = np.array([previsto[m] for m in pool_da_versao])
+        rf_hist = hist["rf" + sufixo][: s_max + 1] if s_max >= 0 else np.zeros((0, len(regras)))
+        assert len(rf_hist) == len(reais_hist)
+        comb = combinacoes(valores, rf_hist, reais_hist, regras, pool_da_versao)
+        for c, valor in comb["previsto"].items():
+            previsto[c + sufixo] = valor
+        marcas[f"escolha_c6{sufixo}"], marcas[f"pesos_c7{sufixo}"] = (
+            comb["escolha_c6"],
+            comb["pesos_c7"],
+        )
+        linhas_rf["rf" + sufixo] = comb["rf"]
+    return {"previsto": previsto, "faixas": faixas, "marcas": marcas, "esparsidade": esparsidade, **linhas_rf, "negativas": contagem_negativas}  # fmt: skip

@@ -26,10 +26,12 @@ import vazamento
 from estado import FIM, constroi_estado, corta_estado, junta_aberta_vet, soma_em_faixas6
 from previsao import (
     FAIXAS_COM_DETALHE,
+    FAIXAS_COM_DETALHE_B,
     POOL,
     POOL7,
     combinacoes,
     gera_regras,
+    metodos_b,
     preve_estado,
     todos_os_metodos,
 )
@@ -68,89 +70,72 @@ def memoria_maxima_gb() -> float:
     return pico / 1e9 if platform.system() == "Darwin" else pico / 1e6
 
 
-def roda_unidade(
-    pessoas: pd.DataFrame,
-    eventos: dict,
+def iguais_com_nan(a: np.ndarray, b: np.ndarray) -> bool:
+    return bool(np.allclose(a, b, rtol=1e-9, atol=1e-9, equal_nan=True))
+
+
+def roda_versao(
+    est: dict,
+    hist: dict,
+    versao: str,
     lingua: str,
     pop: str,
     passo: float,
+    prefixo: str,
     pasta: Path,
-    com_vazamento: bool,
-    amostra: int | None = None,
+    amostra: int | None,
 ) -> None:
-    prefixo = f"{lingua}_{pop}_{NOME_PASSO[passo]}"
-    inicio = time.time()
-    est = constroi_estado(pessoas, eventos, passo, pop, FIM)
+    """Roda todas as origens de uma versão (A ou B) e grava `<prefixo>[_B]_pares`, `_faixas` e `_marcas`."""
     nb, K1 = est["nb"], len(est["datas"])
     ativas = est["ativas"]
-    print(
-        f"{prefixo}: estado pronto ({est['n_pessoas']} pessoas, {est['n_repos']} repositórios, {K1} datas) em {time.time() - inicio:.0f}s, pico de memória {memoria_maxima_gb():.1f} GB",
-        flush=True,
+    sufixo = "" if versao == "A" else "_B"
+    regras = gera_regras(len(POOL))
+    metodos = (
+        todos_os_metodos()
+        if versao == "A"
+        else ["ingenua", "deriva", "holt_amortecido", *metodos_b()]
     )
-    regras, regras7 = gera_regras(len(POOL)), gera_regras(len(POOL7))
-    metodos = todos_os_metodos()
-    hist = {
-        "previsto": {m: np.full(K1, np.nan) for m in metodos},
-        "rf": np.full((K1, len(regras)), np.nan),
-    }
-    hist7 = np.full((K1, len(regras7)), np.nan)
-    com_conferencia = pop == "P0" and passo == 12
     primeiro_ativo = int(np.argmax(ativas > 0)) if (ativas > 0).any() else K1
     ultima_origem = K1 - 1 - nb
-    pares, faixas, marcas, conferencia = [], [], [], []
     primeira_origem = (
         primeiro_ativo + 1
         if amostra is None
         else max(primeiro_ativo + 1, ultima_origem - amostra + 1)
     )
+    regras7 = gera_regras(len(POOL7))
+    hist7 = np.full((K1, len(regras7)), np.nan)
+    com_conferencia = pop == "P0" and passo == 12 and versao == "A"
+    pares, faixas, marcas, conferencia = [], [], [], []
     t_origens = time.time()
     for k in range(primeira_origem, ultima_origem + 1):
-        res = preve_estado(corta_estado(est, k), hist, regras, POOL)
+        res = preve_estado(corta_estado(est, k), hist, regras, POOL, (versao,))
         for m in metodos:
             hist["previsto"][m][k] = res["previsto"][m]
-        hist["rf"][k] = res["rf"]
-        # alvo: calculado aqui, fora da função de previsão
+        hist["rf" + sufixo][k] = res["rf" + sufixo]
+        # alvo: calculado aqui, fora da função de previsão; as 6 faixas reais usam a idade em anos da rodada oficial nas duas versões
         real = float(ativas[k + nb])
         real_faixas = soma_em_faixas6(junta_aberta_vet(est["pop_p"][k + nb]))
         origem = str(est["datas"][k])
         for m in metodos:
+            if versao == "B" and m in ("ingenua", "deriva", "holt_amortecido"):
+                continue  # os métodos sem pirâmide já estão na versão A
             p = res["previsto"][m]
             pares.append((lingua, pop, passo, k, origem, m, p, real, abre_ok(real, p)))
         for m, previsto_faixas in res["faixas"].items():
-            if m not in FAIXAS_COM_DETALHE:
+            if m not in (FAIXAS_COM_DETALHE if versao == "A" else FAIXAS_COM_DETALHE_B):
                 continue
             for f in range(6):
                 faixas.append(
-                    (
-                        lingua,
-                        pop,
-                        passo,
-                        k,
-                        origem,
-                        m,
-                        f,
-                        previsto_faixas[f],
-                        real_faixas[f],
-                        abre_ok(real_faixas[f], previsto_faixas[f]),
-                    )
-                )
-        mk = res["marcas"]
+                    (lingua, pop, passo, k, origem, m, f, previsto_faixas[f], real_faixas[f], abre_ok(real_faixas[f], previsto_faixas[f]))
+                )  # fmt: skip
+        mk, esp = res["marcas"], res["esparsidade"].get(versao, {})
         marcas.append(
             (
-                lingua,
-                pop,
-                passo,
-                k,
-                origem,
-                mk["holt_ingenua"],
-                mk["w"],
-                mk["w_sem_origem_anterior"],
-                mk["escolha_c6"],
-                mk["pesos_c7"],
-                res["negativas"]["avaliacoes"],
-                res["negativas"]["negativas"],
+                lingua, pop, passo, k, origem, mk["holt_ingenua"], mk["w" + sufixo], mk["w_sem_origem_anterior" + sufixo],
+                mk["escolha_c6" + sufixo], mk["pesos_c7" + sufixo], res["negativas"]["avaliacoes"], res["negativas"]["negativas"],
+                esp.get("faixas_vazias", np.nan), esp.get("razoes_indefinidas", np.nan), esp.get("faixas_bloqueantes", np.nan),
             )
-        )
+        )  # fmt: skip
         if com_conferencia:
             valores7 = np.array([res["previsto"][m] for m in POOL7])
             s_max = k - nb
@@ -162,7 +147,7 @@ def roda_unidade(
                 conferencia.append((lingua, k, origem, nome + "_7", p, real))
     por_origem = (time.time() - t_origens) / max(len(marcas), 1)
     print(
-        f"{prefixo}: {por_origem:.2f}s por origem em {len(marcas)} origens, pico de memória {memoria_maxima_gb():.1f} GB",
+        f"{prefixo}{sufixo}: {por_origem:.2f}s por origem em {len(marcas)} origens, pico de memória {memoria_maxima_gb():.1f} GB",
         flush=True,
     )
     cabecalho = [
@@ -178,43 +163,89 @@ def roda_unidade(
     ]
     pasta.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(pares, columns=cabecalho).to_csv(
-        pasta / f"{prefixo}_pares.csv.gz", index=False, float_format="%.10g"
+        pasta / f"{prefixo}{sufixo}_pares.csv.gz", index=False, float_format="%.10g"
     )
     pd.DataFrame(faixas, columns=[*cabecalho[:6], "faixa", "previsto", "real", "abre"]).to_csv(
-        pasta / f"{prefixo}_faixas.csv.gz", index=False, float_format="%.10g"
+        pasta / f"{prefixo}{sufixo}_faixas.csv.gz", index=False, float_format="%.10g"
     )
     if com_conferencia:
         pd.DataFrame(
             conferencia, columns=["linguagem", "k", "origem", "metodo", "previsto", "real"]
         ).to_csv(pasta / f"{prefixo}_conferencia.csv", index=False, float_format="%.10g")
+    cab_marcas = [
+        "linguagem", "populacao", "passo_meses", "k", "origem", "holt_ingenua", "w", "w_sem_origem_anterior", "escolha_c6", "pesos_c7",
+        "avaliacoes_negativas", "negativas", "esp_faixas_vazias", "esp_razoes_indefinidas", "esp_faixas_bloqueantes",
+    ]  # fmt: skip
+    pd.DataFrame(marcas, columns=cab_marcas).to_csv(
+        pasta / f"{prefixo}{sufixo}_marcas.csv", index=False
+    )  # por último: marca a versão como pronta
+
+
+def roda_unidade(
+    pessoas: pd.DataFrame,
+    eventos: dict,
+    lingua: str,
+    pop: str,
+    passo: float,
+    pasta: Path,
+    com_vazamento: bool,
+    amostra: int | None = None,
+    versoes: tuple[str, ...] = ("A", "B"),
+    refazer: bool = False,
+) -> None:
+    """Uma unidade (linguagem, população, passo): constrói o estado uma vez e roda a versão A e depois a B (P0 só tem a A)."""
+    prefixo = f"{lingua}_{pop}_{NOME_PASSO[passo]}"
+    versoes = tuple(v for v in versoes if v == "A" or pop != "P0")
+    pendentes = tuple(
+        v
+        for v in versoes
+        if refazer or not (pasta / f"{prefixo}{'' if v == 'A' else '_B'}_marcas.csv").exists()
+    )
+    if not pendentes:
+        print(f"{prefixo}: já pronto, pulado", flush=True)
+        return
+    inicio = time.time()
+    est = constroi_estado(pessoas, eventos, passo, pop, FIM)
+    nb, K1 = est["nb"], len(est["datas"])
+    print(
+        f"{prefixo}: estado pronto ({est['n_pessoas']} pessoas, {est['n_repos']} repositórios, {K1} datas) em {time.time() - inicio:.0f}s, pico de memória {memoria_maxima_gb():.1f} GB",
+        flush=True,
+    )
+    regras = gera_regras(len(POOL))
+    nomes = [*todos_os_metodos(), *metodos_b()]
+    hist = {
+        "previsto": {m: np.full(K1, np.nan) for m in nomes},
+        "rf": np.full((K1, len(regras)), np.nan),
+        "rf_B": np.full((K1, len(regras)), np.nan),
+    }
+    ativas = est["ativas"]
+    primeiro_ativo = int(np.argmax(ativas > 0)) if (ativas > 0).any() else K1
+    ultima_origem = K1 - 1 - nb
+    for versao in pendentes:  # a B depende só do histórico dela e da ingênua: roda depois da A
+        roda_versao(est, hist, versao, lingua, pop, passo, prefixo, pasta, amostra)
+    if (
+        "A" in pendentes and "B" in pendentes and passo == 12
+    ):  # com passo de 12 meses A e B são iguais
+        for mb in metodos_b():
+            if not iguais_com_nan(hist["previsto"][mb[:-2]], hist["previsto"][mb]):
+                raise SystemExit(f"{prefixo}: a versão A e a B diferem em 12 meses em {mb}. Parei.")
+        assert iguais_com_nan(hist["rf"], hist["rf_B"]), (
+            "as regras de C6 e C7 diferem entre A e B em 12 meses"
+        )
+        print(f"{prefixo}: A e B iguais em 12 meses ({len(metodos_b())} métodos)", flush=True)
     if com_vazamento and pop != "P0":
         escolhidas = origens_do_teste(primeiro_ativo, nb, ultima_origem)
         t0 = time.time()
-        linhas = vazamento.testa(pessoas, eventos, passo, pop, est, hist, escolhidas, regras, POOL)
+        linhas = vazamento.testa(
+            pessoas, eventos, passo, pop, est, hist, escolhidas, regras, POOL, pendentes
+        )
         linhas.insert(0, "unidade", prefixo)
         linhas.to_csv(pasta / f"{prefixo}_vazamento.csv", index=False)
         print(
             f"{prefixo}: teste de vazamento em {time.time() - t0:.0f}s, estados iguais: {bool(linhas['estados_iguais'].all())}, maior diferença: {linhas['maior_diferenca_relativa'].max():.2e}",
             flush=True,
         )
-    cab_marcas = [
-        "linguagem",
-        "populacao",
-        "passo_meses",
-        "k",
-        "origem",
-        "holt_ingenua",
-        "w",
-        "w_sem_origem_anterior",
-        "escolha_c6",
-        "pesos_c7",
-        "avaliacoes_negativas",
-        "negativas",
-    ]
-    pd.DataFrame(marcas, columns=cab_marcas).to_csv(
-        pasta / f"{prefixo}_marcas.csv", index=False
-    )  # por último: marca a unidade como pronta
-    print(f"{prefixo}: pronto em {time.time() - inicio:.0f}s ({len(marcas)} origens)", flush=True)
+    print(f"{prefixo}: pronto em {time.time() - inicio:.0f}s", flush=True)
 
 
 def origens_do_teste(primeiro_ativo: int, nb: int, ultima_origem: int) -> list[int]:
@@ -237,6 +268,7 @@ if __name__ == "__main__":
     ap.add_argument("--vazamento", action="store_true")
     ap.add_argument("--refazer", action="store_true")
     ap.add_argument("--amostra", type=int, default=None)
+    ap.add_argument("--versoes", nargs="+", default=["A", "B"], choices=["A", "B"])
     a = ap.parse_args()
     pasta = a.saida / "unidades"
     for lingua in a.linguas:
@@ -249,8 +281,15 @@ if __name__ == "__main__":
             for pop in a.pops:
                 if pop == "P0" and passo != 12:
                     continue
-                prefixo = f"{lingua}_{pop}_{NOME_PASSO[passo]}"
-                if (pasta / f"{prefixo}_marcas.csv").exists() and not a.refazer:
-                    print(f"{prefixo}: já pronto, pulado", flush=True)
-                    continue
-                roda_unidade(pessoas, eventos, lingua, pop, passo, pasta, a.vazamento, a.amostra)
+                roda_unidade(
+                    pessoas,
+                    eventos,
+                    lingua,
+                    pop,
+                    passo,
+                    pasta,
+                    a.vazamento,
+                    a.amostra,
+                    tuple(a.versoes),
+                    a.refazer,
+                )

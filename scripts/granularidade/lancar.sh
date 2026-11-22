@@ -1,7 +1,7 @@
 #!/bin/bash
 # Lança o experimento de granularidade na VM (rode da raiz do repo na VM, `~/pyramid/repo`).
 # Uso: bash scripts/granularidade/lancar.sh <pasta do experimento> <carga> <referências> [medir]
-#   medir: só mede Python em P2 com passo de 15 dias (3 origens), imprime tempo e memória e para.
+#   medir: só mede Python em P2 com passo de 15 dias (3 origens, versões A e B), imprime tempo e memória e para. Depois: estimar.py <estado> <por origem A> <por origem B>.
 # Sem `medir`:
 # 1. Elixir em 12 meses (P0, P1, P2) e a conferência com os experimentos anteriores; para se algo não confere.
 # 2. Todas as linguagens, do passo mais longo ao mais curto (as duas populações de um passo antes do seguinte), em segundo plano: duas cadeias, Python à parte.

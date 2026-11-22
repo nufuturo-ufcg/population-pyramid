@@ -13,10 +13,8 @@ Controles com vazamento de propósito (a previsão precisa mudar; o teste só va
 
 import numpy as np
 import pandas as pd
-from estado import constroi_estado, corta_estado, grade
+from estado import SERIES_NO_TEMPO, constroi_estado, corta_estado, grade
 from previsao import preve_estado
-
-SERIES = ["pop_p", "pop_r", "ativas", "N", "R0", "E", "NN", "NE", "PX", "PN", "pares"]
 
 
 def historico_ate(hist: dict, k: int) -> dict:
@@ -24,10 +22,12 @@ def historico_ate(hist: dict, k: int) -> dict:
     copia = {
         "previsto": {m: v.copy() for m, v in hist["previsto"].items()},
         "rf": hist["rf"].copy(),
+        "rf_B": hist["rf_B"].copy(),
     }
     for v in copia["previsto"].values():
         v[k:] = np.nan
     copia["rf"][k:] = np.nan
+    copia["rf_B"][k:] = np.nan
     return copia
 
 
@@ -54,6 +54,7 @@ def testa(
     origens: list[int],
     regras: list,
     pool: list[str],
+    versoes: tuple[str, ...] = ("A",),
 ) -> pd.DataFrame:
     nb = est["nb"]
     linhas = []
@@ -68,11 +69,11 @@ def testa(
         cortado_em_t = constroi_estado(pessoas, recebido_t, passo, pop, t)
         cortado_em_t_mais_1 = constroi_estado(pessoas, recebido_t_mais_1, passo, pop, t)
         estados_iguais = True
-        for nome in SERIES:
+        for nome in SERIES_NO_TEMPO:
             for outro in (recebendo_tudo, cortado_em_t, cortado_em_t_mais_1):
                 estados_iguais = estados_iguais and np.array_equal(producao[nome], outro[nome])
         prevs = [
-            preve_estado(e, hist_k, regras, pool)["previsto"]
+            preve_estado(e, hist_k, regras, pool, versoes)["previsto"]
             for e in (producao, cortado_em_t, cortado_em_t_mais_1)
         ]
         diferenca = max(maior_diferenca(prevs[0], prevs[1]), maior_diferenca(prevs[0], prevs[2]))
@@ -87,7 +88,7 @@ def testa(
         comprimido = {nome: v.copy() for nome, v in recebido_t_mais_1.items()}
         comprimido["dia"] = np.minimum(comprimido["dia"], t)
         com_eventos_futuros = constroi_estado(pessoas, comprimido, passo, pop, t)
-        prev_futura = preve_estado(com_eventos_futuros, hist_k, regras, pool)["previsto"]
+        prev_futura = preve_estado(com_eventos_futuros, hist_k, regras, pool, versoes)["previsto"]
         linha["controle_eventos_futuros_difere"] = bool(
             maior_diferenca(prevs[0], prev_futura) > 1e-9
         )
@@ -98,7 +99,7 @@ def testa(
             segunda[futura] = datas_primeira(passo)
             vazado["segunda"] = segunda
             controle = constroi_estado(vazado, recebido_t_mais_1, passo, pop, t)
-            prev_vazada = preve_estado(controle, hist_k, regras, pool)["previsto"]
+            prev_vazada = preve_estado(controle, hist_k, regras, pool, versoes)["previsto"]
             linha["controle_promocoes_difere"] = bool(maior_diferenca(prevs[0], prev_vazada) > 1e-9)
             linha["pessoas_promovidas_no_ano_seguinte"] = int(futura.sum())
         linhas.append(linha)
