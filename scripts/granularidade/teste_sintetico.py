@@ -27,7 +27,6 @@ sys.path.insert(0, "src")
 import rodar  # noqa: E402
 from estado import FIM, constroi_estado, grade  # noqa: E402
 
-TMP = Path(sys.argv[1])
 VELHO = EXPERIMENTOS / "projecao-variantes-passos" / "scripts" / "variantes_passos.py"
 
 
@@ -151,6 +150,7 @@ def roda_script_antigo(pasta: Path) -> pd.DataFrame:
 
 
 def main() -> None:
+    TMP = Path(sys.argv[1])
     TMP.mkdir(parents=True, exist_ok=True)
     pessoas_brutas, eventos_brutos = gera_linguagem()
     grava_carga(pessoas_brutas, eventos_brutos, TMP)
@@ -251,4 +251,5 @@ def main() -> None:
     print("sintético: tudo confere")
 
 
-main()
+if __name__ == "__main__":
+    main()
