@@ -98,6 +98,11 @@ ignore = [
 # Sweep é varredura de hipótese: cada hipótese vira um parâmetro, e a contagem
 # de argumentos passa de 5 sem que isso indique desenho ruim.
 "scripts/**" = ["D", "ANN", "PLR0913", "PLR0917"]
+# `scripts/granularidade/` é um experimento de previsão com notação de demografia e de série
+# (N, R0, NN, K1, H): maiúscula em variável local acompanha o símbolo do texto. Os textos gerados
+# (resumo, tabelas, vazamento) têm frases longas por linha, e o fluxo linear de cada script passa
+# dos limites de ramos e de instruções sem ganho em dividir.
+"scripts/granularidade/**" = ["E501", "N803", "N806", "C901", "PLR0912", "PLR0915"]
 # Toda figura do registro de `vitalidade.py` recebe (contexto, tabelas), mesmo a que usa só um.
 "scripts/vitalidade.py" = ["D", "ANN", "ARG001", "PLR0913", "PLR0917"]
 "scripts/vitalidade_figuras.py" = ["D", "ANN", "ARG001", "PLR0913", "PLR0917"]

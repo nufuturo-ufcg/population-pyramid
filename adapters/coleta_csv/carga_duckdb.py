@@ -126,6 +126,8 @@ class Pedido:
     contas_extras: tuple[str, ...] = ()  # mais contas que saem, em minúsculas (rodadas de teste)
     # repo_id cujos contribuidores a carga conta à parte, mesmo inelegíveis (só estatística)
     repos_para_contar: tuple[str, ...] = ()
+    # repo_id cujos eventos saem da carga (sensibilidade). Não pode estar num grupo de duplicados.
+    repos_sem_eventos: tuple[str, ...] = ()
 
 
 @dataclass
@@ -417,6 +419,16 @@ def _cria_repos(con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str,
     repos.loc[duplicado, "elegivel"] = False
     if duplicado.any():
         stats["repos_duplicados_excluidos"] = int(duplicado.sum())
+    if pedido.repos_sem_eventos:
+        em_grupo = set(pedido.repos_fundidos) | set(pedido.repos_fundidos.values())
+        for repo in pedido.repos_sem_eventos:
+            if repo in em_grupo:
+                raise ValueError(f"repos_sem_eventos: {repo} está num grupo de duplicados")
+        sem_eventos = repos["repo_id"].astype(str).isin(pedido.repos_sem_eventos)
+        if int(sem_eventos.sum()) != len(set(pedido.repos_sem_eventos)):
+            raise ValueError("repos_sem_eventos: repo_id que não está nos alvos")
+        repos.loc[sem_eventos, "elegivel"] = False
+        stats["repos_sem_eventos"] = int(sem_eventos.sum())
     con.register("repos_pandas", repos)
     con.execute("CREATE TABLE repos AS SELECT * FROM repos_pandas")
 
@@ -684,6 +696,10 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
     `tipos_por_ano.parquet`: eventos e primeiro evento de cada tipo em cada ano.
     `tipos_final.parquet`: eventos e pessoas de cada tipo, no total e entre os residentes.
     `pessoas_tipos_por_ano.parquet`: eventos de cada pessoa por ano e tipo.
+    `pessoas_repos_por_ano.parquet`: eventos de cada pessoa por repositório (`codigo`) e ano.
+    `pessoas_repos_por_trimestre.parquet`: cada par (pessoa, `codigo`) com evento em um trimestre,
+    contado desde 2008T1 (`trimestre` = (ano - 2008) * 4 + trimestre do ano - 1).
+    `pessoas_repos_por_dia.parquet`: cada par (pessoa, `codigo`) com evento em um dia (`dia`, data).
     """
     pasta.mkdir(parents=True, exist_ok=True)
     nomes = "[" + ", ".join(_aspas(n) for n in nomes_tipo) + "]"
@@ -753,6 +769,24 @@ def _grava_origem(con: duckdb.DuckDBPyConnection, pasta: Path, nomes_tipo: list[
                    list_extract({nomes}, tipo + 1) AS tipo, count(*) AS eventos
             FROM final GROUP BY ALL
         ) TO {_aspas(pasta / "pessoas_tipos_por_ano.parquet")} (FORMAT parquet)
+    """)
+    con.execute(f"""
+        COPY (
+            SELECT pessoa, codigo, CAST(year(ts) AS SMALLINT) AS ano, count(*) AS eventos
+            FROM final GROUP BY ALL
+        ) TO {_aspas(pasta / "pessoas_repos_por_ano.parquet")} (FORMAT parquet)
+    """)
+    con.execute(f"""
+        COPY (
+            SELECT DISTINCT pessoa, codigo,
+                   CAST((year(ts) - 2008) * 4 + quarter(ts) - 1 AS SMALLINT) AS trimestre
+            FROM final
+        ) TO {_aspas(pasta / "pessoas_repos_por_trimestre.parquet")} (FORMAT parquet)
+    """)
+    con.execute(f"""
+        COPY (
+            SELECT DISTINCT pessoa, codigo, CAST(ts AS DATE) AS dia FROM final
+        ) TO {_aspas(pasta / "pessoas_repos_por_dia.parquet")} (FORMAT parquet)
     """)
 
 

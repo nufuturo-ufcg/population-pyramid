@@ -559,6 +559,41 @@ def test_repos_para_contar_conta_quem_estaria_num_repositorio_inelegivel(tmp_pat
     por_tipo = pd.read_parquet(tmp_path / "origem" / "pessoas_tipos_por_ano.parquet")
     assert int(por_tipo["eventos"].sum()) == stats["eventos_finais"]
     assert set(por_tipo["tipo"]) == {"commits", "issues"}
+    por_repo = pd.read_parquet(tmp_path / "origem" / "pessoas_repos_por_ano.parquet")
+    assert int(por_repo["eventos"].sum()) == stats["eventos_finais"]
+    por_trimestre = pd.read_parquet(tmp_path / "origem" / "pessoas_repos_por_trimestre.parquet")
+    assert not por_trimestre.duplicated().any()
+    assert set(por_trimestre["pessoa"]) == set(por_repo["pessoa"])
+    por_dia = pd.read_parquet(tmp_path / "origem" / "pessoas_repos_por_dia.parquet")
+    assert not por_dia.duplicated().any()
+    assert set(por_dia["pessoa"]) == set(por_repo["pessoa"])
+    assert len(por_dia) >= len(por_trimestre)
+
+
+def test_repos_sem_eventos_tira_o_repositorio_e_quem_so_esteve_nele(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    git, api, repos = _grupo_de_duplicados()
+    pedido = _pedido(
+        tmp_path / "a", git, api, repos, origem=tmp_path / "origem", repos_sem_eventos=("3",)
+    )
+    stats = carga_duckdb.carrega(pedido).estatisticas
+    assert stats["repos_sem_eventos"] == 1
+    assert stats["contribuidores_finais"] == 2  # ana e bia; o caio só estava no 3
+    por_repo = pd.read_parquet(tmp_path / "origem" / "pessoas_repos_por_ano.parquet")
+    assert 2 not in set(por_repo["codigo"])  # o repositório 3 tem código 2
+    with pytest.raises(ValueError, match="grupo de duplicados"):
+        carga_duckdb.carrega(
+            _pedido(
+                tmp_path / "b",
+                git,
+                api,
+                repos,
+                repos_fundidos={"2": "1"},
+                commits_pelo_sha=True,
+                repos_sem_eventos=("1",),
+            )
+        )
 
 
 def test_repos_sem_mapa_pula_quem_tem_duplicado_elegivel(tmp_path, monkeypatch):
