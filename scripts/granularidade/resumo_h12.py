@@ -28,13 +28,22 @@ NOME = {"S1": "S1 (IEICE16, saída em 3 meses, horizonte de 3 meses)", "S1b": "S
         "S3h": "S3h (saída em 12 meses, horizonte de 12 meses)", "S2": "S2 (pirâmide da rodada oficial, P1, horizonte de 12 meses)"}  # fmt: skip
 ROTULO.update(
     {
+        "coorte": "coorte V0",
+        "conservador": "conservador V0",
         "coorte_IEICE": "coorte do IEICE16",
         "ingenua": "ingênua",
         "coorte_amortecida": "coorte amortecida",
         "holt_amortecido": "Holt amortecido",
     }
 )
-BASES_R = ["coorte_V0", "coorte_IEICE", "conservador_V0", "coorte_amortecida", "C3", "C4"]
+BASES_R = [
+    "coorte",
+    "coorte_IEICE",
+    "conservador",
+    "coorte_amortecida",
+    "C3",
+    "C4",
+]  # coorte e conservador são a V0 em R0
 COMMIT = (
     (SAIDA / "commit.txt").read_text(encoding="utf-8").strip()
     if (SAIDA / "commit.txt").exists()
@@ -418,7 +427,7 @@ for c in ["S1b", "S3h", "S1", "S3", "S2"]:
                 "detalhe": f"{len(ach)} métodos vencem nas quatro ({', '.join(rotulo(m) for m in ach[:6]) or 'nenhum'}); o que vence em mais linguagens: {rotulo(mais[1])} ({mais[0]} de {len(cols)} com base)"})  # fmt: skip
 # HH6: nascimento, parada, os dois (S1b e S3h)
 for c in NOVOS:
-    for b in ["coorte_V0", "conservador_V0"]:
+    for b in ["coorte", "conservador"]:
         partes = []
         for r, nome in [(1, "nascimento"), (2, "parada"), (3, "os dois")]:
             n = sum(
