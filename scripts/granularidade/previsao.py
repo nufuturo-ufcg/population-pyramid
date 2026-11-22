@@ -65,6 +65,11 @@ def metodos_r() -> list[str]:
     return [f"{base}_R{r}_B" for base in BASES_R for r in range(4)]
 
 
+def metodos_r_ieice() -> list[str]:
+    """Fatorial R0 a R3 da coorte exata do IEICE16 (só em S1, S3 e nos cenários com horizonte de 12 meses)."""
+    return [f"coorte_IEICE_R{r}_B" for r in range(4)]
+
+
 def todos_os_metodos() -> list[str]:
     nomes = ["ingenua"]
     for familia in FAMILIAS:
@@ -477,12 +482,22 @@ def familia_coorte(
             projeta(atual, sr_ultimo, [media_n(N, k, 2)] * passos).sum()
         )
     if "Q_b" in est and versao == "B":
-        previsto.update(fatorial_r(est, k, atual, nov, primeiro_ativo, n2))
+        novatos_ieice = [media_n(N, k, 2)] * passos if ieice else None
+        previsto.update(
+            fatorial_r(est, k, atual, nov, primeiro_ativo, n2, novatos_ieice, sr_ultimo)
+        )
     return {"previsto": previsto, "faixas": faixas, "esparsidade": esparsidade}
 
 
 def fatorial_r(
-    est: dict, k: int, atual: np.ndarray, nov: dict, primeiro_ativo: int, n2: int
+    est: dict,
+    k: int,
+    atual: np.ndarray,
+    nov: dict,
+    primeiro_ativo: int,
+    n2: int,
+    novatos_ieice: list | None = None,
+    sr_ultimo: np.ndarray | None = None,
 ) -> dict:
     """Coorte e conservador com nascimento (R1, novatos da V2), parada (R2) ou os dois (R3).
 
@@ -513,6 +528,12 @@ def fatorial_r(
     for r, novatos in [(2, novatos_r0), (3, novatos_r1)]:
         saida[f"coorte_R{r}_B"] = float(projeta(atual, sr_coorte, novatos).sum())
         saida[f"conservador_R{r}_B"] = float(projeta(atual, sr_conservador, novatos).sum())
+    if (
+        novatos_ieice is not None
+    ):  # coorte do IEICE16: taxa do último recorte e faixa 0 pela média de 2 recortes (R0, em preve_estado)
+        saida["coorte_IEICE_R1_B"] = float(projeta(atual, sr_ultimo, novatos_r1).sum())
+        saida["coorte_IEICE_R2_B"] = float(projeta(atual, sr_coorte, novatos_ieice).sum())
+        saida["coorte_IEICE_R3_B"] = float(projeta(atual, sr_coorte, novatos_r1).sum())
     return saida
 
 
@@ -564,6 +585,8 @@ def preve_estado(
         nomes = nomes + metodos_r()
     if ieice:
         nomes = [*nomes, "coorte_IEICE_B"]
+        if "B" in versoes and "Q_b" in est:
+            nomes = nomes + metodos_r_ieice()
     previsto = {m: np.nan for m in nomes}
     faixas = {}
     marcas = {
@@ -648,6 +671,8 @@ def preve_estado(
             previsto["conservador_V2_B"],
         )
         previsto["coorte_amortecida_R0_B"] = previsto["coorte_amortecida_B"]
+        if ieice:
+            previsto["coorte_IEICE_R0_B"] = previsto["coorte_IEICE_B"]
         for c in COMBOS:
             previsto[f"{c}_R0_B"] = previsto[f"{c}_B"]
         for r in (1, 2, 3):

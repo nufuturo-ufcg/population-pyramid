@@ -3,12 +3,13 @@
   S1: recortes de 3 meses, ativo = contribuiu nos últimos 3 meses, idade = tempo desde a primeira contribuição em faixas de 3 meses sem desconto, todos os contribuidores, horizonte de 3 meses.
   S2: recorte em 31 de dezembro, faixas de 1 ano, idade descontada, janela de 12 meses, residentes pelo passado (P1), horizonte de 12 meses. Igual à versão A de `projecao-granularidade`.
   S3: como S1, com ativo = contribuiu nos últimos 12 meses.
+  S1b e S3h: S1 e S3 com horizonte de 12 meses (4 recortes à frente), para separar o efeito do horizonte (em S3 com horizonte de 3 meses, 9 dos 12 meses da janela do alvo já estão observados na origem).
 
 Roda os 41 métodos (mais a coorte exata do IEICE16 em S1 e S3) e o fatorial R0 a R3 de nascimento e parada de repositórios. Grava por linguagem e cenário, em `<saida>/unidades/`:
 `<l>_<cenario>_pares.csv.gz` (41 métodos e R0), `<l>_<cenario>_R1_pares.csv.gz` a `_R3_` (métodos do fatorial), `_marcas.csv` (por último) e, com `--vazamento`, `_vazamento.csv`.
 Em S2 confere os 41 métodos contra `<granularidade>/unidades/<l>_P1_12_pares.csv.gz` e para se algum diferir.
 
-Uso (na raiz do repo): .venv/bin/python scripts/granularidade/cenarios.py --carga DIR --saida DIR --linguas elixir --cenarios S1 S3 [--vazamento] [--granularidade DIR] [--amostra N] [--refazer]
+Uso (na raiz do repo): .venv/bin/python scripts/granularidade/cenarios.py --carga DIR --saida DIR --linguas elixir --cenarios S1 S3 S1b S3h [--vazamento] [--granularidade DIR] [--amostra N] [--refazer]
 """
 
 import argparse
@@ -22,7 +23,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vazamento
 from estado import FIM, constroi_estado, corta_estado
-from previsao import POOL, gera_regras, metodos_b, metodos_r, preve_estado
+from previsao import POOL, gera_regras, metodos_b, metodos_r, metodos_r_ieice, preve_estado
 from rodar import abre_ok, le_dados, memoria_maxima_gb, origens_do_teste
 
 CENARIOS = {
@@ -36,6 +37,9 @@ CENARIOS = {
         "ieice": False,
     },
     "S3": {"passo": 3, "janela": 4, "idade": "tempo", "pop": "P2", "horizonte": 1, "ieice": True},
+    # mesmos recortes e regras de S1 e S3, com horizonte de 12 meses (a coorte avança 4 recortes até o alvo)
+    "S1b": {"passo": 3, "janela": 1, "idade": "tempo", "pop": "P2", "horizonte": 4, "ieice": True},
+    "S3h": {"passo": 3, "janela": 4, "idade": "tempo", "pop": "P2", "horizonte": 4, "ieice": True},
 }
 BASE = ["ingenua", "deriva", "holt_amortecido"]
 
@@ -90,7 +94,9 @@ def roda_cenario(
         ],
     ).to_csv(pasta / f"{prefixo}_calibracao.csv", index=False, float_format="%.6g")
     regras = gera_regras(len(POOL))
-    nomes = [*BASE, *metodos_b(), *metodos_r()] + (["coorte_IEICE_B"] if cfg["ieice"] else [])
+    nomes = [*BASE, *metodos_b(), *metodos_r()] + (
+        ["coorte_IEICE_B", *metodos_r_ieice()] if cfg["ieice"] else []
+    )
     hist = {
         "previsto": {m: np.full(K1, np.nan) for m in nomes},
         "rf": np.full((K1, len(regras)), np.nan),

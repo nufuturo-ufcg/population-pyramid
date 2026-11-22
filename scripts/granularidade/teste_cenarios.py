@@ -26,7 +26,7 @@ rodar.roda_unidade(
     pessoas, eventos, "sint", "P1", 12, granularidade / "unidades", False, None, ("A",), True
 )
 saida = TMP / "cen" / "unidades"
-for c in ["S2", "S1", "S3"]:
+for c in ["S2", "S1", "S3", "S1b", "S3h"]:
     cenarios.roda_cenario(pessoas, eventos, "sint", c, saida, True, None, granularidade)
     teste = pd.read_csv(saida / f"sint_{c}_vazamento.csv")
     assert teste["estados_iguais"].all() and (teste["maior_diferenca_relativa"] < 1e-9).all(), (
