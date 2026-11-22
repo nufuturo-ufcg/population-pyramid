@@ -487,7 +487,7 @@ for c in NOVOS:
             f"- {c}: Holt substituído pela ingênua em {int(m['holt_ingenua'].sum())} de {len(m)} origens."
         )
 R.append(
-    "- Poucos pares nas origens de dezembro (de uma a quase uma dezena por linguagem) deixam o menor p possível alto: ver `testes.csv` (colunas `n_pares` e `p_minimo`). Os testes de todas as origens trimestrais têm pares dependentes e só indicam."
+    "- Poucos pares nas origens de dezembro (de 4 a 8 por linguagem, menor p possível de 0,125 com 4 pares e 0,008 com 8) deixam o teste com pouco poder: ver `testes.csv` (colunas `n_pares` e `p_minimo`). Os testes de todas as origens trimestrais têm pares dependentes e só indicam."
 )
 if len(testes):
     d = testes[testes["conjunto"] == "dezembro"]
