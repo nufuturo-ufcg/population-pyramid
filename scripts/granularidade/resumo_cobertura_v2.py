@@ -232,6 +232,31 @@ L += [
     *conf_gran,
     "",
 ]
+# diagnóstico em frases: o que mostra a causa
+fora = diag[
+    (diag["coorte_R3"] > diag["otimista_R3"])
+    | (diag["conservador_R3"] > diag["otimista_R3"])
+    | (diag["coorte_R3"] < diag["pessimista_R3"])
+    | (diag["conservador_R3"] < diag["pessimista_R3"])
+]
+novato_maior = fora[fora["novatos_central"] > fora["novatos_otimista"]]
+dentro_depois = fora[
+    (fora["coorte_R3"] <= fora["otimista_R3_novo"])
+    & (fora["conservador_R3"] <= fora["otimista_R3_novo"])
+    & (fora["coorte_R3"] >= fora["pessimista_R3_novo"])
+    & (fora["conservador_R3"] >= fora["pessimista_R3_novo"])
+]
+e_acima = diag[diag["E_projetado"] > diag["E_max_janela"]]
+r0_acima = diag[diag["R0_projetado"] > diag["R0_max_janela"]]
+L += ["## Diagnóstico da causa", ""]
+L += [
+    f"- Origens da Parte 2 com a Coorte^R ou o Conservador^R fora do intervalo antigo de R3: {len(fora)} de {len(diag)} ({', '.join(f'{NOMES[x.linguagem]} {x.origem[:4]}' for x in fora.itertuples())}).",
+    f"- Nessas {len(fora)} origens, os novatos do ponto central passam dos novatos do otimista antigo em {len(novato_maior)}.",
+    f"- Com o novato trocado pelo da regra nova (e as mesmas taxas), os dois pontos ficam dentro em {len(dentro_depois)} das {len(fora)}.",
+    f"- Repositórios existentes projetados acima do máximo dos últimos 5 anos: {len(e_acima)} das {len(diag)} origens. Repositórios novos projetados acima do máximo: {len(r0_acima)}.",
+    "- Os valores por origem estão em `tabelas.md` (seção Diagnóstico) e `diagnostico_otimista.csv`.",
+    "",
+]
 L += ["## Cobertura e largura mediana por linguagem", ""]
 
 for lingua in LINGUAS:
