@@ -97,7 +97,7 @@ def duplicatas_por_repo(
     con = duckdb.connect()
     con.execute(f"PRAGMA threads={threads}")
     con.execute(f"PRAGMA memory_limit='{memoria_gb}GB'")
-    con.execute(f"PRAGMA temp_directory={_aspas(saida.parent / 'duckdb_tmp')}")
+    con.execute(f"PRAGMA temp_directory={_aspas(saida.parent / ('duckdb_tmp_' + saida.stem))}")
     colunas = []
     for linha in con.execute(f"DESCRIBE SELECT * FROM {leitor}").fetchall():
         if linha[0] != "collection_started_at":
