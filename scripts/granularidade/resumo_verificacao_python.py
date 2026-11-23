@@ -38,6 +38,7 @@ lista = pd.read_csv(SAIDA / "lista_seart.csv").set_index("linguagem")
 nasc = pd.read_csv(SAIDA / "nascimento.csv")
 cand = pd.read_csv(SAIDA / "candidatos.csv", dtype={"repo_id": str})
 push = pd.read_csv(SAIDA / "push_contra_evento.csv").set_index("linguagem")
+cand_push = pd.read_csv(SAIDA / "candidatos_por_push.csv")
 
 # AMOSTRA.md: a linha de cada linguagem na primeira tabela
 amostra = {}
@@ -82,6 +83,23 @@ for lingua in LINGUAS:
     T.append(
         f"| {NOMES[lingua]} | {milhar(n)} | {milhar(x['push_ate_2020'])} ({pct(x['push_ate_2020'] / n)}) | {milhar(x['ultimo_evento_ate_2020'])} ({pct(x['ultimo_evento_ate_2020'] / n)}) | {milhar(x['push_ate_2020_e_ultimo_evento_ate_2020'])} | {milhar(x['push_ate_2020_e_ultimo_evento_depois'])} | {milhar(x['push_depois_e_ultimo_evento_ate_2020'])} | {milhar(x['ultimo_evento_mais_de_1_ano_depois_do_push'])} ({pct(x['ultimo_evento_mais_de_1_ano_depois_do_push'] / n)}) |"
     )
+T.append("")
+
+T += [
+    "### Candidatos por ano do último push da SEART: elegibilidade e carga",
+    "",
+    "Elegível: mais de 50% do código na linguagem. Na carga: o repositório tem algum evento na carga atual.",
+    "",
+]
+T += ["| Linguagem | Último push | Candidatos | Não elegíveis | Elegíveis fora da carga | Na carga | Fração na carga |", "|---|---|---|---|---|---|---|"]  # fmt: skip
+for lingua in LINGUAS:
+    for grupo, rotulo in [("ate_2020", "até 2020"), ("2021_ou_depois", "2021 ou depois")]:
+        x = cand_push[
+            (cand_push["linguagem"] == lingua) & (cand_push["ultimo_push"] == grupo)
+        ].iloc[0]
+        T.append(
+            f"| {NOMES[lingua]} | {rotulo} | {milhar(x['candidatos'])} | {milhar(x['nao_elegiveis'])} ({pct(x['nao_elegiveis'] / x['candidatos'])}) | {milhar(x['elegiveis_fora_da_carga'])} | {milhar(x['na_carga'])} | {pct(x['na_carga'] / x['candidatos'])} |"
+        )
 T.append("")
 
 # ---- 1b: nascimento e parada
@@ -129,13 +147,14 @@ for lingua in LINGUAS:
     com_evento = set(c[c["com_evento_na_carga"]]["repo_id"])
     todos = set(c["repo_id"])
     sem_evento = len(todos) - len(com_evento)
+    assert x_ids <= todos, f"{lingua}: duplicados fora da lista de candidatos"
     duplicados_sem_evento = len(x_ids & (todos - com_evento))
     outros = sem_evento - est["repos_excluidos_share"] - duplicados_sem_evento
     a = amostra[NOMES[lingua]]
     T.append(
         f"| {NOMES[lingua]} | {milhar(est['repos_total'])} | {milhar(est['repos_excluidos_share'])} | {milhar(est['repos_elegiveis'])} | {milhar(a[2])} | {milhar(len(com_evento))} | {milhar(a[2] - len(com_evento))} | {milhar(est['repos_fundidos'])} | {milhar(len(x_ids))} | {milhar(len(x_ids & com_evento))} | {milhar(sem_evento)} | {milhar(est['repos_excluidos_share'])} | {milhar(duplicados_sem_evento)} | {milhar(outros)} | {milhar(a[3])} |"
     )
-    saida_1c.append((lingua, est, a, len(com_evento), len(x_ids), outros))
+    saida_1c.append((lingua, est, a, len(com_evento), len(x_ids), outros, len(x_ids & com_evento)))
 T += [
     "",
     'Candidatos sem evento na carga = candidatos menos os com algum evento. "Proporção" é a contagem `repos_excluidos_share` de `estatisticas_da_carga.json`. "Outros" é o que sobra depois de tirar proporção e duplicados.',
@@ -145,6 +164,14 @@ T += [
 (SAIDA / "tabelas.md").write_text("\n".join(T) + "\n", encoding="utf-8")
 
 # ---- resumo
+frases_push = []
+for lingua in LINGUAS:
+    x = cand_push[
+        (cand_push["linguagem"] == lingua) & (cand_push["ultimo_push"] == "ate_2020")
+    ].iloc[0]
+    frases_push.append(
+        f"{NOMES[lingua]}: {milhar(x['nao_elegiveis'])} de {milhar(x['candidatos'])} não elegíveis ({pct(x['nao_elegiveis'] / x['candidatos'])})"
+    )
 L = ["# Como a lista de repositórios foi montada, em Python e nas outras linguagens", ""]
 L += [
     f"Código: commit `{COMMITS[0]}` (script de medida) e `{COMMITS[1]}` (resumo). Protocolo em `hipoteses.md`. Todas as tabelas em `tabelas.md`.",
@@ -162,6 +189,10 @@ L += [
     "- **Ordenação.** Não está registrada. A ordem do `repo_id` é a das listas; só Clojure teve ordenação por estrelas, na busca antiga descartada.",
     "- **Filtro de atividade.** Não está registrado (`AMOSTRA.md`, `docs/linguagem/tcc.md`). O último push mais antigo das listas é de 2008 em Clojure, OCaml e Python, de 2012 em Elixir e de 2019 em Zig (tabela 1a). Um filtro de commit recente na busca não deixaria esses repositórios na lista, e a data da listagem também não está registrada. O limite inferior dela é o push mais novo da lista (agosto a outubro de 2026).",
     "- **Forks, data de criação e atividade.** Registrado que os filtros da busca nesses três campos não estão no repositório.",
+    "",
+    "- **Proporção de código entre os candidatos com último push até 2020.** "
+    + "; ".join(frases_push)
+    + ".",
     "",
     "Python foi coletado de um jeito diferente?",
     "",
@@ -185,13 +216,15 @@ L += [
     "Elixir, da tabela 1c:",
     "",
 ]
-for lingua, est, a, n_com, n_x, outros in saida_1c:
+for lingua, est, a, n_com, n_x, outros, x_com_evento in saida_1c:
     if lingua != "elixir":
         continue
+    x_sem_evento = n_x - x_com_evento
     L += [
         f"- {milhar(a[2])} em AMOSTRA.md menos {milhar(n_com)} na carga: {a[2] - n_com} repositórios.",
-        f"- {n_x} deles são duplicados listados em `repos_excluidos.csv` (todos candidatos da lista, nenhum com evento na carga). A diferença restante é {a[2] - n_com - n_x}.",
-        f"- Os candidatos sem evento na carga são {milhar(est['repos_total'] - n_com)}: {est['repos_excluidos_share']} por proporção de código, {n_x} duplicados e {outros} outros. `AMOSTRA.md` conta {a[3]} elegíveis sem evento.",
+        f"- `repos_excluidos.csv` lista {n_x} duplicados, todos candidatos da lista. {x_sem_evento} não têm evento na carga e {x_com_evento} têm. A regra 9 da carga diz que, se o repositório mantido do grupo é inelegível, a identidade do grupo passa para o membro elegível criado antes. Não verifiquei se é o caso desses {x_com_evento}.",
+        f"- Os candidatos sem evento na carga são {milhar(est['repos_total'] - n_com)}: {est['repos_excluidos_share']} por proporção de código, {x_sem_evento} duplicados e {outros} outros. `AMOSTRA.md` conta {a[3]} elegíveis sem evento, então {outros - a[3]} repositórios com evento em `AMOSTRA.md` não têm evento na carga por outra razão, que não foi investigada.",
+        f"- Conta: {x_sem_evento} duplicados mais {outros - a[3]} outros dá {x_sem_evento + outros - a[3]}, a diferença de {a[2] - n_com}.",
     ]
 L += [
     "",
