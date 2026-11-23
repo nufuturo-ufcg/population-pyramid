@@ -4,12 +4,14 @@ Grava em `<saida>`:
   - `lista_seart.csv`: por linguagem, o que as listas da SEART (`repositorios_<lang>_alvo.csv`) contêm: estrelas, datas de criação e do último push, forks, arquivados, ordem do `repo_id`.
   - `nascimento.csv`: por linguagem e ano do primeiro evento do repositório (todos os eventos da carga), quantos nasceram e quantos tiveram o último evento até 3 anos depois (em anos civis).
   - `push_contra_evento.csv`: nos repositórios da carga, o ano do último push da lista da SEART contra o ano do último evento da carga.
+  - `candidatos_por_push.csv`: candidatos por ano do último push da SEART (até 2020 ou depois): quantos não são elegíveis (mais de 50% do código na linguagem), quantos são elegíveis e ficam fora da carga e quantos estão na carga.
   - `candidatos.csv`: cada candidato da carga (`repos.parquet`, todos os repositórios da lista) e se tem algum evento na carga atual (com fusão de duplicados), para reconciliar as contagens com `AMOSTRA.md`.
 
 Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/verificacao_lista.py <carga> <runs> <python> <saida> clojure elixir ocaml python zig
   <runs> = ~/population-pyramid/coleta-dados/runs, <python> = ~/dados-brutos/python
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -41,7 +43,13 @@ NOME_NA_SEART = {
     "python": "Python",
 }
 
-linhas_lista, linhas_nascimento, linhas_candidatos, linhas_push = [], [], [], []
+linhas_lista, linhas_nascimento, linhas_candidatos, linhas_push, linhas_candidatos_push = (
+    [],
+    [],
+    [],
+    [],
+    [],
+)
 for lingua in LINGUAS:
     # ---- 1. o que a lista da SEART contém
     partes = []
@@ -56,6 +64,7 @@ for lingua in LINGUAS:
             "createdAt",
             "pushedAt",
             "isArchived",
+            "languages",
         ]
         parte = pd.read_csv(caminho, usecols=usar).rename(columns={coluna_estrelas: "estrelas"})
         partes.append(parte)
@@ -91,6 +100,21 @@ for lingua in LINGUAS:
             "repo_id_min": int(ids.min()),
             "repo_id_max": int(ids.max()),
             "repo_id_crescente": bool(np.all(np.diff(ids) > 0)),
+        }
+    )
+    elegivel = []
+    for texto in lista["languages"]:
+        try:
+            mapa = json.loads(texto)
+        except (TypeError, ValueError):
+            mapa = {}
+        total = sum(mapa.values())
+        elegivel.append(total > 0 and mapa.get(NOME_NA_SEART[lingua], 0) / total > 0.5)
+    por_candidato = pd.DataFrame(
+        {
+            "repo_id": lista["repo_id"].astype(str).to_numpy(),
+            "push": push.dt.year.to_numpy(),
+            "elegivel": elegivel,
         }
     )
     ano_do_push = pd.Series(push.dt.year.to_numpy(), index=lista["repo_id"].astype(str).to_numpy())
@@ -145,6 +169,34 @@ for lingua in LINGUAS:
             ),
         }
     )
+    # candidatos por ano do último push da SEART: não elegíveis, elegíveis fora da carga e na carga
+    por_candidato = por_candidato.merge(
+        candidatos.assign(repo_id=candidatos["repo_id"].astype(str))[
+            ["repo_id", "com_evento_na_carga"]
+        ],
+        on="repo_id",
+        how="left",
+    )
+    por_candidato["na_carga"] = por_candidato["com_evento_na_carga"].fillna(False).astype(bool)
+    for grupo, filtro in [
+        ("ate_2020", por_candidato["push"] <= 2020),
+        ("2021_ou_depois", por_candidato["push"] >= 2021),
+    ]:
+        g = por_candidato[filtro]
+        linhas_candidatos_push.append(
+            {
+                "linguagem": lingua,
+                "ultimo_push": grupo,
+                "candidatos": len(g),
+                "nao_elegiveis": int((~g["elegivel"]).sum()),
+                "elegiveis_fora_da_carga": int((g["elegivel"] & ~g["na_carga"]).sum()),
+                "na_carga": int(g["na_carga"].sum()),
+            }
+        )
+    print(
+        f"{lingua}: não elegíveis pela proporção de código {int((~por_candidato['elegivel']).sum())}",
+        flush=True,
+    )
     print(
         f"{lingua}: {len(candidatos)} candidatos, {len(codigos_pos)} com evento na carga",
         flush=True,
@@ -153,4 +205,5 @@ for lingua in LINGUAS:
     pd.DataFrame(linhas_nascimento).to_csv(SAIDA / "nascimento.csv", index=False)
     pd.DataFrame(linhas_candidatos).to_csv(SAIDA / "candidatos.csv", index=False)
     pd.DataFrame(linhas_push).to_csv(SAIDA / "push_contra_evento.csv", index=False)
+    pd.DataFrame(linhas_candidatos_push).to_csv(SAIDA / "candidatos_por_push.csv", index=False)
 print("pronto")
