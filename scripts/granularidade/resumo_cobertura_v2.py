@@ -168,22 +168,28 @@ def mede(lingua: str, rotulo: str) -> tuple[int, int, float, float]:
 
 
 # conferência de R0 e R1 (regra antiga) contra intervalos.csv da granularidade
-antigos = pd.read_csv(GRAN / "intervalos.csv")
-antigos = antigos[(antigos["populacao"] == "P1") & (antigos["passo_meses"] == 12)]
-conf_gran = ["| Linguagem | Intervalo | Pares | Cobertura (esta rodada) | Cobertura (intervalos.csv) | Largura mediana (esta rodada) | Largura mediana (intervalos.csv) |", "|---|---|---|---|---|---|---|"]  # fmt: skip
-for lingua in LINGUAS:
-    for rotulo, variante in [("R0", "V0"), ("R1 regra antiga", "V2")]:
-        n, dentro, fracao, largura = mede(lingua, rotulo)
-        ref = antigos[(antigos["linguagem"] == lingua) & (antigos["variante"] == variante)].iloc[0]
-        conf_gran.append(
-            f"| {NOMES[lingua]} | {rotulo} contra {variante} | {n} de {int(ref['pares'])} | {dentro} de {n} ({num(fracao, 4)}) | {num(ref['cobertura'], 4)} | {num(largura, 4)} | {num(ref['largura_relativa_mediana'], 4)} |"
-        )
-        if (
-            n != int(ref["pares"])
-            or abs(fracao - ref["cobertura"]) > 1e-5
-            or abs(largura - ref["largura_relativa_mediana"]) > 1e-5
-        ):
-            sys.exit(f"{lingua} {rotulo}: não reproduz intervalos.csv. Parei.")
+conf_gran = [
+    "- Conferência contra `intervalos.csv` pulada: não há `intervalos.csv` na pasta de granularidade informada."
+]
+if (GRAN / "intervalos.csv").exists():
+    antigos = pd.read_csv(GRAN / "intervalos.csv")
+    antigos = antigos[(antigos["populacao"] == "P1") & (antigos["passo_meses"] == 12)]
+    conf_gran = ["| Linguagem | Intervalo | Pares | Cobertura (esta rodada) | Cobertura (intervalos.csv) | Largura mediana (esta rodada) | Largura mediana (intervalos.csv) |", "|---|---|---|---|---|---|---|"]  # fmt: skip
+    for lingua in LINGUAS:
+        for rotulo, variante in [("R0", "V0"), ("R1 regra antiga", "V2")]:
+            n, dentro, fracao, largura = mede(lingua, rotulo)
+            ref = antigos[
+                (antigos["linguagem"] == lingua) & (antigos["variante"] == variante)
+            ].iloc[0]
+            conf_gran.append(
+                f"| {NOMES[lingua]} | {rotulo} contra {variante} | {n} de {int(ref['pares'])} | {dentro} de {n} ({num(fracao, 4)}) | {num(ref['cobertura'], 4)} | {num(largura, 4)} | {num(ref['largura_relativa_mediana'], 4)} |"
+            )
+            if (
+                n != int(ref["pares"])
+                or abs(fracao - ref["cobertura"]) > 1e-5
+                or abs(largura - ref["largura_relativa_mediana"]) > 1e-5
+            ):
+                sys.exit(f"{lingua} {rotulo}: não reproduz intervalos.csv. Parei.")
 
 # diagnóstico (causa)
 diag = pd.read_csv(SAIDA / "diagnostico_otimista.csv")
