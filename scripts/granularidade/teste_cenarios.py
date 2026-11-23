@@ -64,6 +64,18 @@ for c in ["S2", "S1", "S3", "S1b", "S3h"]:
         assert np.allclose(prev_i[f"{familia}_R0"], prev_i[f"{familia}_V0"], equal_nan=True)
         assert np.allclose(prev_i[f"{familia}_R1"], prev_i[f"{familia}_V2"], equal_nan=True)
         assert prev_i[f"{familia}_R2"].notna().any() and prev_i[f"{familia}_R3"].notna().any()
+    # regra nova de R1 e R3: cerca a antiga e contém o ponto central (coorte e conservador) em todas as origens definidas
+    for r in (1, 3):
+        pess_n, otim_n = prev_i[f"pessimista_nova_R{r}"], prev_i[f"otimista_nova_R{r}"]
+        assert pess_n.notna().any() and otim_n.notna().any(), (c, r)
+        definidos = pess_n.notna() & otim_n.notna()
+        assert (pess_n[definidos] <= prev_i[f"pessimista_R{r}"][definidos] + 1e-6).all(), (c, r)
+        assert (otim_n[definidos] >= prev_i[f"otimista_R{r}"][definidos] - 1e-6).all(), (c, r)
+        for ponto in ("coorte", "conservador"):
+            valor = prev_i[f"{ponto}_R{r}"]
+            quando = definidos & valor.notna()
+            assert (valor[quando] <= otim_n[quando] + 1e-6).all(), (c, r, ponto, "acima")
+            assert (valor[quando] >= pess_n[quando] - 1e-6).all(), (c, r, ponto, "abaixo")
     for r in range(4):
         pess, otim = prev_i[f"pessimista_R{r}"], prev_i[f"otimista_R{r}"]
         definidos = pess.notna() & otim.notna()

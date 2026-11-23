@@ -27,6 +27,7 @@ from previsao import (
     POOL,
     gera_regras,
     metodos_b,
+    metodos_intervalo_nova,
     metodos_intervalo_r,
     metodos_r,
     metodos_r_ieice,
@@ -102,9 +103,13 @@ def roda_cenario(
         ],
     ).to_csv(pasta / f"{prefixo}_calibracao.csv", index=False, float_format="%.6g")
     regras = gera_regras(len(POOL))
-    nomes = [*BASE, *metodos_b(), *metodos_r(), *metodos_intervalo_r()] + (
-        ["coorte_IEICE_B", "conservador_IEICE_B", *metodos_r_ieice()] if cfg["ieice"] else []
-    )
+    nomes = [
+        *BASE,
+        *metodos_b(),
+        *metodos_r(),
+        *metodos_intervalo_r(),
+        *metodos_intervalo_nova(),
+    ] + (["coorte_IEICE_B", "conservador_IEICE_B", *metodos_r_ieice()] if cfg["ieice"] else [])
     hist = {
         "previsto": {m: np.full(K1, np.nan) for m in nomes},
         "rf": np.full((K1, len(regras)), np.nan),

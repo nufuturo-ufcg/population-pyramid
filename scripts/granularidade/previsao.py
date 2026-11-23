@@ -70,6 +70,11 @@ def metodos_intervalo_r() -> list[str]:
     return [f"{familia}_R{r}_B" for familia in ["pessimista", "otimista"] for r in range(4)]
 
 
+def metodos_intervalo_nova() -> list[str]:
+    """Pessimista e otimista de R1 e R3 com a regra nova dos novatos (fatores de repositórios pelo maior ou menor entre o passado e o projetado), na versão B."""
+    return [f"{familia}_nova_R{r}_B" for familia in ["pessimista", "otimista"] for r in (1, 3)]
+
+
 def metodos_r_ieice() -> list[str]:
     """Fatorial R0 a R3 da coorte exata do IEICE16, do conservador com os novatos dela e da C3 com ela (só em S1, S3 e nos cenários com horizonte de 12 meses)."""
     nomes = []
@@ -400,6 +405,19 @@ def familia_coorte(
     mn_m, me_m = media_n(M_NOVO, k, n2), media_n(M_EX, k, n2)
     nov["V2"] = [R0m * mn_m + E_v2[i] * me_m for i in range(passos)]
     pess_nov["V2"], otim_nov["V2"] = pess_v2, otim_v2
+    # regra nova (R1 e R3): o fator de repositórios novos e o de existentes vão ao maior (menor) entre o máximo (mínimo) da janela e o valor projetado
+    pess_v2_nova, otim_v2_nova = [], []
+    for i in range(passos):
+        novos_pess = min(minimo(R0[janela]), R0m)
+        existentes_pess = min(minimo(E[janela]), E_v2[i])
+        pess_v2_nova.append(
+            novos_pess * minimo(M_NOVO[janela]) + existentes_pess * minimo(M_EX[janela])
+        )
+        novos_otim = max(maximo(R0[janela]), R0m)
+        existentes_otim = max(maximo(E[janela]), E_v2[i])
+        otim_v2_nova.append(
+            novos_otim * maximo(M_NOVO[janela]) + existentes_otim * maximo(M_EX[janela])
+        )
     r0_t = reta(R0, k, n3, hs, contagem)
     mn_t = reta(M_NOVO, k, n3, hs, contagem)
     me_t = reta(M_EX, k, n3, hs, contagem)
@@ -510,7 +528,22 @@ def familia_coorte(
         previsto.update(
             fatorial_r(est, k, atual, nov, primeiro_ativo, n2, novatos_ieice, sr_ultimo)
         )
-        previsto.update(intervalos_r(est, k, atual, primeiro_ativo, n5, pess_nov, otim_nov, passos))
+        previsto.update(
+            intervalos_r(
+                est,
+                k,
+                atual,
+                primeiro_ativo,
+                n5,
+                pess_nov,
+                otim_nov,
+                pess_v2_nova,
+                otim_v2_nova,
+                passos,
+            )
+        )
+        previsto["pessimista_nova_R1_B"] = float(projeta(atual, menor, pess_v2_nova).sum())
+        previsto["otimista_nova_R1_B"] = float(projeta(atual, maior, otim_v2_nova).sum())
     return {"previsto": previsto, "faixas": faixas, "esparsidade": esparsidade}
 
 
@@ -565,6 +598,8 @@ def intervalos_r(
     n5: int,
     pess_nov: dict,
     otim_nov: dict,
+    pess_nova: list,
+    otim_nova: list,
     passos: int,
 ) -> dict:
     """Pessimista e otimista com a parada de repositórios, como no `fatorial_r`.
@@ -572,6 +607,7 @@ def intervalos_r(
     A taxa sem parada de cada faixa é a menor (pessimista) ou a maior (otimista) das últimas `n5` origens, com a regra da V0: faixa sem taxa em nenhuma das origens usa a da última.
     A taxa de projeção é (1 - saída por parada na origem) x essa taxa, a mesma saída nos dois limites.
     R2 usa os novatos da V0 (menor e maior valor da janela) e R3 os da V2.
+    `pessimista_nova_R3` e `otimista_nova_R3` usam os novatos da regra nova (`pess_nova`, `otim_nova`, um valor por passo).
     """
     q = est["Q_b"]
     na_faixa = np.where(atual > 0, atual, 1.0)
@@ -595,6 +631,10 @@ def intervalos_r(
         saida[f"otimista_R{r}_B"] = float(
             projeta(atual, (1 - saida_parada) * maior, [otim_nov[versao]] * passos).sum()
         )
+    saida["pessimista_nova_R3_B"] = float(
+        projeta(atual, (1 - saida_parada) * menor, pess_nova).sum()
+    )
+    saida["otimista_nova_R3_B"] = float(projeta(atual, (1 - saida_parada) * maior, otim_nova).sum())
     return saida
 
 
@@ -643,7 +683,7 @@ def preve_estado(
     nomes = todos_os_metodos() if "A" in versoes else ["ingenua", "deriva", "holt_amortecido"]
     nomes = nomes + (metodos_b() if "B" in versoes else [])
     if "B" in versoes and "Q_b" in est:
-        nomes = nomes + metodos_r() + metodos_intervalo_r()
+        nomes = nomes + metodos_r() + metodos_intervalo_r() + metodos_intervalo_nova()
     if ieice:
         nomes = [*nomes, "coorte_IEICE_B", "conservador_IEICE_B"]
         if "B" in versoes and "Q_b" in est:
