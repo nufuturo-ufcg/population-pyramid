@@ -103,6 +103,7 @@ linhas_hash += [
 # Duplicatas
 por_parte = {}
 repos_da_parte: dict[str, set[str]] = {}
+partes_do_par: dict[tuple[str, str], set[str]] = {}
 tipos: dict[str, dict[str, int]] = {}
 for chave, nome_parte, _arquivo in PARTES:
     linhas_total = 0
@@ -116,6 +117,7 @@ for chave, nome_parte, _arquivo in PARTES:
             rep = int(r["repetidas"])
             linhas_total += n
             repos.add(r["repo_id"])
+            partes_do_par.setdefault((r["repo_id"], r["event_type"]), set()).add(nome_parte)
             if rep > 0:
                 repetidas += rep
                 repos_com_repeticao.add(r["repo_id"])
@@ -158,6 +160,10 @@ nomes_partes = []
 for _, nome_parte, _ in PARTES:
     if nome_parte not in nomes_partes:
         nomes_partes.append(nome_parte)
+pares_em_duas_partes = 0
+for onde_par in partes_do_par.values():
+    if len(onde_par) > 1:
+        pares_em_duas_partes += 1
 em_varias = []
 vistos: dict[str, list[str]] = {}
 for nome_parte in nomes_partes:
@@ -172,6 +178,7 @@ secao += [
     f"- Arquivo final: {milhar(soma_linhas)} linhas, {milhar(soma_repetidas)} repetidas. A chave inclui o `repo_id`, então a contagem do final é a soma das partes quando nenhum repositório está em duas partes.",
     f"- Repositórios em mais de uma parte: {milhar(len(em_varias))}.",
     f"- Repositórios distintos no total: {milhar(len(vistos))}.",
+    f"- Pares de repositório e tipo de evento presentes em mais de uma parte: {milhar(pares_em_duas_partes)}. Eventos do mesmo tipo e repositório em duas partes não existem, então não há duplicata entre partes.",
     "",
     "Repetidas por tipo de evento:",
     "",
