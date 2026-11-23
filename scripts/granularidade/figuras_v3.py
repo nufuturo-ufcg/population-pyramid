@@ -165,7 +165,7 @@ for _, nome, marcador, cor in MARCADORES:
     )
     rotulos.append(nome)
 manuais.append(plt.Line2D([], [], color="black", linewidth=1.0))
-rotulos.append("Pessimista a otimista (R3)")
+rotulos.append("Pessimista a otimista, com repositórios")
 fig.legend(manuais, rotulos, loc="upper center", ncol=5, frameon=False, bbox_to_anchor=(0.5, 1.01))
 fig.tight_layout(rect=(0, 0, 1, 0.92))
 fig.savefig(SAIDA / "figura2_projecao_2024.pdf")
@@ -216,6 +216,7 @@ eixo_a.set_xlabel("Faixa de idade (anos)")
 eixo_a.set_ylabel("Taxa de permanência")
 eixo_a.set_title("(a) Origem 31/12/2023", fontsize=7)
 eixo_a.set_ylim(0.38, 1.0)
+eixo_a.yaxis.set_major_formatter(lambda y, _: f"{y:.1f}".replace(".", ","))
 eixo_a.legend(loc="lower right", frameon=False, fontsize=5.5)
 
 real = serie[serie["tipo"] == "real"]
@@ -287,7 +288,7 @@ manuais = [
 ]
 eixo_b.legend(
     manuais,
-    ["Real", "Coorte$^{R}$", "Pessimista a otimista, R0", "Pessimista a otimista, R3", "Real fora do intervalo"],
+    ["Real", "Coorte$^{R}$", "Pessimista a otimista, sem repositórios", "Pessimista a otimista, com repositórios", "Real fora do intervalo sem repositórios"],
     loc="upper left", frameon=False, fontsize=5.5,
 )  # fmt: skip
 eixo_b.set_ylim(top=6800)
