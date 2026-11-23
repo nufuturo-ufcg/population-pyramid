@@ -24,6 +24,7 @@ Onde procurar, em ordem:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,7 +44,9 @@ LINGUAGENS_EXTRAS = {
 CORES_EXTRAS = {"ocaml": "#e8590c"}
 LINGUAGENS = {**fb.LINGUAGENS, **LINGUAGENS_EXTRAS}
 
-YAML_FONTES = Path(__file__).parent / "vitalidade_fontes.yaml"
+YAML_FONTES = Path(
+    os.environ.get("PYRAMID_FONTES_YAML", Path(__file__).parent / "vitalidade_fontes.yaml")
+)
 PAPEIS = ("api", "git", "misto")
 COLUNAS_DO_ALVO = ["repo_id", "mainLanguage", "createdAt", "languages"]
 
@@ -64,6 +67,7 @@ class Fonte:
     autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login (só duckdb)
     duplicados: Path | None = None  # CSV com repo_id dos repositórios a excluir (só duckdb)
     fracoes_api: Path | None = None  # CSV da API de linguagens, para quem tem `languages` vazio
+    sem_linhas_repetidas: bool = False  # a carga tira linha repetida do bruto (só duckdb)
 
     def repos_excluidos(self) -> tuple[str, ...]:
         """Os `repo_id` do arquivo `duplicados`, ou nenhum."""
@@ -144,6 +148,7 @@ def _do_yaml(slug: str) -> Fonte | None:
         fonte.autores = Path(entrada["autores"]).expanduser()
     if entrada.get("duplicados"):
         fonte.duplicados = Path(entrada["duplicados"]).expanduser()
+    fonte.sem_linhas_repetidas = bool(entrada.get("sem_linhas_repetidas", False))
     if entrada.get("fracoes_api"):
         fonte.fracoes_api = Path(entrada["fracoes_api"]).expanduser()
     return fonte

@@ -76,6 +76,7 @@ def _duckdb(
         contas_extras=contas_extras,
         repos_para_contar=repos_para_contar,
         repos_sem_eventos=repos_sem_eventos,
+        sem_linhas_repetidas=fonte.sem_linhas_repetidas,
         completos=completos,
     )
     if origem is not None:

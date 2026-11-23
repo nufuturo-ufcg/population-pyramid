@@ -80,6 +80,12 @@ NULOS = [
 # Cada núcleo reserva um buffer proporcional a isto. 256 MB por linha estourou 24 GB com 16 núcleos.
 # Um commit com milhares de arquivos cabe em bem menos; linha maior é descartada.
 LINHA_MAXIMA = 32 * 1024 * 1024
+# Colunas da coleta que formam a chave de uma linha (todas menos `collection_started_at`).
+COLUNAS_DA_CHAVE = [
+    "repo_id", "repo_name", "event_type", "number", "title", "author", "author_login",
+    "author_email", "created_at", "state", "sha", "message", "url", "labels", "files",
+    "language", "collection_status",
+]  # fmt: skip
 
 # Contas que não são pessoas: logins de migração de rastreador e logins de bot sem `[bot]`.
 # `sem_contas_de_sistema` tira os eventos delas. UUID é o placeholder de quem não tem conta real.
@@ -128,6 +134,9 @@ class Pedido:
     repos_para_contar: tuple[str, ...] = ()
     # repo_id cujos eventos saem da carga (sensibilidade). Não pode estar num grupo de duplicados.
     repos_sem_eventos: tuple[str, ...] = ()
+    # Linha repetida do arquivo bruto sai (chave: todas as colunas menos `collection_started_at`),
+    # dentro do mesmo `repo_id`. Grava `linhas_repetidas.csv` em `origem` quando ela existe.
+    sem_linhas_repetidas: bool = False
 
 
 @dataclass
@@ -143,14 +152,21 @@ def _aspas(texto: str | Path) -> str:
     return "'" + str(texto).replace("'", "''") + "'"
 
 
-def _leitura(caminho: Path, papel: str) -> str:
-    """SELECT que lê um CSV e diz, por linha, se segue a regra do git (`eh_commit`)."""
+def _leitura(caminho: Path, papel: str, com_chave: bool = False) -> str:
+    """SELECT que lê um CSV e diz, por linha, se segue a regra do git (`eh_commit`).
+
+    Com `com_chave`, `chave_linha` é o hash de todas as colunas da coleta menos
+    `collection_started_at` (a chave de `verificar_duplicatas_eventos.py`). Vazia vira texto vazio.
+    """
     eh_commit = {"api": "false", "git": "true", "misto": "event_type = 'commit'"}[papel]
     nulos = "[" + ", ".join(_aspas(n) for n in NULOS) + "]"
+    chave = "0"
+    if com_chave:
+        chave = "hash(" + ", ".join(f"coalesce({c}, '')" for c in COLUNAS_DA_CHAVE) + ")"
     return f"""
         SELECT repo_id, event_type, author, author_login, author_email, created_at, files, language,
                number, sha, url, message, title,
-               {eh_commit} AS eh_commit
+               {eh_commit} AS eh_commit, {chave} AS chave_linha
         FROM read_csv({_aspas(caminho)}, delim='|', quote='"', escape='"', header=true,
                       all_varchar=true, ignore_errors=true, strict_mode=false,
                       nullstr={nulos}, max_line_size={LINHA_MAXIMA})
@@ -492,7 +508,9 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     toca_a_linguagem = _aspas(f"(?:{extensoes})(?:;|$)")
 
     _cria_repos(con, pedido, stats)
-    leituras = [_leitura(caminho, papel) for caminho, papel in pedido.eventos]
+    leituras = [
+        _leitura(caminho, papel, pedido.sem_linhas_repetidas) for caminho, papel in pedido.eventos
+    ]
     con.execute("CREATE VIEW bruto AS " + " UNION ALL ".join(leituras))
 
     # Uma leitura só do arquivo inteiro (o custo dominante): todas as linhas que passam no
@@ -514,13 +532,16 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
                {pessoa} AS pessoa, {_marca(autor)} AS marca,
                {_ts("created_at")} AS ts,
                CASE WHEN eh_commit THEN {chave_do_commit} END AS h,
-               {repo_efetivo} AS repo_id, {_ocasiao(repo_efetivo)} AS ocasiao {colunas_do_grupo}
+               {repo_efetivo} AS repo_id, {_ocasiao(repo_efetivo)} AS ocasiao,
+               b.repo_id AS repo_bruto, b.chave_linha AS chave_linha {colunas_do_grupo}
         FROM bruto b {junta_grupo} LEFT JOIN repos r ON {repo_efetivo} = r.repo_id {junta_autores}
         WHERE ((NOT eh_commit AND author_login IS NOT NULL
                 AND coalesce(b.language, r.principal) = {_aspas(nome)} {ignora})
             OR (eh_commit AND author IS NOT NULL
                 AND regexp_matches(lower(files), {toca_a_linguagem}))) {sistema}
     """)
+    if pedido.sem_linhas_repetidas:
+        _tira_linhas_repetidas(con, pedido, stats)
     stats["eventos_api_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE NOT eh_commit")
     stats["eventos_git_desta_linguagem"] = _um(con, "SELECT count(*) FROM leve WHERE eh_commit")
     if pedido.contar_brutas:
@@ -581,6 +602,41 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
     return _finaliza(con, pedido, nomes_tipo, stats)
 
 
+def _tira_linhas_repetidas(
+    con: duckdb.DuckDBPyConnection, pedido: Pedido, stats: dict[str, int]
+) -> None:
+    """Fica uma linha de cada chave no repositório bruto, entre as que a carga já filtrou."""
+    if pedido.origem is not None:
+        pedido.origem.mkdir(parents=True, exist_ok=True)
+        con.execute(f"""
+            COPY (
+                SELECT repo_bruto AS repo_id,
+                       CASE WHEN eh_commit THEN 'git' ELSE 'api' END AS papel,
+                       sum(n - 1) AS descartadas
+                FROM (SELECT repo_bruto, eh_commit, count(*) AS n FROM leve
+                      GROUP BY repo_bruto, chave_linha, eh_commit HAVING count(*) > 1)
+                GROUP BY ALL ORDER BY repo_id
+            ) TO {_aspas(pedido.origem / "linhas_repetidas.csv")} (HEADER, DELIMITER ',')
+        """)
+    antes_api = _um(con, "SELECT count(*) FROM leve WHERE NOT eh_commit")
+    antes_git = _um(con, "SELECT count(*) FROM leve WHERE eh_commit")
+    con.execute("""
+        CREATE TABLE leve_unica AS
+        SELECT * EXCLUDE (n_na_chave) FROM (
+            SELECT *, row_number() OVER (PARTITION BY repo_bruto, chave_linha) AS n_na_chave
+            FROM leve
+        ) WHERE n_na_chave = 1
+    """)
+    con.execute("DROP TABLE leve")
+    con.execute("ALTER TABLE leve_unica RENAME TO leve")
+    stats["linhas_repetidas_descartadas_api"] = antes_api - _um(
+        con, "SELECT count(*) FROM leve WHERE NOT eh_commit"
+    )
+    stats["linhas_repetidas_descartadas_git"] = antes_git - _um(
+        con, "SELECT count(*) FROM leve WHERE eh_commit"
+    )
+
+
 def _funde_por_repositorios(
     con: duckdb.DuckDBPyConnection, pedido: Pedido, nomes_tipo: list[str], stats: dict[str, int]
 ) -> None:
@@ -638,6 +694,10 @@ def _finaliza(
         "CREATE TABLE base AS SELECT codigo, tipo, pessoa, ts, ocasiao FROM elegiveis "
         "WHERE marca = 0 AND tipo >= 0"
     )
+    if pedido.sem_linhas_repetidas:
+        stats["eventos_tipo_invalido_descartados"] = _um(
+            con, "SELECT count(*) FROM elegiveis WHERE marca = 0 AND tipo < 0"
+        )
     con.execute("DROP TABLE elegiveis")
     agora = pedido.agora
     descartados = _um(con, "SELECT count(*) FROM base WHERE ts IS NULL")

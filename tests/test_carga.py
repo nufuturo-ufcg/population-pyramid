@@ -671,3 +671,35 @@ def test_fracao_da_api_ignora_erro_sem_bytes_e_outra_linguagem(tmp_path):
     api.to_csv(arquivo_api, index=False)
     fonte = carga_fonte.Fonte(slug="zig", eventos=[], alvos=[caminho], fracoes_api=arquivo_api)
     assert carga_fonte.le_fracoes_api(fonte) == {}
+
+
+def test_sem_linhas_repetidas_tira_a_linha_igual_pela_chave_da_coleta(tmp_path):
+    from adapters.coleta_csv import carga_duckdb
+
+    # Duas linhas iguais menos `collection_started_at` (commit e issue) e uma com outra data.
+    git = [
+        _linha("1", "commit", "ana", "2022-03-01T10:00:00Z", "a.zig"),
+        _linha("1", "commit", "ana", "2022-03-01T10:00:00Z", "a.zig"),
+        _linha("1", "commit", "ana", "2022-04-01T10:00:00Z", "a.zig"),
+    ]
+    api = [
+        _linha("1", "issue", "bob", "2022-03-02T10:00:00Z", None, "Zig", login=True),
+        _linha("1", "issue", "bob", "2022-03-02T10:00:00Z", None, "Zig", login=True),
+        _linha(
+            "1", "issue", "---", "2022-03-02T10:00:00Z", None, "Zig", login=True
+        ),  # tipo inválido
+    ]
+    for numero, linha in enumerate(git + api):
+        linha["collection_started_at"] = f"2026-0{numero % 2 + 1}-01"
+    api[2]["event_type"] = "---"
+    repos = _repos(["2020-01-01"])
+    antes = carga_duckdb.carrega(_pedido(tmp_path / "a", git, api, repos))
+    depois = carga_duckdb.carrega(
+        _pedido(tmp_path / "b", git, api, repos, sem_linhas_repetidas=True, origem=tmp_path / "o")
+    )
+    assert antes.estatisticas["eventos_git_desta_linguagem"] == 3
+    assert depois.estatisticas["eventos_git_desta_linguagem"] == 2
+    assert depois.estatisticas["linhas_repetidas_descartadas_git"] == 1
+    assert depois.estatisticas["linhas_repetidas_descartadas_api"] == 1
+    assert depois.estatisticas["eventos_tipo_invalido_descartados"] == 1
+    assert (tmp_path / "o" / "linhas_repetidas.csv").read_text().count("\n") == 3
