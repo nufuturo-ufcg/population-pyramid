@@ -49,6 +49,8 @@ POOL_B = [
     "coorte_amortecida_B",
 ]
 FAIXAS_COM_DETALHE_B = ["coorte_V0_B", "conservador_V0_B"]
+# Quando não é None, guarda o vetor por faixa (6 faixas) de cada método calculado (`figuras_v3_dados.py`).
+SUMIDOURO_FAIXAS: dict | None = None
 
 
 def metodos_b() -> list[str]:
@@ -503,6 +505,8 @@ def familia_coorte(
             previsto[nome] = float(vetor.sum())
             if nome in FAIXAS_COM_DETALHE + FAIXAS_COM_DETALHE_B:
                 faixas[nome] = soma_em_faixas6(vetor, por_ano)
+            if SUMIDOURO_FAIXAS is not None:
+                SUMIDOURO_FAIXAS[nome] = soma_em_faixas6(vetor, por_ano)
 
     # Hamilton-Perry: a coorte V0 com novatos pela média de 3 e de 5 anos (última razão de permanência da versão)
     if k - n3 + 1 >= primeiro_ativo:
@@ -578,8 +582,13 @@ def fatorial_r(
     novatos_r0, novatos_r1 = nov["V0"], nov["V2"]
     saida = {}
     for r, novatos in [(2, novatos_r0), (3, novatos_r1)]:
-        saida[f"coorte_R{r}_B"] = float(projeta(atual, sr_coorte, novatos).sum())
-        saida[f"conservador_R{r}_B"] = float(projeta(atual, sr_conservador, novatos).sum())
+        vetor_coorte = projeta(atual, sr_coorte, novatos)
+        vetor_conservador = projeta(atual, sr_conservador, novatos)
+        saida[f"coorte_R{r}_B"] = float(vetor_coorte.sum())
+        saida[f"conservador_R{r}_B"] = float(vetor_conservador.sum())
+        if SUMIDOURO_FAIXAS is not None:
+            SUMIDOURO_FAIXAS[f"coorte_R{r}_B"] = soma_em_faixas6(vetor_coorte, est["nb"])
+            SUMIDOURO_FAIXAS[f"conservador_R{r}_B"] = soma_em_faixas6(vetor_conservador, est["nb"])
     if (
         novatos_ieice is not None
     ):  # coorte do IEICE16: taxa do último recorte e faixa 0 pela média de 2 recortes (R0, em preve_estado)
@@ -625,12 +634,13 @@ def intervalos_r(
     maior = np.where(np.isnan(maior), ultima, maior)
     saida = {}
     for r, versao in [(2, "V0"), (3, "V2")]:
-        saida[f"pessimista_R{r}_B"] = float(
-            projeta(atual, (1 - saida_parada) * menor, [pess_nov[versao]] * passos).sum()
-        )
-        saida[f"otimista_R{r}_B"] = float(
-            projeta(atual, (1 - saida_parada) * maior, [otim_nov[versao]] * passos).sum()
-        )
+        vetor_pess = projeta(atual, (1 - saida_parada) * menor, [pess_nov[versao]] * passos)
+        vetor_otim = projeta(atual, (1 - saida_parada) * maior, [otim_nov[versao]] * passos)
+        saida[f"pessimista_R{r}_B"] = float(vetor_pess.sum())
+        saida[f"otimista_R{r}_B"] = float(vetor_otim.sum())
+        if SUMIDOURO_FAIXAS is not None:
+            SUMIDOURO_FAIXAS[f"pessimista_R{r}_B"] = soma_em_faixas6(vetor_pess, est["nb"])
+            SUMIDOURO_FAIXAS[f"otimista_R{r}_B"] = soma_em_faixas6(vetor_otim, est["nb"])
     saida["pessimista_nova_R3_B"] = float(
         projeta(atual, (1 - saida_parada) * menor, pess_nova).sum()
     )
