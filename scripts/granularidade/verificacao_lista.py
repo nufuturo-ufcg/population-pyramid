@@ -3,10 +3,10 @@
 Grava em `<saida>`:
   - `lista_seart.csv`: por linguagem, o que as listas da SEART (`repositorios_<lang>_alvo.csv`) contêm: estrelas, datas de criação e do último push, forks, arquivados, ordem do `repo_id`.
   - `nascimento.csv`: por linguagem e ano do primeiro evento do repositório (todos os eventos da carga), quantos nasceram e quantos tiveram o último evento até 3 anos depois (em anos civis).
-  - `repos_pre_pos.csv`: os `repo_id` com algum evento na rodada 2026-11-13-1756 (sem fusão de duplicados, a que `AMOSTRA.md` descreve) e na carga atual (com fusão), para reconciliar as contagens.
+  - `candidatos.csv`: cada candidato da carga (`repos.parquet`, todos os repositórios da lista) e se tem algum evento na carga atual (com fusão de duplicados), para reconciliar as contagens com `AMOSTRA.md`.
 
-Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/verificacao_lista.py <carga> <rodadas> <runs> <python> <saida> clojure elixir ocaml python zig
-  <rodadas> = ~/pyramid/rodadas, <runs> = ~/population-pyramid/coleta-dados/runs, <python> = ~/dados-brutos/python
+Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/verificacao_lista.py <carga> <runs> <python> <saida> clojure elixir ocaml python zig
+  <runs> = ~/population-pyramid/coleta-dados/runs, <python> = ~/dados-brutos/python
 """
 
 import sys
@@ -18,10 +18,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rodar import le_dados
 
-CARGA, RODADAS, RUNS, PYTHON, SAIDA = (Path(a) for a in sys.argv[1:6])
-LINGUAS = sys.argv[6:]
+CARGA, RUNS, PYTHON, SAIDA = (Path(a) for a in sys.argv[1:5])
+LINGUAS = sys.argv[5:]
 SAIDA.mkdir(parents=True, exist_ok=True)
-RODADA_SEM_FUSAO = "2026-11-13-1756"
 LISTAS = {
     "clojure": [RUNS / "2026-09-03-clojure" / "repositorios_clojure_alvo.csv"],
     "elixir": [RUNS / "2026-09-04-elixir" / "repositorios_elixir_alvo.csv"],
@@ -41,7 +40,7 @@ NOME_NA_SEART = {
     "python": "Python",
 }
 
-linhas_lista, linhas_nascimento, linhas_pre_pos = [], [], []
+linhas_lista, linhas_nascimento, linhas_candidatos = [], [], []
 for lingua in LINGUAS:
     # ---- 1. o que a lista da SEART contém
     partes = []
@@ -113,27 +112,21 @@ for lingua in LINGUAS:
             }
         )
 
-    # ---- 3. repositórios com algum evento antes e depois da fusão de duplicados
+    # ---- 3. candidatos da lista com algum evento na carga atual (com fusão de duplicados)
     codigos_pos = set(por_repo.index)
-    repos_pos = pd.read_parquet(CARGA / lingua / "origem" / "repos.parquet")
-    ids_pos = set(repos_pos[repos_pos["codigo"].isin(codigos_pos)]["repo_id"].astype(str))
-    pasta_pre = RODADAS / RODADA_SEM_FUSAO / lingua / "origem"
-    repos_pre = pd.read_parquet(pasta_pre / "repos.parquet")
-    codigos_pre = set(pd.read_parquet(pasta_pre / "repos_por_trimestre.parquet")["codigo"])
-    ids_pre = set(repos_pre[repos_pre["codigo"].isin(codigos_pre)]["repo_id"].astype(str))
-    for repo_id in sorted(ids_pre | ids_pos):
-        linhas_pre_pos.append(
-            {
-                "linguagem": lingua,
-                "repo_id": repo_id,
-                "com_evento_antes_da_fusao": repo_id in ids_pre,
-                "com_evento_depois_da_fusao": repo_id in ids_pos,
-            }
+    candidatos = pd.read_parquet(CARGA / lingua / "origem" / "repos.parquet")
+    candidatos["com_evento_na_carga"] = candidatos["codigo"].isin(codigos_pos)
+    for repo_id, com_evento in zip(
+        candidatos["repo_id"].astype(str), candidatos["com_evento_na_carga"], strict=True
+    ):
+        linhas_candidatos.append(
+            {"linguagem": lingua, "repo_id": repo_id, "com_evento_na_carga": bool(com_evento)}
         )
     print(
-        f"{lingua}: antes da fusão {len(ids_pre)} repositórios, depois {len(ids_pos)}", flush=True
+        f"{lingua}: {len(candidatos)} candidatos, {len(codigos_pos)} com evento na carga",
+        flush=True,
     )
     pd.DataFrame(linhas_lista).to_csv(SAIDA / "lista_seart.csv", index=False)
     pd.DataFrame(linhas_nascimento).to_csv(SAIDA / "nascimento.csv", index=False)
-    pd.DataFrame(linhas_pre_pos).to_csv(SAIDA / "repos_pre_pos.csv", index=False)
+    pd.DataFrame(linhas_candidatos).to_csv(SAIDA / "candidatos.csv", index=False)
 print("pronto")
