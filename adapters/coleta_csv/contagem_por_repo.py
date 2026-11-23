@@ -52,3 +52,31 @@ def datas_por_repo(arquivo: Path, saida: Path, memoria_gb: int = 24, threads: in
             GROUP BY repo_id
         ) TO {_aspas(saida)} (HEADER, DELIMITER ',')
     """)
+
+
+def commits_copiados_por_repo(
+    arquivo: Path, saida: Path, memoria_gb: int = 24, threads: int = 4
+) -> None:
+    """Grava `saida`: `repo_id`, commits e commits cujo SHA aparece em outro repositório."""
+    nulos = "[" + ", ".join(_aspas(n) for n in NULOS) + "]"
+    con = duckdb.connect()
+    con.execute(f"PRAGMA threads={threads}")
+    con.execute(f"PRAGMA memory_limit='{memoria_gb}GB'")
+    con.execute(f"PRAGMA temp_directory={_aspas(saida.parent / 'duckdb_tmp')}")
+    con.execute(f"""
+        COPY (
+            WITH c AS (
+                SELECT DISTINCT repo_id, sha
+                FROM read_csv({_aspas(arquivo)}, delim='|', quote='"', escape='"', header=true,
+                              all_varchar=true, ignore_errors=true, strict_mode=false,
+                              nullstr={nulos}, max_line_size={LINHA_MAXIMA})
+                WHERE event_type = 'commit' AND sha IS NOT NULL
+            ), n AS (
+                SELECT sha, count(*) AS repos FROM c GROUP BY sha
+            )
+            SELECT c.repo_id, count(*) AS commits,
+                   sum(CASE WHEN n.repos > 1 THEN 1 ELSE 0 END) AS commits_copiados
+            FROM c JOIN n USING (sha)
+            GROUP BY c.repo_id
+        ) TO {_aspas(saida)} (HEADER, DELIMITER ',')
+    """)
