@@ -308,6 +308,14 @@ if eventos is not None:
     L.append(
         f"4. Eventos: dos {milhar(len(nao))} não elegíveis, {milhar(com)} têm evento no arquivo de 346 GB. A coleta de eventos não filtra pela proporção de código."
     )
+    faltam = int((~status["elegivel"] & ~status["repo_id"].isin(com_evento)).sum())
+    ritmo_2a = ritmo[(ritmo["run"] == "run-batuta-2") & (ritmo["etapa"] == "2A")]
+    media_2a = float(ritmo_2a["repos_por_hora_media"].iloc[0])
+    L.append(
+        f"   Faltam {faltam} não elegíveis sem evento no arquivo, todos com erro registrado na coleta (422 de diff grande demais, 403 de acesso bloqueado, 451 de DMCA, ver a tabela de erros). "
+        f"No ritmo médio da etapa 2A do run com mais repositórios ({media_2a:.0f} por hora) seriam {faltam / media_2a:.1f} hora. Esses erros são respostas da API e a nova tentativa não foi feita. "
+        f"Os outros {milhar(len(nao) - faltam)} já têm evento e não precisam de nova coleta."
+    )
 else:
     L.append("4. Eventos: a contagem direta no arquivo de 346 GB não terminou (ver `tabelas.md`).")
 L += [
