@@ -3,6 +3,7 @@
 Grava em `<saida>`:
   - `lista_seart.csv`: por linguagem, o que as listas da SEART (`repositorios_<lang>_alvo.csv`) contêm: estrelas, datas de criação e do último push, forks, arquivados, ordem do `repo_id`.
   - `nascimento.csv`: por linguagem e ano do primeiro evento do repositório (todos os eventos da carga), quantos nasceram e quantos tiveram o último evento até 3 anos depois (em anos civis).
+  - `push_contra_evento.csv`: nos repositórios da carga, o ano do último push da lista da SEART contra o ano do último evento da carga.
   - `candidatos.csv`: cada candidato da carga (`repos.parquet`, todos os repositórios da lista) e se tem algum evento na carga atual (com fusão de duplicados), para reconciliar as contagens com `AMOSTRA.md`.
 
 Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/verificacao_lista.py <carga> <runs> <python> <saida> clojure elixir ocaml python zig
@@ -40,7 +41,7 @@ NOME_NA_SEART = {
     "python": "Python",
 }
 
-linhas_lista, linhas_nascimento, linhas_candidatos = [], [], []
+linhas_lista, linhas_nascimento, linhas_candidatos, linhas_push = [], [], [], []
 for lingua in LINGUAS:
     # ---- 1. o que a lista da SEART contém
     partes = []
@@ -92,6 +93,7 @@ for lingua in LINGUAS:
             "repo_id_crescente": bool(np.all(np.diff(ids) > 0)),
         }
     )
+    ano_do_push = pd.Series(push.dt.year.to_numpy(), index=lista["repo_id"].astype(str).to_numpy())
     del lista, partes
 
     # ---- 2. nascimento do repositório e último evento (todos os eventos da carga)
@@ -122,6 +124,27 @@ for lingua in LINGUAS:
         linhas_candidatos.append(
             {"linguagem": lingua, "repo_id": repo_id, "com_evento_na_carga": bool(com_evento)}
         )
+    # ano do último push da SEART contra o ano do último evento da carga, nos repositórios da carga
+    na_carga = candidatos[candidatos["com_evento_na_carga"]].copy()
+    na_carga["push"] = na_carga["repo_id"].astype(str).map(ano_do_push)
+    na_carga["ultimo"] = na_carga["codigo"].map(por_repo["ultimo"])
+    na_carga = na_carga.dropna(subset=["push", "ultimo"])
+    push_ate = na_carga["push"] <= 2020
+    evento_ate = na_carga["ultimo"] <= 2020
+    linhas_push.append(
+        {
+            "linguagem": lingua,
+            "repos": len(na_carga),
+            "push_ate_2020": int(push_ate.sum()),
+            "ultimo_evento_ate_2020": int(evento_ate.sum()),
+            "push_ate_2020_e_ultimo_evento_ate_2020": int((push_ate & evento_ate).sum()),
+            "push_ate_2020_e_ultimo_evento_depois": int((push_ate & ~evento_ate).sum()),
+            "push_depois_e_ultimo_evento_ate_2020": int((~push_ate & evento_ate).sum()),
+            "ultimo_evento_mais_de_1_ano_depois_do_push": int(
+                (na_carga["ultimo"] > na_carga["push"] + 1).sum()
+            ),
+        }
+    )
     print(
         f"{lingua}: {len(candidatos)} candidatos, {len(codigos_pos)} com evento na carga",
         flush=True,
@@ -129,4 +152,5 @@ for lingua in LINGUAS:
     pd.DataFrame(linhas_lista).to_csv(SAIDA / "lista_seart.csv", index=False)
     pd.DataFrame(linhas_nascimento).to_csv(SAIDA / "nascimento.csv", index=False)
     pd.DataFrame(linhas_candidatos).to_csv(SAIDA / "candidatos.csv", index=False)
+    pd.DataFrame(linhas_push).to_csv(SAIDA / "push_contra_evento.csv", index=False)
 print("pronto")
