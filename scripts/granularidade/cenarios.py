@@ -23,7 +23,15 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vazamento
 from estado import FIM, constroi_estado, corta_estado
-from previsao import POOL, gera_regras, metodos_b, metodos_r, metodos_r_ieice, preve_estado
+from previsao import (
+    POOL,
+    gera_regras,
+    metodos_b,
+    metodos_intervalo_r,
+    metodos_r,
+    metodos_r_ieice,
+    preve_estado,
+)
 from rodar import abre_ok, le_dados, memoria_maxima_gb, origens_do_teste
 
 CENARIOS = {
@@ -94,7 +102,7 @@ def roda_cenario(
         ],
     ).to_csv(pasta / f"{prefixo}_calibracao.csv", index=False, float_format="%.6g")
     regras = gera_regras(len(POOL))
-    nomes = [*BASE, *metodos_b(), *metodos_r()] + (
+    nomes = [*BASE, *metodos_b(), *metodos_r(), *metodos_intervalo_r()] + (
         ["coorte_IEICE_B", "conservador_IEICE_B", *metodos_r_ieice()] if cfg["ieice"] else []
     )
     hist = {

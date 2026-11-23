@@ -55,6 +55,19 @@ for c in ["S2", "S1", "S3", "S1b", "S3h"]:
         principal[principal["metodo"] == "coorte_V2"]["previsto"],
         equal_nan=True,
     )
+    # pessimista e otimista: R0 é a V0, R1 é a V2, R2 e R3 existem e o pessimista não passa do otimista
+    todos_i = pd.concat(
+        [principal] + [pd.read_csv(saida / f"sint_{c}_R{r}_pares.csv.gz") for r in (1, 2, 3)]
+    )
+    prev_i = todos_i.pivot(index="k", columns="metodo", values="previsto")
+    for familia in ["pessimista", "otimista"]:
+        assert np.allclose(prev_i[f"{familia}_R0"], prev_i[f"{familia}_V0"], equal_nan=True)
+        assert np.allclose(prev_i[f"{familia}_R1"], prev_i[f"{familia}_V2"], equal_nan=True)
+        assert prev_i[f"{familia}_R2"].notna().any() and prev_i[f"{familia}_R3"].notna().any()
+    for r in range(4):
+        pess, otim = prev_i[f"pessimista_R{r}"], prev_i[f"otimista_R{r}"]
+        definidos = pess.notna() & otim.notna()
+        assert (pess[definidos] <= otim[definidos] + 1e-9).all(), (c, r)
     if (
         c != "S2"
     ):  # conservador e C3 do IEICE16: R1 e R3 coincidem com a V2 e com R3; C3 é a média da ingênua e da coorte

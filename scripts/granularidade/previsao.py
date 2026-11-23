@@ -65,6 +65,11 @@ def metodos_r() -> list[str]:
     return [f"{base}_R{r}_B" for base in BASES_R for r in range(4)]
 
 
+def metodos_intervalo_r() -> list[str]:
+    """Pessimista e otimista em R0 a R3 (R0 é a V0 e R1 é a V2; R2 e R3 trazem a parada de repositórios), na versão B."""
+    return [f"{familia}_R{r}_B" for familia in ["pessimista", "otimista"] for r in range(4)]
+
+
 def metodos_r_ieice() -> list[str]:
     """Fatorial R0 a R3 da coorte exata do IEICE16, do conservador com os novatos dela e da C3 com ela (só em S1, S3 e nos cenários com horizonte de 12 meses)."""
     nomes = []
@@ -133,6 +138,18 @@ def taxas_sem_parada(
 ) -> np.ndarray:
     """Taxa de permanência sem a saída por parada de repositório: a base de cada faixa tira quem ficou sem repositório ativo."""
     return taxas(agora, np.maximum(antes - sem_repositorio_antes, 0.0))
+
+
+def historico_sem_parada(est: dict, k: int, primeiro_ativo: int, n: int) -> np.ndarray:
+    """Taxas sem parada das `n` últimas origens até k (a de k primeiro), parando antes de faltar a pirâmide do passo anterior."""
+    pop_p, orf = est["pop_p_b"], est["ORF_b"]
+    historico = []
+    for j in range(n):
+        kk = k - j
+        if kk - 1 < primeiro_ativo:
+            break
+        historico.append(taxas_sem_parada(pop_p[kk], pop_p[kk - 1], orf[kk]))
+    return np.array(historico)
 
 
 def taxa_dos_repos_maduros(agora: np.ndarray, antes: np.ndarray) -> float:
@@ -493,6 +510,7 @@ def familia_coorte(
         previsto.update(
             fatorial_r(est, k, atual, nov, primeiro_ativo, n2, novatos_ieice, sr_ultimo)
         )
+        previsto.update(intervalos_r(est, k, atual, primeiro_ativo, n5, pess_nov, otim_nov, passos))
     return {"previsto": previsto, "faixas": faixas, "esparsidade": esparsidade}
 
 
@@ -517,13 +535,7 @@ def fatorial_r(
     na_faixa = np.where(atual > 0, atual, 1.0)
     saida_parada = np.clip(junta_aberta(q[k]) / na_faixa, 0.0, 1.0)
     ultima = taxas_sem_parada(pop_p[k], pop_p[k - 1], orf[k])
-    historico = []
-    for j in range(n2):
-        kk = k - j
-        if kk - 1 < primeiro_ativo:
-            break
-        historico.append(taxas_sem_parada(pop_p[kk], pop_p[kk - 1], orf[kk]))
-    historico = np.array(historico)
+    historico = historico_sem_parada(est, k, primeiro_ativo, n2)
     quantos = np.maximum((~np.isnan(historico)).sum(axis=0), 1)
     media = np.where(
         np.all(np.isnan(historico), axis=0), np.nan, np.nansum(historico, axis=0) / quantos
@@ -542,6 +554,47 @@ def fatorial_r(
         saida["coorte_IEICE_R2_B"] = float(projeta(atual, sr_coorte, novatos_ieice).sum())
         saida["coorte_IEICE_R3_B"] = float(projeta(atual, sr_coorte, novatos_r1).sum())
         saida["conservador_IEICE_R2_B"] = float(projeta(atual, sr_conservador, novatos_ieice).sum())
+    return saida
+
+
+def intervalos_r(
+    est: dict,
+    k: int,
+    atual: np.ndarray,
+    primeiro_ativo: int,
+    n5: int,
+    pess_nov: dict,
+    otim_nov: dict,
+    passos: int,
+) -> dict:
+    """Pessimista e otimista com a parada de repositórios, como no `fatorial_r`.
+
+    A taxa sem parada de cada faixa é a menor (pessimista) ou a maior (otimista) das últimas `n5` origens, com a regra da V0: faixa sem taxa em nenhuma das origens usa a da última.
+    A taxa de projeção é (1 - saída por parada na origem) x essa taxa, a mesma saída nos dois limites.
+    R2 usa os novatos da V0 (menor e maior valor da janela) e R3 os da V2.
+    """
+    q = est["Q_b"]
+    na_faixa = np.where(atual > 0, atual, 1.0)
+    saida_parada = np.clip(junta_aberta(q[k]) / na_faixa, 0.0, 1.0)
+    historico = historico_sem_parada(est, k, primeiro_ativo, n5)
+    ultima = historico[0]
+    sem_nenhuma = np.all(np.isnan(historico), axis=0)
+    menor = np.where(
+        sem_nenhuma, np.nan, np.nanmin(np.where(np.isnan(historico), np.inf, historico), axis=0)
+    )
+    maior = np.where(
+        sem_nenhuma, np.nan, np.nanmax(np.where(np.isnan(historico), -np.inf, historico), axis=0)
+    )
+    menor = np.where(np.isnan(menor), ultima, menor)
+    maior = np.where(np.isnan(maior), ultima, maior)
+    saida = {}
+    for r, versao in [(2, "V0"), (3, "V2")]:
+        saida[f"pessimista_R{r}_B"] = float(
+            projeta(atual, (1 - saida_parada) * menor, [pess_nov[versao]] * passos).sum()
+        )
+        saida[f"otimista_R{r}_B"] = float(
+            projeta(atual, (1 - saida_parada) * maior, [otim_nov[versao]] * passos).sum()
+        )
     return saida
 
 
@@ -590,7 +643,7 @@ def preve_estado(
     nomes = todos_os_metodos() if "A" in versoes else ["ingenua", "deriva", "holt_amortecido"]
     nomes = nomes + (metodos_b() if "B" in versoes else [])
     if "B" in versoes and "Q_b" in est:
-        nomes = nomes + metodos_r()
+        nomes = nomes + metodos_r() + metodos_intervalo_r()
     if ieice:
         nomes = [*nomes, "coorte_IEICE_B", "conservador_IEICE_B"]
         if "B" in versoes and "Q_b" in est:
@@ -679,6 +732,9 @@ def preve_estado(
             previsto["conservador_V2_B"],
         )
         previsto["coorte_amortecida_R0_B"] = previsto["coorte_amortecida_B"]
+        for familia in ["pessimista", "otimista"]:  # R0 é a V0 e R1 é a V2
+            previsto[f"{familia}_R0_B"] = previsto[f"{familia}_V0_B"]
+            previsto[f"{familia}_R1_B"] = previsto[f"{familia}_V2_B"]
         if ieice:
             previsto["coorte_IEICE_R0_B"] = previsto["coorte_IEICE_B"]
             previsto["conservador_IEICE_R0_B"] = previsto["conservador_IEICE_B"]
