@@ -82,6 +82,17 @@ def grava_origem(
         alvo = alvo.rename(columns={"stargazers": "stars"})
         partes.append(alvo[["repo_id", "repo_name", "stars", "createdAt"]])
     nomes = pd.concat(partes, ignore_index=True).drop_duplicates("repo_id")
+    # A fonte da fração de código na linguagem (SEART ou API) entra na carga.
+    alvo_todo = carga_fonte.le_alvos(fonte)
+    fracao, origem_da_fracao = carga_fonte.fracao_e_fonte(alvo_todo)
+    fracoes = pd.DataFrame(
+        {
+            "repo_id": alvo_todo["repo_id"],
+            "fracao_linguagem": fracao,
+            "fonte_fracao": origem_da_fracao,
+        }
+    )
+    nomes = nomes.merge(fracoes, on="repo_id", how="left")
     # Só as colunas da carga: rodar de novo sobre uma pasta antiga não duplica os nomes.
     repos = pd.read_parquet(pasta / "repos.parquet", columns=["codigo", "repo_id"])
     repos = repos.merge(nomes, on="repo_id", how="left")

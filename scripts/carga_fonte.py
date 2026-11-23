@@ -63,6 +63,7 @@ class Fonte:
     pasta_dados: Path | None = field(default=None)  # só se o layout é o de `carrega_eventos`
     autores: Path | None = None  # autores_commits.csv: e-mail de commit -> login (só duckdb)
     duplicados: Path | None = None  # CSV com repo_id dos repositórios a excluir (só duckdb)
+    fracoes_api: Path | None = None  # CSV da API de linguagens, para quem tem `languages` vazio
 
     def repos_excluidos(self) -> tuple[str, ...]:
         """Os `repo_id` do arquivo `duplicados`, ou nenhum."""
@@ -143,6 +144,8 @@ def _do_yaml(slug: str) -> Fonte | None:
         fonte.autores = Path(entrada["autores"]).expanduser()
     if entrada.get("duplicados"):
         fonte.duplicados = Path(entrada["duplicados"]).expanduser()
+    if entrada.get("fracoes_api"):
+        fonte.fracoes_api = Path(entrada["fracoes_api"]).expanduser()
     return fonte
 
 
@@ -153,6 +156,8 @@ def _confere_que_existe(fonte: Fonte) -> None:
         faltam.append(fonte.autores)
     if fonte.duplicados and not fonte.duplicados.exists():
         faltam.append(fonte.duplicados)
+    if fonte.fracoes_api and not fonte.fracoes_api.exists():
+        faltam.append(fonte.fracoes_api)
     if faltam:
         lista = "\n  ".join(str(f) for f in faltam)
         raise SystemExit(
@@ -201,7 +206,27 @@ def le_alvos(fonte: Fonte) -> pd.DataFrame:
     alvo["createdAt"] = pd.to_datetime(
         alvo["createdAt"], utc=True, format="ISO8601", errors="coerce"
     ).dt.tz_localize(None)
+    if fonte.fracoes_api is not None:
+        alvo["fracao_api"] = alvo["repo_id"].map(le_fracoes_api(fonte))
     return alvo.reset_index(drop=True)
+
+
+def le_fracoes_api(fonte: Fonte) -> dict[str, float]:
+    """`repo_id` -> fração da linguagem-alvo na API de linguagens do GitHub (200 com bytes).
+
+    O CSV é o de `scripts/granularidade/consulta_languages.py`. Quem respondeu 404, 403, 451
+    ou sem bytes não aparece, e a elegibilidade o trata como sem dado.
+    """
+    if fonte.fracoes_api is None:
+        return {}
+    tabela = pd.read_csv(
+        fonte.fracoes_api,
+        usecols=["repo_id", "linguagem", "http_status", "fracao_linguagem_alvo"],
+        dtype={"repo_id": str, "linguagem": str},
+    )
+    tabela = tabela[(tabela["linguagem"] == fonte.slug) & (tabela["http_status"] == 200)]
+    tabela = tabela.dropna(subset=["fracao_linguagem_alvo"])
+    return dict(zip(tabela["repo_id"], tabela["fracao_linguagem_alvo"].astype(float), strict=True))
 
 
 def _participacao(linguagens_json: str, linguagem: str) -> float:
@@ -261,22 +286,58 @@ def repos_sem_mapa(fonte: Fonte) -> tuple[str, ...]:
     return tuple(resultado)
 
 
-def marca_elegiveis(alvo: pd.DataFrame) -> pd.DataFrame:
-    """Coluna `elegivel`: mais de `LIMIAR_SHARE_LINGUAGEM` do código na linguagem (regra de fb)."""
+def _tem_bytes(linguagens_json: str) -> bool:
+    """A coluna `languages` da SEART traz um objeto JSON com bytes somando mais de 0."""
+    try:
+        mapa = json.loads(linguagens_json)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(mapa, dict) and sum(mapa.values()) > 0
+
+
+def fracao_e_fonte(alvo: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    """Fração da linguagem no código e de onde ela veio: `seart`, `api` ou vazio (sem dado).
+
+    A SEART vale quando a coluna `languages` tem bytes. Quando está vazia e o alvo traz
+    `fracao_api` (de `le_alvos`, com o CSV da API de linguagens), vale a API.
+    """
     nome = fb.LING.atual.nome
-    participacao = alvo["languages"].map(lambda texto: _participacao(texto, nome))
-    alvo = alvo.assign(elegivel=participacao > fb.LIMIAR_SHARE_LINGUAGEM)
+    fracao = alvo["languages"].map(lambda texto: _participacao(texto, nome))
+    fonte = pd.Series(
+        ["seart" if _tem_bytes(texto) else "" for texto in alvo["languages"]], index=alvo.index
+    )
+    if "fracao_api" in alvo.columns:
+        usa_api = (fonte == "") & alvo["fracao_api"].notna()
+        fracao = fracao.where(~usa_api, alvo["fracao_api"])
+        fonte = fonte.where(~usa_api, "api")
+    return fracao, fonte
+
+
+def marca_elegiveis(alvo: pd.DataFrame) -> pd.DataFrame:
+    """Colunas `elegivel`, `fracao_linguagem` e `fonte_fracao`.
+
+    Elegível: mais de `LIMIAR_SHARE_LINGUAGEM` do código na linguagem. A fração vem da SEART
+    quando ela tem o dado e da API quando a SEART está vazia (ver `fracao_e_fonte`).
+    """
+    nome = fb.LING.atual.nome
+    fracao, fonte = fracao_e_fonte(alvo)
+    alvo = alvo.assign(
+        elegivel=fracao > fb.LIMIAR_SHARE_LINGUAGEM, fracao_linguagem=fracao, fonte_fracao=fonte
+    )
     excluidos = int((~alvo["elegivel"]).sum())
     fb._stats()["repos_total"] = len(alvo)
     fb._stats()["repos_excluidos_share"] = excluidos
     fb._stats()["repos_elegiveis"] = len(alvo) - excluidos
+    if "fracao_api" in alvo.columns:
+        fb._stats()["repos_elegiveis_pela_api"] = int((alvo["elegivel"] & (fonte == "api")).sum())
+        fb._stats()["repos_sem_fracao"] = int((fonte == "").sum())
     if excluidos:
         print(
             f"aviso: {excluidos} repositórios excluídos por terem <= "
             f"{fb.LIMIAR_SHARE_LINGUAGEM:.0%} de {nome} no código",
             file=sys.stderr,
         )
-    return alvo.drop(columns="languages")
+    return alvo.drop(columns=["languages", "fracao_api"], errors="ignore")
 
 
 def aplica_linguagem(slug: str) -> None:

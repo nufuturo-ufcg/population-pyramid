@@ -613,3 +613,61 @@ def test_repos_sem_mapa_pula_quem_tem_duplicado_elegivel(tmp_path, monkeypatch):
     carga_fonte.aplica_linguagem("zig")
     fonte = carga_fonte.Fonte(slug="zig", eventos=[], alvos=[caminho], duplicados=duplicados)
     assert carga_fonte.repos_sem_mapa(fonte) == ("3", "4")
+
+
+def test_fracao_da_api_so_vale_quando_a_seart_esta_vazia(tmp_path):
+    alvo = pd.DataFrame(
+        {
+            "repo_id": ["1", "2", "3", "4", "5", "6"],
+            "mainLanguage": ["Zig"] * 6,
+            "createdAt": ["2020-01-01T00:00:00"] * 6,
+            # 1 e 2 têm dado na SEART; 3 a 6 estão vazios
+            "languages": ['{"Zig": 9, "C": 1}', '{"Zig": 1, "C": 9}', None, "{}", "", None],
+        }
+    )
+    caminho = tmp_path / "alvo.csv"
+    alvo.to_csv(caminho, index=False)
+    # 1 e 2 têm dado na SEART, então a API não vale para eles; 3 e 4 usam a API; 5 e 6 não têm nada
+    api = pd.DataFrame(
+        {
+            "repo_id": ["1", "2", "3", "4", "7"],
+            "linguagem": ["zig"] * 5,
+            "http_status": [200, 200, 200, 200, 200],
+            "fracao_linguagem_alvo": [0.1, 0.9, 0.8, 0.3, 0.9],
+        }
+    )
+    arquivo_api = tmp_path / "api.csv"
+    api.to_csv(arquivo_api, index=False)
+    carga_fonte.aplica_linguagem("zig")
+
+    sem_api = carga_fonte.marca_elegiveis(
+        carga_fonte.le_alvos(carga_fonte.Fonte(slug="zig", eventos=[], alvos=[caminho]))
+    )
+    assert list(sem_api["elegivel"]) == [True, False, False, False, False, False]
+    assert list(sem_api["fonte_fracao"]) == ["seart", "seart", "", "", "", ""]
+
+    fonte = carga_fonte.Fonte(slug="zig", eventos=[], alvos=[caminho], fracoes_api=arquivo_api)
+    com_api = carga_fonte.marca_elegiveis(carga_fonte.le_alvos(fonte))
+    assert list(com_api["elegivel"]) == [True, False, True, False, False, False]
+    assert list(com_api["fonte_fracao"]) == ["seart", "seart", "api", "api", "", ""]
+    assert com_api.loc[2, "fracao_linguagem"] == 0.8
+    assert "languages" not in com_api.columns and "fracao_api" not in com_api.columns
+
+
+def test_fracao_da_api_ignora_erro_sem_bytes_e_outra_linguagem(tmp_path):
+    caminho = tmp_path / "alvo.csv"
+    pd.DataFrame({"repo_id": ["1", "2", "3"], "languages": [None, None, None]}).to_csv(
+        caminho, index=False
+    )
+    api = pd.DataFrame(
+        {
+            "repo_id": ["1", "2", "3"],
+            "linguagem": ["zig", "zig", "python"],
+            "http_status": [404, 200, 200],
+            "fracao_linguagem_alvo": [None, None, 0.9],
+        }
+    )
+    arquivo_api = tmp_path / "api.csv"
+    api.to_csv(arquivo_api, index=False)
+    fonte = carga_fonte.Fonte(slug="zig", eventos=[], alvos=[caminho], fracoes_api=arquivo_api)
+    assert carga_fonte.le_fracoes_api(fonte) == {}
