@@ -80,3 +80,33 @@ def commits_copiados_por_repo(
             GROUP BY c.repo_id
         ) TO {_aspas(saida)} (HEADER, DELIMITER ',')
     """)
+
+
+def duplicatas_por_repo(
+    arquivo: Path, saida: Path, memoria_gb: int = 40, threads: int = 16
+) -> None:
+    """Grava `saida`: `repo_id`, `event_type`, linhas e linhas repetidas. Só lê `arquivo`.
+
+    A chave de evento é a de `verificar_duplicatas_eventos.py` da coleta: todas as colunas,
+    menos `collection_started_at`. Cada linha vira um hash de 64 bits dentro do seu repositório
+    e tipo (colisão desprezível nesse grupo). Célula vazia fica como texto vazio, como no Python.
+    """
+    leitor = f"""read_csv({_aspas(arquivo)}, delim='|', quote='"', escape='"', header=true,
+                          all_varchar=true, ignore_errors=true, strict_mode=false,
+                          nullstr='__sem_nulo__', max_line_size={LINHA_MAXIMA})"""
+    con = duckdb.connect()
+    con.execute(f"PRAGMA threads={threads}")
+    con.execute(f"PRAGMA memory_limit='{memoria_gb}GB'")
+    con.execute(f"PRAGMA temp_directory={_aspas(saida.parent / 'duckdb_tmp')}")
+    colunas = []
+    for linha in con.execute(f"DESCRIBE SELECT * FROM {leitor}").fetchall():
+        if linha[0] != "collection_started_at":
+            colunas.append(f'"{linha[0]}"')
+    con.execute(f"""
+        COPY (
+            SELECT repo_id, event_type, count(*) AS linhas,
+                   count(*) - count(DISTINCT h) AS repetidas
+            FROM (SELECT repo_id, event_type, hash({", ".join(colunas)}) AS h FROM {leitor})
+            GROUP BY repo_id, event_type
+        ) TO {_aspas(saida)} (HEADER, DELIMITER ',')
+    """)
