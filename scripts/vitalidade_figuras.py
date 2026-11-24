@@ -485,7 +485,8 @@ def _figura_natalidade(ctx: Any, d: Dados, com_populacao: bool) -> None:
     """Natalidade e mortalidade com a área entre elas; com `com_populacao`, as barras da população.
 
     Natalidade = todo mundo que entrou (novatos e voltas) / população do ano. Mortalidade = todo
-    mundo que saiu (saídas e pausas) / população do ano. A área entre as duas é o crescimento
+    mundo que saiu (saídas, com e sem volta) / população do ano. A área entre as duas é o
+    crescimento
     natural. Os dois gráficos têm o mesmo tamanho, as mesmas margens e o mesmo eixo dos anos,
     para o segundo ser o primeiro com as barras a mais.
     """

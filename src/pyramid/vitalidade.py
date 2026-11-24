@@ -15,12 +15,18 @@ Definições (cada uma é uma escolha registrada em docs/linguagem/vitalidade.md
 
   ativo do ano Y   teve pelo menos um evento em Y
   novato de Y      primeiro evento da vida caiu em Y
-  saída de Y       o último evento da vida da pessoa caiu em Y, e depois dele vieram
-                   mais de 12 meses sem nada até o fim da coleta. É a última da vida
-  pausa de Y       um período de atividade terminou em Y, e a pessoa voltou depois de
-                   mais de 12 meses. Quem volta não saiu
   volta de Y       começo de período de atividade depois do primeiro caiu em Y
+  entrada de Y     novato ou volta de Y: ativo em Y sem contribuição nos 12 meses antes do
+                   primeiro evento de Y. É a única definição de entrada do código
+  saída de Y       o último evento de Y fecha um período de atividade: depois dele vieram mais
+                   de 12 meses sem nada. É a única definição de saída do código. Inclui quem
+                   volta depois (saída com volta, `pausa` por baixo) e quem nunca volta (saída
+                   sem volta, `saida` por baixo)
   moved de Y       primeiro commit/PR caiu em Y, depois de já ter discutido
+
+  natalidade de Y  entradas / ativos. mortalidade de Y: saídas / ativos. Crescimento natural: a
+                   diferença. `tabela_anual` guarda também as partes: entradas = novatos +
+                   voltas e saídas = saídas sem volta + saídas com volta.
 
 Censura à direita: a saída de Y só se decide 12 meses depois de 31/12/Y. Ano
 que a coleta não cobre até lá fica com saída `NaN`. Anualizar está proibido.
@@ -314,53 +320,64 @@ def contagem_no_ano(eventos: pd.DataFrame) -> pd.DataFrame:
     return t[["n_codigo", "n_discussao"]].reset_index()
 
 
-def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Ativos, novatos, saídas, pausas, voltas, moved, deixou_codigo e crescimento natural, por ano.
+def entrou_no_ano(pa: pd.DataFrame) -> pd.Series:
+    """Entrada de Y: novato ou volta. Única definição de entrada (natalidade e a identidade)."""
+    return pa["novato"] | pa["volta"]
 
-    Saída é a última contribuição da vida. Quem para por mais de 12 meses e volta
-    tem uma pausa no ano em que parou e uma volta no ano em que voltou, e deixa de ser ativo
-    só entre os dois. Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saídas(Y) -
-    pausas(Y) + novatos(Y+1) + voltas(Y+1), para todo Y com saída decidida.
 
-    crescimento_natural_pct = (novatos + voltas - saídas - pausas) / ativos: tudo que entra menos
-    tudo que sai, em % dos ativos do mesmo ano. natalidade_pct = (novatos + voltas) / ativos e
-    mortalidade_pct = (saídas + pausas) / ativos, e a diferença entre elas é o crescimento natural.
+def saiu_no_ano(pa: pd.DataFrame) -> pd.Series:
+    """Saída de Y: o último evento de Y fecha um período, com ou sem volta depois.
 
-    A base é o ano Y. Entra quem chegou em Y (novato ou volta) e sai quem tem a última contribuição
-    de um período de atividade em Y (a saída só se confirma 12 meses depois). Não é a variação dos
-    ativos sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, que usa Y-1 como base e as saídas e
-    pausas de Y-1. Clojure 2024: crescimento natural -8,4%, variação dos ativos -18,8%.
+    Única definição de saída: mortalidade, taxa de saída por faixa, taxa padronizada e SMR.
     """
-    g = pa.groupby("ano")
+    return pa["saida"] | pa["pausa"]
+
+
+def tabela_anual(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
+    """Ativos, entradas, saídas, moved, deixou_codigo e crescimento natural, por ano.
+
+    Entrada de Y é o ativo de Y sem contribuição nos 12 meses antes do primeiro evento de Y:
+    novato (primeira contribuição da vida) ou volta (primeira depois de mais de 12 meses). Saída
+    de Y é o ativo de Y cujo último evento em Y é seguido de mais de 12 meses sem contribuir,
+    com volta depois (`saidas_com_volta`) ou sem (`saidas_sem_volta`). `entradas` = `novatos` +
+    `voltas` e `saidas` = `saidas_sem_volta` + `saidas_com_volta`.
+
+    Falha alto se a conta não fecha: ativos(Y+1) = ativos(Y) - saidas(Y) + entradas(Y+1), para
+    todo Y com saída decidida.
+
+    natalidade_pct = entradas / ativos. mortalidade_pct = saídas / ativos. A diferença é
+    crescimento_natural_pct: tudo que entra menos tudo que sai, em % dos ativos do mesmo ano.
+
+    A base é o ano Y. A saída só se confirma 12 meses depois do último evento. Não é a variação
+    dos ativos sobre o ano anterior, ativos(Y) / ativos(Y-1) - 1, que usa Y-1 como base e as
+    saídas de Y-1. Clojure 2024: crescimento natural -8,4%, variação dos ativos -18,8%.
+    """
+    g = pa.assign(entrou=entrou_no_ano(pa), saiu=saiu_no_ano(pa)).groupby("ano")
     t = pd.DataFrame(
         {
             "ativos": g.size(),
             "novatos": g["novato"].sum(),
-            "saidas": g["saida"].sum().astype(float),
-            "pausas": g["pausa"].sum(),
             "voltas": g["volta"].sum(),
+            "entradas": g["entrou"].sum(),
+            "saidas_sem_volta": g["saida"].sum().astype(float),
+            "saidas_com_volta": g["pausa"].sum().astype(float),
+            "saidas": g["saiu"].sum().astype(float),
             "moved": g["moved_no_ano"].sum(),
             "deixou_codigo": g["deixou_codigo_no_ano"].sum(),
         }
     )
     for ano in t.index:
         if not ano_completo(ano, fim):
-            t.loc[ano, "saidas"] = np.nan
+            t.loc[ano, ["saidas", "saidas_sem_volta", "saidas_com_volta"]] = np.nan
     t["provisorio"] = [provisorio(ano, fim) for ano in t.index]
-    t["natalidade_pct"] = 100 * (t["novatos"] + t["voltas"]) / t["ativos"]
-    t["mortalidade_pct"] = 100 * (t["saidas"] + t["pausas"]) / t["ativos"]
+    t["natalidade_pct"] = 100 * t["entradas"] / t["ativos"]
+    t["mortalidade_pct"] = 100 * t["saidas"] / t["ativos"]
     t["crescimento_natural_pct"] = t["natalidade_pct"] - t["mortalidade_pct"]
 
     for ano in t.index:
         if ano + 1 not in t.index or pd.isna(t.loc[ano, "saidas"]):
             continue
-        esperado = (
-            t.loc[ano, "ativos"]
-            - t.loc[ano, "saidas"]
-            - t.loc[ano, "pausas"]
-            + t.loc[ano + 1, "novatos"]
-            + t.loc[ano + 1, "voltas"]
-        )
+        esperado = t.loc[ano, "ativos"] - t.loc[ano, "saidas"] + t.loc[ano + 1, "entradas"]
         if esperado != t.loc[ano + 1, "ativos"]:
             raise ValueError(
                 f"tabela_anual: conta não fecha em {ano}->{ano + 1}: "
@@ -539,11 +556,19 @@ def indice_envelhecimento(pa: pd.DataFrame) -> pd.DataFrame:
     return t.reset_index()
 
 
-def taxa_saida_por_faixa(pa: pd.DataFrame, fim: pd.Timestamp) -> pd.DataFrame:
-    """Saídas da faixa / ativos da faixa, por (ano, faixa). Ano aberto fica `NaN`."""
+def taxa_saida_por_faixa(
+    pa: pd.DataFrame, fim: pd.Timestamp, com_volta: bool = True
+) -> pd.DataFrame:
+    """Saídas da faixa / ativos da faixa, por (ano, faixa). Ano aberto fica `NaN`.
+
+    A saída é a da definição única (`saiu_no_ano`, com e sem volta). `com_volta=False` conta só as
+    saídas sem volta, a definição anterior, para mostrar as duas lado a lado.
+    """
+    saiu = saiu_no_ano(pa) if com_volta else pa["saida"]
     t = (
-        pa.groupby(["ano", "faixa"], observed=False)
-        .agg(ativos=("contributor_id", "size"), saidas=("saida", "sum"))
+        pa.assign(saiu=saiu)
+        .groupby(["ano", "faixa"], observed=False)
+        .agg(ativos=("contributor_id", "size"), saidas=("saiu", "sum"))
         .reset_index()
     )
     t["saidas"] = t["saidas"].astype(float)

@@ -53,22 +53,23 @@ def glossario() -> str:
         "",
         "- **Ativos**: pessoas com pelo menos um evento (commit, PR, issue ou comentário) no ano.",
         "- **Novatos**: pessoas cuja primeira contribuição na vida cai no ano.",
-        "- **Saída**: a última contribuição da vida, seguida de 12 meses sem nada. Quem para por "
-        "12 meses e volta tem uma pausa. Para confirmar os 12 meses é preciso acompanhar a pessoa "
-        "depois do ano. O estudo vai até 31/12/2025, e os eventos de 2026 só servem para decidir "
-        "quem saiu, quem pausou e quem pertence à população. A coleta termina entre setembro e "
+        "- **Saída**: o último evento do ano, seguido de 12 meses sem nada. Vale com ou sem volta "
+        "depois (saída com volta e saída sem volta). Para confirmar os 12 meses é preciso "
+        "acompanhar a pessoa depois do ano. O estudo vai até 31/12/2025, e os eventos de 2026 só "
+        "servem para decidir quem saiu e quem pertence à população. A coleta termina entre "
+        "setembro e "
         "outubro de 2026, então quem parou nos últimos meses de 2025 ainda pode voltar. Por isso "
         "as tabelas e os gráficos que dependem de saída param em 2024.",
         "- **População do ano**: as pessoas que contribuíram no ano. É o mesmo grupo dos ativos, "
         "e é o nome usado nos gráficos de natalidade e mortalidade.",
-        "- **Natalidade e mortalidade**: natalidade é todo mundo que entrou no ano (novatos e "
-        "voltas) e mortalidade é todo mundo que saiu (saídas e pausas), as duas em % da "
-        "população do ano.",
+        "- **Natalidade e mortalidade**: natalidade é todo mundo que entrou no ano (entradas: "
+        "novatos e voltas) e mortalidade é todo mundo que saiu (saídas, com e sem volta), as duas "
+        "em % da população do ano.",
         "- **Crescimento natural**: todo mundo que entrou menos todo mundo que saiu, em % da "
         "população do ano. É a natalidade menos a mortalidade. A base é o próprio ano, e não "
         "o ano anterior.",
-        "- **Reposição**: todo mundo que entrou no ano (novatos e voltas) dividido por todo mundo "
-        "que saiu (saídas e pausas). Acima de 1 o crescimento natural é positivo. Abaixo de 1 "
+        "- **Reposição**: todo mundo que entrou no ano (entradas) dividido por todo mundo "
+        "que saiu (saídas). Acima de 1 o crescimento natural é positivo. Abaixo de 1 "
         "a comunidade perde mais gente do que ganha.",
         "- **Índice de envelhecimento**: ativos com 5 anos ou mais na linguagem divididos pelos "
         "ativos com menos de 1 ano na linguagem. A idade é o tempo na linguagem. A idade da "
@@ -319,8 +320,8 @@ def renovacao(pastas: Pastas, p: v.Parametros, ano_ref: int) -> tuple[pd.DataFra
         i = pastas.csv(lingua, "indice_envelhecimento.csv").set_index("ano")
         t = pd.DataFrame(index=a.index)
         t["ativos"] = a["ativos"]
-        t["entraram"] = a["novatos"] + a["voltas"]
-        t["saíram"] = a["saidas"] + a["pausas"]
+        t["entraram"] = a["entradas"]
+        t["saíram"] = a["saidas"]
         t["entraram para cada saída"] = t["entraram"] / t["saíram"].where(a["saidas"].notna())
         t["% com menos de 1 ano"] = 100 * i["novatos"] / a["ativos"]
         t["% com 5 anos ou mais"] = 100 * i["veteranos"] / a["ativos"]
@@ -361,8 +362,10 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
             "ativos",
             "novatos",
             "voltas",
+            "entradas",
+            "saidas_sem_volta",
+            "saidas_com_volta",
             "saidas",
-            "pausas",
             "natalidade_pct",
             "mortalidade_pct",
             "crescimento_natural_pct",
@@ -423,7 +426,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "",
         "- Plano: crescimento natural = (novatos - saídas) / ativos, em %.",
         "- Aqui: crescimento natural é tudo que entra menos tudo que sai, em % dos ativos do ano. "
-        "Entram os novatos e as voltas, saem as saídas e as pausas.",
+        "Entram as entradas (novatos e voltas), saem as saídas (sem volta e com volta).",
         "- Natalidade é o que entra sobre os ativos, mortalidade é o que sai sobre os ativos, "
         "e a diferença entre as duas é o crescimento natural.",
         f"- A tabela vai até {ate}. A saída de {ultimo} só se confirma 12 meses depois da última "
@@ -489,7 +492,7 @@ def rq1(pastas: Pastas, p: v.Parametros) -> str:
         "confirmada. A idade é o tempo na linguagem.",
         "",
         f"1. **Reposição.** Em {ano_ref} entraram {num_i(ref['entraram'])} pessoas (novatos e "
-        f"voltas) e saíram {num_i(ref['saíram'])} (saídas e pausas): "
+        f"voltas) e saíram {num_i(ref['saíram'])} (saídas, com e sem volta): "
         f"{num_f(ref['entraram para cada saída'])} para cada saída. Desde {ano_1 + 1} fica abaixo "
         f"de 1. Nas outras linguagens em {ano_ref}: {por_saida}.",
         f"2. **Base da pirâmide.** Os ativos com menos de 1 ano na linguagem eram "
@@ -894,7 +897,8 @@ def diferencas(p: v.Parametros) -> str:
         f"| Período | 2008 a 2026 | estudo de 2008 a {pd.Timestamp(p.data_de_corte).year}. "
         "2026 só acompanha quem já estava na população |",
         "| Crescimento natural | (novatos - saídas) / ativos | tudo que entra menos tudo que sai, "
-        "(novatos + voltas - saídas - pausas) / ativos |",
+        "(entradas - saídas) / ativos, com entradas = novatos + voltas e saídas = sem volta "
+        "+ com volta |",
         "| Saída de 2025 | não prevista | fica fora das tabelas e dos gráficos que dependem de "
         "saída. Ela só se confirma 12 meses depois da última contribuição, e a coleta termina em "
         "setembro e outubro de 2026 |",

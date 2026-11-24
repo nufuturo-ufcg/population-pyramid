@@ -329,11 +329,12 @@ def secao_crescimento(base: Path, p: v.Parametros, ordem: list[str]) -> str:
         "Ele é diferente da variação dos ativos sobre o ano anterior.",
         "",
         "- Crescimento natural(Y) = tudo que entra menos tudo que sai, dividido pelos ativos de Y: "
-        "(novatos(Y) + voltas(Y) - saídas(Y) - pausas(Y)) / ativos(Y).",
+        "(entradas(Y) - saídas(Y)) / ativos(Y), com entradas = novatos + voltas e saídas = "
+        "sem volta + com volta.",
         "- Entra quem chegou em Y, como novato ou como volta. Sai quem tem a última contribuição "
-        "de um período de atividade em Y, como saída ou como pausa.",
+        "de um período de atividade em Y, com volta depois ou sem.",
         "- Variação dos ativos(Y) = ativos(Y) / ativos(Y-1) - 1. Essa usa o ano anterior como "
-        "base, com as saídas e pausas de Y-1.",
+        "base, com as saídas de Y-1.",
         "- Os dois ficam parecidos quando a comunidade é estável e se separam quando ela "
         "muda de tamanho.",
         "",

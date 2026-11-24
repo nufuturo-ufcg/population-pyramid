@@ -67,10 +67,27 @@ def test_tabela_anual():
     # e volta em 2024, então 2021 também. Só A sai em 2021 e B em 2022.
     # 2023 é o último ano completo: D, que só abriu uma issue em dez/2023, já conta como saída,
     # com o selo de provisório. 2024 é o ano da coleta e fica sem saída.
-    assert list(t.loc[[2020, 2021, 2022, 2023], "saidas"]) == [0, 1, 1, 1]
-    assert list(t["pausas"]) == [1, 1, 0, 0, 0]
+    assert list(t.loc[[2020, 2021, 2022, 2023], "saidas_sem_volta"]) == [0, 1, 1, 1]
+    assert list(t["saidas_com_volta"].iloc[:4]) == [1, 1, 0, 0]
+    # A saída da definição única inclui quem volta depois.
+    assert list(t.loc[[2020, 2021, 2022, 2023], "saidas"]) == [1, 2, 1, 1]
+    assert list(t["entradas"]) == [2, 1, 1, 1, 1]
+    assert (t["entradas"] == t["novatos"] + t["voltas"]).all()
+    assert (
+        t.loc[:2023, "saidas"]
+        == t.loc[:2023, "saidas_sem_volta"] + t.loc[:2023, "saidas_com_volta"]
+    ).all()
     assert list(t["provisorio"]) == [False, False, False, True, False]
     assert np.isnan(t.loc[2024, "saidas"])
+    # natalidade e mortalidade vêm das entradas e das saídas, e a conta fecha em todo ano decidido
+    assert t["natalidade_pct"].tolist() == pytest.approx(
+        (100 * t["entradas"] / t["ativos"]).tolist()
+    )
+    for ano in [2020, 2021, 2022]:
+        assert (
+            t.loc[ano + 1, "ativos"]
+            == t.loc[ano, "ativos"] - t.loc[ano, "saidas"] + t.loc[ano + 1, "entradas"]
+        )
 
 
 def test_tabela_anual_falha_quando_a_conta_nao_fecha():
@@ -84,7 +101,11 @@ def test_taxa_saida_por_faixa():
     t = vitalidade.taxa_saida_por_faixa(vitalidade.pessoa_ano(_eventos(), FIM), FIM)
     t = t.set_index(["ano", "faixa"])
     assert t.loc[(2021, "0-1"), "ativos"] == 1
-    assert t.loc[(2021, "0-1"), "taxa_saida"] == 0.0  # C parou em 2021, mas voltou: pausa
+    assert t.loc[(2021, "0-1"), "taxa_saida"] == 1.0  # C parou em 2021 e voltou: saída com volta
+    antiga = vitalidade.taxa_saida_por_faixa(
+        vitalidade.pessoa_ano(_eventos(), FIM), FIM, com_volta=False
+    )
+    assert antiga.set_index(["ano", "faixa"]).loc[(2021, "0-1"), "taxa_saida"] == 0.0
     assert t.loc[(2021, "1-2"), "ativos"] == 1
     assert t.loc[(2021, "1-2"), "taxa_saida"] == 1.0
     assert np.isnan(t.loc[(2024, "3-5"), "taxa_saida"])

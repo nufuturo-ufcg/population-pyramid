@@ -668,9 +668,9 @@ def metrica_tamanho(ctx: Contexto) -> Dados:
     """Tamanho: crescimento natural por ano, natalidade e mortalidade. Responde RQ1.1.
 
     O que faz: crescimento natural = tudo que entra menos tudo que sai, em % dos ativos do ano.
-    Entram os novatos e as voltas, saem as saídas e as pausas. Natalidade é o que entra sobre
-    os ativos, mortalidade é o que sai sobre os ativos, e a diferença entre as duas é o
-    crescimento natural.
+    Entram as entradas (novatos e voltas), saem as saídas (sem volta e com volta). Natalidade é
+    entradas sobre ativos, mortalidade é saídas sobre ativos, e a diferença entre as duas é o
+    crescimento natural. A definição fica em `vitalidade.tabela_anual`.
     Referência: equação compensadora da demografia (IBGE, metodologia das
     projeções 1980-2050, https://ftp.ibge.gov.br/Projecao_da_Populacao/Revisao_2004_Projecoes_1980_2050/metodologia.pdf;
     PRB Population Handbook 2011). Novatos e saídas: Foucault et al., ESEC/FSE
@@ -897,11 +897,9 @@ def metrica_trajetoria(ctx: ContextoComparativo) -> Dados:
         t["saida_pct"] = 100 * t["saidas"] / t["ativos"]
         t["volta_pct"] = 100 * t["voltas"] / t["ativos"]
         t["novato_pct"] = 100 * t["novatos"] / t["ativos"]
-        # Reposição: todo mundo que entrou (novatos e voltas) para cada pessoa que saiu (saídas e
-        # pausas). Acima de 1 o crescimento natural é positivo.
-        t["reposicao"] = (t["novatos"] + t["voltas"]) / (t["saidas"] + t["pausas"]).where(
-            t["saidas"].notna()
-        )
+        # Reposição: todo mundo que entrou para cada pessoa que saiu. Acima de 1 o crescimento
+        # natural é positivo.
+        t["reposicao"] = t["entradas"] / t["saidas"].where(t["saidas"].notna())
         # Quem parou há pouco ainda pode voltar: os últimos `carencia_anos` anos saem tracejados.
         t["provisorio"] = t["ano"] > lingua.fim_acompanhamento.year - ctx.p.carencia_anos
         ativos_na_base = t.set_index("ano")["ativos"].get(base)  # sem o ano base, sem índice
