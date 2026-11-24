@@ -57,7 +57,7 @@ def grava_origem(
     if not sem_duplicados and not fundir_duplicados:
         fonte.duplicados = None
     pasta = saida / slug / "origem"
-    carga_compacta.carrega(
+    eventos = carga_compacta.carrega(
         fonte,
         "duckdb",
         trabalho=saida / slug / "trabalho-origem",
@@ -75,6 +75,8 @@ def grava_origem(
         repos_para_contar=carga_fonte.repos_sem_mapa(fonte) if contar_repos_sem_mapa else (),
     )
     (pasta / "estatisticas_da_carga.json").write_text(json.dumps(fb._stats(), default=str))
+    # Os mesmos eventos compactos que a rodada guarda em `cache/`: pessoa-ano não relê o bruto.
+    eventos.to_parquet(pasta / "eventos_compactos.parquet", index=False)
     partes = []
     for caminho in fonte.alvos:
         alvo = pd.read_csv(caminho, dtype={"repo_id": str})
