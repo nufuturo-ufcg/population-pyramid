@@ -2,7 +2,7 @@
 # Variante da carga v3 com leitura sequencial do duckdb (`parallel=false`), nas cinco linguagens, e o que vem depois.
 # Uso (na raiz do repo na VM): bash scripts/granularidade/lancar_v3b.sh <pasta v3b>
 # A pasta v3b tem `vitalidade_fontes_v3b.yaml` (igual ao v3 com `leitura_sequencial: true` em cada linguagem). A carga de Python
-# já foi lançada à parte em <pasta>/carga.log; o script espera o FIM dela. Nada da v3 é tocado.
+# Só carrega as linguagens que ainda não têm `origem/pessoas.parquet`. Nada da v3 é tocado.
 V=$1
 PY=.venv/bin/python
 S=scripts/granularidade
@@ -10,15 +10,17 @@ GRAN=$V/granularidade
 export PYRAMID_FONTES_YAML=$V/vitalidade_fontes_v3b.yaml
 mkdir -p $V
 
-echo "$(date -u +%H:%M:%S) 1 carga de clojure, elixir, ocaml e zig" >> $V/andamento.log
-for l in clojure elixir ocaml zig; do
+echo "$(date -u +%H:%M:%S) 1 carga das linguagens que faltam" >> $V/andamento.log
+for l in clojure elixir ocaml zig python; do
+  if [ -f $V/carga/$l/origem/pessoas.parquet ]; then continue; fi
+  MEM=20GB; THR=12
+  if [ $l = python ]; then MEM=58GB; THR=12; fi  # com 40 GB a leitura sequencial de Python estourou a memória
   date; echo INICIO $l
-  $PY scripts/origem_dos_novatos.py --saida $V/carga --linguagens $l --autores --fundir-duplicados --commits-pelo-sha --sem-contas-de-sistema --memoria 20GB --threads 12 2>&1 | tail -6
+  $PY scripts/origem_dos_novatos.py --saida $V/carga --linguagens $l --autores --fundir-duplicados --commits-pelo-sha --sem-contas-de-sistema --memoria $MEM --threads $THR 2>&1 | tail -6
   echo FIM $l
-done > $V/carga_pequenas.log 2>&1
-echo "$(date -u +%H:%M:%S) 1 carga das pequenas pronta" >> $V/andamento.log
-while ! grep -q FIM $V/carga.log; do sleep 30; done
-echo "$(date -u +%H:%M:%S) 1 carga de python pronta" >> $V/andamento.log
+done > $V/carga_2.log 2>&1
+if [ ! -f $V/carga/python/origem/pessoas.parquet ]; then echo "$(date -u +%H:%M:%S) FALHOU a carga de python" >> $V/andamento.log; exit 1; fi
+echo "$(date -u +%H:%M:%S) 1 carga pronta" >> $V/andamento.log
 $PY $S/compara_cargas.py $HOME/pyramid/v3/carga $V/carga clojure elixir ocaml zig python > $V/compara_cargas.txt 2>&1
 
 echo "$(date -u +%H:%M:%S) 2 P1" >> $V/andamento.log
