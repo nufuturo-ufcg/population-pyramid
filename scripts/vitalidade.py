@@ -866,14 +866,21 @@ def metrica_comparacao_corrigida(ctx: ContextoComparativo) -> Dados:
     Referência: Ahmad et al., Age Standardization of Rates: A New WHO Standard,
     OMS, 2001, https://cdn.who.int/media/docs/default-source/gho-documents/global-health-estimates/gpe_discussion_paper_series_paper31_2001_age_standardization_rates.pdf.
     """
-    taxas = {}
-    for slug, lingua in ctx.por_lingua.items():
-        taxas[slug] = vitalidade.taxa_saida_por_faixa(lingua.pa, lingua.fim)
-    rodadas = []
-    for nome, linguagens in ctx.p.rodadas_padronizacao.items():
-        da_rodada = {slug: taxas[slug] for slug in linguagens}
-        rodadas.append(vitalidade.padronizacao(da_rodada, ctx.p.ano_pesos).assign(rodada=nome))
-    return {"padronizacao": pd.concat(rodadas, ignore_index=True)}
+    # A definição única de saída inclui quem volta. `padronizacao_definicao_antiga` repete a conta
+    # só com as saídas sem volta, para comparar com as rodadas anteriores.
+    saida = {}
+    for chave, com_volta in [("padronizacao", True), ("padronizacao_definicao_antiga", False)]:
+        taxas = {}
+        for slug, lingua in ctx.por_lingua.items():
+            taxas[slug] = vitalidade.taxa_saida_por_faixa(
+                lingua.pa, lingua.fim, com_volta=com_volta
+            )
+        rodadas = []
+        for nome, linguagens in ctx.p.rodadas_padronizacao.items():
+            da_rodada = {slug: taxas[slug] for slug in linguagens}
+            rodadas.append(vitalidade.padronizacao(da_rodada, ctx.p.ano_pesos).assign(rodada=nome))
+        saida[chave] = pd.concat(rodadas, ignore_index=True)
+    return saida
 
 
 @metrica("trajetoria", escopo="comparativo")

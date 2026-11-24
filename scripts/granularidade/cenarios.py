@@ -3,6 +3,7 @@
   S1: recortes de 3 meses, ativo = contribuiu nos últimos 3 meses, idade = tempo desde a primeira contribuição em faixas de 3 meses sem desconto, todos os contribuidores, horizonte de 3 meses.
   S2: recorte em 31 de dezembro, faixas de 1 ano, idade descontada, janela de 12 meses, residentes pelo passado (P1), horizonte de 12 meses. Igual à versão A de `projecao-granularidade`.
   S3: como S1, com ativo = contribuiu nos últimos 12 meses.
+  S4: como S2 em recortes de 3 meses (P1, idade descontada, janela de 12 meses), horizonte de 12 meses. S5: o mesmo com horizonte de 3 meses.
   S1b e S3h: S1 e S3 com horizonte de 12 meses (4 recortes à frente), para separar o efeito do horizonte (em S3 com horizonte de 3 meses, 9 dos 12 meses da janela do alvo já estão observados na origem).
 
 Roda os 41 métodos (mais a coorte exata do IEICE16 em S1 e S3) e o fatorial R0 a R3 de nascimento e parada de repositórios. Grava por linguagem e cenário, em `<saida>/unidades/`:
@@ -21,8 +22,10 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import previsao
 import vazamento
 from estado import FIM, constroi_estado, corta_estado
+from estado import junta_aberta_vet as junta_aberta
 from previsao import (
     POOL,
     gera_regras,
@@ -49,8 +52,95 @@ CENARIOS = {
     # mesmos recortes e regras de S1 e S3, com horizonte de 12 meses (a coorte avança 4 recortes até o alvo)
     "S1b": {"passo": 3, "janela": 1, "idade": "tempo", "pop": "P2", "horizonte": 4, "ieice": True},
     "S3h": {"passo": 3, "janela": 4, "idade": "tempo", "pop": "P2", "horizonte": 4, "ieice": True},
+    # S4 e S5: população do S2 (não casuais, residentes pelo passado) e idade com desconto, em recortes e faixas de 3 meses
+    # (saída em 12 meses = janela de 4 blocos). S4 projeta 12 meses (4 passos); S5 projeta 3 meses (1 passo).
+    "S4": {
+        "passo": 3,
+        "janela": 4,
+        "idade": "descontada",
+        "pop": "P1",
+        "horizonte": 4,
+        "ieice": False,
+    },
+    "S5": {
+        "passo": 3,
+        "janela": 4,
+        "idade": "descontada",
+        "pop": "P1",
+        "horizonte": 1,
+        "ieice": False,
+    },
 }
 BASE = ["ingenua", "deriva", "holt_amortecido"]
+
+
+METODOS_DO_DETALHE = [
+    ("ingenua", "Ingênua"),
+    ("coorte_V0_B", "Coorte"),
+    ("coorte_R3_B", "Coorte^R"),
+    ("conservador_R3_B", "Conservador^R"),
+    ("C3_R3", "Ingênua-Coorte^R"),
+    ("pessimista_V0_B", "Pessimista sem repositórios"),
+    ("otimista_V0_B", "Otimista sem repositórios"),
+    ("pessimista_nova_R3_B", "Pessimista com repositórios"),
+    ("otimista_nova_R3_B", "Otimista com repositórios"),
+]
+
+
+def linhas_de_detalhe(lingua: str, cenario: str, est: dict, k: int, H: int, detalhe: dict) -> list:
+    """Uma linha por método e faixa na origem k: o que entrou na projeção, a projeção da faixa e o real da faixa (`--detalhe`)."""
+    atual = junta_aberta(est["pop_p_b"][k])
+    real = junta_aberta(est["pop_p_b"][k + H])
+    por_ano = est["nb"]
+    comp = detalhe.get("_componentes_V2", {})
+    linhas = []
+    for nome, rotulo in METODOS_DO_DETALHE:
+        if nome == "ingenua":
+            d = {
+                "origem_da_taxa": "sem taxa (pirâmide da origem)",
+                "taxa": np.ones(len(atual)),
+                "saida_parada": np.zeros(len(atual)),
+                "novatos": [0.0] * H,
+                "vetor": atual,
+            }
+        elif nome == "C3_R3":
+            d = {
+                "origem_da_taxa": "média da Ingênua e da Coorte^R",
+                "taxa": np.full(len(atual), np.nan),
+                "saida_parada": detalhe["coorte_R3_B"]["saida_parada"],
+                "novatos": detalhe["coorte_R3_B"]["novatos"],
+                "vetor": (atual + detalhe["coorte_R3_B"]["vetor"]) / 2,
+            }
+        else:
+            d = detalhe[nome]
+        usa_v2 = nome in ("coorte_R3_B", "conservador_R3_B")
+        for faixa in range(len(atual)):
+            fim_aberta = faixa == len(atual) - 1
+            largura = 12 // por_ano
+            rotulo_faixa = (
+                f"{faixa * largura}+ meses"
+                if fim_aberta
+                else f"{faixa * largura} a {(faixa + 1) * largura} meses"
+            )
+            linhas.append(
+                (
+                    lingua, cenario, str(est["datas"][k]), str(est["datas"][k + H]), rotulo, faixa, rotulo_faixa, atual[faixa], d["taxa"][faixa], d["origem_da_taxa"],
+                    d["saida_parada"][faixa], sum(d["novatos"]), ";".join(f"{x:.6g}" for x in d["novatos"]),
+                    comp.get("repos_novos", np.nan) if usa_v2 else np.nan,
+                    ";".join(f"{x:.6g}" for x in comp.get("repos_existentes", [])) if usa_v2 else "",
+                    comp.get("novatos_por_repo_novo", np.nan) if usa_v2 else np.nan,
+                    comp.get("novatos_por_repo_existente", np.nan) if usa_v2 else np.nan,
+                    d["vetor"][faixa], real[faixa],
+                )
+            )  # fmt: skip
+    return linhas
+
+
+CABECALHO_DETALHE = [
+    "linguagem", "cenario", "origem", "data_projetada", "metodo", "faixa", "faixa_rotulo", "pessoas_na_faixa_origem", "taxa_permanencia", "origem_da_taxa",
+    "saida_por_parada", "novatos_usados", "novatos_por_passo", "repos_novos", "repos_existentes_por_passo", "novatos_por_repo_novo", "novatos_por_repo_existente",
+    "projecao_faixa", "real_faixa",
+]  # fmt: skip
 
 
 def sem_sufixo(nome: str) -> str:
@@ -66,6 +156,7 @@ def roda_cenario(
     com_vazamento: bool = False,
     amostra: int | None = None,
     granularidade: Path | None = None,
+    com_detalhe: bool = False,
 ) -> None:
     cfg = CENARIOS[cenario]
     prefixo = f"{lingua}_{cenario}"
@@ -124,10 +215,14 @@ def roda_cenario(
         if amostra is None
         else max(primeiro_ativo + 1, ultima_origem - amostra + 1)
     )
-    pares, marcas = [], []
+    pares, marcas, detalhes = [], [], []
     t0 = time.time()
     for k in range(primeira, ultima_origem + 1):
+        previsao.DETALHE = {} if com_detalhe else None
         res = preve_estado(corta_estado(est, k), hist, regras, POOL, ("B",), H, cfg["ieice"])
+        if com_detalhe:
+            detalhes += linhas_de_detalhe(lingua, cenario, est, k, H, previsao.DETALHE)
+            previsao.DETALHE = None
         for m in nomes:
             hist["previsto"][m][k] = res["previsto"][m]
         for chave, matriz in hist.items():
@@ -156,6 +251,10 @@ def roda_cenario(
             pasta / f"{prefixo}_R{r}_pares.csv.gz", index=False, float_format="%.10g"
         )
     tabela[~eh_r].to_csv(pasta / f"{prefixo}_pares.csv.gz", index=False, float_format="%.10g")
+    if com_detalhe:
+        pd.DataFrame(detalhes, columns=CABECALHO_DETALHE).to_csv(
+            pasta / f"{prefixo}_detalhe.csv.gz", index=False, float_format="%.10g"
+        )
     if cenario == "S2" and granularidade is not None and amostra is None:
         confere_com_a_granularidade(
             tabela,
@@ -252,6 +351,11 @@ if __name__ == "__main__":
     ap.add_argument("--refazer", action="store_true")
     ap.add_argument("--amostra", type=int, default=None)
     ap.add_argument("--granularidade", type=Path, default=None)
+    ap.add_argument(
+        "--detalhe",
+        action="store_true",
+        help="grava também <l>_<cenario>_detalhe.csv.gz (por faixa)",
+    )
     a = ap.parse_args()
     pasta = a.saida / "unidades"
     for lingua in a.linguas:
@@ -265,5 +369,13 @@ if __name__ == "__main__":
                 print(f"{lingua}_{cenario}: já pronto, pulado", flush=True)
                 continue
             roda_cenario(
-                pessoas, eventos, lingua, cenario, pasta, a.vazamento, a.amostra, a.granularidade
+                pessoas,
+                eventos,
+                lingua,
+                cenario,
+                pasta,
+                a.vazamento,
+                a.amostra,
+                a.granularidade,
+                a.detalhe,
             )

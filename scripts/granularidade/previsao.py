@@ -51,6 +51,31 @@ POOL_B = [
 FAIXAS_COM_DETALHE_B = ["coorte_V0_B", "conservador_V0_B"]
 # Quando não é None, guarda o vetor por faixa (6 faixas) de cada método calculado (`figuras_v3_dados.py`).
 SUMIDOURO_FAIXAS: dict | None = None
+# Quando não é None, guarda por método (versão B) o que entra na projeção, faixa a faixa: taxa de permanência e sua origem, saída por
+# parada, novatos por passo e seus componentes, e o vetor projetado (`planilha_detalhe.py`). Não muda nenhum número.
+DETALHE: dict | None = None
+ORIGEM_DA_TAXA = {
+    "coorte": "último recorte",
+    "conservador": "média de 2 anos",
+    "pessimista": "mínimo de 5 anos",
+    "otimista": "máximo de 5 anos",
+}
+
+
+def anota_detalhe(
+    nome: str, familia: str, sr: np.ndarray, saida_parada, novatos: list, vetor: np.ndarray
+) -> None:
+    if DETALHE is None:
+        return
+    DETALHE[nome] = {
+        "origem_da_taxa": ORIGEM_DA_TAXA[familia],
+        "taxa": np.asarray(sr, dtype=float),
+        "saida_parada": np.zeros(len(vetor))
+        if saida_parada is None
+        else np.asarray(saida_parada, dtype=float),
+        "novatos": [float(x) for x in novatos],
+        "vetor": np.asarray(vetor, dtype=float),
+    }
 
 
 def metodos_b() -> list[str]:
@@ -493,6 +518,13 @@ def familia_coorte(
             M_NOVO[janela]
         )
 
+    if DETALHE is not None and versao == "B":
+        DETALHE["_componentes_V2"] = {
+            "repos_novos": float(R0m),
+            "repos_existentes": [float(x) for x in E_v2],
+            "novatos_por_repo_novo": float(mn_m),
+            "novatos_por_repo_existente": float(me_m),
+        }
     for v in VARIANTES:
         vetores = {
             "coorte": projeta(atual, sr_ultimo, nov[v]),
@@ -503,6 +535,20 @@ def familia_coorte(
         for familia, vetor in vetores.items():
             nome = f"{familia}_{v}{sufixo}"
             previsto[nome] = float(vetor.sum())
+            if (
+                versao == "B"
+                and v == "V0"
+                and nome in ("coorte_V0_B", "pessimista_V0_B", "otimista_V0_B")
+            ):
+                taxa_do_metodo = {"coorte": sr_ultimo, "pessimista": menor, "otimista": maior}[
+                    familia
+                ]
+                novatos_do_metodo = {
+                    "coorte": nov[v],
+                    "pessimista": [pess_nov[v]] * passos,
+                    "otimista": [otim_nov[v]] * passos,
+                }[familia]
+                anota_detalhe(nome, familia, taxa_do_metodo, None, novatos_do_metodo, vetor)
             if nome in FAIXAS_COM_DETALHE + FAIXAS_COM_DETALHE_B:
                 faixas[nome] = soma_em_faixas6(vetor, por_ano)
             if SUMIDOURO_FAIXAS is not None:
@@ -586,6 +632,16 @@ def fatorial_r(
         vetor_conservador = projeta(atual, sr_conservador, novatos)
         saida[f"coorte_R{r}_B"] = float(vetor_coorte.sum())
         saida[f"conservador_R{r}_B"] = float(vetor_conservador.sum())
+        if r == 3:
+            anota_detalhe("coorte_R3_B", "coorte", sr_coorte, saida_parada, novatos, vetor_coorte)
+            anota_detalhe(
+                "conservador_R3_B",
+                "conservador",
+                sr_conservador,
+                saida_parada,
+                novatos,
+                vetor_conservador,
+            )
         if SUMIDOURO_FAIXAS is not None:
             SUMIDOURO_FAIXAS[f"coorte_R{r}_B"] = soma_em_faixas6(vetor_coorte, est["nb"])
             SUMIDOURO_FAIXAS[f"conservador_R{r}_B"] = soma_em_faixas6(vetor_conservador, est["nb"])
@@ -641,10 +697,26 @@ def intervalos_r(
         if SUMIDOURO_FAIXAS is not None:
             SUMIDOURO_FAIXAS[f"pessimista_R{r}_B"] = soma_em_faixas6(vetor_pess, est["nb"])
             SUMIDOURO_FAIXAS[f"otimista_R{r}_B"] = soma_em_faixas6(vetor_otim, est["nb"])
-    saida["pessimista_nova_R3_B"] = float(
-        projeta(atual, (1 - saida_parada) * menor, pess_nova).sum()
+    vetor_pess_nova = projeta(atual, (1 - saida_parada) * menor, pess_nova)
+    vetor_otim_nova = projeta(atual, (1 - saida_parada) * maior, otim_nova)
+    saida["pessimista_nova_R3_B"] = float(vetor_pess_nova.sum())
+    saida["otimista_nova_R3_B"] = float(vetor_otim_nova.sum())
+    anota_detalhe(
+        "pessimista_nova_R3_B",
+        "pessimista",
+        (1 - saida_parada) * menor,
+        saida_parada,
+        pess_nova,
+        vetor_pess_nova,
     )
-    saida["otimista_nova_R3_B"] = float(projeta(atual, (1 - saida_parada) * maior, otim_nova).sum())
+    anota_detalhe(
+        "otimista_nova_R3_B",
+        "otimista",
+        (1 - saida_parada) * maior,
+        saida_parada,
+        otim_nova,
+        vetor_otim_nova,
+    )
     return saida
 
 
