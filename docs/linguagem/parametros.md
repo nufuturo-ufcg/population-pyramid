@@ -34,7 +34,7 @@ Se um parâmetro de tabela mudar, `--so-figuras` avisa que as tabelas gravadas s
 |---|---|---|---|
 | `linguagens_rq2` | clojure, elixir, zig, ocaml, python | linguagens do comparativo. A primeira é a referência do log-rank. | tabela |
 | `rodadas_padronizacao` | `nicho`, `python` | quais linguagens formam cada rodada do SMR e da taxa padronizada. | tabela |
-| `ano_pesos` | 2025 | ano cuja composição por faixa pesa a referência de cada rodada. | tabela |
+| `ano_pesos` | 2024 | ano cuja composição por faixa pesa a taxa padronizada de cada rodada. A SMR não usa peso. Era 2025 até a v3b. | tabela |
 | `ano_base_indice` | 2019 | ano em que o índice de ativos vale 100. | tabela |
 | `ano_inicio_comparacao` | 2016 | primeiro ano dos gráficos de crescimento e de saída entre linguagens. | desenho |
 | `ultimo_ano_com_saida` | 2024 | último ano de tudo que depende de saída: crescimento natural, natalidade, mortalidade, saídas, reposição, saída por faixa e as tabelas do `METRICAS_POR_RQ.md`. 2025 fica de fora porque a saída dele só se confirma com 12 meses de silêncio e a coleta termina em set/out de 2026. | desenho |
@@ -73,7 +73,7 @@ Com 3 e 3 o resultado é o do motor, exatamente (validado em Clojure, Elixir, Zi
 | `motor` | `auto` | `pandas`, `duckdb` ou `auto` (duckdb acima de `limite_pandas_gb`). |
 | `limite_pandas_gb` | 20 | tamanho de eventos acima do qual `auto` escolhe duckdb. |
 | `limite_bruto_gb` | 20 | acima disso o pipeline do motor (`ccr_ncr` pelo motor, `stickiness`, `magnetismo`) recusa o pedido. |
-| `memoria` | 30GB | memória do duckdb. |
+| `memoria` | 30GB | memória do duckdb. Python com leitura sequencial (`leitura_sequencial`) precisa de 56GB. |
 | `threads` | 16 | núcleos do duckdb. `null` usa todos. |
 | `processos` | 4 | tarefas em paralelo em `vitalidade_grade.py`, um processo cada. Cada tarefa do Python usa uns 8 GB. |
 | `contar_linhas_brutas` | false | releitura do arquivo só para contar linhas brutas (estatística do filtro, sem efeito nas métricas). |

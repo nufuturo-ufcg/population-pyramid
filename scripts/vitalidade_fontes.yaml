@@ -19,6 +19,12 @@
 #
 # `duplicados:` é o repos_excluidos.csv que scripts/auditoria_repos.py gera: repositórios com outro
 # repo_id e as mesmas issues e PRs de um repositório que fica. Só vale com `sem_duplicados: true`.
+#
+# `fracoes_api:` é o CSV de `scripts/granularidade/consulta_languages.py`: a fração da linguagem pela API do GitHub
+# para os candidatos com `languages` vazia na SEART (a regra de elegibilidade fica em `carga_fonte.py`).
+# `sem_linhas_repetidas:` tira da carga a linha repetida do bruto (chave: todas as colunas menos `collection_started_at`).
+# `leitura_sequencial:` lê o CSV com um fio só (`parallel=false`), porque a leitura paralela do duckdb perde linhas em campos
+# com aspas e quebras de linha. Python com leitura sequencial pede 56GB de memória.
 
 linguagens:
   python:
@@ -27,6 +33,8 @@ linguagens:
     # 422.720 repositórios candidatos.
     eventos:
       - /home/wendell/dados-brutos/python/python-completo/eventos_python.csv
+      # Eventos de 4 repositórios recuperados em 2026-11-23 (os 126 sem evento); só 2 são elegíveis.
+      - /home/wendell/pyramid/correcao-elegibilidade/coleta-126/eventos_repositorios.csv
     alvos:
       - /home/wendell/dados-brutos/python/run-aws-1/repositorios_python_alvo.csv
       - /home/wendell/dados-brutos/python/run-vm2-1/repositorios_python_alvo.csv
@@ -34,21 +42,29 @@ linguagens:
       - /home/wendell/dados-brutos/python/run-batuta-2/repositorios_python_alvo.csv
     autores: /home/wendell/dados-brutos/autores/python/autores_commits_completo.csv
     duplicados: /home/wendell/dados-brutos/duplicados/python.csv
+    # Fração de Python pela API do GitHub para os candidatos com `languages` vazia na SEART.
+    fracoes_api: /home/wendell/pyramid/correcao-elegibilidade/consulta_languages.csv
+    sem_linhas_repetidas: true
+    leitura_sequencial: true
   clojure:
     # A coleta de 2026-09-03 é a de segunda rodada que a pirâmide usa. As outras
     # (2026-08-23 só com o merge, 2026-09-01 e 2026-09-02 parciais) ficam de fora.
     pasta: /home/wendell/dados-brutos/clojure/2026-09-03-clojure
     autores: /home/wendell/dados-brutos/autores/clojure/autores_commits.csv
     duplicados: /home/wendell/dados-brutos/duplicados/clojure.csv
+    leitura_sequencial: true
   elixir:
     pasta: /home/wendell/dados-brutos/elixir/2026-09-04-elixir
     autores: /home/wendell/dados-brutos/autores/elixir/autores_commits.csv
     duplicados: /home/wendell/dados-brutos/duplicados/elixir.csv
+    leitura_sequencial: true
   zig:
     pasta: /home/wendell/dados-brutos/zig/2026-09-06-zig
     autores: /home/wendell/dados-brutos/autores/zig/autores_commits.csv
     duplicados: /home/wendell/dados-brutos/duplicados/zig.csv
+    leitura_sequencial: true
   ocaml:
     pasta: /home/wendell/dados-brutos/ocaml/2026-10-10-ocaml
     autores: /home/wendell/dados-brutos/autores/ocaml/autores_commits.csv
     duplicados: /home/wendell/dados-brutos/duplicados/ocaml.csv
+    leitura_sequencial: true

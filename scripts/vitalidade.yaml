@@ -24,8 +24,9 @@ teto: false
 # Anos projetados à frente na projeção futura.
 horizonte: 5
 
-# Ano cuja composição por faixa serve de peso na taxa padronizada e no SMR.
-ano_pesos: 2025
+# Ano cuja composição por faixa serve de peso na taxa padronizada (a SMR não usa peso). Era 2025, o último ano civil
+# completo quando a métrica nasceu. Desde a v3b é 2024, o último ano da análise (`ultimo_ano_com_saida`).
+ano_pesos: 2024
 
 # Linguagens do comparativo (Kaplan-Meier, log-rank, padronização). A primeira
 # é a referência do log-rank. As cinco do plano: nicho (Elixir, Zig, OCaml) e Python.
