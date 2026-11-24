@@ -62,7 +62,7 @@ def como_texto(tabela: list[list[str]]) -> list[str]:
 saida = [
     "# Valores antigos e novos lado a lado",
     "",
-    "Cada célula mostra `antigo → novo`. Célula igual aparece uma vez. Antigo: carga de 2026-11-14 (rodada oficial). Novo: carga `-v3`.",
+    "Cada célula mostra `antigo → novo`. Célula igual aparece uma vez. Os caminhos de cada par estão na seção.",
     "",
 ]
 for i in range(0, len(TRIOS), 3):
