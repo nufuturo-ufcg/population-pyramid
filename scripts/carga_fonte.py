@@ -68,6 +68,7 @@ class Fonte:
     duplicados: Path | None = None  # CSV com repo_id dos repositórios a excluir (só duckdb)
     fracoes_api: Path | None = None  # CSV da API de linguagens, para quem tem `languages` vazio
     sem_linhas_repetidas: bool = False  # a carga tira linha repetida do bruto (só duckdb)
+    leitura_sequencial: bool = False  # lê o CSV com um fio só (só duckdb)
 
     def repos_excluidos(self) -> tuple[str, ...]:
         """Os `repo_id` do arquivo `duplicados`, ou nenhum."""
@@ -149,6 +150,7 @@ def _do_yaml(slug: str) -> Fonte | None:
     if entrada.get("duplicados"):
         fonte.duplicados = Path(entrada["duplicados"]).expanduser()
     fonte.sem_linhas_repetidas = bool(entrada.get("sem_linhas_repetidas", False))
+    fonte.leitura_sequencial = bool(entrada.get("leitura_sequencial", False))
     if entrada.get("fracoes_api"):
         fonte.fracoes_api = Path(entrada["fracoes_api"]).expanduser()
     return fonte

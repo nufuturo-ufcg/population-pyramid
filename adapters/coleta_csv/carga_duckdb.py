@@ -137,6 +137,9 @@ class Pedido:
     # Linha repetida do arquivo bruto sai (chave: todas as colunas menos `collection_started_at`),
     # dentro do mesmo `repo_id`. Grava `linhas_repetidas.csv` em `origem` quando ela existe.
     sem_linhas_repetidas: bool = False
+    # Lê cada CSV com um fio só (`parallel=false`). A leitura paralela do duckdb perde linhas quando
+    # um campo com aspas e quebras de linha cruza a fronteira de um bloco.
+    leitura_sequencial: bool = False
 
 
 @dataclass
@@ -152,7 +155,7 @@ def _aspas(texto: str | Path) -> str:
     return "'" + str(texto).replace("'", "''") + "'"
 
 
-def _leitura(caminho: Path, papel: str, com_chave: bool = False) -> str:
+def _leitura(caminho: Path, papel: str, com_chave: bool = False, sequencial: bool = False) -> str:
     """SELECT que lê um CSV e diz, por linha, se segue a regra do git (`eh_commit`).
 
     Com `com_chave`, `chave_linha` é o hash de todas as colunas da coleta menos
@@ -163,13 +166,14 @@ def _leitura(caminho: Path, papel: str, com_chave: bool = False) -> str:
     chave = "0"
     if com_chave:
         chave = "hash(" + ", ".join(f"coalesce({c}, '')" for c in COLUNAS_DA_CHAVE) + ")"
+    sequencia = ", parallel=false" if sequencial else ""
     return f"""
         SELECT repo_id, event_type, author, author_login, author_email, created_at, files, language,
                number, sha, url, message, title,
                {eh_commit} AS eh_commit, {chave} AS chave_linha
         FROM read_csv({_aspas(caminho)}, delim='|', quote='"', escape='"', header=true,
                       all_varchar=true, ignore_errors=true, strict_mode=false,
-                      nullstr={nulos}, max_line_size={LINHA_MAXIMA})
+                      nullstr={nulos}, max_line_size={LINHA_MAXIMA}{sequencia})
     """
 
 
@@ -509,7 +513,8 @@ def _carrega(con: duckdb.DuckDBPyConnection, pedido: Pedido) -> Resultado:
 
     _cria_repos(con, pedido, stats)
     leituras = [
-        _leitura(caminho, papel, pedido.sem_linhas_repetidas) for caminho, papel in pedido.eventos
+        _leitura(caminho, papel, pedido.sem_linhas_repetidas, pedido.leitura_sequencial)
+        for caminho, papel in pedido.eventos
     ]
     con.execute("CREATE VIEW bruto AS " + " UNION ALL ".join(leituras))
 
