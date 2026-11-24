@@ -1,4 +1,4 @@
-"""Impacto da leitura paralela do duckdb na carga de Python: compara a carga `-v3` (paralela) com a de teste `-v3b` (sequencial). Roda na VM.
+"""Impacto da leitura paralela do duckdb na carga de uma linguagem: compara a carga `-v3` (paralela) com a de teste `-v3b` (sequencial). Roda na VM.
 
 Só lê. Mostra, por ano de 2017 a 2024:
   - eventos válidos que entram ou saem (`estatisticas_da_carga.json`);
@@ -7,7 +7,7 @@ Só lê. Mostra, por ano de 2017 a 2024:
   - pessoas que mudam de classificação não casual (uma ocasião contra mais de uma);
   - a população P1 (RQ3) por faixa em 31 de dezembro.
 
-Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/compara_leituras_carga.py <carga v3> <carga v3b> <saida.md>
+Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/compara_leituras_carga.py <carga v3> <carga v3b> <saida.md> <linguagem>
 """
 
 import json
@@ -24,7 +24,7 @@ from estado import junta_aberta_vet as junta_aberta
 
 from pyramid import vitalidade as v
 
-A, B, SAIDA = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+A, B, SAIDA, LINGUA = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4]
 ANOS = list(range(2017, 2025))
 
 
@@ -37,7 +37,7 @@ def sinal(x: float) -> str:
 
 
 def le(carga: Path) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    pasta = carga / "python" / "origem"
+    pasta = carga / LINGUA / "origem"
     pessoas = pd.read_parquet(
         pasta / "pessoas.parquet",
         columns=["pessoa", "primeiro", "ocasioes", "segunda_ocasiao", "codigo_do_primeiro"],
@@ -69,7 +69,7 @@ pa, aa, ea = le(A)
 pb, ab, eb = le(B)
 
 L = [
-    "# Leitura paralela contra leitura sequencial na carga de Python",
+    f"# Leitura paralela contra leitura sequencial na carga de {LINGUA}",
     "",
     "Carga `-v3` (paralela, a usada em tudo) contra a de teste `-v3b` (sequencial). Cada célula mostra a diferença (v3b menos v3), quando há.",
     "",
@@ -94,7 +94,7 @@ so_a, so_b = ja.index.difference(jb.index), jb.index.difference(ja.index)
 comum = ja.index.intersection(jb.index)
 L += [
     "",
-    "## Pessoas de Python (todas, casuais inclusive)",
+    f"## Pessoas de {LINGUA} (todas, casuais inclusive)",
     "",
     f"- Só na v3: {milhar(len(so_a))}. Só na v3b: {milhar(len(so_b))}. Nas duas: {milhar(len(comum))}.",
 ]
@@ -147,12 +147,12 @@ L += [
 estados = {}
 for rotulo, carga in [("v3", A), ("v3b", B)]:
     p = pd.read_parquet(
-        carga / "python" / "origem" / "pessoas.parquet",
+        carga / LINGUA / "origem" / "pessoas.parquet",
         columns=["pessoa", "ocasioes", "codigo_do_primeiro", "segunda_ocasiao"],
     )
     p["segunda"] = p["segunda_ocasiao"].dt.floor("D").to_numpy().astype("datetime64[D]")
     p = p.drop(columns=["segunda_ocasiao"])
-    dias = pd.read_parquet(carga / "python" / "origem" / "pessoas_repos_por_dia.parquet")
+    dias = pd.read_parquet(carga / LINGUA / "origem" / "pessoas_repos_por_dia.parquet")
     eventos = {
         "pessoa": dias["pessoa"].to_numpy(),
         "codigo": dias["codigo"].to_numpy(),

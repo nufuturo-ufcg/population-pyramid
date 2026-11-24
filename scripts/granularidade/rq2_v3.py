@@ -5,7 +5,7 @@ A tábua usa x como o tempo da primeira à última contribuição em anos comple
 (mais de uma ocasião) que chegaram até 2024, com saída confirmada só até 2024. NCR, taxa padronizada, SMR e log-rank vêm dos CSV da rodada
 oficial v3. Lado de código e de discussão pela regra da figura 1: código se a pessoa teve ao menos tantos eventos de código quanto de discussão no ano.
 
-Uso (na raiz do repo): .venv/bin/python scripts/granularidade/rq2_v3.py <pyramid-vitalidade> <origens com v3_<linguagem>/pessoas.parquet> <saida>
+Uso (na raiz do repo): .venv/bin/python scripts/granularidade/rq2_v3.py <pyramid-vitalidade> <origens com <prefixo><linguagem>/pessoas.parquet> <saida> [rodada prefixo]
 """
 
 import sys
@@ -17,7 +17,9 @@ sys.path.insert(0, "src")
 from pyramid import vitalidade as v
 
 VITALIDADE, ORIGENS, SAIDA = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
-GERAL = VITALIDADE / "rodada-oficial-v3" / "geral-mais_de_uma_ocasiao" / "csv" / "vitalidade"
+RODADA = sys.argv[4] if len(sys.argv) > 4 else "rodada-oficial-v3"
+PREFIXO = sys.argv[5] if len(sys.argv) > 5 else "v3_"
+GERAL = VITALIDADE / RODADA / "geral-mais_de_uma_ocasiao" / "csv" / "vitalidade"
 LINGUAS = ["clojure", "elixir", "zig", "ocaml", "python"]
 NOMES = {
     "clojure": "Clojure",
@@ -62,7 +64,7 @@ linhas = {}
 for lingua in LINGUAS:
     t = trajetoria.loc[lingua]
     ativos, novatos, saidas = int(t["ativos"]), int(t["novatos"]), int(t["saidas"])
-    n, tab = tabua_com_pausas(pd.read_parquet(ORIGENS / f"v3_{lingua}" / "pessoas.parquet"))
+    n, tab = tabua_com_pausas(pd.read_parquet(ORIGENS / f"{PREFIXO}{lingua}" / "pessoas.parquet"))
     s = tab.set_index("x")["S"]
     linhas[lingua] = {
         "ativos": ativos,
