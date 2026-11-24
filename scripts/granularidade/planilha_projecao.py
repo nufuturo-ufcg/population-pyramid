@@ -157,13 +157,25 @@ for cenario, aba in abas.items():
 )
 assert not divergencias, divergencias[:5]
 
+# Nome de cada cenário na planilha (aba, CSV e coluna `cenario`)
+NOMES_DOS_CENARIOS = {
+    "S1": "Curto e amplo",
+    "S3h": "Longo e amplo",
+    "S4": "Longo, não casuais",
+    "S5": "Curto, não casuais",
+    "S2": "Anual",
+}
 COLUNAS_SAIDA = [
     "linguagem", "cenario", "origem", "origem_de_dezembro", "data_projetada", "metodo", "faixa", "faixa_rotulo", "pessoas_na_faixa_origem", "taxa_permanencia",
     "origem_da_taxa", "saida_por_parada", "novatos_usados", "novatos_por_passo", "repos_novos", "repos_existentes_por_passo", "novatos_por_repo_novo",
     "novatos_por_repo_existente", "projecao_faixa", "real_faixa", "abre",
 ]  # fmt: skip
 for cenario, aba in abas.items():
-    aba[COLUNAS_SAIDA].to_csv(SAIDA / f"planilha_{cenario}.csv", index=False, float_format="%.10g")
+    aba["cenario"] = NOMES_DOS_CENARIOS[cenario]
+    nome_do_arquivo = NOMES_DOS_CENARIOS[cenario].lower().replace(", ", "_").replace(" ", "_")
+    aba[COLUNAS_SAIDA].to_csv(
+        SAIDA / f"planilha_{nome_do_arquivo}.csv", index=False, float_format="%.10g"
+    )
 
 LEIA_ME = [
     ("Cenários", ""),
@@ -173,7 +185,7 @@ LEIA_ME = [
     ),
     (
         "S3h",
-        "Saída 12 meses, horizonte 12 meses, recortes de 3 meses. Todos os contribuidores. Idade como no S1. Ativo: contribuiu nos últimos 12 meses. Origens: todo trimestre de 2017 em diante.",
+        "Saída 12 meses, horizonte 12 meses, recortes de 3 meses. Todos os contribuidores. Idade como no cenário Curto e amplo. Ativo: contribuiu nos últimos 12 meses. Origens: todo trimestre de 2017 em diante.",
     ),
     (
         "S4",
@@ -181,7 +193,7 @@ LEIA_ME = [
     ),
     (
         "S5",
-        "Saída 12 meses, horizonte 3 meses, recortes de 3 meses. Mesma população e idade do S4. Origens: todo trimestre de 2017 a 2024; a coluna origem_de_dezembro marca as de dezembro.",
+        "Saída 12 meses, horizonte 3 meses, recortes de 3 meses. Mesma população e idade do cenário Longo, não casuais. Origens: todo trimestre de 2017 a 2024; a coluna origem_de_dezembro marca as de dezembro.",
     ),
     (
         "S2",
@@ -212,7 +224,7 @@ LEIA_ME = [
     ("data_projetada", "Data do alvo (origem mais o horizonte)."),
     (
         "faixa, faixa_rotulo",
-        "Faixa de idade na régua do cenário (3 meses nos S1, S3h, S4 e S5; 1 ano no S2). A última faixa é aberta (8 anos ou mais). A linha TOTAL soma as faixas.",
+        "Faixa de idade na régua do cenário (3 meses nos quatro primeiros cenários; 1 ano no Anual). A última faixa é aberta (8 anos ou mais). A linha TOTAL soma as faixas.",
     ),
     ("pessoas_na_faixa_origem", "Pessoas ativas na faixa na data da origem."),
     (
@@ -250,7 +262,7 @@ with pd.ExcelWriter(SAIDA / "projecao_rq3.xlsx", engine="openpyxl") as escritor:
         escritor, sheet_name="Leia-me", index=False
     )
     for cenario, aba in abas.items():
-        aba[COLUNAS_SAIDA].to_excel(escritor, sheet_name=cenario, index=False)
+        aba[COLUNAS_SAIDA].to_excel(escritor, sheet_name=NOMES_DOS_CENARIOS[cenario], index=False)
     for nome, folha in escritor.sheets.items():
         folha.freeze_panes = "A2"
         if nome == "Leia-me":
