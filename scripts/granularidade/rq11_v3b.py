@@ -4,7 +4,7 @@ Lê a tabela anual de `confere_identidade.py` (que vem de `vitalidade.tabela_anu
   - `rq11_tabela_anual.csv` e `.md`: de 2008 a 2024, ativos, entradas (novatos e voltas), saídas (sem volta e com volta),
     natalidade, mortalidade e crescimento natural;
   - `rq11_extremos.csv`: ano de maior e de menor crescimento natural (de 2009 em diante) e primeiro ano negativo;
-  - `rq11_natalidade_mortalidade.pdf`: natalidade em azul, mortalidade em vermelho e os ativos em barras cinza ao fundo, uma
+  - `rq11_natalidade_mortalidade.pdf`: taxa de entrada em azul, taxa de saída em vermelho e os ativos em barras cinza ao fundo, uma
     coluna do IEEE, no estilo de `figuras-v3/figuras_artigo.py`.
 
 Uso (na raiz do repo): .venv/bin/python scripts/granularidade/rq11_v3b.py <tabela_anual.csv> <saida>
@@ -123,7 +123,7 @@ eixo_taxa.plot(
     linewidth=1.5,
     marker="o",
     markersize=2.5,
-    label="Natalidade",
+    label="Taxa de entrada",
 )
 eixo_taxa.plot(
     serie.index,
@@ -132,7 +132,7 @@ eixo_taxa.plot(
     linewidth=1.5,
     marker="s",
     markersize=2.5,
-    label="Mortalidade",
+    label="Taxa de saída",
 )
 eixo_taxa.set_ylabel("% dos ativos do ano")
 eixo_taxa.set_ylim(0, 100)
