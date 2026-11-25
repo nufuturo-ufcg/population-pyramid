@@ -10,7 +10,7 @@ teste de vazamento nas origens de amostra e na origem final (cortar os eventos e
 
 Grava em `<saida>`: `origem.md`, `trajetorias.csv`, `serie_anual.csv`, `erro_por_origem_e_passo.csv`, `erro_por_passo.csv`, `erro_por_horizonte.md`, `populacao_projetada.md` e `.csv`, `vazamento.md`.
 
-Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/projecao_clojure_5anos.py <carga> <saida> [<pasta de unidades do S4k> ou - [<origem pedida, fim de trimestre>]]
+Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/projecao_clojure_5anos.py <carga> <saida> [<pasta de unidades do S4k ou S4m> ou - [<origem pedida> ou - [<janela, 2 ou 4> [<código do cenário, S4k ou S4m>]]]]
 """
 
 import sys
@@ -39,8 +39,14 @@ from rodar import le_dados
 CARGA, SAIDA = Path(sys.argv[1]), Path(sys.argv[2])
 UNIDADES_S4K = Path(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] != "-" else None
 ORIGEM_PEDIDA = (
-    pd.Timestamp(sys.argv[4]) if len(sys.argv) > 4 else None
+    pd.Timestamp(sys.argv[4]) if len(sys.argv) > 4 and sys.argv[4] != "-" else None
 )  # padrão: o último fim de trimestre com a pirâmide completa
+JANELA = (
+    int(sys.argv[5]) if len(sys.argv) > 5 else 2
+)  # trimestres das contagens (novatos, repositórios novos, razões) e das transições da parada
+CODIGO_S4 = (
+    sys.argv[6] if len(sys.argv) > 6 else "S4k"
+)  # cenário das unidades usado na conferência das previsões de 1 ano
 SAIDA.mkdir(parents=True, exist_ok=True)
 NB = 4  # faixas e passos de 3 meses
 PASSOS = 20
@@ -72,7 +78,7 @@ OPCOES_ESTADO = {
     "janela_blocos": NB,
     "idade": "descontada",
     "com_parada": True,
-    "transicoes_parada": 2,
+    "transicoes_parada": JANELA,
 }
 
 
@@ -110,7 +116,7 @@ eventos_no_trimestre_aberto = int((eventos["dia"] > np.datetime64(ORIGEM)).sum()
     encoding="utf-8",
 )
 
-previsao.JANELA_DAS_CONTAGENS = 2
+previsao.JANELA_DAS_CONTAGENS = JANELA
 previsao.JANELA_DO_CONSERVADOR = 5 * NB
 est = constroi_estado(pessoas, eventos, 3, "P1", np.datetime64(ORIGEM), **OPCOES_ESTADO)
 datas = pd.to_datetime(est["datas"])
@@ -184,7 +190,7 @@ K_INICIO = max(sem_definir) + 1 if sem_definir else min(previsto4)
 # 2a. As previsões de 4 passos reproduzem as do S4k
 if UNIDADES_S4K is not None:
     partes = [
-        pd.read_csv(UNIDADES_S4K / f"clojure_S4k{sufixo}_pares.csv.gz")
+        pd.read_csv(UNIDADES_S4K / f"clojure_{CODIGO_S4}{sufixo}_pares.csv.gz")
         for sufixo in ("", "_R1", "_R2", "_R3")
     ]
     s4k = (
@@ -203,9 +209,9 @@ if UNIDADES_S4K is not None:
                 diferentes.append((str(datas[k].date()), metodo, a, b))
     if comparadas == 0 or diferentes:
         sys.exit(
-            f"as previsões de 1 ano não reproduzem o S4k: {len(diferentes)} diferentes de {comparadas}, por exemplo {diferentes[:3]}"
+            f"as previsões de 1 ano não reproduzem o {CODIGO_S4}: {len(diferentes)} diferentes de {comparadas}, por exemplo {diferentes[:3]}"
         )
-    conferencia_s4k = f"{comparadas} previsões de 1 ano (seis métodos, todas as origens até 31/12/2023) comparadas com as do S4k, 0 diferentes."
+    conferencia_s4k = f"{comparadas} previsões de 1 ano (seis métodos, todas as origens até 31/12/2023) comparadas com as do {CODIGO_S4}, 0 diferentes."
 else:
     conferencia_s4k = "não conferido (sem pasta do S4k)."
 
