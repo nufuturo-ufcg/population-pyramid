@@ -546,13 +546,17 @@ def familia_coorte(
             if (
                 versao == "B"
                 and v == "V0"
-                and nome in ("coorte_V0_B", "pessimista_V0_B", "otimista_V0_B")
+                and nome in ("coorte_V0_B", "conservador_V0_B", "pessimista_V0_B", "otimista_V0_B")
             ):
-                taxa_do_metodo = {"coorte": sr_ultimo, "pessimista": menor, "otimista": maior}[
-                    familia
-                ]
+                taxa_do_metodo = {
+                    "coorte": sr_ultimo,
+                    "conservador": meio,
+                    "pessimista": menor,
+                    "otimista": maior,
+                }[familia]
                 novatos_do_metodo = {
                     "coorte": nov[v],
+                    "conservador": nov[v],
                     "pessimista": [pess_nov[v]] * passos,
                     "otimista": [otim_nov[v]] * passos,
                 }[familia]

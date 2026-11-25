@@ -35,7 +35,7 @@ DIAS_BANDA = (
 def grade(passo_meses: float, ate: np.datetime64 = FIM) -> np.ndarray:
     """Datas de fim de bloco desde 2008, até `ate` (inclusive)."""
     datas = []
-    for ano in range(ANO0, 2025):
+    for ano in range(ANO0, 2031):  # o limite superior é `ate`; 2031 cobre a projeção de 5 anos
         for mes in range(1, 13):
             fim_mes = (
                 (pd.Timestamp(ano, mes, 1) + pd.offsets.MonthEnd(0))
