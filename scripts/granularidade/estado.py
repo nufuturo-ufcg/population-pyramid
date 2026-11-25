@@ -134,6 +134,7 @@ def constroi_estado(
     idade: str = "descontada",
     com_parada: bool = False,
     depuracao: list | None = None,
+    transicoes_parada: int = 1,
 ) -> dict:
     """Pirâmides e séries por bloco até `corte` (que precisa ser uma data da grade). `populacao` é P0, P1 ou P2.
 
@@ -274,6 +275,7 @@ def constroi_estado(
     ativo_anterior = np.zeros(n, dtype=bool)
     ativo_r_anterior = np.zeros(n_repos, dtype=bool)
     banda_r_anterior = np.zeros(n_repos, dtype=np.int64)
+    tabela_anterior = None  # tabela de parada da transição anterior (k - 2 para k - 1)
     for k in range(K1):
         janela += ativ_p[:, k]
         if k - W >= 0:
@@ -327,8 +329,13 @@ def constroi_estado(
                     topo_b + 2,
                     por_pares=True,
                 )
-            PSTOP_b[k] = tabela.mean(axis=1)
-            p_uso = tabela[
+            # `transicoes_parada` = 2: média, célula a célula (idade e tamanho), das taxas das 2 últimas transições (k - 1 para k e k - 2 para k - 1)
+            tabela_uso = tabela
+            if transicoes_parada == 2 and k >= 2:
+                tabela_uso = (tabela + tabela_anterior) / 2
+            tabela_anterior = tabela
+            PSTOP_b[k] = tabela_uso.mean(axis=1)
+            p_uso = tabela_uso[
                 banda_r, bucket_tamanho(par_k)
             ]  # probabilidade de parar de cada repositório, pela idade e pelo tamanho em k
             agora = np.where((inicio <= k) & (fim >= k))[

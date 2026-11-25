@@ -54,6 +54,9 @@ SUMIDOURO_FAIXAS: dict | None = None
 # Quando não é None, guarda por método (versão B) o que entra na projeção, faixa a faixa: taxa de permanência e sua origem, saída por
 # parada, novatos por passo e seus componentes, e o vetor projetado (`planilha_detalhe.py`). Não muda nenhum número.
 DETALHE: dict | None = None
+# Janela, em recortes, das médias de novatos da Coorte e de surgimento de repositórios (repositórios novos e razões de novatos por
+# repositório). None: 2 anos (`n2` recortes). 2: a média das 2 últimas contagens, como no IEICE16 (`janelas_curtas` em `cenarios.py`).
+JANELA_DAS_CONTAGENS: int | None = None
 ORIGEM_DA_TAXA = {
     "coorte": "último recorte",
     "conservador": "média de 2 anos",
@@ -416,12 +419,13 @@ def familia_coorte(
     with np.errstate(divide="ignore", invalid="ignore"):
         M_NOVO = np.where(R0 > 0, NN / np.where(R0 > 0, R0, 1), np.nan)
         M_EX = np.where(E > 0, NE / np.where(E > 0, E, 1), np.nan)
-    R0m = media_n(R0, k, n2)
+    janela_contagens = JANELA_DAS_CONTAGENS or n2
+    R0m = media_n(R0, k, janela_contagens)
     E_v2 = projeta_repos(atual_r, sr_repos, fallback, R0m, passos)
     E_sem_nasc = projeta_repos(atual_r, sr_repos, fallback, 0.0, passos)
 
     nov, pess_nov, otim_nov = {}, {}, {}
-    n_media = media_n(N, k, n2)
+    n_media = media_n(N, k, janela_contagens)
     nov["V0"] = [n_media] * passos
     pess_v0, otim_v0 = float(N[janela].min()), float(N[janela].max())
     pess_nov["V0"], otim_nov["V0"] = pess_v0, otim_v0
@@ -429,7 +433,7 @@ def familia_coorte(
     pess_nov["V1"], otim_nov["V1"] = pess_v0, otim_v0
     pess_v2 = minimo(R0[janela]) * minimo(M_NOVO[janela]) + minimo(E[janela]) * minimo(M_EX[janela])
     otim_v2 = maximo(R0[janela]) * maximo(M_NOVO[janela]) + maximo(E[janela]) * maximo(M_EX[janela])
-    mn_m, me_m = media_n(M_NOVO, k, n2), media_n(M_EX, k, n2)
+    mn_m, me_m = media_n(M_NOVO, k, janela_contagens), media_n(M_EX, k, janela_contagens)
     nov["V2"] = [R0m * mn_m + E_v2[i] * me_m for i in range(passos)]
     pess_nov["V2"], otim_nov["V2"] = pess_v2, otim_v2
     # regra nova (R1 e R3): o fator de repositórios novos e o de existentes vão ao maior (menor) entre o máximo (mínimo) da janela e o valor projetado

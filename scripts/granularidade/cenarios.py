@@ -70,6 +70,17 @@ CENARIOS = {
         "horizonte": 1,
         "ieice": False,
     },
+    # S4j: o Longo, não casuais com janelas curtas: novatos da Coorte, surgimento de repositórios e parada pela média das 2 últimas contagens
+    # (ou transições); a taxa de permanência da Coorte (última transição) e a do Conservador (média de 2 anos) não mudam
+    "S4j": {
+        "passo": 3,
+        "janela": 4,
+        "idade": "descontada",
+        "pop": "P1",
+        "horizonte": 4,
+        "ieice": False,
+        "janelas_curtas": True,
+    },
 }
 BASE = ["ingenua", "deriva", "holt_amortecido"]
 
@@ -162,6 +173,10 @@ def roda_cenario(
     prefixo = f"{lingua}_{cenario}"
     inicio = time.time()
     opcoes_estado = {"janela_blocos": cfg["janela"], "idade": cfg["idade"], "com_parada": True}
+    janelas_curtas = cfg.get("janelas_curtas", False)
+    if janelas_curtas:
+        opcoes_estado["transicoes_parada"] = 2
+    previsao.JANELA_DAS_CONTAGENS = 2 if janelas_curtas else None
     est = constroi_estado(pessoas, eventos, cfg["passo"], cfg["pop"], FIM, **opcoes_estado)
     nb, K1, H = est["nb"], len(est["datas"]), cfg["horizonte"]
     ativas = est["ativas"]
