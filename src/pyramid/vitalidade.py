@@ -152,12 +152,12 @@ def _pesos(eventos: pd.DataFrame) -> pd.Series | int:
 
 
 def lado_no_ano(n_codigo: pd.Series, n_discussao: pd.Series) -> np.ndarray:
-    """Lado da pessoa no ano: quem teve mais eventos de código que de discussão fica em `coding`.
+    """Lado no ano: `non_coding` é quem teve mais da metade dos eventos do ano em discussão.
 
-    Empate vai para `coding`. Esta é a única regra de lado das pirâmides; trocar a regra é
-    trocar esta função.
+    Os demais ficam em `coding`, inclusive o empate (metade e metade). Esta é a única regra de lado
+    das pirâmides; trocar a regra é trocar esta função.
     """
-    return np.where(n_codigo >= n_discussao, "coding", "non_coding")
+    return np.where(2 * n_discussao > n_codigo + n_discussao, "non_coding", "coding")
 
 
 def so_quem_codou(eventos: pd.DataFrame) -> pd.DataFrame:

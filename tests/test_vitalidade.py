@@ -684,3 +684,16 @@ def test_kaplan_meier_traz_quantas_pessoas_ainda_contam_em_cada_ponto():
     curva = vitalidade.kaplan_meier(dur)
     assert curva["em_risco"].is_monotonic_decreasing
     assert curva["em_risco"].iloc[0] == 4  # no primeiro ponto todos têm 1 ano ou mais
+
+
+def test_lado_no_ano_discussao_so_com_mais_da_metade():
+    codigo = pd.Series([0, 1, 2, 3, 5])
+    discussao = pd.Series([4, 3, 2, 1, 0])
+    # 4 de 4, 3 de 4 e 1 de 2 (empate) e depois 1 de 4 e 0 de 5 em discussão
+    assert list(vitalidade.lado_no_ano(codigo, discussao)) == [
+        "non_coding",
+        "non_coding",
+        "coding",
+        "coding",
+        "coding",
+    ]
