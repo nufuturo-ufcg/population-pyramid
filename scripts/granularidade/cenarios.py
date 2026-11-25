@@ -30,6 +30,7 @@ from previsao import (
     POOL,
     gera_regras,
     metodos_b,
+    metodos_intervalo_ano,
     metodos_intervalo_nova,
     metodos_intervalo_r,
     metodos_r,
@@ -103,6 +104,19 @@ CENARIOS = {
         "janelas_curtas": True,
         "janela_contagens": 4,
         "conservador_5anos": True,
+    },
+    # S4p: o S4m com o pessimista e o otimista pelo pior e pelo melhor ano de 4 trimestres (`previsao.pontas_por_ano`), além dos antigos
+    "S4p": {
+        "passo": 3,
+        "janela": 4,
+        "idade": "descontada",
+        "pop": "P1",
+        "horizonte": 4,
+        "ieice": False,
+        "janelas_curtas": True,
+        "janela_contagens": 4,
+        "conservador_5anos": True,
+        "pontas_por_ano": True,
     },
 }
 BASE = ["ingenua", "deriva", "holt_amortecido"]
@@ -201,6 +215,7 @@ def roda_cenario(
     if janela_contagens:
         opcoes_estado["transicoes_parada"] = janela_contagens
     previsao.JANELA_DAS_CONTAGENS = janela_contagens
+    previsao.PONTAS_POR_ANO = bool(cfg.get("pontas_por_ano", False))
     previsao.JANELA_DO_CONSERVADOR = (
         5 * (12 // cfg["passo"]) if cfg.get("conservador_5anos") else None
     )
@@ -242,6 +257,7 @@ def roda_cenario(
         *metodos_r(),
         *metodos_intervalo_r(),
         *metodos_intervalo_nova(),
+        *(metodos_intervalo_ano() if cfg.get("pontas_por_ano") else []),
     ] + (["coorte_IEICE_B", "conservador_IEICE_B", *metodos_r_ieice()] if cfg["ieice"] else [])
     hist = {
         "previsto": {m: np.full(K1, np.nan) for m in nomes},

@@ -54,6 +54,8 @@ SUMIDOURO_FAIXAS: dict | None = None
 # Quando não é None, guarda por método (versão B) o que entra na projeção, faixa a faixa: taxa de permanência e sua origem, saída por
 # parada, novatos por passo e seus componentes, e o vetor projetado (`planilha_detalhe.py`). Não muda nenhum número.
 DETALHE: dict | None = None
+# Quando True, calcula também o pessimista e o otimista pelo pior e pelo melhor ano de 4 trimestres (`pontas_por_ano`; cenário `S4p` em `cenarios.py`).
+PONTAS_POR_ANO = False
 # Janela, em recortes, das médias de novatos da Coorte e de surgimento de repositórios (repositórios novos e razões de novatos por
 # repositório). None: 2 anos (`n2` recortes). 2: a média das 2 últimas contagens, como no IEICE16 (`janelas_curtas` em `cenarios.py`).
 JANELA_DAS_CONTAGENS: int | None = None
@@ -106,6 +108,15 @@ def metodos_intervalo_r() -> list[str]:
 def metodos_intervalo_nova() -> list[str]:
     """Pessimista e otimista de R1 e R3 com a regra nova dos novatos (fatores de repositórios pelo maior ou menor entre o passado e o projetado), na versão B."""
     return [f"{familia}_nova_R{r}_B" for familia in ["pessimista", "otimista"] for r in (1, 3)]
+
+
+def metodos_intervalo_ano() -> list[str]:
+    """Pessimista e otimista pelo pior e pelo melhor ano de 4 trimestres, sem (`V0`) e com (`R3`) previsão de repositórios, na versão B."""
+    return [
+        f"{familia}_ano_{sufixo}_B"
+        for familia in ["pessimista", "otimista"]
+        for sufixo in ("V0", "R3")
+    ]
 
 
 def metodos_r_ieice() -> list[str]:
@@ -224,6 +235,137 @@ def projeta_repos(
         atual = avanca(atual, sr_cheia, nascimentos)
         existentes.append(float(atual[1:].sum()))
     return existentes
+
+
+def anos_de_4_trimestres(valores: np.ndarray, nb: int) -> list[np.ndarray]:
+    """Blocos de `nb` linhas consecutivas contados para trás a partir da última linha (o mais recente primeiro), só os completos. Cada bloco fica em ordem cronológica."""
+    total = len(valores)
+    return [valores[total - nb * (j + 1) : total - nb * j] for j in range(total // nb)]
+
+
+def projeta_por_passo(
+    atual: np.ndarray, sr_por_passo: list[np.ndarray], novatos_por_passo: list[float]
+) -> np.ndarray:
+    """Como `projeta`, com uma taxa por faixa em cada passo."""
+    for sr, novatos in zip(sr_por_passo, novatos_por_passo, strict=True):
+        atual = avanca(atual, sr, novatos)
+    return atual
+
+
+def projeta_repos_por_passo(
+    atual: np.ndarray, sr: np.ndarray, fallback: float, nascimentos: list[float]
+) -> list[float]:
+    """Como `projeta_repos`, com os nascimentos de cada passo."""
+    existentes = []
+    sr_cheia = np.where(np.isnan(sr), fallback, sr)
+    for nascidos in nascimentos:
+        atual = avanca(atual, sr_cheia, nascidos)
+        existentes.append(float(atual[1:].sum()))
+    return existentes
+
+
+def pior_e_melhor_ano(
+    taxas_em_ordem: np.ndarray, nb: int, ultima: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Taxas por passo (nb vetores por faixa) do ano de menor e do de maior retenção de cada faixa.
+
+    `taxas_em_ordem` tem uma linha por transição, em ordem cronológica. A retenção do ano é o produto das `nb` taxas da faixa. Só valem anos completos e sem taxa indefinida na faixa; sem
+    ano válido, a faixa usa a última taxa nos `nb` passos (`ultima`). Devolve duas matrizes (nb, faixas): [passo, faixa].
+    """
+    faixas = taxas_em_ordem.shape[1] if taxas_em_ordem.ndim == 2 else len(ultima)
+    pior = np.tile(ultima, (nb, 1)).astype(float)
+    melhor = pior.copy()
+    blocos = anos_de_4_trimestres(taxas_em_ordem, nb) if taxas_em_ordem.ndim == 2 else []
+    for f in range(faixas):
+        validos = [b[:, f] for b in blocos if not np.isnan(b[:, f]).any()]
+        if not validos:
+            continue
+        retencao = [float(np.prod(b)) for b in validos]
+        pior[:, f] = validos[int(np.argmin(retencao))]
+        melhor[:, f] = validos[int(np.argmax(retencao))]
+    return pior, melhor
+
+
+def pior_e_melhor_ano_da_serie(
+    valores: np.ndarray, nb: int, central: float, soma: bool
+) -> tuple[np.ndarray, np.ndarray]:
+    """Os `nb` valores trimestrais do ano de menor e do de maior total (`soma`) ou média da série, em ordem. Valor indefinido vira a média do bloco. Sem ano válido, o valor central."""
+    blocos = [b for b in anos_de_4_trimestres(valores, nb) if not np.all(np.isnan(b))]
+    if not blocos:
+        return np.full(nb, central), np.full(nb, central)
+    blocos = [np.where(np.isnan(b), np.nanmean(b), b) for b in blocos]
+    total = [float(np.sum(b)) if soma else float(np.mean(b)) for b in blocos]
+    return blocos[int(np.argmin(total))], blocos[int(np.argmax(total))]
+
+
+def pontas_por_ano(
+    est: dict,
+    k: int,
+    atual: np.ndarray,
+    n5: int,
+    nb: int,
+    passos: int,
+    historico: np.ndarray,
+    series: dict,
+    repos: dict,
+) -> dict:
+    """Pessimista e otimista pelo pior e pelo melhor ano de 4 trimestres (ver `hipoteses.md` de `pontas-por-ano`).
+
+    Sem repositórios (`V0`): as taxas de `historico` (as 20 transições até k, em ordem) e os novatos `series["N"]`. Com repositórios (`R3`): as taxas sem parada (`historico_sem_parada`)
+    vezes (1 - saída por parada), e os novatos de repositórios novos e existentes com surgimento (R0) e razões de novatos pelo pior ano, a média (já no `repos`) e o melhor ano.
+    Cada passo usa o elemento `passo % nb` do ano escolhido (com 4 passos, o ano inteiro em ordem).
+    """
+    saida = {}
+    ultima = historico[-1]
+    pior, melhor = pior_e_melhor_ano(historico, nb, ultima)
+    n_pess, n_otim = pior_e_melhor_ano_da_serie(
+        serie(series["N"], k, n5), nb, series["N_central"], soma=True
+    )
+    por_passo = range(passos)
+    saida["pessimista_ano_V0_B"] = float(
+        projeta_por_passo(
+            atual, [pior[i % nb] for i in por_passo], [n_pess[i % nb] for i in por_passo]
+        ).sum()
+    )
+    saida["otimista_ano_V0_B"] = float(
+        projeta_por_passo(
+            atual, [melhor[i % nb] for i in por_passo], [n_otim[i % nb] for i in por_passo]
+        ).sum()
+    )
+
+    sem_parada = historico_sem_parada(est, k, repos["primeiro_ativo"], n5)[
+        ::-1
+    ]  # a mais antiga primeiro
+    q = est["Q_b"]
+    na_faixa = np.where(atual > 0, atual, 1.0)
+    saida_parada = np.clip(junta_aberta(q[k]) / na_faixa, 0.0, 1.0)
+    if len(sem_parada) == 0:  # sem transição para estimar a parada
+        for nome in ("pessimista", "otimista"):
+            saida[f"{nome}_ano_R3_B"] = float("nan")
+        return saida
+    ultima_sp = sem_parada[-1]
+    pior_sp, melhor_sp = pior_e_melhor_ano(sem_parada, nb, ultima_sp)
+    r0_pess, r0_otim = pior_e_melhor_ano_da_serie(
+        serie(series["R0"], k, n5), nb, repos["R0m"], soma=True
+    )
+    mn_pess, mn_otim = pior_e_melhor_ano_da_serie(
+        serie(series["M_NOVO"], k, n5), nb, repos["mn_m"], soma=False
+    )
+    me_pess, me_otim = pior_e_melhor_ano_da_serie(
+        serie(series["M_EX"], k, n5), nb, repos["me_m"], soma=False
+    )
+    for nome, taxa, r0, mn, me in (
+        ("pessimista", pior_sp, r0_pess, mn_pess, me_pess),
+        ("otimista", melhor_sp, r0_otim, mn_otim, me_otim),
+    ):
+        nascimentos = [r0[i % nb] for i in por_passo]
+        existentes = projeta_repos_por_passo(
+            repos["atual_r"], repos["sr_repos"], repos["fallback"], nascimentos
+        )
+        novatos = [nascimentos[i] * mn[i % nb] + existentes[i] * me[i % nb] for i in por_passo]
+        sr = [(1 - saida_parada) * taxa[i % nb] for i in por_passo]
+        saida[f"{nome}_ano_R3_B"] = float(projeta_por_passo(atual, sr, novatos).sum())
+    return saida
 
 
 def serie(v: np.ndarray, k: int, n: int) -> np.ndarray:
@@ -608,6 +750,28 @@ def familia_coorte(
         )
         previsto["pessimista_nova_R1_B"] = float(projeta(atual, menor, pess_v2_nova).sum())
         previsto["otimista_nova_R1_B"] = float(projeta(atual, maior, otim_v2_nova).sum())
+        if PONTAS_POR_ANO:
+            previsto.update(
+                pontas_por_ano(
+                    est,
+                    k,
+                    atual,
+                    n5,
+                    nb,
+                    passos,
+                    historico,
+                    {"N": N, "N_central": float(n_media), "R0": R0, "M_NOVO": M_NOVO, "M_EX": M_EX},
+                    {
+                        "primeiro_ativo": primeiro_ativo,
+                        "R0m": R0m,
+                        "mn_m": mn_m,
+                        "me_m": me_m,
+                        "atual_r": atual_r,
+                        "sr_repos": sr_repos,
+                        "fallback": fallback,
+                    },
+                )
+            )
     return {"previsto": previsto, "faixas": faixas, "esparsidade": esparsidade}
 
 
@@ -780,6 +944,8 @@ def preve_estado(
     nomes = nomes + (metodos_b() if "B" in versoes else [])
     if "B" in versoes and "Q_b" in est:
         nomes = nomes + metodos_r() + metodos_intervalo_r() + metodos_intervalo_nova()
+        if PONTAS_POR_ANO:
+            nomes = nomes + metodos_intervalo_ano()
     if ieice:
         nomes = [*nomes, "coorte_IEICE_B", "conservador_IEICE_B"]
         if "B" in versoes and "Q_b" in est:
