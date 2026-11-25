@@ -81,6 +81,17 @@ CENARIOS = {
         "ieice": False,
         "janelas_curtas": True,
     },
+    # S4k: o S4j com a taxa do Conservador (com e sem previsão de repositórios) pela média das taxas dos últimos 5 anos
+    "S4k": {
+        "passo": 3,
+        "janela": 4,
+        "idade": "descontada",
+        "pop": "P1",
+        "horizonte": 4,
+        "ieice": False,
+        "janelas_curtas": True,
+        "conservador_5anos": True,
+    },
 }
 BASE = ["ingenua", "deriva", "holt_amortecido"]
 
@@ -177,6 +188,9 @@ def roda_cenario(
     if janelas_curtas:
         opcoes_estado["transicoes_parada"] = 2
     previsao.JANELA_DAS_CONTAGENS = 2 if janelas_curtas else None
+    previsao.JANELA_DO_CONSERVADOR = (
+        5 * (12 // cfg["passo"]) if cfg.get("conservador_5anos") else None
+    )
     est = constroi_estado(pessoas, eventos, cfg["passo"], cfg["pop"], FIM, **opcoes_estado)
     nb, K1, H = est["nb"], len(est["datas"]), cfg["horizonte"]
     ativas = est["ativas"]

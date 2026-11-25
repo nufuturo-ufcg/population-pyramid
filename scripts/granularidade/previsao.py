@@ -57,6 +57,9 @@ DETALHE: dict | None = None
 # Janela, em recortes, das médias de novatos da Coorte e de surgimento de repositórios (repositórios novos e razões de novatos por
 # repositório). None: 2 anos (`n2` recortes). 2: a média das 2 últimas contagens, como no IEICE16 (`janelas_curtas` em `cenarios.py`).
 JANELA_DAS_CONTAGENS: int | None = None
+# Janela, em recortes, da média das taxas de permanência do Conservador (com e sem previsão de repositórios). None: 2 anos (`n2` recortes).
+# `5 * nb`: todas as transições dos últimos 5 anos, a mesma janela do pessimista e do otimista (`conservador_5anos` em `cenarios.py`).
+JANELA_DO_CONSERVADOR: int | None = None
 ORIGEM_DA_TAXA = {
     "coorte": "último recorte",
     "conservador": "média de 2 anos",
@@ -406,7 +409,8 @@ def familia_coorte(
         np.where(np.isnan(menor), ultimo, menor),
         np.where(np.isnan(maior), ultimo, maior),
     )
-    recorte = historico[-n2:]
+    janela_conservador = JANELA_DO_CONSERVADOR or n2
+    recorte = historico[-janela_conservador:]
     quantos = np.maximum((~np.isnan(recorte)).sum(axis=0), 1)
     meio = np.where(np.all(np.isnan(recorte), axis=0), np.nan, np.nansum(recorte, axis=0) / quantos)
     meio = np.where(np.isnan(meio), ultimo, meio)
@@ -580,7 +584,9 @@ def familia_coorte(
     if "Q_b" in est and versao == "B":
         novatos_ieice = [media_n(N, k, 2)] * passos if ieice else None
         previsto.update(
-            fatorial_r(est, k, atual, nov, primeiro_ativo, n2, novatos_ieice, sr_ultimo)
+            fatorial_r(
+                est, k, atual, nov, primeiro_ativo, janela_conservador, novatos_ieice, sr_ultimo
+            )
         )
         previsto.update(
             intervalos_r(
