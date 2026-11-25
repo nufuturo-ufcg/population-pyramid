@@ -153,11 +153,6 @@ T = [
         for x in LINGUAS
     )
     + " |",
-    +" | ".join(
-        str(resumo.loc[x, "primeiro_ano_negativo"]).replace("<NA>", "nenhum").replace(".0", "")
-        for x in LINGUAS
-    )
-    + " |",
     "| Crescimento nesse ano (pontos) | "
     + " | ".join(dec(resumo.loc[x, "crescimento_no_primeiro_negativo"]) for x in LINGUAS)
     + " |",
