@@ -275,7 +275,9 @@ def constroi_estado(
     ativo_anterior = np.zeros(n, dtype=bool)
     ativo_r_anterior = np.zeros(n_repos, dtype=bool)
     banda_r_anterior = np.zeros(n_repos, dtype=np.int64)
-    tabela_anterior = None  # tabela de parada da transição anterior (k - 2 para k - 1)
+    tabelas_recentes: list[
+        np.ndarray
+    ] = []  # tabelas de parada das últimas transições (de k - 1 para k em diante)
     for k in range(K1):
         janela += ativ_p[:, k]
         if k - W >= 0:
@@ -329,11 +331,11 @@ def constroi_estado(
                     topo_b + 2,
                     por_pares=True,
                 )
-            # `transicoes_parada` = 2: média, célula a célula (idade e tamanho), das taxas das 2 últimas transições (k - 1 para k e k - 2 para k - 1)
+            # `transicoes_parada` = n: média, célula a célula (idade e tamanho), das taxas das n últimas transições (ou das que já existem)
             tabela_uso = tabela
-            if transicoes_parada == 2 and k >= 2:
-                tabela_uso = (tabela + tabela_anterior) / 2
-            tabela_anterior = tabela
+            if k >= 1:
+                tabelas_recentes = [*tabelas_recentes, tabela][-transicoes_parada:]
+                tabela_uso = np.mean(tabelas_recentes, axis=0)
             PSTOP_b[k] = tabela_uso.mean(axis=1)
             p_uso = tabela_uso[
                 banda_r, bucket_tamanho(par_k)

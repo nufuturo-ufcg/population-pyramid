@@ -92,6 +92,18 @@ CENARIOS = {
         "janelas_curtas": True,
         "conservador_5anos": True,
     },
+    # S4m: o S4k com a janela de 4 trimestres nas contagens (novatos, repositórios novos, razões de novatos) e na parada (4 últimas transições)
+    "S4m": {
+        "passo": 3,
+        "janela": 4,
+        "idade": "descontada",
+        "pop": "P1",
+        "horizonte": 4,
+        "ieice": False,
+        "janelas_curtas": True,
+        "janela_contagens": 4,
+        "conservador_5anos": True,
+    },
 }
 BASE = ["ingenua", "deriva", "holt_amortecido"]
 
@@ -185,9 +197,10 @@ def roda_cenario(
     inicio = time.time()
     opcoes_estado = {"janela_blocos": cfg["janela"], "idade": cfg["idade"], "com_parada": True}
     janelas_curtas = cfg.get("janelas_curtas", False)
-    if janelas_curtas:
-        opcoes_estado["transicoes_parada"] = 2
-    previsao.JANELA_DAS_CONTAGENS = 2 if janelas_curtas else None
+    janela_contagens = cfg.get("janela_contagens", 2 if janelas_curtas else None)
+    if janela_contagens:
+        opcoes_estado["transicoes_parada"] = janela_contagens
+    previsao.JANELA_DAS_CONTAGENS = janela_contagens
     previsao.JANELA_DO_CONSERVADOR = (
         5 * (12 // cfg["passo"]) if cfg.get("conservador_5anos") else None
     )
