@@ -18,9 +18,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tabelas_cenarios import LINGUAS, METODOS, carrega, origens
 
 UNIDADES, SAIDA = Path(sys.argv[1]), Path(sys.argv[2])
+# Sexta aba (opcional): Longo, não casuais em todo trimestre, com as unidades do cálculo novo (`rq3-longo`) e os erros por origem dele
+UNIDADES_LONGO = Path(sys.argv[3]) if len(sys.argv) > 3 else None
+ERROS_LONGO = Path(sys.argv[4]) if len(sys.argv) > 4 else None
 SAIDA.mkdir(parents=True, exist_ok=True)
-CENARIOS = ["S1", "S3h", "S4", "S5", "S2"]
-SO_DEZEMBRO = {"S1": False, "S3h": False, "S4": True, "S5": False, "S2": True}
+CENARIOS = ["S1", "S3h", "S4", "S5", "S2"] + (["S4t"] if UNIDADES_LONGO else [])
+CODIGO_DO_ARQUIVO = {"S4t": "S4"}
+PASTA_DAS_UNIDADES = {"S4t": UNIDADES_LONGO}
+ULTIMA_ORIGEM_LONGO = pd.Timestamp("2023-12-31")
+SO_DEZEMBRO = {"S1": False, "S3h": False, "S4": True, "S5": False, "S2": True, "S4t": False}
 # nome do método na planilha -> nome em `pares`
 NOME_NOS_PARES = {
     "Ingênua": "ingenua",
@@ -36,9 +42,11 @@ NOME_NOS_PARES = {
 
 
 def previsto_dos_pares(cenario: str, lingua: str) -> pd.DataFrame:
-    partes = [pd.read_csv(UNIDADES / f"{lingua}_{cenario}_pares.csv.gz")]
+    pasta = PASTA_DAS_UNIDADES.get(cenario, UNIDADES)
+    codigo = CODIGO_DO_ARQUIVO.get(cenario, cenario)
+    partes = [pd.read_csv(pasta / f"{lingua}_{codigo}_pares.csv.gz")]
     for r in (1, 2, 3):
-        partes.append(pd.read_csv(UNIDADES / f"{lingua}_{cenario}_R{r}_pares.csv.gz"))
+        partes.append(pd.read_csv(pasta / f"{lingua}_{codigo}_R{r}_pares.csv.gz"))
     return pd.concat(partes, ignore_index=True)
 
 
@@ -53,15 +61,23 @@ conferencias = []
 for cenario in CENARIOS:
     blocos = []
     for lingua in LINGUAS:
-        arquivo = UNIDADES / f"{lingua}_{cenario}_detalhe.csv.gz"
+        pasta = PASTA_DAS_UNIDADES.get(cenario, UNIDADES)
+        codigo = CODIGO_DO_ARQUIVO.get(cenario, cenario)
+        arquivo = pasta / f"{lingua}_{codigo}_detalhe.csv.gz"
         if not arquivo.exists():
             continue
         detalhe = pd.read_csv(arquivo)
         pares = previsto_dos_pares(cenario, lingua)
         # origens das tabelas de ABRE (o filtro depende dos cinco métodos principais)
-        ab = carrega({cenario: UNIDADES.parent}, cenario, lingua)
-        escolhidas = origens(ab, SO_DEZEMBRO[cenario])
-        datas_ok = set(escolhidas["origem"].dt.strftime("%Y-%m-%d"))
+        ab = carrega({codigo: pasta.parent}, codigo, lingua)
+        if (
+            cenario == "S4t"
+        ):  # a primeira origem com os cinco métodos projetando, até 31/12/2023, sem piso de ano
+            boas = ab[ab[list(METODOS)].notna().all(axis=1) & (ab["origem"] <= ULTIMA_ORIGEM_LONGO)]
+            datas_ok = set(boas["origem"].dt.strftime("%Y-%m-%d"))
+        else:
+            escolhidas = origens(ab, SO_DEZEMBRO[cenario])
+            datas_ok = set(escolhidas["origem"].dt.strftime("%Y-%m-%d"))
         if cenario == "S5":
             todas_s5 = set(origens(ab, False)["origem"].dt.strftime("%Y-%m-%d"))
             datas_ok = todas_s5
@@ -121,6 +137,21 @@ tabela = pd.read_csv(UNIDADES.parent / "resumo" / "abre_por_cenario.csv")
 divergencias = []
 for cenario, aba in abas.items():
     t = aba[aba["faixa_rotulo"] == "TOTAL"]
+    if (
+        cenario == "S4t"
+    ):  # confere com os erros por origem do cálculo do cenário (mesmas origens, mesmo ABRE)
+        if ERROS_LONGO is None:
+            continue
+        erros = pd.read_csv(ERROS_LONGO)
+        for lingua in LINGUAS:
+            for metodo in METODOS.values():
+                a = t[(t["linguagem"] == lingua) & (t["metodo"] == metodo)]["abre"].mean()
+                b = erros[(erros["linguagem"] == lingua) & (erros["metodo"] == metodo)][
+                    "abre"
+                ].mean()
+                if abs(a - b) > 1e-9:
+                    divergencias.append(("S4t", lingua, metodo, a, b))
+        continue
     for lingua in LINGUAS:
         for metodo in METODOS.values():
             valores = t[(t["linguagem"] == lingua) & (t["metodo"] == metodo)]
@@ -164,6 +195,7 @@ NOMES_DOS_CENARIOS = {
     "S4": "Longo, não casuais",
     "S5": "Curto, não casuais",
     "S2": "Anual",
+    "S4t": "Longo, não casuais (trimestres)",
 }
 COLUNAS_SAIDA = [
     "linguagem", "cenario", "origem", "origem_de_dezembro", "data_projetada", "metodo", "faixa", "faixa_rotulo", "pessoas_na_faixa_origem", "taxa_permanencia",
@@ -172,7 +204,14 @@ COLUNAS_SAIDA = [
 ]  # fmt: skip
 for cenario, aba in abas.items():
     aba["cenario"] = NOMES_DOS_CENARIOS[cenario]
-    nome_do_arquivo = NOMES_DOS_CENARIOS[cenario].lower().replace(", ", "_").replace(" ", "_")
+    nome_do_arquivo = (
+        NOMES_DOS_CENARIOS[cenario]
+        .lower()
+        .replace(", ", "_")
+        .replace(" ", "_")
+        .replace("(", "")
+        .replace(")", "")
+    )
     aba[COLUNAS_SAIDA].to_csv(
         SAIDA / f"planilha_{nome_do_arquivo}.csv", index=False, float_format="%.10g"
     )
@@ -180,23 +219,23 @@ for cenario, aba in abas.items():
 LEIA_ME = [
     ("Cenários", ""),
     (
-        "S1",
+        "Curto e amplo",
         "Saída 3 meses, horizonte 3 meses, recortes de 3 meses. Todos os contribuidores. Idade: tempo desde a primeira contribuição, faixas de 3 meses. Ativo: contribuiu nos últimos 3 meses. Origens: todo trimestre de 2017 em diante.",
     ),
     (
-        "S3h",
+        "Longo e amplo",
         "Saída 12 meses, horizonte 12 meses, recortes de 3 meses. Todos os contribuidores. Idade como no cenário Curto e amplo. Ativo: contribuiu nos últimos 12 meses. Origens: todo trimestre de 2017 em diante.",
     ),
     (
-        "S4",
+        "Longo, não casuais",
         "Saída 12 meses, horizonte 12 meses, recortes de 3 meses. Não casuais residentes pelo passado (segunda ocasião até a origem). Idade descontada (regra do S2) em faixas de 3 meses. Origens: dezembro de 2017 a 2023 (Elixir de 2020 a 2023).",
     ),
     (
-        "S5",
+        "Curto, não casuais",
         "Saída 12 meses, horizonte 3 meses, recortes de 3 meses. Mesma população e idade do cenário Longo, não casuais. Origens: todo trimestre de 2017 a 2024; a coluna origem_de_dezembro marca as de dezembro.",
     ),
     (
-        "S2",
+        "Anual",
         "Saída 12 meses, horizonte 12 meses, recortes de 12 meses (31 de dezembro). Não casuais residentes pelo passado. Idade descontada, faixas de 1 ano. Origens de dezembro.",
     ),
     ("Métodos", ""),
@@ -257,6 +296,14 @@ LEIA_ME = [
         "A projeção por faixa soma o total previsto em `pares` (diferença relativa abaixo de 1e-9) e o ABRE médio dos totais é o da tabela de ABRE por cenário. Ver conferencia_totais.csv e conferencia_abre.txt.",
     ),
 ]
+if UNIDADES_LONGO:
+    LEIA_ME.insert(
+        6,
+        (
+            "Longo, não casuais (trimestres)",
+            "As mesmas regras do cenário Longo, não casuais, com origens em todo fim de trimestre (31/03, 30/06, 30/09 e 31/12), da primeira origem em que os cinco métodos projetam até 31/12/2023 (alvo até 31/12/2024). Clojure, Elixir, OCaml e Python.",
+        ),
+    )
 with pd.ExcelWriter(SAIDA / "projecao_rq3.xlsx", engine="openpyxl") as escritor:
     pd.DataFrame(LEIA_ME, columns=["Item", "Definição"]).to_excel(
         escritor, sheet_name="Leia-me", index=False
