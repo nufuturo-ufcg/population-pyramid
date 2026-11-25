@@ -10,7 +10,7 @@ teste de vazamento nas origens de amostra e na origem final (cortar os eventos e
 
 Grava em `<saida>`: `origem.md`, `trajetorias.csv`, `serie_anual.csv`, `erro_por_origem_e_passo.csv`, `erro_por_passo.csv`, `erro_por_horizonte.md`, `populacao_projetada.md` e `.csv`, `vazamento.md`.
 
-Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/projecao_clojure_5anos.py <carga> <saida> [<pasta de unidades do S4k>]
+Uso (na raiz do repo, na VM): .venv/bin/python scripts/granularidade/projecao_clojure_5anos.py <carga> <saida> [<pasta de unidades do S4k> ou - [<origem pedida, fim de trimestre>]]
 """
 
 import sys
@@ -37,7 +37,10 @@ from previsao import (
 from rodar import le_dados
 
 CARGA, SAIDA = Path(sys.argv[1]), Path(sys.argv[2])
-UNIDADES_S4K = Path(sys.argv[3]) if len(sys.argv) > 3 else None
+UNIDADES_S4K = Path(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] != "-" else None
+ORIGEM_PEDIDA = (
+    pd.Timestamp(sys.argv[4]) if len(sys.argv) > 4 else None
+)  # padrão: o último fim de trimestre com a pirâmide completa
 SAIDA.mkdir(parents=True, exist_ok=True)
 NB = 4  # faixas e passos de 3 meses
 PASSOS = 20
@@ -86,6 +89,11 @@ pessoas, eventos = le_dados(CARGA, "clojure")
 fim_dados = pd.Timestamp(eventos["dia"].max())
 candidatas = [pd.Timestamp(d) for d in grade(3, np.datetime64("2030-12-31"))]
 ORIGEM = max(d for d in candidatas if d <= fim_dados)
+if ORIGEM_PEDIDA is not None:
+    assert ORIGEM_PEDIDA in candidatas and ORIGEM_PEDIDA <= ORIGEM, (
+        f"{ORIGEM_PEDIDA.date()} não é fim de trimestre com pirâmide completa"
+    )
+    ORIGEM = ORIGEM_PEDIDA
 eventos_no_trimestre_aberto = int((eventos["dia"] > np.datetime64(ORIGEM)).sum())
 (SAIDA / "origem.md").write_text(
     "\n".join(
@@ -94,7 +102,7 @@ eventos_no_trimestre_aberto = int((eventos["dia"] > np.datetime64(ORIGEM)).sum()
             "",
             f"- Último evento dos dados de Clojure: {fim_dados.date()}.",
             f"- Último fim de trimestre até essa data: {ORIGEM.date()}. O trimestre seguinte (até {(ORIGEM + pd.offsets.QuarterEnd(1)).date()}) só tem {eventos_no_trimestre_aberto} eventos, de {(ORIGEM + pd.Timedelta(days=1)).date()} a {fim_dados.date()}, e fica de fora.",
-            f"- Origem usada: {ORIGEM.date()}. A pirâmide dessa data tem os 12 meses de janela completos, e a classificação de não casuais usa só as segundas ocasiões até essa data.",
+            f"- Origem usada: {ORIGEM.date()}{' (pedida, para comparação com a origem mais recente)' if ORIGEM_PEDIDA is not None else ''}. A pirâmide dessa data tem os 12 meses de janela completos, e a classificação de não casuais usa só as segundas ocasiões até essa data.",
             "",
         ]
     )
@@ -336,6 +344,13 @@ def faixa(metodo: str, passo: int) -> tuple[float, float, float]:
 # 6. Série anual (Figura B): entrada = novatos do ano; saída líquida = ativos + novatos do ano seguinte − ativos do ano seguinte
 ANOS_OBS = range(2009, 2026)
 ANOS_PROJ = range(2026, 2031)  # 31/12/2030 é o último fim de ano dentro dos 20 passos
+
+
+def passos_ate_fim_de_ano(ano: int) -> int:
+    """Trimestres da origem até 31/12 de `ano` (2 para 30/06/2026 e 31/12/2026, 4 para 31/12/2025 e 31/12/2026)."""
+    return ((ano * 12 + 12) - (ORIGEM.year * 12 + ORIGEM.month)) // 3
+
+
 serie = []
 for metodo in METODOS:
     pontos = {}
@@ -349,7 +364,7 @@ for metodo in METODOS:
             "novatos": o["0-1"],
         }
     for ano in ANOS_PROJ:
-        passo = 4 * (ano - 2026) + 2
+        passo = passos_ate_fim_de_ano(ano)
         p, baixo, alto = faixa(metodo, passo)
         v = trajetoria_final[metodo][passo - 1]
         pontos[ano] = {
@@ -435,7 +450,7 @@ P += [
 for metodo in METODOS:
     celulas = []
     for ano in ANOS_PROJ:
-        passo = 4 * (ano - 2026) + 2
+        passo = passos_ate_fim_de_ano(ano)
         p, baixo, alto = faixa(metodo, passo)
         celulas.append(f"{milhar(p)} ({milhar(baixo)} a {milhar(alto)})")
         tabela.append(
