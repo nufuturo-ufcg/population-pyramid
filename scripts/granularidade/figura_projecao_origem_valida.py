@@ -27,6 +27,7 @@ SAIDA.mkdir(parents=True, exist_ok=True)
 TELA = (6.4, 3.6)
 DPI = 300
 AZUL = "#1f5fbf"
+NOTA_DA_FAIXA = "Faixa sombreada: p10 a p90 do erro histórico"
 
 plt.rcParams.update(
     {
@@ -77,7 +78,12 @@ def trajetoria_com_faixa(pasta: Path) -> pd.DataFrame:
 
 
 def desenha(
-    pasta: Path, origem: pd.Timestamp, depois_da_origem: bool, nome: str, dpi: int = DPI
+    pasta: Path,
+    origem: pd.Timestamp,
+    depois_da_origem: bool,
+    nome: str,
+    dpi: int = DPI,
+    nota: str = NOTA_DA_FAIXA,
 ) -> None:
     t = trajetoria_com_faixa(pasta)
     fig, eixo = plt.subplots(figsize=TELA)
@@ -139,7 +145,7 @@ def desenha(
     eixo.text(
         0.01,
         0.02,
-        "Faixa sombreada: p10 a p90 do erro histórico",
+        nota,
         transform=eixo.transAxes,
         fontsize=6,
         va="bottom",
@@ -159,6 +165,7 @@ desenha(
     False,
     "slide_projecao_coorte_r_origem_2025-06-30_sem_pontos",
     dpi=600,
+    nota="Faixa: margem de erro do método no passado",
 )
 
 # Tabela da Coorte^R por fim de ano, nas duas origens, com o observado
