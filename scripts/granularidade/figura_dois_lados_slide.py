@@ -40,19 +40,6 @@ CONTORNO = "#4d4d4d"
 CODING = "#4d4d4d"
 LARGURA, ALTURA = 11.0, 2.5  # mesma proporção da imagem de referência (3376 x 773)
 
-plt.rcParams.update(
-    {
-        "font.family": "sans-serif",
-        "font.size": 9,
-        "axes.titlesize": 12,
-        "axes.labelsize": 9,
-        "xtick.labelsize": 9,
-        "ytick.labelsize": 9,
-        "legend.fontsize": 9,
-        "hatch.linewidth": 0.8,
-        "pdf.fonttype": 42,
-    }
-)
 
 c = pd.read_csv(COMPOSICAO)
 c = c[(c["ano"] == 2024) & c["faixa"].isin(FAIXAS) & c["slug"].isin(LINGUAS)]
@@ -92,50 +79,109 @@ limite = 33.0
 if maximo > 30.0:
     limite = math.ceil(maximo) + 3.0
 
-fig, eixos = plt.subplots(1, 5, figsize=(LARGURA, ALTURA), sharey=True, sharex=True)
-posicao = np.arange(len(FAIXAS))
-ticks = [-30, -20, -10, 0, 10, 20, 30]
-for eixo, lingua in zip(eixos, LINGUAS, strict=True):
-    parte = tabela[tabela["linguagem"] == NOMES[lingua]].set_index("faixa").reindex(FAIXAS)
-    eixo.set_facecolor(FUNDO)
-    eixo.set_axisbelow(True)
-    eixo.grid(axis="x", color="white", linewidth=1.0)
-    eixo.grid(axis="y", visible=False)
-    for lado in eixo.spines.values():
-        lado.set_visible(False)
-    eixo.tick_params(length=0)
-    eixo.barh(
-        posicao,
-        -parte["discussion_pct"].to_numpy(),
-        height=0.85,
-        facecolor="white",
-        edgecolor=CONTORNO,
-        hatch="///",
-        linewidth=0.8,
-    )
-    eixo.barh(
-        posicao,
-        parte["coding_pct"].to_numpy(),
-        height=0.85,
-        facecolor=CODING,
-        edgecolor=CONTORNO,
-        linewidth=0.8,
-    )
-    eixo.set_xlim(-limite, limite)
-    eixo.set_xticks(ticks)
-    eixo.xaxis.set_major_formatter(lambda x, _: f"{abs(x):.0f}")
-    eixo.set_title(NOMES[lingua])
-    eixo.set_xlabel("% dos ativos do ano")
-eixos[0].set_yticks(posicao, ROTULOS)  # rótulos das faixas só no primeiro painel
 
-legenda = [
-    Patch(facecolor="white", edgecolor=CONTORNO, hatch="///", linewidth=0.8, label="discussion"),
-    Patch(facecolor=CODING, edgecolor=CONTORNO, linewidth=0.8, label="coding"),
-]
-fig.legend(handles=legenda, loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.0))
-fig.subplots_adjust(left=0.07, right=0.995, top=0.88, bottom=0.27, wspace=0.08)
+def desenha(largura, altura, fonte_titulo, fonte, margens, pad_titulo, pad_rotulo, traco):
+    """Desenha os cinco painéis na proporção pedida. Fontes em pt, margens em fração da figura."""
+    estilo = {
+        "font.family": "sans-serif",
+        "font.size": fonte,
+        "axes.titlesize": fonte_titulo,
+        "axes.labelsize": fonte,
+        "xtick.labelsize": fonte,
+        "ytick.labelsize": fonte,
+        "legend.fontsize": fonte,
+        "hatch.linewidth": traco,
+        "pdf.fonttype": 42,
+    }
+    with plt.rc_context(estilo):
+        fig, eixos = plt.subplots(1, 5, figsize=(largura, altura), sharey=True, sharex=True)
+        posicao = np.arange(len(FAIXAS))
+        ticks = [-30, -20, -10, 0, 10, 20, 30]
+        for eixo, lingua in zip(eixos, LINGUAS, strict=True):
+            parte = tabela[tabela["linguagem"] == NOMES[lingua]].set_index("faixa").reindex(FAIXAS)
+            eixo.set_facecolor(FUNDO)
+            eixo.set_axisbelow(True)
+            eixo.grid(axis="x", color="white", linewidth=1.0)
+            eixo.grid(axis="y", visible=False)
+            for lado in eixo.spines.values():
+                lado.set_visible(False)
+            eixo.tick_params(length=0, pad=2)
+            eixo.barh(
+                posicao,
+                -parte["discussion_pct"].to_numpy(),
+                height=0.85,
+                facecolor="white",
+                edgecolor=CONTORNO,
+                hatch="///",
+                linewidth=traco,
+            )
+            eixo.barh(
+                posicao,
+                parte["coding_pct"].to_numpy(),
+                height=0.85,
+                facecolor=CODING,
+                edgecolor=CONTORNO,
+                linewidth=traco,
+            )
+            eixo.set_xlim(-limite, limite)
+            eixo.set_xticks(ticks)
+            eixo.xaxis.set_major_formatter(lambda x, _: f"{abs(x):.0f}")
+            eixo.set_title(NOMES[lingua], pad=pad_titulo)
+            eixo.set_xlabel("% dos ativos do ano", labelpad=pad_rotulo)
+        eixos[0].set_yticks(posicao, ROTULOS)  # rótulos das faixas só no primeiro painel
 
+        legenda = [
+            Patch(
+                facecolor="white",
+                edgecolor=CONTORNO,
+                hatch="///",
+                linewidth=traco,
+                label="discussion",
+            ),
+            Patch(facecolor=CODING, edgecolor=CONTORNO, linewidth=traco, label="coding"),
+        ]
+        fig.legend(
+            handles=legenda,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.0),
+            handlelength=1.6,
+            borderaxespad=0.2,
+        )
+        fig.subplots_adjust(**margens)
+    return fig
+
+
+# Versão larga de referência (11 x 2,5 pol, PNG a 600 dpi)
+fig = desenha(
+    LARGURA,
+    ALTURA,
+    12,
+    9,
+    {"left": 0.07, "right": 0.995, "top": 0.88, "bottom": 0.27, "wspace": 0.08},
+    6,
+    4,
+    0.8,
+)
 fig.savefig(SAIDA / "composicao_dois_lados_2024.pdf")
 fig.savefig(SAIDA / "composicao_dois_lados_2024.png", dpi=600)
+plt.close(fig)
+
+# Versão para a caixa de 1260 x 244 px do slide (proporção 5,16:1): figura criada já nesse tamanho
+# (12,6 x 2,44 pol a 100 dpi), sem redimensionar a imagem pronta.
+fig = desenha(
+    12.6,
+    2.44,
+    10,
+    8.5,
+    {"left": 0.068, "right": 0.997, "top": 0.9, "bottom": 0.235, "wspace": 0.07},
+    2,
+    1,
+    0.6,
+)
+fig.savefig(SAIDA / "composicao_dois_lados_2024_caixa.pdf")
+fig.savefig(SAIDA / "composicao_dois_lados_2024_caixa_1260x244.png", dpi=100)
+fig.savefig(SAIDA / "composicao_dois_lados_2024_caixa_5040x976.png", dpi=400)
 plt.close(fig)
 print("limite do eixo:", limite, "maior barra:", round(maximo, 2))
