@@ -48,11 +48,14 @@ def grava_origem(
     contas_excluidas_csv: Path | None = None,
     contar_repos_sem_mapa: bool = False,
     so_repos: tuple[str, ...] = (),
+    dados: str | None = None,
+    eventos_csv: list[str] | None = None,
+    alvos_csv: list[str] | None = None,
 ) -> None:
     """Carga de uma linguagem com a origem de cada pessoa gravada à parte."""
     carga_fonte.aplica_linguagem(slug)
     fb.CFG.aplica(fb.RODADA)
-    fonte = carga_fonte.resolve_fonte(slug, so_repos=so_repos)
+    fonte = carga_fonte.resolve_fonte(slug, dados, eventos_csv, alvos_csv, so_repos)
     if not autores:
         fonte.autores = None
     if not sem_duplicados and not fundir_duplicados:
@@ -114,6 +117,11 @@ def main() -> None:
         "--repo", action="append", default=[], metavar="REPO",
         help="só este repositório (repo_id ou dono/nome; repetível). Mesma --saida do vitalidade",
     )  # fmt: skip
+    parser.add_argument(
+        "--dados", help="pasta com os eventos e o alvo da linguagem (como no vitalidade.py)"
+    )
+    parser.add_argument("--eventos", action="append", help="arquivo de eventos (repetível)")
+    parser.add_argument("--alvo", action="append", help="arquivo-alvo (repetível)")
     parser.add_argument("--memoria", default="30GB")
     parser.add_argument("--threads", type=int, default=None)
     # A origem tem de sair da mesma carga da pirâmide: os padrões vêm do vitalidade.yaml.
@@ -170,6 +178,9 @@ def main() -> None:
             args.contas_excluidas_csv,
             args.contar_repos_sem_mapa,
             tuple(args.repo),
+            args.dados,
+            args.eventos,
+            args.alvo,
         )
 
 

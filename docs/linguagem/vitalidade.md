@@ -125,21 +125,28 @@ uv run python scripts/vitalidade.py --linguagem python --so-figuras --figuras to
 
 ## Rodar para um projeto só
 
-`--repo` limita a carga a um repositório (`repo_id` ou `dono/nome`, repetível). O filtro age no arquivo-alvo: só os repositórios do alvo contam como elegíveis, então o resto do cálculo (autores, duplicados, idade, lados, pirâmide) roda como na linguagem inteira, com os mesmos parâmetros do yaml.
+`--repo` limita a carga a um repositório (`repo_id` ou `dono/nome`, repetível). O filtro age no arquivo-alvo: só os repositórios do alvo contam como elegíveis, então o resto do cálculo (idade, lados, pirâmide) roda como na linguagem inteira.
+
+No computador de quem roda, com os dados numa pasta (`eventos_api.csv`, `eventos_git.csv` e `repositorios_<linguagem>_alvo.csv`, ou o arquivo único de eventos):
 
 ```bash
 # 1. a origem de cada pessoa, que a população mais_de_uma_ocasiao lê
-uv run python scripts/origem_dos_novatos.py --saida ~/saida-projeto --linguagens clojure --repo clj-kondo/clj-kondo
+uv run python scripts/origem_dos_novatos.py --saida ~/saida-projeto --linguagens clojure \
+    --dados ~/dados/clojure --repo dono/nome
 # 2. a pirâmide de dois lados
-uv run python scripts/vitalidade.py --linguagem clojure --repo clj-kondo/clj-kondo --saida ~/saida-projeto \
-    --metricas composicao --figuras composicao.piramides
+uv run python scripts/vitalidade.py --linguagem clojure --dados ~/dados/clojure --repo dono/nome \
+    --saida ~/saida-projeto --metricas composicao --figuras composicao.piramides
 ```
 
+A figura sai em `~/saida-projeto/clojure-mais_de_uma_ocasiao/vitalidade/piramides_faixa_pct.png` e os números em `~/saida-projeto/clojure-mais_de_uma_ocasiao/csv/vitalidade/composicao.csv`.
+
+- Se a pasta só tem os dados desse projeto, `--repo` pode ficar de fora.
+- Sem `--dados`, os dois scripts leem as pastas do `vitalidade_fontes.yaml` (as da batuta), com autores e duplicados da linguagem. Com `--dados` valem só os arquivos da pasta, sem o arquivo de autores (e-mail do commit para login) nem a lista de duplicados.
 - A `--saida` tem de ser uma pasta só dessa rodada. Com a pasta padrão o `vitalidade.py` para, porque o cache e a origem da linguagem inteira ficam em `<saida>/<linguagem>/`.
 - Use a mesma `--repo` e a mesma `--saida` nos dois comandos. Se o número de pessoas da origem não bate com o cache, o `vitalidade.py` avisa.
 - A idade e as ocasiões contam dentro do projeto. Quem entrou no projeto agora, mas programa na linguagem há anos, aparece como novata.
 - O projeto precisa ser elegível (mais de `LIMIAR_SHARE_LINGUAGEM` do código na linguagem). Sem isso a carga para com a mensagem "nenhum repositório do alvo é elegível".
-- Os dados ficam na batuta (o yaml aponta para lá): rode o comando lá.
+- Se nenhum dos `anos_piramide` existe nos dados (projeto novo), a figura mostra o último ano dos dados.
 
 ## Régua
 

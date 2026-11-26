@@ -667,9 +667,17 @@ def _legenda_piramide(fig: Any, lado: str) -> None:
     fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, fontsize=12)
 
 
+def _anos_das_piramides(ctx: Any, comp: pd.DataFrame) -> list[int]:
+    """Os `anos_piramide` que existem nos dados; sem nenhum (projeto novo), o último ano."""
+    anos = [a for a in ctx.p.anos_piramide if a in set(comp["ano"])]
+    if not anos:
+        anos = [int(comp["ano"].max())]
+    return anos
+
+
 def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
     comp = d["composicao"]
-    anos = [a for a in ctx.p.anos_piramide if a in set(comp["ano"])]
+    anos = _anos_das_piramides(ctx, comp)
     codigo = {faixa: i for i, faixa in enumerate(vitalidade.FAIXAS)}
     lado = ctx.p.piramide_lado
     quadros = []
@@ -681,7 +689,10 @@ def _desenha_piramides(ctx: Any, d: Dados, em_pct: bool) -> None:
         quadros.append(_so_o_lado(q, lado))
     xmax = _xmax_das_piramides(quadros)
 
-    fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 3.8), sharey=True)
+    fig, eixos = plt.subplots(
+        1, len(anos), figsize=(3.4 * len(anos), 3.8), sharey=True, squeeze=False
+    )
+    eixos = eixos[0]
     for ax, ano, q in zip(eixos, anos, quadros, strict=True):
         plots.draw_pyramid(ax, q, xmax=xmax)
         if em_pct:
@@ -720,7 +731,7 @@ def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
     """
     comp = d["composicao_trimestral"]
     em_pct = ctx.p.piramide_em_pct
-    anos = [a for a in ctx.p.anos_piramide if a in set(comp["ano"])]
+    anos = _anos_das_piramides(ctx, comp)
     lado = ctx.p.piramide_lado
     quadros = []
     for ano in anos:
@@ -730,7 +741,10 @@ def figura_piramides_trimestrais(ctx: Any, d: Dados) -> None:
         quadros.append(_so_o_lado(q, lado))
     xmax = _xmax_das_piramides(quadros)
     ymax = max(int(q["band"].max()) for q in quadros)
-    fig, eixos = plt.subplots(1, len(anos), figsize=(3.4 * len(anos), 5), sharey=True)
+    fig, eixos = plt.subplots(
+        1, len(anos), figsize=(3.4 * len(anos), 5), sharey=True, squeeze=False
+    )
+    eixos = eixos[0]
     for ax, ano, q in zip(eixos, anos, quadros, strict=True):
         plots.draw_pyramid(ax, q, xmax=xmax, ymax=ymax)
         ax.set_title(str(ano))
