@@ -20,7 +20,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.patches import Patch
+from icones_metodos import HandlerIcone, Icone
 
 PARES, SAIDA = Path(sys.argv[1]), Path(sys.argv[2])
 SAIDA.mkdir(parents=True, exist_ok=True)
@@ -131,17 +131,18 @@ eixo.yaxis.set_major_formatter(lambda y, _: virgula(y))
 eixo.set_xticks(x, [str(int(a)) for a in anos])
 eixo.set_ylabel("ABRE")
 eixo.set_title("Python: erro da previsão de 12 meses, ano a ano (ABRE)", pad=16)
-legenda = [
-    Patch(facecolor=CINZA, edgecolor=CONTORNO, linewidth=0.4, label="Ingênua"),
-    Patch(facecolor=AZUL, edgecolor=CONTORNO, linewidth=0.4, label="Coorte"),
-]
+icones_da_legenda = [Icone("ingenua", CINZA), Icone("coorte", AZUL)]
+nomes_da_legenda = ["Ingênua", "Coorte"]
 eixo.legend(
-    handles=legenda,
+    handles=icones_da_legenda,
+    labels=nomes_da_legenda,
+    handler_map={Icone: HandlerIcone()},
+    handleheight=2.0,
     loc="lower center",
     bbox_to_anchor=(0.5, 1.0),
     ncol=2,
     frameon=False,
-    handlelength=1.4,
+    handlelength=2.0,
     borderaxespad=0.2,
 )
 fig.subplots_adjust(left=0.09, right=0.98, top=0.84, bottom=0.12)

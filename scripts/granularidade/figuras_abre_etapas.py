@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
+from icones_metodos import icones_no_eixo_y
 
 PARES, SAIDA = Path(sys.argv[1]), Path(sys.argv[2])
 SAIDA.mkdir(parents=True, exist_ok=True)
@@ -79,6 +80,7 @@ def desenha(quantos: int, nome: str) -> None:
     eixo.set_xlabel("ABRE mediano")
     eixo.set_title("Clojure: erro da previsão de 12 meses (ABRE)")
     fig.subplots_adjust(left=0.2, right=0.93, top=0.88, bottom=0.16)
+    icones_no_eixo_y(fig, eixo, ORDEM[:quantos])
     fig.savefig(SAIDA / f"{nome}.png", dpi=DPI)
     fig.savefig(SAIDA / f"{nome}.pdf")
     plt.close(fig)
