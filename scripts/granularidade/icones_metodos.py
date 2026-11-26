@@ -148,32 +148,46 @@ ICONES_DO_METODO = {
 }
 
 
-def icones_no_eixo_y(fig, eixo, metodos, cor=ROXO, altura_pt=11.0, folga_pt=3.0):
-    """Põe os ícones à esquerda do nome de cada método do eixo y, na mesma linha da barra.
+def icones_no_eixo_y(fig, eixo, metodos, todos, cor=ROXO, altura_pt=11.0, folga_pt=8.0):
+    """Põe os ícones numa coluna à esquerda dos nomes do eixo y, na linha de cada barra.
 
-    `metodos` na ordem das barras (a barra i está em y = i). Chamar depois de fixar as margens.
+    `metodos` na ordem das barras (a barra i está em y = i). `todos` são os métodos de todos os
+    slides da apresentação: a coluna fica à esquerda do maior nome deles, então não muda de um
+    slide para o outro. Chamar depois de fixar as margens.
     """
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     pol = fig.dpi_scale_trans  # unidades: polegadas
-    for posicao, (rotulo, metodo) in enumerate(zip(eixo.get_yticklabels(), metodos, strict=True)):
+    rotulos = eixo.get_yticklabels()
+    borda_dos_nomes = rotulos[0].get_window_extent(renderer).x1 / fig.dpi
+    mais_largo = 0.0
+    for metodo in todos:
+        medida = fig.text(
+            0,
+            0,
+            metodo.replace("^R", "$^{R}$"),
+            fontsize=rotulos[0].get_fontsize(),
+            fontfamily=rotulos[0].get_fontfamily(),
+        )
+        mais_largo = max(mais_largo, medida.get_window_extent(renderer).width / fig.dpi)
+        medida.remove()
+    folga = folga_pt / 72.0
+    centro_da_coluna = borda_dos_nomes - mais_largo - folga - altura_pt / 72.0 / 2.0
+    for posicao, metodo in enumerate(metodos):
         icones = ICONES_DO_METODO[metodo]
         tamanho_pt = altura_pt if len(icones) == 1 else altura_pt * 0.82
         tamanho = tamanho_pt / 72.0
-        folga = folga_pt / 72.0
-        direita = rotulo.get_window_extent(renderer).x0 / fig.dpi - folga
         y_centro = eixo.transData.transform((0, posicao))[1] / fig.dpi
+        centro = centro_da_coluna  # o último ícone da linha fica na coluna, os outros à esquerda
         for nome, tem_r in reversed(icones):
-            if tem_r:
-                direita -= 0.22 * tamanho  # espaço do R, que avança além da borda direita
             k = tamanho / 96.0
-            x0 = direita - tamanho
+            x0 = centro - tamanho / 2.0
             y0 = y_centro - tamanho / 2.0
             for artista in artistas_do_icone(nome, x0, y0, k, k * 72.0, cor, pol):
                 fig.add_artist(artista)
             if tem_r:
                 fig.text(
-                    direita - 0.12 * tamanho,
+                    x0 + tamanho * 0.88,
                     y0 + tamanho * 0.98,
                     "R",
                     transform=pol,
@@ -183,4 +197,4 @@ def icones_no_eixo_y(fig, eixo, metodos, cor=ROXO, altura_pt=11.0, folga_pt=3.0)
                     ha="left",
                     va="center",
                 )
-            direita = x0 - folga * 0.5
+            centro = x0 - folga * 0.5 - tamanho / 2.0

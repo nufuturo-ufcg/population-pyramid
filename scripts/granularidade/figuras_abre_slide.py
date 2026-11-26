@@ -124,7 +124,7 @@ for tabela_metodo, deslocamento, cor in barras:
         linewidth=0.4,
     )
     for xi, v in zip(x + deslocamento, valores, strict=True):
-        eixo.text(xi, v + 0.002, virgula(v), ha="center", va="bottom", fontsize=6)
+        eixo.text(xi, v + 0.002, virgula(v, 3), ha="center", va="bottom", fontsize=6)
 topo = max(ingenua["abre"].max(), coorte["abre"].max())
 eixo.set_ylim(0, topo * 1.15)
 eixo.yaxis.set_major_formatter(lambda y, _: virgula(y))

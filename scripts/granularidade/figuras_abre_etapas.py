@@ -1,9 +1,10 @@
 """ABRE mediano de Clojure em dois slides, para apresentar os métodos em duas etapas.
 
-Slide A: Ingênua, Coorte e Conservador (cinza). Slide B: os seis métodos, com os três novos em azul.
+Slide A: Ingênua e Coorte (cinza). Slide B: os seis métodos, com Conservador, Coorte^R,
+Conservador^R e Ingênua-Coorte^R em azul. Medianas com três casas.
 Mesmos dados de `figuras_abre_slide.py` (cenário Longo, não casuais, janela de 4 trimestres, as 8
 previsões de 31 de dezembro). As duas figuras têm o mesmo eixo (0 a 0,10), os seis lugares de barra
-e a mesma espessura: o slide A deixa vazio o espaço das três barras que ainda não entraram.
+e a mesma espessura: o slide A deixa vazio o espaço das quatro barras que ainda não entraram.
 
 Uso: .venv/bin/python scripts/granularidade/figuras_abre_etapas.py <pares_usados.csv> <saida>
 """
@@ -23,6 +24,7 @@ SAIDA.mkdir(parents=True, exist_ok=True)
 TELA = (6.4, 3.6)
 DPI = 600
 ORDEM = ["Ingênua", "Coorte", "Conservador", "Coorte^R", "Conservador^R", "Ingênua-Coorte^R"]
+CINZAS = 2  # Ingênua e Coorte em cinza, os demais em azul
 CINZA, AZUL, CONTORNO = "#9a9a9a", "#1f5fbf", "#222222"
 LIMITE_X = 0.10
 
@@ -44,8 +46,8 @@ plt.rcParams.update(
 )
 
 
-def virgula(valor: float) -> str:
-    return f"{valor:.2f}".replace(".", ",")
+def virgula(valor: float, casas: int = 2) -> str:
+    return f"{valor:.{casas}f}".replace(".", ",")
 
 
 pares = pd.read_csv(PARES)
@@ -68,10 +70,10 @@ def desenha(quantos: int, nome: str) -> None:
         metodo = ORDEM[i]
         posicoes.append(i)
         valores.append(medianas[metodo])
-        cores.append(CINZA if i < 3 else AZUL)
+        cores.append(CINZA if i < CINZAS else AZUL)
     eixo.barh(posicoes, valores, color=cores, edgecolor=CONTORNO, linewidth=0.4, height=0.7)
     for y, v in zip(posicoes, valores, strict=True):
-        eixo.text(v + 0.002, y, virgula(v), va="center", ha="left", fontsize=7)
+        eixo.text(v + 0.002, y, virgula(v, 3), va="center", ha="left", fontsize=7)
     eixo.set_ylim(len(ORDEM) - 0.5, -0.5)  # seis lugares, o primeiro no topo
     eixo.set_yticks(posicoes, [ORDEM[i].replace("^R", "$^{R}$") for i in posicoes])
     eixo.set_xlim(0, LIMITE_X)
@@ -80,12 +82,12 @@ def desenha(quantos: int, nome: str) -> None:
     eixo.set_xlabel("ABRE mediano")
     eixo.set_title("Clojure: erro da previsão de 12 meses (ABRE)")
     fig.subplots_adjust(left=0.2, right=0.93, top=0.88, bottom=0.16)
-    icones_no_eixo_y(fig, eixo, ORDEM[:quantos])
+    icones_no_eixo_y(fig, eixo, ORDEM[:quantos], ORDEM)
     fig.savefig(SAIDA / f"{nome}.png", dpi=DPI)
     fig.savefig(SAIDA / f"{nome}.pdf")
     plt.close(fig)
 
 
-desenha(3, "slide_abre_clojure_A_tres_metodos")
+desenha(2, "slide_abre_clojure_A_dois_metodos")
 desenha(6, "slide_abre_clojure_B_seis_metodos")
 print({m: round(v, 4) for m, v in medianas.items()})

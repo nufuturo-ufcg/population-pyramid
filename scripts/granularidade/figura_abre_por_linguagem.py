@@ -81,7 +81,7 @@ for metodo, deslocamento, cor in [("Ingênua", -largura / 2, CINZA), ("Coorte", 
         linewidth=0.4,
     )
     for xi, v in zip(x + deslocamento, valores[metodo], strict=True):
-        eixo.text(xi, v + 0.003, virgula(v), ha="center", va="bottom", fontsize=7)
+        eixo.text(xi, v + 0.003, virgula(v, 3), ha="center", va="bottom", fontsize=7)
 eixo.set_ylim(0, 0.25)
 eixo.set_yticks([0, 0.05, 0.10, 0.15, 0.20, 0.25])
 eixo.yaxis.set_major_formatter(lambda y, _: virgula(y))

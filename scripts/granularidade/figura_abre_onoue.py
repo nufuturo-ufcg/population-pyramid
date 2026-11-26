@@ -45,8 +45,8 @@ plt.rcParams.update(
 )
 
 
-def virgula(valor: float) -> str:
-    return f"{valor:.2f}".replace(".", ",")
+def virgula(valor: float, casas: int = 2) -> str:
+    return f"{valor:.{casas}f}".replace(".", ",")
 
 
 pares = pd.read_csv(PARES)
@@ -76,7 +76,7 @@ for metodo, deslocamento, cor in [("Ingênua", -largura / 2, CINZA), ("Coorte", 
         linewidth=0.4,
     )
     for xi, v in zip(x + deslocamento, valores[metodo], strict=True):
-        eixo.text(xi, v + 0.01, virgula(v), ha="center", va="bottom", fontsize=7)
+        eixo.text(xi, v + 0.01, virgula(v, 3), ha="center", va="bottom", fontsize=7)
 eixo.set_ylim(0, 0.7)
 eixo.set_yticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
 eixo.yaxis.set_major_formatter(lambda y, _: virgula(y))
