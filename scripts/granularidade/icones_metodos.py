@@ -148,6 +148,31 @@ ICONES_DO_METODO = {
 }
 
 
+def poe_icone(fig, nome, tem_r, x_centro, y_centro, tamanho, cor, altura_pt=11.0):
+    """Desenha um ícone na figura. Posição e `tamanho` em polegadas, a partir do canto inferior esquerdo da figura.
+
+    Com `tem_r`, escreve um "R" pequeno no canto superior direito, na mesma cor.
+    """
+    pol = fig.dpi_scale_trans
+    k = tamanho / 96.0
+    x0 = x_centro - tamanho / 2.0
+    y0 = y_centro - tamanho / 2.0
+    for artista in artistas_do_icone(nome, x0, y0, k, k * 72.0, cor, pol):
+        fig.add_artist(artista)
+    if tem_r:
+        fig.text(
+            x0 + tamanho * 0.88,
+            y0 + tamanho * 0.98,
+            "R",
+            transform=pol,
+            color=cor,
+            fontsize=altura_pt * 0.55,
+            fontweight="bold",
+            ha="left",
+            va="center",
+        )
+
+
 def icones_no_eixo_y(fig, eixo, metodos, todos, cor=ROXO, altura_pt=11.0, folga_pt=8.0):
     """Põe os ícones numa coluna à esquerda dos nomes do eixo y, na linha de cada barra.
 
@@ -157,7 +182,6 @@ def icones_no_eixo_y(fig, eixo, metodos, todos, cor=ROXO, altura_pt=11.0, folga_
     """
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
-    pol = fig.dpi_scale_trans  # unidades: polegadas
     rotulos = eixo.get_yticklabels()
     borda_dos_nomes = rotulos[0].get_window_extent(renderer).x1 / fig.dpi
     mais_largo = 0.0
@@ -180,21 +204,6 @@ def icones_no_eixo_y(fig, eixo, metodos, todos, cor=ROXO, altura_pt=11.0, folga_
         y_centro = eixo.transData.transform((0, posicao))[1] / fig.dpi
         centro = centro_da_coluna  # o último ícone da linha fica na coluna, os outros à esquerda
         for nome, tem_r in reversed(icones):
-            k = tamanho / 96.0
             x0 = centro - tamanho / 2.0
-            y0 = y_centro - tamanho / 2.0
-            for artista in artistas_do_icone(nome, x0, y0, k, k * 72.0, cor, pol):
-                fig.add_artist(artista)
-            if tem_r:
-                fig.text(
-                    x0 + tamanho * 0.88,
-                    y0 + tamanho * 0.98,
-                    "R",
-                    transform=pol,
-                    color=cor,
-                    fontsize=altura_pt * 0.55,
-                    fontweight="bold",
-                    ha="left",
-                    va="center",
-                )
+            poe_icone(fig, nome, tem_r, centro, y_centro, tamanho, cor, altura_pt)
             centro = x0 - folga * 0.5 - tamanho / 2.0
