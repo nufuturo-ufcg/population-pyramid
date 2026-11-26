@@ -76,7 +76,9 @@ def trajetoria_com_faixa(pasta: Path) -> pd.DataFrame:
     return t
 
 
-def desenha(pasta: Path, origem: pd.Timestamp, depois_da_origem: bool, nome: str) -> None:
+def desenha(
+    pasta: Path, origem: pd.Timestamp, depois_da_origem: bool, nome: str, dpi: int = DPI
+) -> None:
     t = trajetoria_com_faixa(pasta)
     fig, eixo = plt.subplots(figsize=TELA)
     ate_a_origem = observada[observada["data"] <= origem]
@@ -143,13 +145,21 @@ def desenha(pasta: Path, origem: pd.Timestamp, depois_da_origem: bool, nome: str
         va="bottom",
     )
     fig.subplots_adjust(left=0.1, right=0.985, top=0.9, bottom=0.1)
-    fig.savefig(SAIDA / f"{nome}.png", dpi=DPI)
+    fig.savefig(SAIDA / f"{nome}.png", dpi=dpi)
     fig.savefig(SAIDA / f"{nome}.pdf")
     plt.close(fig)
 
 
 desenha(PASTA_2026, pd.Timestamp("2026-06-30"), False, "slide_projecao_coorte_r_origem_2026-06-30")
 desenha(PASTA_2025, pd.Timestamp("2025-06-30"), True, "slide_projecao_coorte_r_origem_2025-06-30")
+# Mesma figura sem os pontos observados depois da origem: a linha observada termina em 30/06/2025
+desenha(
+    PASTA_2025,
+    pd.Timestamp("2025-06-30"),
+    False,
+    "slide_projecao_coorte_r_origem_2025-06-30_sem_pontos",
+    dpi=600,
+)
 
 # Tabela da Coorte^R por fim de ano, nas duas origens, com o observado
 linhas = []
