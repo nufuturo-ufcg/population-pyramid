@@ -188,6 +188,7 @@ class Entrada:
     alvos: list[str] | None = None
     usar_cache: bool = True
     motor: str | None = None  # None usa `p.motor`
+    repos: tuple[str, ...] = ()  # só estes repositórios (repo_id ou dono/nome); vazio = todos
 
 
 RODADAS = YAML.with_name("vitalidade_rodadas.json")
@@ -240,6 +241,8 @@ def _selo_dos_dados(
         info = caminho.stat()
         arquivos[str(caminho)] = [info.st_size, info.st_mtime_ns]
     selo = {"versao": VERSAO_CACHE, "motor": motor, "arquivos": arquivos}
+    if fonte.so_repos:
+        selo["so_repos"] = sorted(fonte.so_repos)
     if acoes_ignoradas:
         selo["acoes_ignoradas"] = sorted(acoes_ignoradas)
     if fundir:
@@ -477,7 +480,9 @@ class Contexto:
         aplica_populacao(p)
         self.p = p
         self.eventos: pd.DataFrame | None = None
-        fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
+        fonte = carga_fonte.resolve_fonte(
+            slug, entrada.dados, entrada.eventos, entrada.alvos, entrada.repos
+        )
         if not p.ligar_autores:
             fonte.autores = None
         if p.sem_duplicados and p.fundir_duplicados:
@@ -1016,7 +1021,9 @@ def _sem_pipeline_se_grande(
     com_pipeline = [n for n in nomes if USA_PIPELINE[n] and ESCOPO[n] == "linguagem"]
     if not com_pipeline:
         return nomes
-    fonte = carga_fonte.resolve_fonte(slug, entrada.dados, entrada.eventos, entrada.alvos)
+    fonte = carga_fonte.resolve_fonte(
+        slug, entrada.dados, entrada.eventos, entrada.alvos, entrada.repos
+    )
     if fonte.cabe_no_carregador_original(p.limite_bruto_gb):
         return nomes
     print(
@@ -1053,6 +1060,11 @@ def roda(
     so_figuras: bool,
 ) -> None:
     """Roda as métricas pedidas: as de uma linguagem primeiro, depois as comparativas."""
+    if entrada.repos and fb.TMP_BASE == PADRAO_SAIDA:
+        # Cache e origem da linguagem ficam em <saida>/<linguagem>/: um projeto os sobrescreveria.
+        raise SystemExit(
+            "--repo exige --saida de uma pasta só desta rodada, não a da linguagem inteira."
+        )
     escolha = escolhe_figuras(figuras, nomes)
     de_uma_linguagem = [n for n in nomes if ESCOPO[n] == "linguagem"]
     comparativas = [n for n in nomes if ESCOPO[n] == "comparativo"]
@@ -1098,6 +1110,25 @@ def aplica_saida(base: Path) -> None:
     fb.ESTADO_PASTA_GERAL.pasta = base / "geral"
 
 
+def argumentos_de_entrada(parser: argparse.ArgumentParser) -> None:
+    """Os argumentos que dizem de onde ler os eventos."""
+    entrada = parser.add_argument_group("entrada: de onde ler os eventos (nada é movido)")
+    entrada.add_argument("--dados", help="pasta com os eventos e o alvo da linguagem")
+    entrada.add_argument(
+        "--eventos", action="append", help="arquivo de eventos (repetível); o papel vem do nome"
+    )
+    entrada.add_argument("--alvo", action="append", help="arquivo-alvo (repetível)")
+    entrada.add_argument("--motor", help="pandas, duckdb ou auto (padrão do yaml)")
+    entrada.add_argument("--sem-cache", action="store_true", help="relê os eventos brutos")
+    entrada.add_argument(
+        "--repo",
+        action="append",
+        default=[],
+        metavar="REPO",
+        help="só este repositório (repo_id ou dono/nome; repetível). Exige --saida própria",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
@@ -1119,14 +1150,7 @@ def main() -> None:
     parser.add_argument(
         "--set", dest="sobrepostos", action="append", default=[], metavar="CHAVE=VALOR"
     )
-    entrada = parser.add_argument_group("entrada: de onde ler os eventos (nada é movido)")
-    entrada.add_argument("--dados", help="pasta com os eventos e o alvo da linguagem")
-    entrada.add_argument(
-        "--eventos", action="append", help="arquivo de eventos (repetível); o papel vem do nome"
-    )
-    entrada.add_argument("--alvo", action="append", help="arquivo-alvo (repetível)")
-    entrada.add_argument("--motor", help="pandas, duckdb ou auto (padrão do yaml)")
-    entrada.add_argument("--sem-cache", action="store_true", help="relê os eventos brutos")
+    argumentos_de_entrada(parser)
     saida = parser.add_argument_group("saída")
     saida.add_argument(
         "--saida",
@@ -1187,7 +1211,9 @@ def main() -> None:
         nomes = [n for n in METRICAS if ESCOPO[n] == escopo and PADRAO[n]]
     p = carrega_parametros(args.sobrepostos)
     carrega_estilo(args.estilo)
-    de_entrada = Entrada(args.dados, args.eventos, args.alvo, not args.sem_cache, args.motor)
+    de_entrada = Entrada(
+        args.dados, args.eventos, args.alvo, not args.sem_cache, args.motor, tuple(args.repo)
+    )
     if not args.metricas and not args.so_figuras:
         nomes = _sem_pipeline_se_grande(nomes, p, args.linguagem, de_entrada)
     if not args.metricas and args.so_figuras:

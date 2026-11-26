@@ -69,6 +69,7 @@ class Fonte:
     fracoes_api: Path | None = None  # CSV da API de linguagens, para quem tem `languages` vazio
     sem_linhas_repetidas: bool = False  # a carga tira linha repetida do bruto (só duckdb)
     leitura_sequencial: bool = False  # lê o CSV com um fio só (só duckdb)
+    so_repos: tuple[str, ...] = ()  # só estes repositórios (repo_id ou dono/nome); vazio = todos
 
     def repos_excluidos(self) -> tuple[str, ...]:
         """Os `repo_id` do arquivo `duplicados`, ou nenhum."""
@@ -178,6 +179,7 @@ def resolve_fonte(
     dados: str | None = None,
     eventos: list[str] | None = None,
     alvos: list[str] | None = None,
+    so_repos: tuple[str, ...] = (),
 ) -> Fonte:
     """Escolhe a fonte pela ordem do módulo: linha de comando, yaml, pasta do repositório."""
     if eventos:
@@ -200,16 +202,46 @@ def resolve_fonte(
             fonte = descobre_na_pasta(slug, padrao) if padrao.exists() else fonte
         if fonte is None:
             raise SystemExit(f"sem fonte para {slug!r}: passe --dados ou configure o yaml.")
+    fonte.so_repos = tuple(so_repos)
     _confere_que_existe(fonte)
     return fonte
+
+
+def so_os_repos(alvo: pd.DataFrame, pedidos: tuple[str, ...]) -> pd.DataFrame:
+    """Fica só com os repositórios pedidos, por `repo_id` ou `dono/nome` (maiúsculas não contam).
+
+    Como só os repositórios do alvo contam como elegíveis, tudo o que vem depois na carga (autores,
+    duplicados, idade, lados) roda como na linguagem inteira, só que com esses repositórios.
+    """
+    fica = pd.Series(False, index=alvo.index)
+    for pedido in pedidos:
+        casa = alvo["repo_id"] == pedido
+        if "repo_name" in alvo.columns:
+            casa = casa | (alvo["repo_name"].str.lower() == pedido.lower())
+        if casa.sum() == 0:
+            raise SystemExit(f"--repo {pedido!r} não está no alvo. Use o repo_id ou dono/nome.")
+        if casa.sum() > 1:
+            raise SystemExit(
+                f"--repo {pedido!r} casa com {casa.sum()} repositórios. Use o repo_id."
+            )
+        fica = fica | casa
+    return alvo[fica]
 
 
 def le_alvos(fonte: Fonte) -> pd.DataFrame:
     """Os alvos juntos, um por repositório, com a data de criação já em UTC sem fuso."""
     partes = []
     for caminho in fonte.alvos:
-        partes.append(pd.read_csv(caminho, usecols=COLUNAS_DO_ALVO, dtype={"repo_id": str}))
+        partes.append(
+            pd.read_csv(
+                caminho,
+                usecols=lambda coluna: coluna in COLUNAS_DO_ALVO or coluna == "repo_name",
+                dtype={"repo_id": str},
+            )
+        )
     alvo = pd.concat(partes, ignore_index=True).drop_duplicates("repo_id")
+    if fonte.so_repos:
+        alvo = so_os_repos(alvo, fonte.so_repos)
     alvo["createdAt"] = pd.to_datetime(
         alvo["createdAt"], utc=True, format="ISO8601", errors="coerce"
     ).dt.tz_localize(None)
@@ -331,6 +363,11 @@ def marca_elegiveis(alvo: pd.DataFrame) -> pd.DataFrame:
     alvo = alvo.assign(
         elegivel=fracao > fb.LIMIAR_SHARE_LINGUAGEM, fracao_linguagem=fracao, fonte_fracao=fonte
     )
+    if len(alvo) and not alvo["elegivel"].any():
+        raise SystemExit(
+            f"nenhum repositório do alvo é elegível: todos têm {fb.LIMIAR_SHARE_LINGUAGEM:.0%} "
+            f"ou menos de {nome} no código."
+        )
     excluidos = int((~alvo["elegivel"]).sum())
     fb._stats()["repos_total"] = len(alvo)
     fb._stats()["repos_excluidos_share"] = excluidos

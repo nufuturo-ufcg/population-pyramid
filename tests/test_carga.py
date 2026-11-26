@@ -703,3 +703,36 @@ def test_sem_linhas_repetidas_tira_a_linha_igual_pela_chave_da_coleta(tmp_path):
     assert depois.estatisticas["linhas_repetidas_descartadas_api"] == 1
     assert depois.estatisticas["eventos_tipo_invalido_descartados"] == 1
     assert (tmp_path / "o" / "linhas_repetidas.csv").read_text().count("\n") == 3
+
+
+def test_so_repos_fica_com_o_projeto_pedido(zig):
+    fonte = _fonte(zig, "separado", False)
+    fonte.so_repos = ("1",)
+    assert list(carga_fonte.le_alvos(fonte)["repo_id"]) == ["1"]
+    pasta = zig / "origem"
+    carga_compacta.carrega(fonte, "duckdb", trabalho=zig / "trabalho", threads=2, origem=pasta)
+    repos = pd.read_parquet(pasta / "repos.parquet")
+    assert set(repos["repo_id"]) == {"1"}
+    pessoas = pd.read_parquet(pasta / "pessoas.parquet")
+    fonte.so_repos = ()  # a linguagem inteira, com os mesmos arquivos
+    pasta_todas = zig / "origem_todas"
+    carga_compacta.carrega(
+        fonte, "duckdb", trabalho=zig / "trabalho_todas", threads=2, origem=pasta_todas
+    )
+    assert 0 < len(pessoas) < len(pd.read_parquet(pasta_todas / "pessoas.parquet"))
+
+
+def test_so_repos_por_nome_e_erros_claros():
+    alvo = pd.DataFrame({"repo_id": ["1", "2", "3"], "repo_name": ["a/x", "b/y", "B/Y"]})
+    assert list(carga_fonte.so_os_repos(alvo, ("A/X",))["repo_id"]) == ["1"]
+    with pytest.raises(SystemExit, match="não está no alvo"):
+        carga_fonte.so_os_repos(alvo, ("c/z",))
+    with pytest.raises(SystemExit, match="casa com 2"):
+        carga_fonte.so_os_repos(alvo, ("b/y",))
+
+
+def test_so_repos_inelegivel_falha_alto(zig):
+    fonte = _fonte(zig, "separado", False)
+    fonte.so_repos = ("3",)  # 10% de Zig no código: inelegível
+    with pytest.raises(SystemExit, match="nenhum repositório do alvo é elegível"):
+        carga_fonte.marca_elegiveis(carga_fonte.le_alvos(fonte))
