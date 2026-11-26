@@ -1,10 +1,10 @@
 """ABRE mediano de Clojure em dois slides, para apresentar os métodos em duas etapas.
 
-Slide A: Ingênua e Coorte (cinza). Slide B: os seis métodos, com Conservador, Coorte^R,
+Slide A: Ingênua, Coorte e Conservador (cinza). Slide B: os seis métodos, com Coorte^R,
 Conservador^R e Ingênua-Coorte^R em azul. Medianas com três casas.
 Mesmos dados de `figuras_abre_slide.py` (cenário Longo, não casuais, janela de 4 trimestres, as 8
 previsões de 31 de dezembro). As duas figuras têm o mesmo eixo (0 a 0,10), os seis lugares de barra
-e a mesma espessura: o slide A deixa vazio o espaço das quatro barras que ainda não entraram.
+e a mesma espessura: o slide A deixa vazio o espaço das três barras que ainda não entraram.
 
 Uso: .venv/bin/python scripts/granularidade/figuras_abre_etapas.py <pares_usados.csv> <saida>
 """
@@ -24,7 +24,7 @@ SAIDA.mkdir(parents=True, exist_ok=True)
 TELA = (6.4, 3.6)
 DPI = 600
 ORDEM = ["Ingênua", "Coorte", "Conservador", "Coorte^R", "Conservador^R", "Ingênua-Coorte^R"]
-CINZAS = 2  # Ingênua e Coorte em cinza, os demais em azul
+CINZAS = 3  # Ingênua, Coorte e Conservador em cinza, os demais em azul
 CINZA, AZUL, CONTORNO = "#9a9a9a", "#1f5fbf", "#222222"
 LIMITE_X = 0.10
 
@@ -88,6 +88,6 @@ def desenha(quantos: int, nome: str) -> None:
     plt.close(fig)
 
 
-desenha(2, "slide_abre_clojure_A_dois_metodos")
+desenha(3, "slide_abre_clojure_A_tres_metodos")
 desenha(6, "slide_abre_clojure_B_seis_metodos")
 print({m: round(v, 4) for m, v in medianas.items()})
