@@ -323,7 +323,10 @@ pd.DataFrame(linhas).to_csv(SAIDA / "trajetorias.csv", index=False, float_format
 # pirâmides observadas na origem e nos fins de ano
 observadas = []
 for ano in range(2009, 2026):
-    k = int(np.where(datas == pd.Timestamp(f"{ano}-12-31"))[0][0])
+    achou = np.where(datas == pd.Timestamp(f"{ano}-12-31"))[0]
+    if len(achou) == 0:  # fim de ano depois da origem: ainda não existe no estado
+        continue
+    k = int(achou[0])
     v = junta_aberta(est["pop_p_b"][k])
     observadas.append(
         {
@@ -348,8 +351,13 @@ def faixa(metodo: str, passo: int) -> tuple[float, float, float]:
 
 
 # 6. Série anual (Figura B): entrada = novatos do ano; saída líquida = ativos + novatos do ano seguinte − ativos do ano seguinte
-ANOS_OBS = range(2009, 2026)
-ANOS_PROJ = range(2026, 2031)  # 31/12/2030 é o último fim de ano dentro dos 20 passos
+ULTIMO_FIM_DE_ANO_OBSERVADO = ORIGEM.year if ORIGEM.month == 12 else ORIGEM.year - 1
+ANOS_OBS = range(2009, ULTIMO_FIM_DE_ANO_OBSERVADO + 1)
+ANOS_PROJ = [
+    ano
+    for ano in range(ULTIMO_FIM_DE_ANO_OBSERVADO + 1, 2031)
+    if ((ano * 12 + 12) - (ORIGEM.year * 12 + ORIGEM.month)) // 3 <= PASSOS
+]  # os fins de ano que cabem nos 20 passos
 
 
 def passos_ate_fim_de_ano(ano: int) -> int:
