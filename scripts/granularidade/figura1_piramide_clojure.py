@@ -3,7 +3,9 @@
 PDF, tons de cinza, 7 polegadas, rótulos em português. Discussão à esquerda e código à direita, em pessoas, 6 faixas. Lê `composicao.csv` de Clojure
 da rodada com a definição única (v3b) e grava `figura1.csv` e `figura1_piramide_clojure.pdf`. É a Figura 1 de `figuras_v3.py` sem as figuras 2 e 3.
 
-Uso (na raiz do repo): .venv/bin/python scripts/granularidade/figura1_piramide_clojure.py <composicao.csv> <saida>
+Uso (na raiz do repo): .venv/bin/python scripts/granularidade/figura1_piramide_clojure.py <composicao.csv> <saida> [<anos> [<nome>]]
+`<anos>` são os anos separados por vírgula (padrão 2014,2018,2022,2024) e `<nome>` o nome dos arquivos (padrão
+`figura1_piramide_clojure`, com o CSV em `figura1.csv`). Com `<nome>`, grava `<nome>.pdf`, `<nome>.png` e `<nome>.csv`.
 """
 
 import sys
@@ -17,6 +19,9 @@ import numpy as np
 import pandas as pd
 
 COMPOSICAO, SAIDA = Path(sys.argv[1]), Path(sys.argv[2])
+ANOS = [int(a) for a in sys.argv[3].split(",")] if len(sys.argv) > 3 else [2014, 2018, 2022, 2024]
+NOME = sys.argv[4] if len(sys.argv) > 4 else "figura1_piramide_clojure"
+NOME_CSV = f"{NOME}.csv" if len(sys.argv) > 4 else "figura1.csv"
 SAIDA.mkdir(parents=True, exist_ok=True)
 LARGURA = 7.0
 FAIXAS = ["0-1", "1-2", "2-3", "3-5", "5-8", "8+"]
@@ -47,16 +52,15 @@ def milhar(x: float) -> str:
 
 # Figura 1 ---------------------------------------------------------------------------------------
 composicao = pd.read_csv(COMPOSICAO)
-ANOS = [2014, 2018, 2022, 2024]
 dados1 = composicao[composicao["ano"].isin(ANOS) & composicao["faixa"].isin(FAIXAS)].copy()
 dados1["faixa"] = pd.Categorical(dados1["faixa"], categories=FAIXAS, ordered=True)
 dados1 = dados1.sort_values(["ano", "faixa"])
 dados1.rename(columns={"non_coding": "discussao", "coding": "codigo"}).to_csv(
-    SAIDA / "figura1.csv", index=False
+    SAIDA / NOME_CSV, index=False
 )
 maximo = float(dados1[["non_coding", "coding"]].max().max())
 limite = float(np.ceil(maximo / 100.0) * 100.0)
-fig, eixos = plt.subplots(1, 4, figsize=(LARGURA, 2.2), sharey=True, sharex=True)
+fig, eixos = plt.subplots(1, len(ANOS), figsize=(LARGURA, 2.2), sharey=True, sharex=True)
 posicao = np.arange(len(FAIXAS))
 for eixo, ano in zip(eixos, ANOS, strict=True):
     parte = dados1[dados1["ano"] == ano].set_index("faixa").reindex(FAIXAS)
@@ -96,5 +100,7 @@ fig.legend(
     bbox_to_anchor=(0.5, 1.02),
 )
 fig.tight_layout(rect=(0, 0, 1, 0.93))
-fig.savefig(SAIDA / "figura1_piramide_clojure.pdf")
+fig.savefig(SAIDA / f"{NOME}.pdf")
+if len(sys.argv) > 4:
+    fig.savefig(SAIDA / f"{NOME}.png", dpi=300)
 plt.close(fig)
